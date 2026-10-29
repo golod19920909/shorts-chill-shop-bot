@@ -129,6 +129,9 @@ _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
         "грн", "гривн", "гривна", "гривны", "гривен", "рублей", "руб",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
         "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽",
+        # Scale words belong to a money amount, never to a product type or feature.
+        "тыс", "тысяч", "тысяча", "тысячи", "тысячу", "тысячам",
+        "тысячами", "тысячах", "тысяче", "тысячей", "thousand", "thousands",
     }
 )
 
@@ -169,7 +172,8 @@ _COMPARE_RE = re.compile(
 _BUDGET_RE = re.compile(
     r"(?:(?:до|under|up to|не более|меньше|less than|max|максимум)\s*)?"
     r"(\d+(?:[.,]\d+)?)\s*"
-    r"(?:грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
+    r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\s*"
+    r"(грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
     r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
     re.IGNORECASE,
 )
@@ -546,6 +550,10 @@ def _budget(message: str) -> dict:
         amount = float(raw)
     except ValueError:
         return {}
+    scale = (match.group(2) or "").lower()
+    if scale:
+        # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
+        amount *= 1000
     tail = (match.group(0)[match.start(1):] or "").lower()
     currency = None
     for word, code in _CURRENCY_BY_WORD.items():
