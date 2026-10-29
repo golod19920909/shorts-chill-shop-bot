@@ -322,7 +322,7 @@ class ConversationEngineState:
             # the product, never a product switch. Category-general: no
             # brand or model list, the connector grammar itself decides.
             characteristic = bool(re.search(
-                r"(?:^|\\s)(?:с|со|без|для|под|не|for|чтобы|чтоб|and|so\\s+that)\\s+",
+                r"(?:^|\s)(?:с|со|без|для|под|не|for|чтобы|чтоб|and|so\s+that)\s+",
                 message, re.IGNORECASE
             ))
             names_other_product = bool(
@@ -596,7 +596,10 @@ def _budget(message: str) -> dict:
     if scale:
         # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
         amount *= 1000
-    # Match offsets are relative to the full input, not group(0). Slicing\n    # group(0) with an absolute offset loses the currency after framing text.\n    tail = (message[match.start():match.end()] or "").lower()\n    currency = None
+    # Match offsets are relative to the full input, not group(0). Slicing
+    # group(0) with an absolute offset loses the currency after framing text.
+    tail = (message[match.start():match.end()] or "").lower()
+    currency = None
     for word, code in _CURRENCY_BY_WORD.items():
         if word in tail:
             currency = code
