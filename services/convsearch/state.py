@@ -241,8 +241,15 @@ class ConversationEngineState:
         }
         return not any(token not in known_context for token in content)
 
-    def observe(self, text: str) -> dict:
-        """Record one user message and return its classified intent."""
+    def observe(
+        self, text: str, *, intent_override: str | None = None
+    ) -> dict:
+        """Record one user message and return its classified intent.
+
+        A validated Gemini action may override the deterministic intent
+        classification. Slot extraction and lifecycle transitions remain
+        local and deterministic; invalid/absent overrides use the fallback.
+        """
 
         message = (text or "").strip()
         index = len(self.turns) + 1
@@ -331,6 +338,14 @@ class ConversationEngineState:
                 intent = MessageIntent.REFINE
             else:
                 intent = MessageIntent.AMBIGUOUS
+
+        allowed_overrides = {
+            MessageIntent.NEW_SEARCH, MessageIntent.REFINE,
+            MessageIntent.CORRECTION, MessageIntent.ALTERNATIVES,
+            MessageIntent.COMPARE, MessageIntent.AMBIGUOUS,
+        }
+        if intent_override in allowed_overrides:
+            intent = intent_override
 
         # A short follow-up must NOT reset the product context: only a NEW
         # SEARCH (a genuine new product request, reversal excluded) and an
