@@ -1651,11 +1651,15 @@ class AIService:
             confidence = float(payload.get("confidence", 0))
         except (TypeError, ValueError):
             return None
-        if not 0.65 <= confidence <= 1.0:
+        if not 0.0 <= confidence <= 1.0:
+            return None
+        if confidence < 0.65 and action != "clarify":
             return None
 
         product_type = payload.get("product_type")
         if product_type is not None:
+            if action != "new_search":
+                return None
             if not isinstance(product_type, str):
                 return None
             product_type = " ".join(product_type.split()).strip()
