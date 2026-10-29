@@ -296,6 +296,13 @@ def build_retrieval_strategy(
     phrase_parts: list[str] = []
     if product_type:
         phrase_parts.append(product_type)
+    # Carry comparative preferences into the provider query in a searchable
+    # canonical form («полегче» -> «легкий»). Preferences are soft signals:
+    # unlike required features, they must never reject a real product solely
+    # because its title omits the attribute.
+    for preference in state.active_values("preference"):
+        if preference not in phrase_parts:
+            phrase_parts.append(preference)
     for feature in features:
         if feature not in phrase_parts:
             phrase_parts.append(feature)

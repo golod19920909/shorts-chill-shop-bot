@@ -387,11 +387,17 @@ class ConversationEngineState:
 
         self.turns.append(Turn(index=index, text=message))
         self.touch()
+        preferences = [
+            _PREFERENCE_QUERY_TERMS[token]
+            for token in tokens(message)
+            if token in _PREFERENCE_QUERY_TERMS
+        ]
         return {
             "intent": intent,
             "negations": negations,
             "spans": message_spans,
             "budget": _budget(message),
+            "preferences": list(dict.fromkeys(preferences)),
             "reversal": reversal,
         }
 
@@ -434,6 +440,12 @@ class ConversationEngineState:
                 ):
                     continue
                 self._add_slot(Slot(kind="feature", value=span, source_turn=index, raw_text=""))
+        # Comparative follow-ups must survive as active preferences. They
+        # are useful retrieval/ranking signals, but never hard title filters.
+        for value in result.get("preferences") or []:
+            self._add_slot(Slot(
+                kind="preference", value=value, source_turn=index, raw_text=""
+            ))
         budget = result.get("budget") or {}
         if budget.get("max") is not None:
             self._add_slot(Slot(
@@ -622,6 +634,23 @@ def _is_short_refinement(message: str) -> bool:
 
 #: Comparative/qualifier tails that refine the current search without any
 #: multi-word span («Подешевле.», «А есть полегче?», «С большой ёмкостью.»).
+# Canonical, searchable forms of common comparative preferences. These are
+# generic product attributes, not category-specific product rules. Preferences
+# influence retrieval/ranking but are NOT hard title requirements: many listings
+# omit weight/size details, so the bot must not pretend to verify them.
+_PREFERENCE_QUERY_TERMS: dict[str, str] = {
+    "полегче": "легкий", "легче": "легкий",
+    "потяжелее": "тяжелый", "тяжелее": "тяжелый",
+    "подешевле": "дешевый", "дешевле": "дешевый",
+    "подороже": "дорогой", "дороже": "дорогой",
+    "поменьше": "компактный", "меньше": "компактный",
+    "побольше": "большой", "больше": "большой",
+    "помощнее": "мощный", "мощнее": "мощный",
+    "покороче": "короткий", "короче": "короткий",
+    "подлиннее": "длинный", "длиннее": "длинный",
+    "быстрее": "быстрый",
+}
+
 _QUALIFIER_WORDS: frozenset[str] = frozenset(
     {
         "подешевле", "подороже", "полегче", "потяжелее", "получше", "похуже",

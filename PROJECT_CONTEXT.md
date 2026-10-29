@@ -116,6 +116,24 @@ rules, not product- or query-specific phrase lists.
 |---|---|
 | `contract.py` | `Outcome` enum (RESULTS / NO_ELIGIBLE / NO_CANDIDATES / PROVIDER_ERROR / CLARIFY / COMPARE / INSUFFICIENT_INFO) and the `SearchDecision` the Telegram layer renders. |
 | `state.py` | `ConversationEngineState`: the ONE authoritative conversation ledger. `Turn` (utterance + provenance), `Slot` (kind / value / source_turn / active-superseded status), intent classes (NEW_SEARCH, REFINE, CORRECTION, ALTERNATIVES, COMPARE, UNRELATED, AMBIGUOUS), budget/currency regex, negation→exclusion, reversal detection. Per-user instance stored in `context.user_data["_convsearch_state"]`. |
+### Product-type gate regression safeguard
+
+The type validator must distinguish a listing that IS the requested product from
+a different item whose title only mentions that product in a genitive phrase.
+For example, «переключатель сварочного аппарата» is a switch, not a welding
+machine, even though the title contains both words. Keep this category-general
+and protect it with negative accessory-title tests plus positive real-product
+title tests; never add a welding-machine-specific keyword exception.
+
+### Comparative follow-ups
+
+Comparatives such as «полегче» are soft preferences, not hard requirements.
+Persist them as active preference slots and add a canonical search term to the
+provider query (for example, «сварочный аппарат легкий»), while preserving the
+product type and budget. Do not reject listings solely because their titles
+omit the preference: AliExpress titles often lack reliable weight/specification
+metadata, so the bot must not claim it verified an unlisted attribute.
+
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
 | `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True)` — normalized + deduplicated provider rows, nothing else applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval exclusion/budget filters and shown-id exclusion. |
 | `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
