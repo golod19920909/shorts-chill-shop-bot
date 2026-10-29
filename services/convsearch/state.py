@@ -274,7 +274,12 @@ class ConversationEngineState:
         # is a REFINE, never an ambiguous message and never a new product.
         # (Kept as message_spans evidence for the classifier below.)
 
-        if self._is_about_current(message) or _COMPARE_RE.search(message):
+        comparative_followup = _is_comparative_followup(message)
+        explicit_compare = bool(_COMPARE_RE.search(message))
+        if (
+            (self._is_about_current(message) and not comparative_followup)
+            or (explicit_compare and not comparative_followup)
+        ):
             intent = MessageIntent.COMPARE
         elif index > 1 and _is_alternatives_request(message, self):
             intent = MessageIntent.ALTERNATIVES
@@ -317,7 +322,8 @@ class ConversationEngineState:
             # the product, never a product switch. Category-general: no
             # brand or model list, the connector grammar itself decides.
             characteristic = bool(re.search(
-                r"(?:^|\s)(?:с|со|без|для|под|не|for)\s+", message, re.IGNORECASE
+                r"(?:^|\\s)(?:с|со|без|для|под|не|for|чтобы|чтоб|and|so\\s+that)\\s+",
+                message, re.IGNORECASE
             ))
             names_other_product = bool(
                 new_spans and type_tokens and not (span_tokens & type_tokens)
@@ -590,8 +596,7 @@ def _budget(message: str) -> dict:
     if scale:
         # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
         amount *= 1000
-    tail = (match.group(0)[match.start(1):] or "").lower()
-    currency = None
+    # Match offsets are relative to the full input, not group(0). Slicing\n    # group(0) with an absolute offset loses the currency after framing text.\n    tail = (message[match.start():match.end()] or "").lower()\n    currency = None
     for word, code in _CURRENCY_BY_WORD.items():
         if word in tail:
             currency = code
@@ -649,6 +654,7 @@ def _is_alternatives_request(message: str, state: "ConversationEngineState") -> 
         if token not in _CHARACTERISTIC_NOUNS
         and token not in _QUALIFIER_WORDS
         and token not in _BUDGET_FRAMING_WORDS
+        and not any(token.startswith(marker) for marker in _ALTERNATION_MARKERS)
         and not is_colour_word(token)
         and not token.isdigit()
     ]
