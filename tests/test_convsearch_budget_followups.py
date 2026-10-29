@@ -61,6 +61,27 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(_budget("до 2000 гривен")["max"], 2000.0)
         self.assertEqual(_budget("до 2 тысяч гривен")["max"], 2000.0)
 
+    def test_budget_correction_preserves_product_and_other_requirements(self):
+        state = ConversationEngineState(user_key="budget-correction")
+        first = "шуруповерт"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        feature = "с чехлом в комплекте"
+        observation = state.observe(feature)
+        state.record_slots(observation)
+        self.assertTrue(state.active_values("feature"))
+
+        correction = "На самом деле до 500 гривен"
+        observation = state.observe(correction)
+        self.assertEqual(observation["intent"], MessageIntent.CORRECTION)
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_by_kind("type").value, "шуруповерт")
+        self.assertTrue(state.active_values("feature"))
+        self.assertEqual(state.active_by_kind("budget").value, "500 UAH")
+
     def test_budget_amount_is_not_a_retrieval_feature(self):
         state = ConversationEngineState(user_key="budget-feature")
         first = "шуруповерт"
