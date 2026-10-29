@@ -1,0 +1,3174 @@
+{
+  "dataset_version": "b5-v1",
+  "dataset_size": 35,
+  "run_date_utc": "2026-10-21T07:05:00.947987+00:00",
+  "execution_mode": "mock",
+  "live_available": false,
+  "total_cases": 35,
+  "scores": {
+    "PASS": 35,
+    "FAIL": 0,
+    "INCONCLUSIVE": 0
+  },
+  "score_rates": {
+    "PASS": 1.0,
+    "FAIL": 0.0,
+    "INCONCLUSIVE": 0.0
+  },
+  "modes": {
+    "mock": 35
+  },
+  "latency_ms": {
+    "p50": 17.14,
+    "p95": 53.534699999999894,
+    "min": 0.941,
+    "max": 89.352,
+    "mean": 20.896,
+    "sample_size": 35
+  },
+  "cases": [
+    {
+      "id": "B5-01",
+      "category": "short",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "компрессор",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 78.797,
+      "score": "PASS",
+      "notes": "single-noun product; expects real listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          14.603
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.146,
+              0.131,
+              0.113
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 1,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-02",
+      "category": "short",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "повербанк",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 17.14,
+      "score": "PASS",
+      "notes": "single-noun product; expects real listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          15.37
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.101,
+              0.106,
+              0.126
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 2,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-03",
+      "category": "short",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "кофемолка",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 11.308,
+      "score": "PASS",
+      "notes": "single-noun product; expects real listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          9.386
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.081,
+              0.073,
+              0.075
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 3,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-04",
+      "category": "short",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "дрель",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 14.213,
+      "score": "PASS",
+      "notes": "single-noun product; expects real listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          12.457
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.117,
+              0.145,
+              0.116
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 4,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-05",
+      "category": "short",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "чехол для iPhone 15",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 26.656,
+      "score": "PASS",
+      "notes": "product + compatibility target; expects case listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          25.269
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 5,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.112,
+              0.07,
+              0.067,
+              0.109,
+              0.082
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 5,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-06",
+      "category": "long",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "беспроводная мышь для ноутбука тихая с хорошей батареей",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 89.352,
+      "score": "PASS",
+      "notes": "multi-attribute product query; expects mouse listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          86.426
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.188,
+              0.076,
+              0.128,
+              0.117,
+              0.076
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 6,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-07",
+      "category": "long",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "зимняя куртка мужская водонепроницаемая с капюшоном размер L",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 41.132,
+      "score": "PASS",
+      "notes": "clothing with several attributes; expects jacket listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          39.28
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.068,
+              0.115,
+              0.111,
+              0.127,
+              0.083
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 7,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-08",
+      "category": "long",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "робот-пылесос с fonctions влажной уборки",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 26.665,
+      "score": "PASS",
+      "notes": "appliance with feature; expects robot-vacuum listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          25.504
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.06,
+              0.056,
+              0.062,
+              0.077,
+              0.069
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 8,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-09",
+      "category": "long",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "фильтр для воды под мойку",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 37.783,
+      "score": "PASS",
+      "notes": "compatibility target (sink); expects water-filter listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          36.692
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.079,
+              0.064,
+              0.068,
+              0.072,
+              0.156
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 9,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-10",
+      "category": "long",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "ищу наушники без проводов и без шумоподавления",
+      "expected_outcome_hint": "EMPTY_AFTER_RELEVANCE",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "EMPTY_AFTER_RELEVANCE",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 30.261,
+      "score": "PASS",
+      "notes": "negation-heavy query; may empty after relevance (noise-cancellation exclusion is a genuine exclusion).",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "EMPTY_AFTER_RELEVANCE": 1
+        },
+        "outcome_rates": {
+          "EMPTY_AFTER_RELEVANCE": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "EMPTY_AFTER_RELEVANCE": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          26.672
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.151,
+              0.106,
+              0.1,
+              0.095
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 10,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-11",
+      "category": "numeric",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "монитор 27 дюймов 144 Гц",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 24.322,
+      "score": "PASS",
+      "notes": "numeric specs; expects 27-inch 144Hz monitor listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          22.23
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.11,
+              0.091,
+              0.124,
+              0.074
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 11,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-12",
+      "category": "numeric",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "SSD 2 ТБ SATA",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 42.708,
+      "score": "PASS",
+      "notes": "capacity + interface spec; expects SSD listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          40.923
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 5,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.106,
+              0.073,
+              0.068,
+              0.069
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 12,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-13",
+      "category": "numeric",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "автомобильный компрессор 12 В с манометром",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 24.076,
+      "score": "PASS",
+      "notes": "voltage + accessory spec; expects car-compressor listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          22.731
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.06,
+              0.063,
+              0.102,
+              0.063
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 13,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-14",
+      "category": "numeric",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "шланг поливочный 20 метров с распылителем",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 23.019,
+      "score": "PASS",
+      "notes": "length + accessory; expects garden-hose listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          21.519
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.066,
+              0.061,
+              0.054,
+              0.056,
+              0.062
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 14,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-15",
+      "category": "numeric",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "гантели разборные 2x20 кг",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 13.82,
+      "score": "PASS",
+      "notes": "weight spec; expects dumbbell listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          12.837
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.056,
+              0.059,
+              0.052,
+              0.071
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 15,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-16",
+      "category": "ambiguous",
+      "language": "ru",
+      "intent_category": "ambiguous",
+      "query": "хороший подарок",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 1.05,
+      "score": "PASS",
+      "notes": "no concrete product category; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.314
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.002,
+              0.002,
+              0.002
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 16,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-17",
+      "category": "ambiguous",
+      "language": "ru",
+      "intent_category": "discovery",
+      "query": "что-нибудь для машины",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 1.151,
+      "score": "PASS",
+      "notes": "mood/discovery request; no product type; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.351
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.002,
+              0.002,
+              0.002
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 17,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-18",
+      "category": "clarification",
+      "language": "ru",
+      "intent_category": "ambiguous",
+      "query": "устройство",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 0.995,
+      "score": "PASS",
+      "notes": "bare generic noun; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.302
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.002,
+              0.002,
+              0.002
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 18,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-19",
+      "category": "clarification",
+      "language": "ru",
+      "intent_category": "ambiguous",
+      "query": "лучшее",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 0.98,
+      "score": "PASS",
+      "notes": "superlative junk only; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.301
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.002,
+              0.002,
+              0.002
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 19,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-20",
+      "category": "clarification",
+      "language": "ru",
+      "intent_category": "clarification",
+      "query": "оно",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 0.941,
+      "score": "PASS",
+      "notes": "pronoun only; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.289
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.002,
+              0.002,
+              0.002
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 20,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-21",
+      "category": "language",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "наушники беспроводные блютуз",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 13.398,
+      "score": "PASS",
+      "notes": "Russian + transliterated English; expects headphone listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          12.554
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.052,
+              0.051,
+              0.061,
+              0.053
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 21,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-22",
+      "category": "language",
+      "language": "en",
+      "intent_category": "product",
+      "query": "wireless earbuds",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 9.953,
+      "score": "PASS",
+      "notes": "English product query; expects earbud listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          9.115
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.054,
+              0.056,
+              0.051
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 22,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-23",
+      "category": "language",
+      "language": "uk",
+      "intent_category": "product",
+      "query": "безпроводні навушники",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 9.368,
+      "score": "PASS",
+      "notes": "Ukrainian product query; expects headphone listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          8.427
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.057,
+              0.053,
+              0.052
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 23,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-24",
+      "category": "language",
+      "language": "uk",
+      "intent_category": "product",
+      "query": "зарядний пристрій для телефону",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 18.095,
+      "score": "PASS",
+      "notes": "Ukrainian phone-charger query; expects charger listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          17.028
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.058,
+              0.064,
+              0.058,
+              0.053
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 24,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-25",
+      "category": "language",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "led лампа usb",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 11.058,
+      "score": "PASS",
+      "notes": "mixed-script (Latin + Cyrillic); expects lamp listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          10.025
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 5,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.064,
+              0.054,
+              0.054,
+              0.053
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 25,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-26",
+      "category": "electronics",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "Samsung 990 Pro 2TB NVMe SSD",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 22.791,
+      "score": "PASS",
+      "notes": "brand + model + spec; expects SSD listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          21.861
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.054,
+              0.069,
+              0.053,
+              0.056,
+              0.058
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 26,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-27",
+      "category": "automotive",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "видеорегистратор для Toyota Camry 70",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 22.099,
+      "score": "PASS",
+      "notes": "car model compatibility; expects dashcam listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          21.121
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.056,
+              0.054,
+              0.061,
+              0.075
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 27,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-28",
+      "category": "tools",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "шуруповерт Bosch GSR 18V аккумуляторный",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 17.674,
+      "score": "PASS",
+      "notes": "brand + voltage; expects drill listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          16.609
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.055,
+              0.048,
+              0.065,
+              0.05
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 28,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-29",
+      "category": "pet",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "ошейник для кота с GPS-трекером",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 29.908,
+      "score": "PASS",
+      "notes": "pet compatibility + feature; expects collar listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          28.892
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 5,
+            "successes": 5,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.053,
+              0.07,
+              0.061,
+              0.056,
+              0.065
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 29,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-30",
+      "category": "beauty",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "фен Dyson Supersonic",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 13.196,
+      "score": "PASS",
+      "notes": "brand + model; expects hair-dryer listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          12.327
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 5
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.056,
+              0.051,
+              0.065,
+              0.052
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 30,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-31",
+      "category": "budget",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "механическая клавиатура до 3000 руб",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 2,
+        "final": 2
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 2,
+      "latency_ms": 9.989,
+      "score": "PASS",
+      "notes": "price ceiling; expects keyboard listings within budget",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 2,
+          "final": 2
+        },
+        "search_latencies_ms": [
+          6.59
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.057,
+              0.051,
+              0.052
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 31,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-32",
+      "category": "budget",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "настольная лампа до 500 грн",
+      "expected_outcome_hint": "EMPTY_AFTER_CONSTRAINTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "EMPTY_AFTER_CONSTRAINTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 5.27,
+      "score": "PASS",
+      "notes": "tight UAH budget; may empty after explicit constraints",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "EMPTY_AFTER_CONSTRAINTS": 1
+        },
+        "outcome_rates": {
+          "EMPTY_AFTER_CONSTRAINTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "EMPTY_AFTER_CONSTRAINTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          4.302
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.101,
+              0.092,
+              0.095
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 32,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-33",
+      "category": "exclusion",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "микроволновка без гриля и без функции разморозки",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 28.905,
+      "score": "PASS",
+      "notes": "multi-exclusion; expects microwave listings without grill/defrost",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          27.707
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 5,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.054,
+              0.062,
+              0.061
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 33,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-34",
+      "category": "vague",
+      "language": "ru",
+      "intent_category": "ambiguous",
+      "query": "стильная одежда",
+      "expected_outcome_hint": "SUCCESS_EMPTY_RAW",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_EMPTY_RAW",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 0,
+        "after_relevance": 0,
+        "after_constraints": 0,
+        "final": 0
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 0,
+      "latency_ms": 1.349,
+      "score": "PASS",
+      "notes": "vague mood query; no concrete product type; expects empty raw",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_EMPTY_RAW": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_EMPTY_RAW": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_EMPTY_RAW": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 0,
+          "after_relevance": 0,
+          "after_constraints": 0,
+          "final": 0
+        },
+        "search_latencies_ms": [
+          0.452
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 0,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 3,
+            "successes": 3,
+            "empty_successes": 3,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.003,
+              0.003,
+              0.003
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 34,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    },
+    {
+      "id": "B5-35",
+      "category": "broad",
+      "language": "ru",
+      "intent_category": "product",
+      "query": "кабель usb type-c",
+      "expected_outcome_hint": "SUCCESS_WITH_RESULTS",
+      "execution_mode": "mock",
+      "live_available": false,
+      "blocked": false,
+      "exception": null,
+      "outcome_label": "SUCCESS_WITH_RESULTS",
+      "outcome_label_source": "b4-classify-outcome",
+      "stage_counts": {
+        "raw": 5,
+        "after_relevance": 5,
+        "after_constraints": 5,
+        "final": 5
+      },
+      "searched_marketplaces": [
+        "AliExpress (mock)"
+      ],
+      "failed_marketplaces": [],
+      "unavailable_marketplaces": [],
+      "final_count": 5,
+      "latency_ms": 11.946,
+      "score": "PASS",
+      "notes": "broad commodity; expects USB-C cable listings",
+      "diagnostics_snapshot": {
+        "searches_total": 1,
+        "outcome_counts": {
+          "SUCCESS_WITH_RESULTS": 1
+        },
+        "outcome_rates": {
+          "SUCCESS_WITH_RESULTS": 1.0
+        },
+        "outcomes_by_mode": {
+          "search": {
+            "SUCCESS_WITH_RESULTS": 1
+          }
+        },
+        "partial_failure_searches": 0,
+        "total_failure_searches": 0,
+        "stage_totals": {
+          "raw": 5,
+          "after_relevance": 5,
+          "after_constraints": 5,
+          "final": 5
+        },
+        "search_latencies_ms": [
+          11.066
+        ],
+        "parse_latencies_ms": [],
+        "intent_latencies_ms": [],
+        "intent_ai_searches": 0,
+        "intent_fallback_searches": 0,
+        "title_scripts": {
+          "same_as_query": 0,
+          "different_from_query": 5,
+          "unknown": 0
+        },
+        "providers": {
+          "AliExpress (mock)": {
+            "attempts": 4,
+            "successes": 4,
+            "empty_successes": 0,
+            "errors": 0,
+            "timeouts": 0,
+            "latencies_ms": [
+              0.059,
+              0.054,
+              0.053,
+              0.052
+            ]
+          }
+        },
+        "intent_ai_stats": {
+          "attempted": 0,
+          "ok": 0,
+          "failed": 0,
+          "invalid_json": 0,
+          "invalid_schema": 0,
+          "fallback_used": 35,
+          "circuit_opens": 0,
+          "last_error": null,
+          "last_model": null
+        }
+      },
+      "failure_kind": null
+    }
+  ]
+}

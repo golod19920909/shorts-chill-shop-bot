@@ -1,0 +1,11 @@
+﻿======================================================================
+QUERY: SSD ╨╜╨░ 1 ╨в╨С
+  product_type       : 'ssd ╨╜╨░'
+  brand              : None
+  model              : None
+  generation         : None
+  compatibility      : []
+  required_attributes: ['1 ╤В╨▒']
+  budget             : min=None max=None currency=None
+  -> normalized_query: None
+  -> keywords        : []

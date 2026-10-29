@@ -1,0 +1,17 @@
+# Runtime dependencies of the bot.
+#
+# Only packages that are actually imported by the source code are listed
+# here. Test-only and planned-but-unused packages are listed separately
+# in requirements-dev.txt or the README.
+#
+# Pinned to the versions verified in this project's .venv (Python 3.14).
+# The ``job-queue`` extra (APScheduler) is required by the real automatic
+# price tracking (services/price_tracker.py); without it the bot still
+# runs, but reports tracking as manual.
+
+python-telegram-bot[job-queue]==22.8
+httpx==0.28.1
+python-dotenv==1.2.3
+google-genai==2.24.0
+pydantic==2.13.5
+aiosqlite==0.22.1

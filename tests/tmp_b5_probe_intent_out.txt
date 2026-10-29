@@ -1,0 +1,770 @@
+==============================================================================
+B5-01 [SUCCESS_WITH_RESULTS] компрессор
+  fallback.product_type : 'компрессор'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'компрессор'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'компрессор'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'компрессор'
+  final.max_price       : None None
+  final.intent_product  : 'компрессор'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['компрессор']
+==============================================================================
+B5-02 [SUCCESS_WITH_RESULTS] повербанк
+  fallback.product_type : 'повербанк'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'повербанк'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'повербанк'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'повербанк'
+  final.max_price       : None None
+  final.intent_product  : 'повербанк'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['повербанк']
+==============================================================================
+B5-03 [SUCCESS_WITH_RESULTS] кофемолка
+  fallback.product_type : 'кофемолка'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'кофемолка'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'кофемолка'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'кофемолка'
+  final.max_price       : None None
+  final.intent_product  : 'кофемолка'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['кофемолка']
+==============================================================================
+B5-04 [SUCCESS_WITH_RESULTS] дрель
+  fallback.product_type : 'дрель'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'дрель'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'дрель'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'дрель'
+  final.max_price       : None None
+  final.intent_product  : 'дрель'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['дрель']
+==============================================================================
+B5-05 [SUCCESS_WITH_RESULTS] чехол для iPhone 15
+  fallback.product_type : 'чехол'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['iphone 15']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'чехол для iphone 15'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'чехол'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['iphone 15']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'чехол для iphone 15'
+  final.max_price       : None None
+  final.intent_product  : 'чехол'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['iphone 15']
+  variants              : ['чехол для iphone 15', 'чехол']
+==============================================================================
+B5-06 [SUCCESS_WITH_RESULTS] беспроводная мышь для ноутбука тихая с хорошей батареей
+  fallback.product_type : 'беспроводная мышь'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['ноутбука тихая с хорошей батареей']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'беспроводная мышь для ноутбука тихая с хорошей батареей'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'беспроводная мышь'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['ноутбука тихая с хорошей батареей']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'беспроводная мышь для ноутбука тихая с хорошей батареей'
+  final.max_price       : None None
+  final.intent_product  : 'беспроводная мышь'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['ноутбука тихая с хорошей батареей']
+  variants              : ['беспроводная мышь для ноутбука тихая с хорошей батареей', 'мышь ноутбука батареей', 'мышь ноутбука']
+==============================================================================
+B5-07 [SUCCESS_WITH_RESULTS] зимняя куртка мужская водонепроницаемая с капюшоном размер L
+  fallback.product_type : 'зимняя куртка мужская водонепроницаемая с капюшоном размер l'
+  fallback.required     : ['капюшоном размер']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'зимняя куртка мужская водонепроницаемая с капюшоном размер l'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'зимняя куртка мужская водонепроницаемая с капюшоном размер l'
+  intent.required       : ['капюшоном размер']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'зимняя куртка мужская водонепроницаемая с капюшоном размер l'
+  final.max_price       : None None
+  final.intent_product  : 'зимняя куртка мужская водонепроницаемая с капюшоном размер l'
+  final.intent_required : ['капюшоном размер']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['зимняя куртка мужская водонепроницаемая с капюшоном размер l', 'куртка капюшоном размер', 'куртка капюшоном']
+==============================================================================
+B5-08 [SUCCESS_WITH_RESULTS] робот-пылесос с fonctions влажной уборки
+  fallback.product_type : 'робот-пылесос с fonctions влажной уборки'
+  fallback.required     : ['fonctions влажной']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'робот-пылесос с fonctions влажной уборки'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'робот-пылесос с fonctions влажной уборки'
+  intent.required       : ['fonctions влажной']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'робот-пылесос с fonctions влажной уборки'
+  final.max_price       : None None
+  final.intent_product  : 'робот-пылесос с fonctions влажной уборки'
+  final.intent_required : ['fonctions влажной']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['робот-пылесос с fonctions влажной уборки', 'робот пылесос уборки', 'робот пылесос']
+==============================================================================
+B5-09 [SUCCESS_WITH_RESULTS] фильтр для воды под мойку
+  fallback.product_type : 'фильтр'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['воды под мойку']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'фильтр для воды под мойку'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'фильтр'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['воды под мойку']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'фильтр для воды под мойку'
+  final.max_price       : None None
+  final.intent_product  : 'фильтр'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['воды под мойку']
+  variants              : ['фильтр для воды под мойку', 'фильтр воды мойку', 'фильтр воды']
+==============================================================================
+B5-10 [EMPTY_AFTER_RELEVANCE] ищу наушники без проводов и без шумоподавления
+  fallback.product_type : 'ищу наушники без проводов и без шумоподавления'
+  fallback.required     : []
+  fallback.excluded     : ['проводов и без шумоподавления']
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'ищу наушники без проводов и без шумоподавления'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'ищу наушники без проводов и без шумоподавления'
+  intent.required       : []
+  intent.excluded       : ['проводов и без шумоподавления']
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'ищу наушники без проводов и без шумоподавления'
+  final.max_price       : None None
+  final.intent_product  : 'ищу наушники без проводов и без шумоподавления'
+  final.intent_required : []
+  final.intent_excluded : ['проводов и без шумоподавления']
+  final.intent_compat   : []
+  variants              : ['ищу наушники без проводов и без шумоподавления', 'ищу наушники']
+==============================================================================
+B5-11 [SUCCESS_WITH_RESULTS] монитор 27 дюймов 144 Гц
+  fallback.product_type : 'монитор'
+  fallback.required     : ['27 дюймов', '144 гц']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'монитор 27 дюймов 144 гц'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'монитор'
+  intent.required       : ['27 дюймов', '144 гц']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'монитор 27 дюймов 144 гц'
+  final.max_price       : None None
+  final.intent_product  : 'монитор'
+  final.intent_required : ['27 дюймов', '144 гц']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['монитор 27 дюймов 144 гц', 'монитор дюймов']
+==============================================================================
+B5-12 [SUCCESS_WITH_RESULTS] SSD 2 ТБ SATA
+  fallback.product_type : 'ssd'
+  fallback.required     : ['2 тб', 'SATA']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'ssd 2 тб sata'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'ssd'
+  intent.required       : ['2 тб', 'SATA']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'ssd 2 тб sata'
+  final.max_price       : None None
+  final.intent_product  : 'ssd'
+  final.intent_required : ['2 тб', 'SATA']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['ssd 2 тб sata', 'ssd sata']
+==============================================================================
+B5-13 [SUCCESS_WITH_RESULTS] автомобильный компрессор 12 В с манометром
+  fallback.product_type : 'автомобильный компрессор в с манометром'
+  fallback.required     : ['12', 'манометром']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'автомобильный компрессор 12 в с манометром'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'автомобильный компрессор в с манометром'
+  intent.required       : ['12', 'манометром']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'автомобильный компрессор 12 в с манометром'
+  final.max_price       : None None
+  final.intent_product  : 'автомобильный компрессор в с манометром'
+  final.intent_required : ['12', 'манометром']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['автомобильный компрессор 12 в с манометром', 'компрессор манометром']
+==============================================================================
+B5-14 [SUCCESS_WITH_RESULTS] шланг поливочный 20 метров с распылителем
+  fallback.product_type : 'шланг поливочный с распылителем'
+  fallback.required     : ['20 метров', 'распылителем']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'шланг поливочный 20 метров с распылителем'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'шланг поливочный с распылителем'
+  intent.required       : ['20 метров', 'распылителем']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'шланг поливочный 20 метров с распылителем'
+  final.max_price       : None None
+  final.intent_product  : 'шланг поливочный с распылителем'
+  final.intent_required : ['20 метров', 'распылителем']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['шланг поливочный 20 метров с распылителем', 'шланг метров распылителем', 'шланг метров']
+==============================================================================
+B5-15 [SUCCESS_WITH_RESULTS] гантели разборные 2x20 кг
+  fallback.product_type : 'гантели разборные 2x'
+  fallback.required     : ['20 кг']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'гантели разборные 2x20 кг'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'гантели разборные 2x'
+  intent.required       : ['20 кг']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'гантели разборные 2x20 кг'
+  final.max_price       : None None
+  final.intent_product  : 'гантели разборные 2x'
+  final.intent_required : ['20 кг']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['гантели разборные 2x20 кг', 'гантели разборные']
+==============================================================================
+B5-16 [SUCCESS_EMPTY_RAW] хороший подарок
+  fallback.product_type : 'подарок'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'хороший подарок'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'подарок'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'хороший подарок'
+  final.max_price       : None None
+  final.intent_product  : 'подарок'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['хороший подарок']
+==============================================================================
+B5-17 [SUCCESS_EMPTY_RAW] что-нибудь для машины
+  fallback.product_type : 'что-нибудь'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['машины']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'что-нибудь для машины'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'что-нибудь'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['машины']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'что-нибудь для машины'
+  final.max_price       : None None
+  final.intent_product  : 'что-нибудь'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['машины']
+  variants              : ['что-нибудь для машины']
+==============================================================================
+B5-18 [SUCCESS_EMPTY_RAW] устройство
+  fallback.product_type : 'устройство'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'устройство'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'устройство'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'устройство'
+  final.max_price       : None None
+  final.intent_product  : 'устройство'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['устройство']
+==============================================================================
+B5-19 [SUCCESS_EMPTY_RAW] лучшее
+  fallback.product_type : 'лучшее'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'лучшее'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'лучшее'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'лучшее'
+  final.max_price       : None None
+  final.intent_product  : 'лучшее'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['лучшее']
+==============================================================================
+B5-20 [SUCCESS_EMPTY_RAW] оно
+  fallback.product_type : 'оно'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'оно'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'оно'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'оно'
+  final.max_price       : None None
+  final.intent_product  : 'оно'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['оно']
+==============================================================================
+B5-21 [SUCCESS_WITH_RESULTS] наушники беспроводные блютуз
+  fallback.product_type : 'наушники беспроводные блютуз'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'наушники беспроводные блютуз'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'наушники беспроводные блютуз'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'наушники беспроводные блютуз'
+  final.max_price       : None None
+  final.intent_product  : 'наушники беспроводные блютуз'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['наушники беспроводные блютуз', 'наушники блютуз']
+==============================================================================
+B5-22 [SUCCESS_WITH_RESULTS] wireless earbuds
+  fallback.product_type : 'wireless earbuds'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'wireless earbuds'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'wireless earbuds'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'wireless earbuds'
+  final.max_price       : None None
+  final.intent_product  : 'wireless earbuds'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['wireless earbuds']
+==============================================================================
+B5-23 [SUCCESS_WITH_RESULTS] безпроводні навушники
+  fallback.product_type : 'безпроводні навушники'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'безпроводні навушники'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'безпроводні навушники'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'безпроводні навушники'
+  final.max_price       : None None
+  final.intent_product  : 'безпроводні навушники'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['безпроводні навушники']
+==============================================================================
+B5-24 [SUCCESS_WITH_RESULTS] зарядний пристрій для телефону
+  fallback.product_type : 'зарядний пристрій'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['телефону']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'зарядний пристрій для телефону'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'зарядний пристрій'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['телефону']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'зарядний пристрій для телефону'
+  final.max_price       : None None
+  final.intent_product  : 'зарядний пристрій'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['телефону']
+  variants              : ['зарядний пристрій для телефону', 'пристрій телефону']
+==============================================================================
+B5-25 [SUCCESS_WITH_RESULTS] led лампа usb
+  fallback.product_type : 'led лампа usb'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'led лампа usb'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'led лампа usb'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'led лампа usb'
+  final.max_price       : None None
+  final.intent_product  : 'led лампа usb'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['led лампа usb', 'led usb']
+==============================================================================
+B5-26 [SUCCESS_WITH_RESULTS] Samsung 990 Pro 2TB NVMe SSD
+  fallback.product_type : 'samsung pro ssd'
+  fallback.required     : ['2 tb', 'NVME', '990']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'samsung 990 pro 2tb nvme ssd'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'samsung pro ssd'
+  intent.required       : ['2 tb', 'NVME', '990']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'samsung 990 pro 2tb nvme ssd'
+  final.max_price       : None None
+  final.intent_product  : 'samsung pro ssd'
+  final.intent_required : ['2 tb', 'NVME', '990']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['samsung 990 pro 2tb nvme ssd', 'samsung nvme ssd', 'samsung nvme']
+==============================================================================
+B5-27 [SUCCESS_WITH_RESULTS] видеорегистратор для Toyota Camry 70
+  fallback.product_type : 'видеорегистратор'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['toyota camry 70']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'видеорегистратор для toyota camry 70'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'видеорегистратор'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['toyota camry 70']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'видеорегистратор для toyota camry 70'
+  final.max_price       : None None
+  final.intent_product  : 'видеорегистратор'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['toyota camry 70']
+  variants              : ['видеорегистратор для toyota camry 70', 'видеорегистратор']
+==============================================================================
+B5-28 [SUCCESS_WITH_RESULTS] шуруповерт Bosch GSR 18V аккумуляторный
+  fallback.product_type : 'шуруповерт bosch gsr аккумуляторный'
+  fallback.required     : ['18 v']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'шуруповерт bosch gsr 18v аккумуляторный'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'шуруповерт bosch gsr аккумуляторный'
+  intent.required       : ['18 v']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'шуруповерт bosch gsr 18v аккумуляторный'
+  final.max_price       : None None
+  final.intent_product  : 'шуруповерт bosch gsr аккумуляторный'
+  final.intent_required : ['18 v']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['шуруповерт bosch gsr 18v аккумуляторный', 'шуруповерт аккумуляторный']
+==============================================================================
+B5-29 [SUCCESS_WITH_RESULTS] ошейник для кота с GPS-трекером
+  fallback.product_type : 'ошейник'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['кота с gps-трекером']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'ошейник для кота с gps-трекером'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'ошейник'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['кота с gps-трекером']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'ошейник для кота с gps-трекером'
+  final.max_price       : None None
+  final.intent_product  : 'ошейник'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['кота с gps-трекером']
+  variants              : ['ошейник для кота с gps-трекером', 'ошейник кота трекером', 'ошейник кота']
+==============================================================================
+B5-30 [SUCCESS_WITH_RESULTS] фен Dyson Supersonic
+  fallback.product_type : 'фен'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : ['dyson supersonic']
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'фен dyson supersonic'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'фен'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : ['dyson supersonic']
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'фен dyson supersonic'
+  final.max_price       : None None
+  final.intent_product  : 'фен'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : ['dyson supersonic']
+  variants              : ['фен dyson supersonic', 'dyson supersonic']
+==============================================================================
+B5-31 [SUCCESS_WITH_RESULTS] механическая клавиатура до 3000 руб
+  fallback.product_type : 'механическая клавиатура'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': 3000.0, 'currency': 'RUB'}
+  parsed.normalized     : 'механическая клавиатура руб'
+  parsed.max_price      : 3000.0 RUB
+  intent.source         : fallback
+  intent.product        : 'механическая клавиатура'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': 3000.0, 'currency': 'RUB'}
+  final.normalized      : 'механическая клавиатура'
+  final.max_price       : 3000.0 RUB
+  final.intent_product  : 'механическая клавиатура'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['механическая клавиатура']
+==============================================================================
+B5-32 [EMPTY_AFTER_CONSTRAINTS] настольная лампа до 500 грн
+  fallback.product_type : 'настольная лампа'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': 500.0, 'currency': 'UAH'}
+  parsed.normalized     : 'настольная лампа грн'
+  parsed.max_price      : 500.0 UAH
+  intent.source         : fallback
+  intent.product        : 'настольная лампа'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': 500.0, 'currency': 'UAH'}
+  final.normalized      : 'настольная лампа'
+  final.max_price       : 500.0 UAH
+  final.intent_product  : 'настольная лампа'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['настольная лампа']
+==============================================================================
+B5-33 [SUCCESS_WITH_RESULTS] микроволновка без гриля и без функции разморозки
+  fallback.product_type : 'микроволновка без гриля и без функции разморозки'
+  fallback.required     : []
+  fallback.excluded     : ['гриля и без функции разморозки']
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'микроволновка без гриля и без функции разморозки'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'микроволновка без гриля и без функции разморозки'
+  intent.required       : []
+  intent.excluded       : ['гриля и без функции разморозки']
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'микроволновка без гриля и без функции разморозки'
+  final.max_price       : None None
+  final.intent_product  : 'микроволновка без гриля и без функции разморозки'
+  final.intent_required : []
+  final.intent_excluded : ['гриля и без функции разморозки']
+  final.intent_compat   : []
+  variants              : ['микроволновка без гриля и без функции разморозки']
+==============================================================================
+B5-34 [SUCCESS_EMPTY_RAW] стильная одежда
+  fallback.product_type : 'стильная одежда'
+  fallback.required     : []
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'стильная одежда'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'стильная одежда'
+  intent.required       : []
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'стильная одежда'
+  final.max_price       : None None
+  final.intent_product  : 'стильная одежда'
+  final.intent_required : []
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['стильная одежда']
+==============================================================================
+B5-35 [SUCCESS_WITH_RESULTS] кабель usb type-c
+  fallback.product_type : 'кабель usb'
+  fallback.required     : ['type-c']
+  fallback.excluded     : []
+  fallback.compat      : []
+  fallback.budget       : {'min': None, 'max': None, 'currency': None}
+  parsed.normalized     : 'кабель usb type-c'
+  parsed.max_price      : None None
+  intent.source         : fallback
+  intent.product        : 'кабель usb'
+  intent.required       : ['type-c']
+  intent.excluded       : []
+  intent.compat        : []
+  intent.budget         : {'min': None, 'max': None, 'currency': None}
+  final.normalized      : 'кабель usb type-c'
+  final.max_price       : None None
+  final.intent_product  : 'кабель usb'
+  final.intent_required : ['type-c']
+  final.intent_excluded : []
+  final.intent_compat   : []
+  variants              : ['кабель usb type-c', 'usb type']

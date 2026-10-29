@@ -1,0 +1,10 @@
+# Optional developer dependencies.
+#
+# NOTE: the test suite is written with the standard library `unittest`
+# and runs without these packages:
+#     python -m unittest discover -s tests -v
+#
+# Install these only if you prefer running the suite with pytest.
+
+pytest>=8.0
+pytest-asyncio>=0.24

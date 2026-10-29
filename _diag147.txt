@@ -1,0 +1,159 @@
+==== apply_intent ====
+def apply_intent(
+    request: SearchRequest, intent: StructuredQueryIntent, *,
+    refined: bool = False,
+) -> SearchRequest:
+    """Return a COPY of ``request`` enriched with ``intent`` (never mutates).
+
+    - ``original_query`` is NEVER touched - it stays the user's own text;
+    - budget maps onto the EXISTING ``min_price``/``max_price``/``currency``
+      and only an actually parsed value overwrites them (absent budget
+      preserves what the request carried; filtering stays client-side in
+      comparison_service - no new API price semantics);
+    - ``normalized_query`` is always scrubbed of «грн»/«₴»/currency words
+      and «до 3000» constraint syntax. Fresh search: the structured
+      phrase wins when the message names a product; without a product
+      («для Toyota Camry 70») the parser's phrase and the structured
+      terms merge. Conversation refinement: the merge's phrase is kept
+      as-is (a true refinement never renames the product). An empty
+      intent phrase never invents a query;
+    - ``intent_*`` fields: set on a fresh search; a refinement keeps the
+      previous values (lists merge over), so the current message can
+      never corrupt the previous product identity - nor vice versa.
+
+    Returns a new ``SearchRequest``; the caller's object is never mutated.
+    """
+    update: dict[str, Any] = {}
+
+    # Budget -> existing price fields (only real parsed values overwrite).
+    if intent.budget.min is not None:
+        update["min_price"] = float(intent.budget.min)
+    if intent.budget.max is not None:
+        update["max_price"] = float(intent.budget.max)
+    if intent.budget.currency is not None:
+        update["currency"] = intent.budget.currency
+
+    # Clean retrieval phrase (normalized_query only; never original_query).
+    intent_query = _retrieval_query(intent)
+    existing = request.normalized_query or ""
+    if refined:
+        # A true refinement never renames the product (resolve_request
+        # rejects any message that introduces a new product word), so the
+        # conversation merge owns the phrase; the structured echo of
+        # modifier/price wording («а дешевле?») must neither replace nor
+        # pollute it.
+        base = existing
+    elif intent_query and existing:
+        # Fresh search: the structured phrase wins when the message names
+        # a product; without one («для Toyota Camry 70») the parser's
+        # phrase stays and the structured terms are appended.
+        base = (intent_query if intent.product_type is not None
+                else _union_terms(existing, intent_query))
+    elif intent_query:
+        base = intent_query
+    else:
+        base = existing
+    # Always scrub «грн»/«₴»/constraint syntax: the legacy parser leaves
+    # currency words behind (the verified G25.1 D-class failure), and a
+    # budget-only message must not keep them in the retrieval phrase.
+    new_query = _sanitize_query(base)
+    if new_query != existing:
+        update["normalized_query"] = new_query
+
+    # Structured fields: set on a fresh search; a refinement keeps the
+    # previous identity (lists still merge - «без микрофона» contributes
+    # its exclusion without renaming the product).
+    if not refined:
+        if intent.product_type is not None:
+            update["intent_product_type"] = intent.product_type
+        if intent.brand is not None:
+            update["intent_brand"] = intent.brand
+        if intent.model is not None:
+            update["intent_model"] = intent.model
+        if intent.generation is not None:
+            update["intent_generation"] = intent.generation
+    update["intent_required_attributes"] = _merge_intent_list(
+        request.intent_required_attributes, intent.required_attributes)
+    update["intent_compatibility"] = _merge_intent_list(
+        request.intent_compatibility, intent.compatibility)
+    update["intent_excluded_product_types"] = _merge_intent_list(
+        request.intent_excluded_product_types, intent.excluded_product_types)
+
+    return request.model_copy(update=update)
+
+==== _retrieval_query ====
+def _retrieval_query(intent: StructuredQueryIntent) -> str:
+    """Natural keyword phrase built ONLY from the structured fields.
+
+    Token-level de-duplication keeps «дворники Volkswagen Golf 7» from
+    saying "volkswagen" twice while every distinct concept survives:
+    product_type first, then brand/model/generation, then compatibility
+    targets, then stated specs - the shape a marketplace keyword query
+    expects. Budget markers and currency words are never part of it.
+    """
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str | None) -> None:
+        if not value:
+            return
+        for token in str(value).split():
+            key = token.casefold()
+            if key not in seen:
+                seen.add(key)
+                parts.append(token)
+
+    add(intent.product_type)
+    add(intent.brand)
+    add(intent.model)
+    add(intent.generation)
+    for target in intent.compatibility:
+        add(target)
+    for attribute in intent.required_attributes:
+        add(attribute)
+    return " ".join(parts)
+
+==== _union_terms ====
+def _union_terms(existing: str, addition: str) -> str:
+    """``existing`` phrase first, then the tokens of ``addition`` it lacks."""
+
+    terms: list[str] = []
+    seen: set[str] = set()
+    for phrase in (existing, addition):
+        for token in (phrase or "").split():
+            key = token.casefold()
+            if key not in seen:
+                seen.add(key)
+                terms.append(token)
+    return " ".join(terms)
+
+==== _sanitize_query ====
+def _sanitize_query(text: str) -> str:
+    """Strip constraint syntax and currency words from a retrieval phrase.
+
+    The production parser's own cleaner (``_strip_constraint_phrases``)
+    removes numeric constraints but historically leaves «грн»/«₴» behind
+    (a verified G25.1 failure), so whatever phrase is considered, the
+    final ``normalized_query`` is scrubbed here: «до 3000»-style
+    marker+number sequences and every currency token disappear; dangling
+    function words at the end are dropped. Product words, compatibility
+    targets and specs («golf 7», «camry 70», «15 pro») are kept.
+    """
+    if not text:
+        return ""
+    markers = sorted(
+        set(BUDGET_MAX_MARKERS) | set(BUDGET_MIN_MARKERS),
+        key=len, reverse=True,
+    )
+    pattern = r"(?<![0-9a-zа-я])(?:" + "|".join(
+        re.escape(m) for m in markers
+    ) + r")\s*\d+(?:[\s\u00a0]\d{3})*(?:[.,]\d+)?"
+    cleaned = re.sub(pattern, " ", text, flags=re.IGNORECASE)
+    kept = [
+        token for token in cleaned.split()
+        if token.casefold().rstrip(".") not in _CURRENCY_TOKENS
+    ]
+    while kept and kept[-1].casefold() in _TRAILING_QUERY_WORDS:
+        kept.pop()
+    return re.sub(r"\s+", " ", " ".join(kept)).strip()
+
