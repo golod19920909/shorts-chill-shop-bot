@@ -1622,11 +1622,20 @@ class AIService:
             context=context_json[:4000],
             message=(user_text or "").strip()[:500],
         )
-        raw = await self._generate(
-            prompt,
-            models=(self.fast_model,),
-            operation="conversation_turn",
-        )
+        try:
+            # Conversational interpretation must not make every product
+            # search wait for the general 20-second AI timeout. If Gemini is
+            # slow, cancel this bounded attempt and use the deterministic
+            # state machine for the same turn.
+            async with asyncio.timeout(min(self.timeout_seconds, 5.0)):
+                raw = await self._generate(
+                    prompt,
+                    models=(self.fast_model,),
+                    operation="conversation_turn",
+                )
+        except TimeoutError:
+            logger.info("Gemini turn interpretation timed out; using deterministic intent")
+            return None
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
             return None
