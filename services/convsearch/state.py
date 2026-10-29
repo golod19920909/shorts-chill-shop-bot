@@ -361,7 +361,19 @@ class ConversationEngineState:
                 corrected_kinds.update({"feature", "exclusion"})
             if _budget(message):
                 corrected_kinds.add("budget")
-            if message_spans:
+            has_feature_span = any(
+                (span_tokens := tokens(span))
+                and not all(
+                    token in _BUDGET_FRAMING_WORDS
+                    or token in _COUNT_WORDS
+                    or token in _QUALIFIER_WORDS
+                    or token.isdigit()
+                    or is_colour_word(token)
+                    for token in span_tokens
+                )
+                for span in message_spans
+            )
+            if has_feature_span:
                 corrected_kinds.add("feature")
             if not corrected_kinds:
                 corrected_kinds.update({"feature", "exclusion"})
