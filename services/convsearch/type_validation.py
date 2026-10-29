@@ -275,6 +275,9 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if head_after_role:
         qualifies = False
         reasons.append("type_only_in_role_clause")
+    if genitive_mention:
+        qualifies = False
+        reasons.append("type_mentioned_as_genitive_modifier")
     if accessory_head is not None and (not head_ok or accessory_composite):
         qualifies = False
         reasons.append(f"accessory_head:{accessory_head}")
