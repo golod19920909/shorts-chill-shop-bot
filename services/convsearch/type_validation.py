@@ -201,6 +201,32 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         and _contains(title_tokens[split + 1:], head)
     )
 
+    # A multi-word product name can be mentioned in the genitive as a
+    # modifier of a DIFFERENT product: «переключатель сварочного аппарата».
+    # Token coverage alone incorrectly accepts this because both requested
+    # words occur in the title. When the requested qualifier appears in a
+    # genitive adjective form after an unrelated noun, it is not evidence
+    # that the listing itself is the requested product.
+    genitive_mention = False
+    if len(type_tokens) > 1:
+        qualifier = type_tokens[0]
+        qualifier_positions = [
+            i for i, token in enumerate(title_tokens)
+            if stems_match(token, qualifier)
+        ]
+        if qualifier_positions:
+            pos = qualifier_positions[0]
+            if pos > 0:
+                observed = title_tokens[pos]
+                previous = title_tokens[pos - 1]
+                genitive_adjective = observed.endswith(("ого", "его", "ой", "ей"))
+                previous_is_adjective = _is_adjective(previous)
+                genitive_mention = (
+                    genitive_adjective
+                    and not previous_is_adjective
+                    and not stems_match(previous, qualifier)
+                )
+
     # 2. Accessory head word leads the title: the listing IS the accessory
     #    ("держатель катушки" — the holder, not the reel). The requested
     #    head noun appearing AFTER the accessory head within the own
