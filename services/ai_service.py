@@ -689,6 +689,33 @@ MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выпо�
 #: searched at all, or should the assistant ask ONE clarifying question first?
 #: The model may only answer "search" or "clarify" (+ a short question); it may
 #: never name a product, and the deterministic route stays the fallback.
+CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
+
+Контекст диалога (JSON):
+{context}
+
+Новое сообщение:
+{message}
+
+Верни только один JSON-объект со строго такими полями:
+{{"action":"new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null}}
+
+Правила:
+- new_search: пользователь хочет искать другой товар или впервые назвал конкретный товар. product_type — только ядро названия товара, без бюджета, количества, цвета, функций и слов «найди/покажи». Пример: «нужен недорогой шуруповёрт с двумя аккумуляторами» → «шуруповёрт».
+- refine: пользователь уточняет активный поиск (бюджет, совместимость, цвет, характеристики, «подешевле», «полегче»); сохраняй прежний товар.
+- correction: пользователь отменяет или заменяет ранее заданное ограничение.
+- alternatives: просит другие варианты того же товара.
+- compare: спрашивает о ранее показанных товарах или просит их сравнить/объяснить.
+- clarify: товар/цель неясны настолько, что честный поиск невозможен; задай один короткий вопрос на языке пользователя.
+- «до 2000 тысяч гривен» — это бюджетное уточнение, не название товара. Не превращай суммы и валюты в product_type.
+- «расскажи про шуруповёрт» — новый поиск/вопрос о названном товаре, а не сравнение с предыдущей выдачей, если не указано, что речь о показанных карточках.
+- Не выдумывай характеристики и не меняй продукт при обычном уточнении.
+- confidence — твоя уверенность от 0 до 1. Если уверенность ниже 0.65, выбери clarify и объясни одним вопросом.
+- product_type — null для refine, correction, alternatives, compare и clarify.
+- Это решение только о диалоге. Не выбирай товары и не выдумывай цены/ссылки.
+"""
+
+
 CHAT_ACTION_PROMPT = """Пользователь написал очень короткое сообщение в магазине товаров.
 
 
@@ -1575,6 +1602,72 @@ class AIService:
             # (and the feature) vanish - that was the live failure.
             return " ".join(kept)
         return None
+
+    async def decide_conversation_turn(
+        self, user_text: str, *, context: dict | None = None
+    ) -> dict | None:
+        """Interpret one message against the active shopping conversation.
+
+        Gemini chooses the conversational action and, for a new search, the
+        core product type. The caller validates the action against its fixed
+        enum and keeps deterministic slot extraction, retrieval, product
+        validation, ranking and Telegram delivery. Any model failure returns
+        None so the existing deterministic classifier remains the fallback.
+        """
+        if not self.is_available or not (user_text or "").strip():
+            return None
+
+        context_json = json.dumps(context or {}, ensure_ascii=False, separators=(",", ":"))
+        prompt = CONVERSATION_TURN_PROMPT.format(
+            context=context_json[:4000],
+            message=(user_text or "").strip()[:500],
+        )
+        raw = await self._generate(
+            prompt,
+            models=(self.fast_model,),
+            operation="conversation_turn",
+        )
+        payload = self._extract_json_object(raw) if raw else None
+        if not isinstance(payload, dict):
+            return None
+
+        action = str(payload.get("action") or "").strip().lower()
+        allowed = {
+            "new_search", "refine", "correction", "alternatives",
+            "compare", "clarify",
+        }
+        if action not in allowed:
+            return None
+        try:
+            confidence = float(payload.get("confidence", 0))
+        except (TypeError, ValueError):
+            return None
+        if not 0.65 <= confidence <= 1.0:
+            return None
+
+        product_type = payload.get("product_type")
+        if product_type is not None:
+            if not isinstance(product_type, str):
+                return None
+            product_type = " ".join(product_type.split()).strip()
+            if len(product_type) > 100:
+                return None
+            if not product_type:
+                product_type = None
+
+        question = payload.get("question")
+        if question is not None and not isinstance(question, str):
+            return None
+        question = question.strip()[:240] if isinstance(question, str) else ""
+        if action == "clarify" and not question:
+            return None
+
+        return {
+            "action": action,
+            "confidence": confidence,
+            "product_type": product_type,
+            "question": question or None,
+        }
 
     async def decide_chat_action(self, user_text: str) -> dict | None:
         """Decide ONLY whether a short vague message needs a clarifying
