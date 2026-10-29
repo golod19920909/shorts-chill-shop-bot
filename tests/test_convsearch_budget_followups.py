@@ -82,6 +82,30 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertTrue(state.active_values("feature"))
         self.assertEqual(state.active_by_kind("budget").value, "500.0 UAH")
 
+    def test_lightweight_followup_becomes_soft_search_preference(self):
+        state = ConversationEngineState(user_key="lightweight-follow-up")
+        first = "Сварочный аппарат"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        budget = "До 2000 гривен"
+        observation = state.observe(budget)
+        state.record_slots(observation)
+
+        followup = "А есть полегче?"
+        observation = state.observe(followup)
+        self.assertEqual(observation["intent"], MessageIntent.REFINE)
+        state.record_slots(observation)
+
+        strategy = build_retrieval_strategy(state, followup, currency="UAH")
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.product_type, "сварочный аппарат")
+        self.assertEqual(strategy.request.normalized_query, "сварочный аппарат легкий")
+        self.assertEqual(strategy.request.max_price, 2000.0)
+        self.assertEqual(state.active_values("preference"), ["легкий"])
+        self.assertFalse(strategy.request.required_features)
+
     def test_budget_amount_is_not_a_retrieval_feature(self):
         state = ConversationEngineState(user_key="budget-feature")
         first = "шуруповерт"
