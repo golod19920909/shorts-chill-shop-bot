@@ -80,7 +80,7 @@ class BudgetFollowUpTests(unittest.TestCase):
 
         self.assertEqual(state.active_by_kind("type").value, "шуруповерт")
         self.assertTrue(state.active_values("feature"))
-        self.assertEqual(state.active_by_kind("budget").value, "500 UAH")
+        self.assertEqual(state.active_by_kind("budget").value, "500.0 UAH")
 
     def test_budget_amount_is_not_a_retrieval_feature(self):
         state = ConversationEngineState(user_key="budget-feature")
