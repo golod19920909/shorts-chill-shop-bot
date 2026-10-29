@@ -78,8 +78,11 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         "другие", "других", "другое", "другой", "оставь", "выбери",
         "только", "тоже", "также", "а", "и", "но", "или", "с", "со",
         "без", "не", "до", "от", "для", "из", "в", "на", "по", "к",
-        "грн", "гривн", "доллар", "долларов", "usd", "uah", "eur",
-        "евро", "руб", "рублей", "that", "the", "with", "without",
+        "грн", "гривн", "гривен", "гривень", "гривна", "гривны",
+        "доллар", "доллара", "долларов", "долар", "доларів", "usd", "uah", "eur",
+        "евро", "руб", "рубля", "рублей", "тыс", "тысяч", "тысяча", "тысячи",
+        "тысячу", "тысячам", "тысячами", "тысячах", "тысяче", "тысячей",
+        "thousand", "thousands", "that", "the", "with", "without",
         "not", "and", "but", "or", "more", "other", "another",
         "compare", "better", "which", "what", "about", "tell",
     }
@@ -183,14 +186,56 @@ class ConversationSearchEngine:
         """
 
         state = state or self.get_state(user_key)
-        # ONE classification pass, THEN ONE strategy build. The ledger is
-        # updated first (observe + record_slots) so the strategy always
-        # reflects the conversation INCLUDING this message — there is no
-        # second build and no "strategy built before observing" ordering
-        # problem to compensate for.
-        observation = state.observe(text)
+
+        # Gemini interprets EVERY user turn against the recent conversation.
+        # Its response is constrained to a validated action enum and a
+        # product-type field; it never supplies products or bypasses the
+        # deterministic slot ledger, AliExpress retrieval, validation, or
+        # ranking. If the model is unavailable, malformed, or uncertain, the
+        # state machine keeps its deterministic classification.
+        ai_turn = None
+        ai = self._ai_service
+        interpreter = getattr(ai, "decide_conversation_turn", None) if ai is not None else None
+        if callable(interpreter):
+            context_payload = {
+                "recent_turns": [turn.text for turn in state.turns[-6:]],
+                "active_slots": [slot.as_dict() for slot in state.active()],
+                "shown_product_count": len(state.shown_product_ids),
+                "last_outcome": state.last_outcome,
+            }
+            try:
+                ai_turn = await interpreter(text, context=context_payload)
+            except Exception:  # noqa: BLE001 - deterministic fallback must survive AI failure
+                logger.info("Gemini turn interpretation failed; using deterministic intent")
+                ai_turn = None
+
+        action_to_intent = {
+            "new_search": MessageIntent.NEW_SEARCH,
+            "refine": MessageIntent.REFINE,
+            "correction": MessageIntent.CORRECTION,
+            "alternatives": MessageIntent.ALTERNATIVES,
+            "compare": MessageIntent.COMPARE,
+            "clarify": MessageIntent.AMBIGUOUS,
+        }
+        intent_override = (
+            action_to_intent.get(ai_turn.get("action"))
+            if isinstance(ai_turn, dict) else None
+        )
+
+        # ONE state transition and ONE strategy build. The model selects the
+        # action; the ledger records this turn and keeps slot provenance.
+        observation = state.observe(text, intent_override=intent_override)
         state.record_slots(observation)
         intent = observation["intent"]
+
+        if isinstance(ai_turn, dict) and ai_turn.get("action") == "clarify":
+            return SearchDecision(
+                outcome=Outcome.CLARIFY,
+                question=ai_turn.get("question") or DEFAULT_CLARIFY_QUESTION,
+                refined=False,
+                report={"intent": intent, "reason": "gemini_clarify",
+                        "snapshot": state.snapshot()},
+            )
 
         # A question about the SHOWN products («какие лучше?», «чем
         # отличаются?») is answered over the already-presented candidates -
@@ -214,7 +259,11 @@ class ConversationSearchEngine:
         # active type and make the just-recorded type the hard gate for the
         # pool (an accessory or a spare part can never pass as the product).
         if intent is MessageIntent.NEW_SEARCH:
-            new_type = _product_type_of(text) or None
+            model_type = (
+                ai_turn.get("product_type")
+                if isinstance(ai_turn, dict) else None
+            )
+            new_type = model_type or _product_type_of(text) or None
             if new_type:
                 state.record_product_type(new_type)
 

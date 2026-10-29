@@ -129,6 +129,9 @@ _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
         "грн", "гривн", "гривна", "гривны", "гривен", "рублей", "руб",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
         "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽",
+        # Scale words belong to a money amount, never to a product type or feature.
+        "тыс", "тысяч", "тысяча", "тысячи", "тысячу", "тысячам",
+        "тысячами", "тысячах", "тысяче", "тысячей", "thousand", "thousands",
     }
 )
 
@@ -169,7 +172,8 @@ _COMPARE_RE = re.compile(
 _BUDGET_RE = re.compile(
     r"(?:(?:до|under|up to|не более|меньше|less than|max|максимум)\s*)?"
     r"(\d+(?:[.,]\d+)?)\s*"
-    r"(?:грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
+    r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\s*"
+    r"(грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
     r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
     re.IGNORECASE,
 )
@@ -237,8 +241,15 @@ class ConversationEngineState:
         }
         return not any(token not in known_context for token in content)
 
-    def observe(self, text: str) -> dict:
-        """Record one user message and return its classified intent."""
+    def observe(
+        self, text: str, *, intent_override: str | None = None
+    ) -> dict:
+        """Record one user message and return its classified intent.
+
+        A validated Gemini action may override the deterministic intent
+        classification. Slot extraction and lifecycle transitions remain
+        local and deterministic; invalid/absent overrides use the fallback.
+        """
 
         message = (text or "").strip()
         index = len(self.turns) + 1
@@ -263,7 +274,12 @@ class ConversationEngineState:
         # is a REFINE, never an ambiguous message and never a new product.
         # (Kept as message_spans evidence for the classifier below.)
 
-        if self._is_about_current(message) or _COMPARE_RE.search(message):
+        comparative_followup = _is_comparative_followup(message)
+        explicit_compare = bool(_COMPARE_RE.search(message))
+        if (
+            (self._is_about_current(message) and not comparative_followup)
+            or (explicit_compare and not comparative_followup)
+        ):
             intent = MessageIntent.COMPARE
         elif index > 1 and _is_alternatives_request(message, self):
             intent = MessageIntent.ALTERNATIVES
@@ -306,7 +322,8 @@ class ConversationEngineState:
             # the product, never a product switch. Category-general: no
             # brand or model list, the connector grammar itself decides.
             characteristic = bool(re.search(
-                r"(?:^|\s)(?:с|со|без|для|под|не|for)\s+", message, re.IGNORECASE
+                r"(?:^|\s)(?:с|со|без|для|под|не|for|чтобы|чтоб|and|so\s+that)\s+",
+                message, re.IGNORECASE
             ))
             names_other_product = bool(
                 new_spans and type_tokens and not (span_tokens & type_tokens)
@@ -328,16 +345,45 @@ class ConversationEngineState:
             else:
                 intent = MessageIntent.AMBIGUOUS
 
+        allowed_overrides = {
+            MessageIntent.NEW_SEARCH, MessageIntent.REFINE,
+            MessageIntent.CORRECTION, MessageIntent.ALTERNATIVES,
+            MessageIntent.COMPARE, MessageIntent.AMBIGUOUS,
+        }
+        if intent_override in allowed_overrides:
+            intent = intent_override
+
         # A short follow-up must NOT reset the product context: only a NEW
         # SEARCH (a genuine new product request, reversal excluded) and an
         # explicit reset replace the ledger's active view.
         if intent is MessageIntent.NEW_SEARCH and not reversal:
             self._supersede_all(index)
         elif intent is MessageIntent.CORRECTION:
-            # A correction supersedes the slot KINDS the message speaks
-            # about (the negated/changed ones) but keeps the rest — the
-            # reference's down-weight-not-erase decision, scoped tighter.
-            self._supersede_kinds(index, {"feature", "exclusion"} if negations else None)
+            # A correction supersedes only the slot kinds the new message
+            # actually corrects. A budget correction must not erase the
+            # product type; a feature correction must not erase the budget.
+            corrected_kinds: set[str] = set()
+            if negations:
+                corrected_kinds.update({"feature", "exclusion"})
+            if _budget(message):
+                corrected_kinds.add("budget")
+            has_feature_span = any(
+                (span_tokens := tokens(span))
+                and not all(
+                    token in _BUDGET_FRAMING_WORDS
+                    or token in _COUNT_WORDS
+                    or token in _QUALIFIER_WORDS
+                    or token.isdigit()
+                    or is_colour_word(token)
+                    for token in span_tokens
+                )
+                for span in message_spans
+            )
+            if has_feature_span:
+                corrected_kinds.add("feature")
+            if not corrected_kinds:
+                corrected_kinds.update({"feature", "exclusion"})
+            self._supersede_kinds(index, corrected_kinds)
 
         self.turns.append(Turn(index=index, text=message))
         self.touch()
@@ -546,7 +592,13 @@ def _budget(message: str) -> dict:
         amount = float(raw)
     except ValueError:
         return {}
-    tail = (match.group(0)[match.start(1):] or "").lower()
+    scale = (match.group(2) or "").lower()
+    if scale:
+        # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
+        amount *= 1000
+    # Match offsets are relative to the full input, not group(0). Slicing
+    # group(0) with an absolute offset loses the currency after framing text.
+    tail = (message[match.start():match.end()] or "").lower()
     currency = None
     for word, code in _CURRENCY_BY_WORD.items():
         if word in tail:
@@ -605,6 +657,7 @@ def _is_alternatives_request(message: str, state: "ConversationEngineState") -> 
         if token not in _CHARACTERISTIC_NOUNS
         and token not in _QUALIFIER_WORDS
         and token not in _BUDGET_FRAMING_WORDS
+        and not any(token.startswith(marker) for marker in _ALTERNATION_MARKERS)
         and not is_colour_word(token)
         and not token.isdigit()
     ]
