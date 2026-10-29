@@ -53,8 +53,11 @@ and Telegram interface. One engine turn:
 ```
 Telegram text (handlers/search.py::search_message)
   -> ConversationSearchEngine.handle_message(user_key, text, ...)
-       state.observe(text)            # ONE classification pass
-       state.record_slots(...)        # intent -> authoritative slots
+       Gemini interprets the turn against recent turns + active slots
+         -> validated action enum + optional core product type
+         -> deterministic fallback on timeout / invalid output
+       state.observe(text, intent_override=validated_action)
+       state.record_slots(...)        # deterministic slots + provenance
        (COMPARE / ALTERNATIVES resolved over the ledger, no retrieval)
        build_retrieval_strategy(...)  # ledger -> ONE SearchRequest phrase
        RetrievalBackend.retrieve()    # explicit adapter -> SearchService RAW
@@ -65,9 +68,24 @@ Telegram text (handlers/search.py::search_message)
   -> handlers/search.py::_deliver_decision   # renders, never re-decides
 ```
 
-### Intent classification (general, not phrase-keyed)
+### Intent classification (hybrid Option C)
 
-`observe()` classifies each message from its own evidence, in order:
+For every text turn, `ConversationSearchEngine` first asks Gemini to
+interpret the message against the last six user turns, active slot ledger,
+shown-result count and last outcome. The response is a validated JSON object
+with a closed action enum, confidence, optional core product type and (only
+for clarification) one question. Non-clarify actions below 0.65 confidence,
+malformed output, timeouts (bounded to 5 seconds), quota/auth errors and
+missing Gemini all fall back to the deterministic classifier. Gemini never
+returns product cards or bypasses any deterministic validation.
+
+`observe()` remains the deterministic fallback and authoritative slot-ledger
+transition. It also accepts only the engine's validated action enum as an
+override; slot extraction, budget/exclusion parsing, retrieval, type gate,
+ranking and Telegram rendering remain deterministic.
+
+When the model is unavailable, `observe()` classifies each message from its
+own evidence, in order:
 
 1. **COMPARE** — a question about the ONGOING conversation: the message
    carries a closed-class question word («какой», «чем», "which"…) or a
