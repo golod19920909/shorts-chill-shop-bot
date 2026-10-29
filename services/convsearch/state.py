@@ -353,10 +353,19 @@ class ConversationEngineState:
         if intent is MessageIntent.NEW_SEARCH and not reversal:
             self._supersede_all(index)
         elif intent is MessageIntent.CORRECTION:
-            # A correction supersedes the slot KINDS the message speaks
-            # about (the negated/changed ones) but keeps the rest — the
-            # reference's down-weight-not-erase decision, scoped tighter.
-            self._supersede_kinds(index, {"feature", "exclusion"} if negations else None)
+            # A correction supersedes only the slot kinds the new message
+            # actually corrects. A budget correction must not erase the
+            # product type; a feature correction must not erase the budget.
+            corrected_kinds: set[str] = set()
+            if negations:
+                corrected_kinds.update({"feature", "exclusion"})
+            if _budget(message):
+                corrected_kinds.add("budget")
+            if message_spans:
+                corrected_kinds.add("feature")
+            if not corrected_kinds:
+                corrected_kinds.update({"feature", "exclusion"})
+            self._supersede_kinds(index, corrected_kinds)
 
         self.turns.append(Turn(index=index, text=message))
         self.touch()
