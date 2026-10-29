@@ -84,6 +84,30 @@ class CrossCategoryValidationTests(unittest.TestCase):
             self.assertFalse(validate_product_type(product("p2", title), BANK).qualifies,
                              msg=title)
 
+    def test_genitive_product_mention_is_not_the_product(self) -> None:
+        # The title names a switch whose function/target is a welding machine;
+        # the genitive phrase must not make the switch pass as a welder.
+        for title in (
+            "Поворотный кулачковый переключатель сварочного аппарата",
+            "Ручка регулировки сварочного аппарата",
+            "Комплект деталей сварочного аппарата",
+        ):
+            self.assertFalse(
+                validate_product_type(product("welder-part", title), "сварочный аппарат").qualifies,
+                msg=title,
+            )
+
+    def test_actual_welder_titles_still_qualify(self) -> None:
+        for title in (
+            "Сварочный аппарат инверторный бытовой",
+            "Инверторный сварочный аппарат MMA 200A",
+            "Сварочный полуавтомат для сварки металла",
+        ):
+            self.assertTrue(
+                validate_product_type(product("welder", title), "сварочный аппарат").qualifies,
+                msg=title,
+            )
+
     def test_drill_qualifies_but_bits_rejected(self) -> None:
         self.assertTrue(validate_product_type(
             product("d1", "Дрель аккумуляторная ударная 21V"), DRILL
