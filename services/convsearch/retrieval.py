@@ -328,6 +328,7 @@ def build_retrieval_strategy(
     def _new_word(token: str) -> bool:
         return (
             len(token) >= 3
+            and not token.isdigit()
             and token not in _BUDGET_FRAMING_WORDS
             and token not in _COUNT_WORDS
             and token not in _CHARACTERISTIC_NOUNS
@@ -349,8 +350,20 @@ def build_retrieval_strategy(
     # Fall back to the user's own words when the ledger has no type yet
     # (first message that has not produced an intent_product_type).
     if not phrase_parts:
-        content = [word for word in tokens(text) if len(word) >= 3]
-        if not content and not features and not exclusions and budget is None:
+        content = [
+            word for word in tokens(text)
+            if len(word) >= 3
+            and not word.isdigit()
+            and word not in _BUDGET_FRAMING_WORDS
+            and word not in _COUNT_WORDS
+            and word not in _CHARACTERISTIC_NOUNS
+            and word not in _QUALIFIER_WORDS
+            and word not in _DISCOURSE_MARKERS
+            and not is_colour_word(word)
+        ]
+        if not content:
+            # A budget/constraint by itself is not a product search. Ask for
+            # the missing product rather than querying AliExpress for "гривен".
             return None
         phrase_parts = content
 
