@@ -775,7 +775,11 @@ class SearchService:
                 pairs.extend(route_pairs)
                 if raw:
                     raw_route_pairs.append(route_pairs)
-                if all(isinstance(result, BaseException) for result in results):
+                if all(
+                    isinstance(result, BaseException)
+                    or bool(getattr(result, "provider_error", None))
+                    for result in results
+                ):
                     # Every provider raised on this round: nothing was
                     # retrieved and nothing can be - deeper pages or further
                     # variants would only repeat the same failing calls.
@@ -1206,9 +1210,12 @@ class SearchService:
         """
 
         for provider, result in pairs:
-            if isinstance(result, BaseException):
+            provider_error = getattr(result, "provider_error", None)
+            if isinstance(result, BaseException) or provider_error:
+                reason = provider_error or type(result).__name__
                 logger.error(
-                    "%s lookup failed: %s", provider.display_name, result, exc_info=result
+                    "%s lookup failed: %s", provider.display_name, reason,
+                    exc_info=result if isinstance(result, BaseException) else None,
                 )
                 if provider.display_name not in outcome.failed_marketplaces:
                     outcome.failed_marketplaces.append(provider.display_name)
@@ -1251,10 +1258,13 @@ class SearchService:
         """
 
         for provider, result in pairs:
-            if isinstance(result, BaseException):
+            provider_error = getattr(result, "provider_error", None)
+            if isinstance(result, BaseException) or provider_error:
                 # One marketplace being down must not affect the others.
+                reason = provider_error or type(result).__name__
                 logger.error(
-                    "%s lookup failed: %s", provider.display_name, result, exc_info=result
+                    "%s lookup failed: %s", provider.display_name, reason,
+                    exc_info=result if isinstance(result, BaseException) else None,
                 )
                 if provider.display_name not in outcome.failed_marketplaces:
                     outcome.failed_marketplaces.append(provider.display_name)
@@ -1378,7 +1388,11 @@ class SearchService:
 
         merged: list[Product] = []
         for _, result in pairs:
-            if isinstance(result, BaseException) or result is None:
+            if (
+                isinstance(result, BaseException)
+                or result is None
+                or getattr(result, "provider_error", None)
+            ):
                 continue
             merged.extend(result)  # type: ignore[arg-type]
 
