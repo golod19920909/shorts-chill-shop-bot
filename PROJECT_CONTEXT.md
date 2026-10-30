@@ -199,6 +199,16 @@ currencies, and currency mismatches cannot pass. The RAW conversational
 retrieval path now keeps route rankings separate and fuses them with
 deterministic Reciprocal Rank Fusion (RRF), not route-order concatenation.
 
+### Conversational hard-constraint enforcement (2026-10-30)
+
+Active feature slots are mandatory constraints: a candidate must carry positive
+evidence in its title or description before it continues. Comparative
+preferences remain soft signals and are not hard-filtered. Hard budgets require
+a known price and an explicit matching currency; missing prices, missing
+currencies, and currency mismatches cannot pass. The RAW conversational
+retrieval path collects all bounded grounded routes and fuses their rankings
+with deterministic Reciprocal Rank Fusion (RRF), not route-order concatenation.
+
 ### LLM integration (bounded, honest)
 
 Gemini participates in the ACTIVE conversational search flow in two
