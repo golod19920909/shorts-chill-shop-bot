@@ -237,6 +237,40 @@ class EngineScenarioTests(unittest.TestCase):
 
 
 
+class RankingRequestPropagationTests(unittest.TestCase):
+    def test_engine_passes_the_built_request_into_ranking(self):
+        from unittest.mock import patch
+        from models.search_request import SearchRequest
+
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="ranking-request")
+        candidate = product("reel", "Рыболовная катушка")
+        request = SearchRequest(
+            original_query="рыболовная катушка",
+            normalized_query="рыболовная катушка",
+        )
+        strategy = SimpleNamespace(
+            product_type="рыболовная катушка",
+            request=request,
+            result_limit=30,
+        )
+
+        with patch(
+            "services.convsearch.engine.ranking_mod.rank_candidates",
+            wraps=__import__(
+                "services.convsearch.ranking", fromlist=["rank_candidates"]
+            ).rank_candidates,
+        ) as rank:
+            decision = engine._evaluate_pool(
+                state, [candidate], strategy,
+                refined=False, intent=MessageIntent.NEW_SEARCH,
+                observation={}, exclude_shown=False,
+            )
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertIs(rank.call_args.kwargs["request"], request)
+
+
 class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_selector_receives_at_most_twenty_candidates(self):
         engine = ConversationSearchEngine()
