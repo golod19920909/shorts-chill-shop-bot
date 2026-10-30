@@ -170,7 +170,7 @@ one clarification instead of searching the literal question.
 
 `RetrievalBackend.retrieve` asks the EXISTING `SearchService` (its provider
 auth, retries, rate limits, normalization and dedup stay untouched) with
-`raw=True, raw_broaden=True`: the service gathers provider rows for the primary phrase and up to two additional user-grounded variants on one provider page, then returns them RAW. Inside `find_products`, `raw=True` skips
+`raw=True, raw_broaden=True`: the service gathers provider rows for the primary phrase and up to two additional user-grounded variants on one provider page, then fuses all collected route rankings with deterministic RRF before returning the RAW pool. Inside `find_products`, `raw=True` skips
 **everything** decision-shaped — including the per-page `_collect` pass whose
 relevance gate, constraint filter and sort used to run before `_collect_raw`
 (the live symptom: legacy `Relevance filter …` / `Pipeline stages …` log
