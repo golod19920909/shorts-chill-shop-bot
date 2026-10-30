@@ -684,11 +684,9 @@ MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выпо�
 """
 
 
-#: The single, bounded decision behind the conversational router
-#: (``services.convsearch.engine``): may this very short, product-free message be
-#: searched at all, or should the assistant ask ONE clarifying question first?
-#: The model may only answer "search" or "clarify" (+ a short question); it may
-#: never name a product, and the deterministic route stays the fallback.
+#: Bounded turn planner for the conversational router. It interprets each
+#: user message against the active ledger and may ask one high-value question;
+#: its output is restricted to a validated action, product type and question.
 CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
 
 Контекст диалога (JSON):
