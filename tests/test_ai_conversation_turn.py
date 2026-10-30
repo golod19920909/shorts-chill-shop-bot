@@ -117,6 +117,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsNone(selected)
+
     async def test_invalid_action_or_product_type_on_refinement_is_rejected(self):
         service = self.make_service(
             '{"action":"refine","confidence":0.99,'
