@@ -733,6 +733,10 @@ class SearchService:
         )
 
         pairs: list[tuple[MarketplaceProvider, object]] = []
+        # Keep each grounded phrase's provider rows separate until RAW
+        # collection so conversational retrieval can fuse independent route
+        # rankings instead of inheriting phrase execution order.
+        raw_route_pairs: list[list[tuple[MarketplaceProvider, object]]] = []
         outcome = SearchOutcome(
             request=request, unavailable_marketplaces=list(unavailable)
         )
@@ -767,7 +771,10 @@ class SearchService:
                     ),
                     return_exceptions=True,
                 )
-                pairs.extend(zip(active, results, strict=True))
+                route_pairs = list(zip(active, results, strict=True))
+                pairs.extend(route_pairs)
+                if raw:
+                    raw_route_pairs.append(route_pairs)
                 if all(isinstance(result, BaseException) for result in results):
                     # Every provider raised on this round: nothing was
                     # retrieved and nothing can be - deeper pages or further
@@ -870,6 +877,28 @@ class SearchService:
                 exclude=exclude,
                 cap=pool_target,
             )
+            if broaden and len(raw_route_pairs) > 1:
+                # Import lazily: convsearch.retrieval intentionally reuses
+                # SearchService as its provider adapter.
+                from services.convsearch.retrieval import merge_route_results
+
+                route_rankings = [
+                    self._deduplicate(route_pairs)
+                    for route_pairs in raw_route_pairs
+                ]
+                fused = merge_route_results(*route_rankings)
+                if exclude:
+                    fused = [
+                        product for product in fused
+                        if identity_pair(product) not in exclude
+                    ]
+                outcome.products = fused[:pool_target]
+                outcome.products_before_filtering = len(fused)
+                outcome.comparisons = build_comparison(outcome.products)
+                logger.info(
+                    "RAW conversational RRF fused %d route(s): %d unique candidates",
+                    len(route_rankings), len(fused),
+                )
             if broaden:
                 variants_used = len(pairs) // max(1, len(active))
                 logger.info(
