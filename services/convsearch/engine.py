@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 #: reach it, and never exceeds it.
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
-AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 3.0
+AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
@@ -363,14 +363,26 @@ class ConversationSearchEngine:
 
         try:
             async with asyncio.timeout(AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS):
-                selected_ids = await selector(decision.products, query=query, wanted=wanted)
+                # The selector needs only the deterministic top 20, not
+                # the entire 30-card presentation pool. Smaller evidence
+                # payloads reduce Gemini latency without changing browse cap.
+                selector_pool = decision.products[:AI_CONVERSATION_SELECTION_LIMIT]
+                selected_ids = await selector(selector_pool, query=query, wanted=wanted)
         except TimeoutError:
-            logger.info("Gemini conversation selection timed out; keeping deterministic ranking")
-            decision.report["ai_selection"] = "timeout_fallback"
+            logger.info("Gemini conversation selection timed out")
+            decision.report["ai_selection"] = "timeout"
+            if state.active_values("exclusion"):
+                decision.products = []
+                decision.outcome = Outcome.NO_ELIGIBLE
+                decision.report["reason"] = "semantic_validation_timeout"
             return decision
         except Exception:
-            logger.exception("Gemini conversation selection failed; keeping deterministic ranking")
-            decision.report["ai_selection"] = "error_fallback"
+            logger.exception("Gemini conversation selection failed")
+            decision.report["ai_selection"] = "error"
+            if state.active_values("exclusion"):
+                decision.products = []
+                decision.outcome = Outcome.NO_ELIGIBLE
+                decision.report["reason"] = "semantic_validation_error"
             return decision
 
         if selected_ids is None or not isinstance(selected_ids, list):
