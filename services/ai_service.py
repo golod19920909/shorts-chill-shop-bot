@@ -707,6 +707,8 @@ CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом �
 - alternatives: просит другие варианты того же товара.
 - compare: спрашивает о ранее показанных товарах или просит их сравнить/объяснить.
 - clarify: товар/цель неясны настолько, что честный поиск невозможен; задай один короткий вопрос на языке пользователя.
+- Если одно название товара охватывает существенно разные классы применения и без этого уточнения выдача может оказаться нерелевантной, выбери clarify и задай ОДИН вопрос о задаче/условиях использования. Например: сварочный аппарат — для дома/гаража или для профессионального производства; компрессор — для бытовых задач или промышленный. Не задавай такой вопрос, если пользователь уже указал применение или оно однозначно из запроса.
+- Не считай аксессуары и смежные товары тем же товаром только из-за общего прилагательного или слова в названии: «сварочная маска» — не «сварочный аппарат».
 - «до 2000 тысяч гривен» — это бюджетное уточнение, не название товара. Не превращай суммы и валюты в product_type.
 - «расскажи про шуруповёрт» — новый поиск/вопрос о названном товаре, а не сравнение с предыдущей выдачей, если не указано, что речь о показанных карточках.
 - Не выдумывай характеристики и не меняй продукт при обычном уточнении.
@@ -1504,6 +1506,61 @@ class AIService:
             return None
         return ids
 
+    async def select_conversation_candidates(
+        self,
+        candidates: list[Product],
+        *,
+        query: str,
+        wanted: int = TOP_CANDIDATES,
+    ) -> list[str] | None:
+        """Select relevant conversation-search candidates using real product rows.
+
+        Returns only ids from the supplied pool. None means the model call or
+        response was unusable; an empty list is a valid no-match decision.
+        """
+        if not self.is_available or not candidates:
+            return None
+
+        limit = max(1, min(int(wanted or TOP_CANDIDATES), TOP_CANDIDATES))
+        products_json = json.dumps(
+            [self._rank_payload(candidate) for candidate in candidates],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        rules = """- Сначала определи, является ли позиция ИМЕННО искомым товаром, а не аксессуаром, запчастью, расходником или соседней категорией.
+- Не принимай товар за подходящий только потому, что в названии совпадает прилагательное или часть названия. Например, сварочная маска не является сварочным аппаратом.
+- Учитывай явно указанные в запросе назначение и класс применения. Бытовой товар не заменяй промышленным оборудованием и наоборот.
+- Если назначение не указано, не выдумывай его по цене, рейтингу или популярности.
+- Рейтинг и количество заказов помогают упорядочить уже подходящие товары, но не превращают неподходящий товар в подходящий.
+- Не выдумывай характеристики, которых нет в данных.
+- Верни не более указанного количества лучших подходящих позиций; если подходящих нет, верни пустой список."""
+        raw = await self._generate(
+            SELECT_PROMPT.format(
+                goal="отобрать только подходящие товары для текущего диалога",
+                query=query[:500],
+                rules=rules,
+                products_json=products_json,
+            ),
+            models=(self.fast_model,),
+            operation="conversation_selection",
+        )
+        payload = self._extract_json_object(raw) if raw else None
+        if not isinstance(payload, dict) or not isinstance(payload.get("ids"), list):
+            return None
+
+        allowed = {
+            str(candidate.product_id)
+            for candidate in candidates
+            if candidate.product_id
+        }
+        selected: list[str] = []
+        for raw_id in payload["ids"]:
+            if not isinstance(raw_id, str):
+                continue
+            product_id = raw_id.strip()
+            if product_id in allowed and product_id not in selected:
+                selected.append(product_id)
+        return selected[:limit]
     async def plan_product_search(self, product: Product, goal: str) -> str | None:
         """A short search wording for a candidate search, or ``None``.
 
