@@ -881,13 +881,14 @@ class SearchService:
                     for route_pairs in raw_route_pairs
                 ]
                 fused = merge_route_results(*route_rankings)
+                fused_count = len(fused)
                 if exclude:
                     fused = [
                         product for product in fused
                         if identity_pair(product) not in exclude
                     ]
                 outcome.products = fused[:pool_target]
-                outcome.products_before_filtering = len(fused)
+                outcome.products_before_filtering = fused_count
                 outcome.comparisons = build_comparison(outcome.products)
                 logger.info(
                     "RAW conversational RRF fused %d route(s): %d unique candidates",
