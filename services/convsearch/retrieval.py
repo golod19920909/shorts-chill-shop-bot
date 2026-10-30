@@ -223,7 +223,7 @@ class RetrievalBackend:
             return BackendOutcome(ok=False, reason="empty_query", request=request)
         try:
             outcome: SearchOutcome = await service.find_products(
-                request, exclude=exclude, raw=True
+                request, exclude=exclude, raw=True, broaden=True, raw_broaden=True
             )
         except Exception:
             logger.exception("RetrievalBackend: provider call failed")
