@@ -196,7 +196,10 @@ class RetrievalBackend:
 
     Delegates the provider call to the EXISTING ``SearchService`` (its
     AliExpress provider adapter, retries, rate-limit handling and dedup are
-    shared infrastructure and stay). This class builds the ONE
+    shared infrastructure and stay). The service may ask its bounded,
+    user-grounded query variants (up to the existing three-variant cap) in
+    raw mode; the conversational engine still owns all candidate evaluation.
+    This class builds the ONE
     ``SearchRequest`` from the engine's ledger — the legacy parse/merge/
     intent layers are not consulted — and translates the provider's answer
     into an honest ``BackendOutcome``.
