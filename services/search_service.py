@@ -675,6 +675,15 @@ class SearchService:
                 request.original_query,
             )
             outcome = SearchOutcome(request=request, unavailable_marketplaces=unavailable)
+            if broaden:
+                variants_used = len(pairs) // max(1, len(active))
+                logger.info(
+                    "RAW conversational retrieval used %d grounded query variant(s) "
+                    "on one page (pool=%d cap=%d)",
+                    variants_used,
+                    outcome.found_count,
+                    pool_target,
+                )
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
