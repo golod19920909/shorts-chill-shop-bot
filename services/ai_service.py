@@ -1558,6 +1558,11 @@ class AIService:
             product_id = raw_id.strip()
             if product_id in allowed and product_id not in selected:
                 selected.append(product_id)
+        # A genuinely empty list is the model's explicit no-match decision.
+        # A non-empty list containing only unknown ids is an invalid answer,
+        # so the caller must retain its deterministic ranking instead.
+        if payload["ids"] and not selected:
+            return None
         return selected[:limit]
 
     async def plan_product_search(self, product: Product, goal: str) -> str | None:
