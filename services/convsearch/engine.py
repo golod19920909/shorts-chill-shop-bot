@@ -339,7 +339,7 @@ class ConversationSearchEngine:
         from that already validated pool. On timeout/error, keep deterministic
         results; a valid empty selection means no supplied row fits the request.
         """
-        if decision.outcome is not Outcome.RESULTS or len(decision.products) < 2:
+        if decision.outcome is not Outcome.RESULTS or not decision.products:
             return decision
 
         selector = getattr(self._ai_service, "select_conversation_candidates", None)
@@ -387,6 +387,7 @@ class ConversationSearchEngine:
         decision.report["ai_selection"] = "selected"
         decision.report["ai_selected"] = len(decision.products)
         return decision
+
     # -- clarification policy ------------------------------------------------
 
     async def _clarification_question(self, text: str) -> str:
