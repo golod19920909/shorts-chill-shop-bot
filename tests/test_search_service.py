@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 import httpx
 
@@ -73,9 +74,11 @@ class StubProvider(MarketplaceProvider):
         self._products = products or []
         self._error = error
         self.search_calls = 0
+        self.search_queries: list[str] = []
 
     async def search_products(self, request: SearchRequest) -> list[Product]:
         self.search_calls += 1
+        self.search_queries.append(request.normalized_query or request.original_query)
         if self._error is not None:
             raise self._error
         return list(self._products)
@@ -120,6 +123,48 @@ class SearchServiceTestCase(unittest.TestCase):
             **kwargs,
         )
 
+
+class RawConversationalRetrievalTests(SearchServiceTestCase):
+    def test_raw_conversation_can_use_bounded_grounded_variants(self) -> None:
+        products = [make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)]
+        provider = self.ali_express(products)
+        service = SearchService([provider])
+        request = SearchRequest(
+            original_query="wireless headphones for running",
+            normalized_query="wireless headphones for running",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones for running", "wireless headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(request, raw=True, broaden=True, raw_broaden=True)
+            )
+
+        self.assertEqual(provider.search_calls, 2)
+        self.assertEqual(
+            provider.search_queries,
+            ["wireless headphones for running", "wireless headphones"],
+        )
+        self.assertEqual([item.product_id for item in outcome.products], ["ali-1"])
+
+    def test_raw_retrieval_stays_single_phrase_without_explicit_opt_in(self) -> None:
+        provider = self.ali_express([make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)])
+        service = SearchService([provider])
+        request = SearchRequest(
+            original_query="wireless headphones for running",
+            normalized_query="wireless headphones for running",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones for running", "wireless headphones"],
+        ):
+            self.run_async(service.find_products(request, raw=True))
+
+        self.assertEqual(provider.search_calls, 1)
+        self.assertEqual(provider.search_queries, ["wireless headphones for running"])
 
 class ProviderSelectionTests(SearchServiceTestCase):
     """AliExpress is the only marketplace, so selection is preference-based."""
