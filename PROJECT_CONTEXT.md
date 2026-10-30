@@ -350,3 +350,7 @@ analytics, admin.
 - Honest-data invariant: never fabricate products, prices, links or
   "AI results"; a provider error is never reported as an empty catalogue.
 - Callback data carries only `(session_id, index)`, never product data.
+
+### Conversational ranking request context (2026-10-30)
+
+The live conversational engine now passes the exact RetrievalStrategy.request built from the active conversation ledger into ranking_mod.rank_candidates(..., request=...). This is required: the ranking module's optional SearchRequest argument drives the existing services.relevance.relevance_tier() and relevance_score() inputs. A missing request silently disables that relevance contribution while leaving the other deterministic score components active. Keep this propagation covered by an offline engine regression test whenever the ranking call or strategy contract changes. The optional argument remains optional for non-conversational compatibility callers.
