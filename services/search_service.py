@@ -855,18 +855,12 @@ class SearchService:
                         and (expansion is None or variant == expansion)
                     ):
                         break
-                if raw and broaden:
-                    raw_count = len(self._deduplicate(pairs))
-                    if raw_count >= pool_target:
-                        break
+                # RAW conversational retrieval evaluates every bounded
+                # grounded route before fusion. Stopping as soon as the first
+                # route fills the pool would make RRF depend on route order.
                 if all_failed:
                     break
-            raw_count = len(self._deduplicate(pairs)) if raw else 0
-            if (
-                all_failed
-                or (not raw and len(outcome.products) >= pool_target)
-                or (raw and broaden and raw_count >= pool_target)
-            ):
+            if all_failed or (not raw and len(outcome.products) >= pool_target):
                 break
 
         if raw:
