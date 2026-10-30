@@ -107,7 +107,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         prompt = service._generate.await_args.args[0]
         self.assertIn("ИСКЛЮЧИТЬ: полуавтомат", prompt)
         self.assertIn("ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH", prompt)
-        self.assertIn("не доказывает соответствие", prompt)
+        self.assertIn("НЕ доказывает соответствие", prompt)
         self.assertIn("неизвестный тип пропускай", prompt)
 
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
