@@ -60,26 +60,41 @@ def exclude_shown(products: list[Product], state: ConversationEngineState) -> li
 def merge_route_results(
     *routes: list[Product],
     exclude: set[str] | None = None,
+    rrf_k: int = 60,
 ) -> list[Product]:
-    """Deterministic multi-route merge (reference RRF spirit, simplified).
+    """Fuse independent route rankings with deterministic Reciprocal Rank Fusion.
 
-    Route order is the fusion weight: a product in an earlier route keeps
-    the earlier position. Dedup by stable identity; explicit ``exclude`` ids
-    are dropped.
+    A product gains support when it appears near the top of several routes.
+    The first encountered object is retained so the original provider fields
+    (price, URL, affiliate URL and image) are never synthesized or replaced.
     """
 
-    out: list[Product] = []
-    seen: set[str] = set()
+    if rrf_k < 0:
+        raise ValueError("rrf_k must be non-negative")
+
+    scores: dict[str, float] = {}
+    products_by_id: dict[str, Product] = {}
+    first_seen: dict[str, int] = {}
+    sequence = 0
+
     for route in routes:
-        for product in route:
+        route_seen: set[str] = set()
+        for rank, product in enumerate(route, start=1):
             key = _canonical_id(product)
-            if not key or key in seen:
+            if not key or key in route_seen or (exclude and key in exclude):
                 continue
-            if exclude and key in exclude:
-                continue
-            seen.add(key)
-            out.append(product)
-    return out
+            route_seen.add(key)
+            if key not in products_by_id:
+                products_by_id[key] = product
+                first_seen[key] = sequence
+                sequence += 1
+            scores[key] = scores.get(key, 0.0) + 1.0 / (rrf_k + rank)
+
+    ordered_ids = sorted(
+        scores,
+        key=lambda key: (-scores[key], first_seen[key], key),
+    )
+    return [products_by_id[key] for key in ordered_ids]
 
 
 def _excluded_fragments(state: ConversationEngineState) -> list[str]:
@@ -137,19 +152,69 @@ def filter_by_budget(
     products: list[Product],
     state: ConversationEngineState,
 ) -> tuple[list[Product], list[Product]]:
-    """Split the pool on the active budget slot; rows without a price pass."""
+    """Enforce a hard budget; unknown price/currency never passes."""
 
     budget = state.active_by_kind("budget")
     if budget is None:
         return list(products), []
+    parts = str(budget.value).split(maxsplit=1)
     try:
-        limit = float(str(budget.value).split()[0])
-    except ValueError:
+        limit = float(parts[0].replace(",", "."))
+    except (ValueError, IndexError):
+        # An unparseable active budget is unsafe: do not silently disable it.
+        return [], list(products)
+    budget_currency = parts[1].strip().upper() if len(parts) > 1 else ""
+    survivors, rejected = [], []
+    for product in products:
+        product_currency = str(product.currency or "").strip().upper()
+        if (
+            product.price is not None
+            and budget_currency
+            and product_currency
+            and product_currency == budget_currency
+            and product.price <= limit
+        ):
+            survivors.append(product)
+        else:
+            rejected.append(product)
+    return survivors, rejected
+
+
+def _feature_is_evidenced(product: Product, feature: str) -> bool:
+    """Require positive title/description evidence for a mandatory feature."""
+
+    wanted = _terms(feature)
+    if not wanted:
+        return True
+    evidence_text = " ".join(
+        part for part in (product.title or "", product.description or "") if part
+    )
+    observed = _terms(evidence_text)
+    from services.convsearch.type_validation import stems_match
+
+    matched = sum(
+        1 for token in wanted
+        if any(stems_match(token, candidate) for candidate in observed)
+    )
+    return matched / len(wanted) >= 0.6
+
+
+def filter_by_required_features(
+    products: list[Product],
+    state: ConversationEngineState,
+) -> tuple[list[Product], list[Product]]:
+    """Keep only candidates with evidence for every active required feature.
+
+    Missing evidence is UNKNOWN, not a successful match. Soft preferences
+    live in separate preference slots and are deliberately not filtered here.
+    """
+
+    required = state.active_values("feature")
+    if not required:
         return list(products), []
     survivors, rejected = [], []
     for product in products:
-        price = product.price
-        if price is None or price <= limit:
+        if all(_feature_is_evidenced(product, feature) for feature in required):
             survivors.append(product)
         else:
             rejected.append(product)
