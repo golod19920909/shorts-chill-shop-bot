@@ -166,6 +166,7 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         self.assertEqual(provider.search_calls, 1)
         self.assertEqual(provider.search_queries, ["wireless headphones for running"])
 
+
 class ProviderSelectionTests(SearchServiceTestCase):
     """AliExpress is the only marketplace, so selection is preference-based."""
 
