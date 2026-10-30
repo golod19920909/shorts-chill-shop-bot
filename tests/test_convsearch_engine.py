@@ -15,14 +15,17 @@ from services.convsearch.engine import ConversationSearchEngine
 from services.convsearch.state import ConversationEngineState, MessageIntent
 
 
-def product(pid: str, title: str, *, price: float = 25.0, orders: int = 10) -> Product:
+def product(
+    pid: str, title: str, *, price: float = 25.0, orders: int = 10,
+    currency: str = "USD",
+) -> Product:
     return Product(
         marketplace=Marketplace.ALIEXPRESS,
         product_id=pid,
         title=title,
         product_url=f"https://www.aliexpress.com/item/{pid}.html",
         price=price,
-        currency="USD",
+        currency=currency,
         orders_count=orders,
     )
 
@@ -58,10 +61,10 @@ def powerbank_pool() -> list[Product]:
 
 def household_pool() -> list[Product]:
     return [
-        product("hh-1", "Органайзер для дома настольный", price=12.0, orders=90),
-        product("hh-2", "Органайзер для дома стеклянный", price=20.0, orders=60),
-        product("hh-3", "Органайзер для дома металлический", price=25.0, orders=45),
-        product("hh-expensive", "Робот-пылесос для дома", price=120.0, orders=300),
+        product("hh-1", "Органайзер для дома настольный", price=12.0, orders=90, currency="UAH"),
+        product("hh-2", "Органайзер для дома стеклянный", price=20.0, orders=60, currency="UAH"),
+        product("hh-3", "Органайзер для дома металлический", price=25.0, orders=45, currency="UAH"),
+        product("hh-expensive", "Робот-пылесос для дома", price=120.0, orders=300, currency="UAH"),
     ]
 
 
