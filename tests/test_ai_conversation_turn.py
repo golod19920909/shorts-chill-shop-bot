@@ -84,6 +84,32 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, ["real-2", "real-1"])
         service._generate.assert_awaited_once()
 
+    async def test_conversation_selector_prompt_enforces_exclusions_and_budget(self):
+        service = self.make_service('{"ids":[]}')
+        candidates = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="welder-1",
+                title="Сварочный аппарат MMA",
+                product_url="https://www.aliexpress.com/item/welder-1.html",
+                price=1800.0, currency="UAH",
+            )
+        ]
+
+        await service.select_conversation_candidates(
+            candidates,
+            query=(
+                "сварочный аппарат | ИСКЛЮЧИТЬ: полуавтомат | "
+                "ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH"
+            ),
+            wanted=20,
+        )
+
+        prompt = service._generate.await_args.args[0]
+        self.assertIn("ИСКЛЮЧИТЬ: полуавтомат", prompt)
+        self.assertIn("ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH", prompt)
+        self.assertIn("не доказывает соответствие", prompt)
+        self.assertIn("неизвестный тип пропускай", prompt)
+
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
         service = self.make_service('{"ids":[]}')
         candidates = [
