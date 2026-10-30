@@ -574,6 +574,9 @@ class ConversationSearchEngine:
                 eligible.append(product)
             else:
                 rejected_type += 1
+        eligible, rejected_features = retrieval_mod.filter_by_required_features(
+            eligible, state
+        )
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         eligible, rejected_budget = retrieval_mod.filter_by_budget(eligible, state)
         if exclude_shown:
@@ -583,6 +586,7 @@ class ConversationSearchEngine:
         report = {
             "raw": len(products),
             "rejected_type": rejected_type,
+            "rejected_feature": len(rejected_features),
             "rejected_exclusion": len(rejected_ex),
             "rejected_budget": len(rejected_budget),
             "reason": "ok" if ranked else ("rejected" if products else "no_candidates"),
