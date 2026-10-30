@@ -145,7 +145,9 @@ def filter_by_exclusions(
 
 
 def _product_text_for_match(product: Product) -> str:
-    return product.title or ""
+    return " ".join(
+        part for part in (product.title or "", product.description or "") if part
+    )
 
 
 def filter_by_budget(
