@@ -192,16 +192,33 @@ removed — `type_validation.validate_product_type` is the one gate.
 
 ### LLM integration (bounded, honest)
 
-Gemini participates in the ACTIVE search flow in exactly ONE place:
-`engine._clarification_question`. When a strategy cannot be built from a
-very short message (≤ 4 words) AND an AIService is bound, the bounded
-`AIService.decide_chat_action` may phrase the ONE clarifying question;
-any failure, non-JSON answer or unusable action falls back to the
-deterministic default question. The model never names products, never
-classifies intents, never filters or ranks candidates, and its decisions
-are always validated before use. Intent, slots, retrieval, evaluation,
-ranking and the final outcome are deterministic engine code — the log
-line names the model's contribution only where it actually happened.
+Gemini participates in the ACTIVE conversational search flow in two
+validated roles:
+
+1. `AIService.decide_conversation_turn` interprets EVERY user message
+   against the recent turns and active slot ledger. It returns only a
+   closed action (`new_search`, `refine`, `correction`,
+   `alternatives`, `compare`, `clarify`), confidence, an optional
+   product type for a new search, and one clarification question. The
+   engine validates the response; malformed, uncertain, timed-out or
+   unavailable calls fall back to the deterministic state machine.
+2. After deterministic type/exclusion/budget filtering and ranking,
+   `AIService.select_conversation_candidates` may select up to 20
+   candidate IDs from the real candidate pool. It receives only real
+   product IDs, titles, prices, ratings, order counts and the active
+   query/feature context. The engine maps returned IDs back to the
+   original objects; invented IDs are discarded. A valid empty selection
+   means no supplied candidate fits. A timeout/error/unusable response
+   keeps the deterministic ranking, with an explicit diagnostic marker.
+
+Gemini never creates products, prices, ratings, affiliate links or
+attributes. The deterministic ledger, provider retrieval, hard filters,
+budget enforcement and Telegram delivery remain authoritative. Candidate
+selection is bounded to 3 seconds and cannot block the turn indefinitely.
+When a product name spans materially different use classes, the turn
+prompt instructs Gemini to ask one high-value use-case question rather
+than silently choosing a class (for example, household/garage vs
+industrial welding equipment).
 
 ### Delivery / outcomes
 
