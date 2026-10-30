@@ -1559,6 +1559,7 @@ class AIService:
             if product_id in allowed and product_id not in selected:
                 selected.append(product_id)
         return selected[:limit]
+
     async def plan_product_search(self, product: Product, goal: str) -> str | None:
         """A short search wording for a candidate search, or ``None``.
 
