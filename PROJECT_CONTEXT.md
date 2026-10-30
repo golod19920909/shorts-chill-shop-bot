@@ -189,6 +189,15 @@ enforcement is the FILTER in step 2; `WEIGHTS["budget"] = 0.0`).
 `filter_by_type` (the legacy stem-only duplicate of the type gate) was
 removed — `type_validation.validate_product_type` is the one gate.
 
+### AliExpress provider failure propagation (2026-10-30)
+
+The AliExpress provider still returns a list-compatible result to preserve the
+marketplace interface, but API failures carry a safe `provider_error` marker.
+`SearchService` records those calls as failed rather than successful empty
+searches. The exact documented empty-result response remains a normal empty
+list; other business/API errors must surface as provider failures in the
+conversational engine and must not be reported as "nothing found".
+
 ### Conversational hard-constraint enforcement (2026-10-30)
 
 Active feature slots are mandatory constraints: a candidate must carry positive
