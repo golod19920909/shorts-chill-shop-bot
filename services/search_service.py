@@ -653,13 +653,11 @@ class SearchService:
             for provider in applicable
             if not provider.is_configured
         ]
-        # RAW retrieval (the conversational engine's adapter): the provider is
-        # asked exactly one grounded phrase and the answer is only normalized
-        # and deduplicated. NO relevance gate, NO ranking, NO curation and NO
-        # AI selection runs here — the conversational engine owns candidate
-        # evaluation, and a hidden second decision-maker must not pre-empt it.
-        # Conversational raw mode opts into grounded query variants explicitly.
-        # All other raw callers keep the historical one-phrase behavior.
+        # RAW retrieval (the conversational engine's adapter): the provider
+        # returns normalized and deduplicated rows only. No relevance gate,
+        # ranking, curation or AI selection runs here. The conversational
+        # adapter explicitly opts into the bounded grounded query variants;
+        # other raw callers keep the historical one-phrase behavior.
         broaden = broaden and (not raw or raw_broaden)
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
