@@ -189,6 +189,17 @@ enforcement is the FILTER in step 2; `WEIGHTS["budget"] = 0.0`).
 `filter_by_type` (the legacy stem-only duplicate of the type gate) was
 removed — `type_validation.validate_product_type` is the one gate.
 
+### Selector latency and fail-closed behavior (2026-10-30)
+
+The conversational selector receives only the deterministic top 20 candidates
+(the user-facing browse/presentation cap remains 30), with bounded real
+descriptions included in the evidence payload. Its orchestration timeout is
+8 seconds rather than 3 seconds. If semantic validation times out or fails
+while a negative constraint is active, the engine returns no candidates
+instead of silently showing products whose compliance with that exclusion
+could not be established. Without active exclusions, the deterministic
+validated ranking remains the fallback.
+
 ### Semantic selector constraint context (2026-10-30)
 
 The bounded Gemini candidate selector receives the active exclusion slots and
