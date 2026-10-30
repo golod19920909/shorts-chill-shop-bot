@@ -9,9 +9,13 @@ own ledger.
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from models.product import Marketplace, Product
-from services.convsearch.engine import ConversationSearchEngine
+from services.convsearch.engine import ConversationSearchEngine, AI_CONVERSATION_SELECTION_LIMIT
+from services.convsearch.contract import Outcome, SearchDecision
+from services.convsearch.state import Slot
 from services.convsearch.state import ConversationEngineState, MessageIntent
 
 
@@ -231,6 +235,54 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(ranked[0].product_url, "https://www.aliexpress.com/item/aff-1.html")
         self.assertEqual(report["reason"], "ok")
 
+
+
+class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_selector_receives_at_most_twenty_candidates(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=["p0"])
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-pool")
+        candidates = [product(f"p{i}", "Рыболовная катушка") for i in range(30)]
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(decision.products[0].product_id, "p0")
+
+    async def test_selector_timeout_does_not_return_unverified_excluded_class(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(side_effect=TimeoutError)
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-exclusion")
+        state.slots.append(Slot(
+            kind="exclusion", value="полуавтомат", source_turn=1,
+            raw_text="Только не полуавтомат",
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("welder-unknown", "Сварочный аппарат")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="сварочный аппарат", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["reason"], "semantic_validation_timeout")
 
 
 class ConstraintAndFusionRegressionTests(unittest.TestCase):
