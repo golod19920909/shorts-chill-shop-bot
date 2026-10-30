@@ -171,6 +171,48 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         )
         self.assertEqual([item.product_id for item in outcome.products], ["ali-1"])
 
+    def test_raw_conversation_fuses_all_routes_even_when_first_pool_is_full(self) -> None:
+        a = make_product(Marketplace.ALIEXPRESS, "route-a", 19.0)
+        b = make_product(Marketplace.ALIEXPRESS, "route-b", 18.0)
+        c = make_product(Marketplace.ALIEXPRESS, "route-c", 17.0)
+        provider = self.ali_express([a, b, c])
+        route_results = [[a, b, c], [b, a], [b]]
+
+        async def sequenced_search(request):
+            index = provider.search_calls
+            provider.search_calls += 1
+            provider.search_queries.append(
+                request.normalized_query or request.original_query
+            )
+            return route_results[index]
+
+        provider.search_products = sequenced_search
+        # The first route already fills the raw pool. Conversational RRF must
+        # still collect the remaining bounded routes before choosing the head.
+        service = SearchService([provider], max_results=3)
+        request = SearchRequest(
+            original_query="wireless headphones for running",
+            normalized_query="wireless headphones for running",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=[
+                "wireless headphones for running",
+                "wireless headphones",
+                "running bluetooth headphones",
+            ],
+        ):
+            outcome = self.run_async(
+                service.find_products(request, raw=True, broaden=True, raw_broaden=True)
+            )
+
+        self.assertEqual(provider.search_calls, 3)
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["route-b", "route-a", "route-c"],
+        )
+
     def test_raw_retrieval_stays_single_phrase_without_explicit_opt_in(self) -> None:
         provider = self.ali_express([make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)])
         service = SearchService([provider])
