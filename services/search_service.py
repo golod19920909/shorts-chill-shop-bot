@@ -658,6 +658,8 @@ class SearchService:
         # and deduplicated. NO relevance gate, NO ranking, NO curation and NO
         # AI selection runs here — the conversational engine owns candidate
         # evaluation, and a hidden second decision-maker must not pre-empt it.
+        # Conversational raw mode opts into grounded query variants explicitly.
+        # All other raw callers keep the historical one-phrase behavior.
         broaden = broaden and (not raw or raw_broaden)
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
@@ -849,20 +851,12 @@ class SearchService:
                     ):
                         break
                 if raw and broaden:
-                    raw_count = sum(
-                        len(result)
-                        for _provider, result in pairs
-                        if isinstance(result, list)
-                    )
+                    raw_count = len(self._deduplicate(pairs))
                     if raw_count >= pool_target:
                         break
                 if all_failed:
                     break
-            raw_count = sum(
-                len(result)
-                for _provider, result in pairs
-                if isinstance(result, list)
-            ) if raw else 0
+            raw_count = len(self._deduplicate(pairs)) if raw else 0
             if (
                 all_failed
                 or (not raw and len(outcome.products) >= pool_target)
