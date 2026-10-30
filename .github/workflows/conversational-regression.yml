@@ -28,3 +28,4 @@ jobs:
           tests/test_convsearch_turn_interpretation.py
           tests/test_convsearch_engine.py
           tests/test_convsearch_type_validation.py
+          tests/test_search_service.py

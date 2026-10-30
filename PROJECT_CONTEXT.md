@@ -135,7 +135,7 @@ omit the preference: AliExpress titles often lack reliable weight/specification
 metadata, so the bot must not claim it verified an unlisted attribute.
 
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
-| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True)` — normalized + deduplicated provider rows, nothing else applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval exclusion/budget filters and shown-id exclusion. |
+| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
 | `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
 | `type_validation.py` | The hard product-type gate: principal-product vs accessory/incidental-mention, decided from the candidate's own title structure (head noun, «для …» role clauses, accessory head words, stem matching). Category-general; no per-product keyword patch. |
 | `text.py` | Tokenisation / constraint-span extraction (reference `text.py` contract, rebuilt for RU/EN mixed marketplace queries). |
@@ -170,8 +170,7 @@ one clarification instead of searching the literal question.
 
 `RetrievalBackend.retrieve` asks the EXISTING `SearchService` (its provider
 auth, retries, rate limits, normalization and dedup stay untouched) with
-`raw=True`: the service gathers the provider rows for the ONE phrase the
-engine built and returns them RAW. Inside `find_products`, `raw=True` skips
+`raw=True, raw_broaden=True`: the service gathers provider rows for the primary phrase and up to two additional user-grounded variants on one provider page, then fuses all collected route rankings with deterministic RRF before returning the RAW pool. Inside `find_products`, `raw=True` skips
 **everything** decision-shaped — including the per-page `_collect` pass whose
 relevance gate, constraint filter and sort used to run before `_collect_raw`
 (the live symptom: legacy `Relevance filter …` / `Pipeline stages …` log
@@ -180,28 +179,96 @@ cap run in `_collect_raw`. Feed / category / discovery / photo flows keep
 using the ordinary (non-raw) pipeline unchanged.
 
 `_evaluate_pool` reports the REAL pool size after EVERY stage
-(`after_shown` → `after_type` → `after_exclusion` → `after_budget` →
-`ranked`) plus the rejection counts of each gate, so a `no_eligible`
+(`after_shown` → `after_type` → `after_feature` → `after_exclusion` →
+`after_budget` → `ranked`) plus the rejection counts of each gate, so a `no_eligible`
 outcome always names the stage that emptied the pool
-(`rejected_by_type_gate` / `rejected_by_exclusions` /
-`rejected_by_budget` / `all_previously_shown`) instead of reporting a
+(`rejected_by_type_gate` / `rejected_by_required_features` /
+`rejected_by_exclusions` / `rejected_by_budget` / `all_previously_shown`) instead of reporting a
 bare zero. Ranking no longer re-counts budget as a score weight (budget
 enforcement is the FILTER in step 2; `WEIGHTS["budget"] = 0.0`).
 `filter_by_type` (the legacy stem-only duplicate of the type gate) was
 removed — `type_validation.validate_product_type` is the one gate.
 
+### Selector latency and fail-closed behavior (2026-10-30)
+
+The conversational selector receives only the deterministic top 20 candidates
+(the user-facing browse/presentation cap remains 30), with bounded real
+descriptions included in the evidence payload. Its orchestration timeout is
+8 seconds rather than 3 seconds. If semantic validation times out or fails
+while a negative constraint is active, the engine returns no candidates
+instead of silently showing products whose compliance with that exclusion
+could not be established. Without active exclusions, the deterministic
+validated ranking remains the fallback.
+
+### Semantic selector constraint context (2026-10-30)
+
+The bounded Gemini candidate selector receives the active exclusion slots and
+hard-budget slot in addition to product type, required features, and soft
+preferences. Its prompt treats explicit exclusions and budgets as mandatory.
+For a negated product class, absence of the forbidden word is not proof that a
+candidate belongs to an allowed alternative class; an unknown class is not
+selected by the model. Deterministic type, feature, exclusion, and budget gates
+remain authoritative, and the selector can only return IDs from the supplied
+candidate pool.
+
+### AliExpress provider failure propagation (2026-10-30)
+
+The AliExpress provider still returns a list-compatible result to preserve the
+marketplace interface, but API failures carry a safe `provider_error` marker.
+`SearchService` records those calls as failed rather than successful empty
+searches. The exact documented empty-result response remains a normal empty
+list; other business/API errors must surface as provider failures in the
+conversational engine and must not be reported as "nothing found".
+
+### Conversational hard-constraint enforcement (2026-10-30)
+
+Active feature slots are mandatory constraints: a candidate must carry positive
+evidence in its title or description before it continues. Comparative
+preferences remain soft signals and are not hard-filtered. Hard budgets require
+a known price and an explicit matching currency; missing prices, missing
+currencies, and currency mismatches cannot pass. The RAW conversational
+retrieval path now keeps route rankings separate and fuses them with
+deterministic Reciprocal Rank Fusion (RRF), not route-order concatenation.
+
+### Conversational hard-constraint enforcement (2026-10-30)
+
+Active feature slots are mandatory constraints: a candidate must carry positive
+evidence in its title or description before it continues. Comparative
+preferences remain soft signals and are not hard-filtered. Hard budgets require
+a known price and an explicit matching currency; missing prices, missing
+currencies, and currency mismatches cannot pass. The RAW conversational
+retrieval path collects all bounded grounded routes and fuses their rankings
+with deterministic Reciprocal Rank Fusion (RRF), not route-order concatenation.
+
 ### LLM integration (bounded, honest)
 
-Gemini participates in the ACTIVE search flow in exactly ONE place:
-`engine._clarification_question`. When a strategy cannot be built from a
-very short message (≤ 4 words) AND an AIService is bound, the bounded
-`AIService.decide_chat_action` may phrase the ONE clarifying question;
-any failure, non-JSON answer or unusable action falls back to the
-deterministic default question. The model never names products, never
-classifies intents, never filters or ranks candidates, and its decisions
-are always validated before use. Intent, slots, retrieval, evaluation,
-ranking and the final outcome are deterministic engine code — the log
-line names the model's contribution only where it actually happened.
+Gemini participates in the ACTIVE conversational search flow in two
+validated roles:
+
+1. `AIService.decide_conversation_turn` interprets EVERY user message
+   against the recent turns and active slot ledger. It returns only a
+   closed action (`new_search`, `refine`, `correction`,
+   `alternatives`, `compare`, `clarify`), confidence, an optional
+   product type for a new search, and one clarification question. The
+   engine validates the response; malformed, uncertain, timed-out or
+   unavailable calls fall back to the deterministic state machine.
+2. After deterministic type/exclusion/budget filtering and ranking,
+   `AIService.select_conversation_candidates` may select up to 20
+   candidate IDs from the real candidate pool. It receives only real
+   product IDs, titles, prices, ratings, order counts and the active
+   query/feature context. The engine maps returned IDs back to the
+   original objects; invented IDs are discarded. A valid empty selection
+   means no supplied candidate fits. A timeout/error/unusable response
+   keeps the deterministic ranking, with an explicit diagnostic marker.
+
+Gemini never creates products, prices, ratings, affiliate links or
+attributes. The deterministic ledger, provider retrieval, hard filters,
+budget enforcement and Telegram delivery remain authoritative. Candidate
+selection is bounded to 3 seconds and cannot block the turn indefinitely.
+When a product name spans materially different use classes, the turn
+prompt instructs Gemini to ask one high-value use-case question rather
+than silently choosing a class (for example, household/garage vs
+industrial welding equipment).
 
 ### Delivery / outcomes
 
@@ -283,3 +350,7 @@ analytics, admin.
 - Honest-data invariant: never fabricate products, prices, links or
   "AI results"; a provider error is never reported as an empty catalogue.
 - Callback data carries only `(session_id, index)`, never product data.
+
+### Conversational ranking request context (2026-10-30)
+
+The live conversational engine now passes the exact RetrievalStrategy.request built from the active conversation ledger into ranking_mod.rank_candidates(..., request=...). This is required: the ranking module's optional SearchRequest argument drives the existing services.relevance.relevance_tier() and relevance_score() inputs. A missing request silently disables that relevance contribution while leaving the other deterministic score components active. Keep this propagation covered by an offline engine regression test whenever the ranking call or strategy contract changes. The optional argument remains optional for non-conversational compatibility callers.

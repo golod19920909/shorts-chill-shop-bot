@@ -23,6 +23,7 @@ The engine NEVER fabricates a product, price, rating or link.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -41,6 +42,8 @@ logger = logging.getLogger(__name__)
 #: The presentation cap. The engine never pads a smaller eligible pool to
 #: reach it, and never exceeds it.
 RESULT_CARD_LIMIT = 30
+AI_CONVERSATION_SELECTION_LIMIT = 20
+AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
@@ -133,10 +136,9 @@ class ConversationSearchEngine:
         #: for tests; defaults to the explicit adapter in
         #: ``services.convsearch.retrieval.RetrievalBackend``.
         self._backend = retrieval_backend or retrieval_mod.RetrievalBackend()
-        #: Optional Gemini client for the clarification policy. Only ONE
-        #: decision is ever delegated to it (may a very short, product-free
-        #: message be searched at all, or should ONE question be asked?) —
-        #: the deterministic route stays the fallback.
+        #: Optional Gemini client for bounded turn interpretation and
+        #: semantic selection of real candidates. Both calls have validated
+        #: outputs and deterministic fallbacks.
         self._ai_service = None
 
     def bind_search_service(self, search_service) -> None:
@@ -145,10 +147,10 @@ class ConversationSearchEngine:
         self._backend.bind(search_service)
 
     def bind_ai_service(self, ai_service) -> None:
-        """Bind the Gemini client used by the clarification policy (optional).
+        """Bind the optional Gemini conversation interpreter/selector.
 
-        The policy stays deterministic when no service is bound (tests,
-        offline runs): a strategy-less turn always asks the default question.
+        Tests and offline runs may omit it; deterministic intent, filtering
+        and ranking remain available without a model.
         """
 
         self._ai_service = ai_service
@@ -310,19 +312,99 @@ class ConversationSearchEngine:
             refined=refined, intent=intent, observation=observation,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
         )
+        decision = await self._apply_ai_candidate_selection(
+            decision, strategy, state
+        )
         state.last_outcome = decision.outcome.value
         if decision.outcome is Outcome.RESULTS:
             state.record_shown([p.product_id for p in decision.products])
         # One INFO line per turn: the intent, the action and the pool fate -
         # counts only, no user text (§7 traceability).
         logger.info(
-            "convsearch action=%s intent=%s reason=%s raw=%d kept=%d",
+            "convsearch action=%s intent=%s reason=%s raw=%d kept=%d ai_selection=%s",
             decision.outcome.value,
             getattr(intent, "value", str(intent)),
             decision.report.get("reason", "-"),
             decision.report.get("raw", 0),
             len(decision.products),
+            decision.report.get("ai_selection", "not_used"),
         )
+        return decision
+
+    async def _apply_ai_candidate_selection(
+        self, decision: SearchDecision, strategy, state: ConversationEngineState
+    ) -> SearchDecision:
+        """Use Gemini as a bounded semantic selector over real marketplace rows.
+
+        Deterministic filters and ranking run first. Gemini can only return ids
+        from that already validated pool. On timeout/error, keep deterministic
+        results; a valid empty selection means no supplied row fits the request.
+        """
+        if decision.outcome is not Outcome.RESULTS or not decision.products:
+            return decision
+
+        selector = getattr(self._ai_service, "select_conversation_candidates", None)
+        if not callable(selector):
+            return decision
+
+        query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
+        query_parts.extend(state.active_values("feature"))
+        query_parts.extend(state.active_values("preference"))
+        exclusions = state.active_values("exclusion")
+        if exclusions:
+            query_parts.append("ИСКЛЮЧИТЬ: " + "; ".join(exclusions))
+        budget = state.active_by_kind("budget")
+        if budget is not None:
+            query_parts.append(f"ЖЁСТКИЙ БЮДЖЕТ: до {budget.value}")
+        query = " | ".join(part.strip() for part in query_parts if part and part.strip())
+        wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(decision.products))
+        if strategy.result_limit is not None:
+            wanted = min(wanted, max(1, int(strategy.result_limit)))
+
+        try:
+            async with asyncio.timeout(AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS):
+                # The selector needs only the deterministic top 20, not
+                # the entire 30-card presentation pool. Smaller evidence
+                # payloads reduce Gemini latency without changing browse cap.
+                selector_pool = decision.products[:AI_CONVERSATION_SELECTION_LIMIT]
+                selected_ids = await selector(selector_pool, query=query, wanted=wanted)
+        except TimeoutError:
+            logger.info("Gemini conversation selection timed out")
+            decision.report["ai_selection"] = "timeout"
+            if state.active_values("exclusion"):
+                decision.products = []
+                decision.outcome = Outcome.NO_ELIGIBLE
+                decision.report["reason"] = "semantic_validation_timeout"
+            return decision
+        except Exception:
+            logger.exception("Gemini conversation selection failed")
+            decision.report["ai_selection"] = "error"
+            if state.active_values("exclusion"):
+                decision.products = []
+                decision.outcome = Outcome.NO_ELIGIBLE
+                decision.report["reason"] = "semantic_validation_error"
+            return decision
+
+        if selected_ids is None or not isinstance(selected_ids, list):
+            decision.report["ai_selection"] = "unavailable_fallback"
+            return decision
+
+        allowed = {product.product_id: product for product in decision.products if product.product_id}
+        selected = [
+            allowed[product_id]
+            for product_id in selected_ids
+            if isinstance(product_id, str) and product_id in allowed
+        ]
+        if not selected:
+            decision.products = []
+            decision.outcome = Outcome.NO_ELIGIBLE
+            decision.report["reason"] = "no_semantically_relevant_candidates"
+            decision.report["ai_selection"] = "no_match"
+            return decision
+
+        decision.products = selected[:wanted]
+        decision.report["ai_selection"] = "selected"
+        decision.report["ai_selected"] = len(decision.products)
         return decision
 
     # -- clarification policy ------------------------------------------------
@@ -381,11 +463,13 @@ class ConversationSearchEngine:
         report: dict = {
             "raw": len(products),
             "after_type": 0,
+            "after_feature": 0,
             "after_exclusion": 0,
             "after_budget": 0,
             "after_shown": 0,
             "ranked": 0,
             "rejected_type": 0,
+            "rejected_feature": 0,
             "rejected_exclusion": 0,
             "rejected_budget": 0,
             "excluded_shown": 0,
@@ -423,7 +507,15 @@ class ConversationSearchEngine:
         report["rejected_type"] = len(rejected_type)
         report["after_type"] = len(eligible)
 
-        # 2. Explicit constraints — exclusions, budget.
+        # 2. Mandatory positive features need affirmative evidence.
+        #    Missing title/description evidence is UNKNOWN, not a match.
+        eligible, rejected_features = retrieval_mod.filter_by_required_features(
+            eligible, state
+        )
+        report["rejected_feature"] = len(rejected_features)
+        report["after_feature"] = len(eligible)
+
+        # 3. Explicit negative and budget constraints are hard filters.
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         report["rejected_exclusion"] = len(rejected_ex)
         report["after_exclusion"] = len(eligible)
@@ -434,7 +526,7 @@ class ConversationSearchEngine:
         # 3. Dedup by stable identity, then requirement-aware ranking.
         eligible = retrieval_mod._dedup_by_identity(eligible)
         ranked, _validations = ranking_mod.rank_candidates(
-            eligible, state, product_type
+            eligible, state, product_type, request=strategy.request
         )
         report["ranked"] = len(ranked)
 
@@ -461,6 +553,8 @@ class ConversationSearchEngine:
 
         if rejected_type:
             report["reason"] = "rejected_by_type_gate"
+        elif rejected_features:
+            report["reason"] = "rejected_by_required_features"
         elif rejected_ex:
             report["reason"] = "rejected_by_exclusions"
         elif rejected_budget:
@@ -498,6 +592,9 @@ class ConversationSearchEngine:
                 eligible.append(product)
             else:
                 rejected_type += 1
+        eligible, rejected_features = retrieval_mod.filter_by_required_features(
+            eligible, state
+        )
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         eligible, rejected_budget = retrieval_mod.filter_by_budget(eligible, state)
         if exclude_shown:
@@ -507,6 +604,7 @@ class ConversationSearchEngine:
         report = {
             "raw": len(products),
             "rejected_type": rejected_type,
+            "rejected_feature": len(rejected_features),
             "rejected_exclusion": len(rejected_ex),
             "rejected_budget": len(rejected_budget),
             "reason": "ok" if ranked else ("rejected" if products else "no_candidates"),

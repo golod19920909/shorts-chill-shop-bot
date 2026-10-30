@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock
 
+from models.product import Marketplace, Product
 from services.ai_service import AIService
 
 
@@ -56,6 +57,92 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         result = await service.decide_conversation_turn("что-нибудь", context={})
         self.assertEqual(result["action"], "clarify")
         self.assertEqual(result["question"], "Какой товар ищете?")
+
+    async def test_conversation_selector_returns_only_ids_from_candidate_pool(self):
+        service = self.make_service(
+            '{"ids":["real-2","invented-id","real-1","real-2"]}'
+        )
+        candidates = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="real-1",
+                title="Сварочный аппарат инверторный",
+                product_url="https://www.aliexpress.com/item/real-1.html",
+                price=100.0, currency="USD",
+            ),
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="real-2",
+                title="Сварочный аппарат бытовой",
+                product_url="https://www.aliexpress.com/item/real-2.html",
+                price=120.0, currency="USD",
+            ),
+        ]
+
+        selected = await service.select_conversation_candidates(
+            candidates, query="сварочный аппарат", wanted=2
+        )
+
+        self.assertEqual(selected, ["real-2", "real-1"])
+        service._generate.assert_awaited_once()
+
+    async def test_conversation_selector_prompt_enforces_exclusions_and_budget(self):
+        service = self.make_service('{"ids":[]}')
+        candidates = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="welder-1",
+                title="Сварочный аппарат MMA",
+                product_url="https://www.aliexpress.com/item/welder-1.html",
+                price=1800.0, currency="UAH",
+            )
+        ]
+
+        await service.select_conversation_candidates(
+            candidates,
+            query=(
+                "сварочный аппарат | ИСКЛЮЧИТЬ: полуавтомат | "
+                "ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH"
+            ),
+            wanted=20,
+        )
+
+        prompt = service._generate.await_args.args[0]
+        self.assertIn("ИСКЛЮЧИТЬ: полуавтомат", prompt)
+        self.assertIn("ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH", prompt)
+        self.assertIn("НЕ доказывает соответствие", prompt)
+        self.assertIn("неизвестный тип пропускай", prompt)
+
+    async def test_conversation_selector_preserves_explicit_empty_selection(self):
+        service = self.make_service('{"ids":[]}')
+        candidates = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="mask-1",
+                title="Сварочная маска",
+                product_url="https://www.aliexpress.com/item/mask-1.html",
+                price=20.0, currency="USD",
+            )
+        ]
+
+        selected = await service.select_conversation_candidates(
+            candidates, query="сварочный аппарат", wanted=20
+        )
+
+        self.assertEqual(selected, [])
+
+    async def test_conversation_selector_rejects_only_unknown_ids_as_unusable(self):
+        service = self.make_service('{"ids":["not-in-pool"]}')
+        candidates = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS, product_id="real-1",
+                title="Сварочный аппарат",
+                product_url="https://www.aliexpress.com/item/real-1.html",
+                price=100.0, currency="USD",
+            )
+        ]
+
+        selected = await service.select_conversation_candidates(
+            candidates, query="сварочный аппарат", wanted=20
+        )
+
+        self.assertIsNone(selected)
 
     async def test_invalid_action_or_product_type_on_refinement_is_rejected(self):
         service = self.make_service(

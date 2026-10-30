@@ -592,6 +592,7 @@ class SearchService:
         broaden: bool = True,
         feed_selection: bool = True,
         raw: bool = False,
+        raw_broaden: bool = False,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -652,12 +653,12 @@ class SearchService:
             for provider in applicable
             if not provider.is_configured
         ]
-        # RAW retrieval (the conversational engine's adapter): the provider is
-        # asked exactly one grounded phrase and the answer is only normalized
-        # and deduplicated. NO relevance gate, NO ranking, NO curation and NO
-        # AI selection runs here — the conversational engine owns candidate
-        # evaluation, and a hidden second decision-maker must not pre-empt it.
-        broaden = broaden and not raw
+        # RAW retrieval (the conversational engine's adapter): the provider
+        # returns normalized and deduplicated rows only. No relevance gate,
+        # ranking, curation or AI selection runs here. The conversational
+        # adapter explicitly opts into the bounded grounded query variants;
+        # other raw callers keep the historical one-phrase behavior.
+        broaden = broaden and (not raw or raw_broaden)
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
         t_search_started = time.perf_counter()
@@ -727,11 +728,15 @@ class SearchService:
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
         pages = (
             list(range(first_page, self.max_search_pages + 1))
-            if broaden and request.mode is SearchMode.SEARCH
+            if broaden and not raw and request.mode is SearchMode.SEARCH
             else [first_page]
         )
 
         pairs: list[tuple[MarketplaceProvider, object]] = []
+        # Keep each grounded phrase's provider rows separate until RAW
+        # collection so conversational retrieval can fuse independent route
+        # rankings instead of inheriting phrase execution order.
+        raw_route_pairs: list[list[tuple[MarketplaceProvider, object]]] = []
         outcome = SearchOutcome(
             request=request, unavailable_marketplaces=list(unavailable)
         )
@@ -766,8 +771,15 @@ class SearchService:
                     ),
                     return_exceptions=True,
                 )
-                pairs.extend(zip(active, results, strict=True))
-                if all(isinstance(result, BaseException) for result in results):
+                route_pairs = list(zip(active, results, strict=True))
+                pairs.extend(route_pairs)
+                if raw:
+                    raw_route_pairs.append(route_pairs)
+                if all(
+                    isinstance(result, BaseException)
+                    or bool(getattr(result, "provider_error", None))
+                    for result in results
+                ):
                     # Every provider raised on this round: nothing was
                     # retrieved and nothing can be - deeper pages or further
                     # variants would only repeat the same failing calls.
@@ -847,6 +859,9 @@ class SearchService:
                         and (expansion is None or variant == expansion)
                     ):
                         break
+                # RAW conversational retrieval evaluates every bounded
+                # grounded route before fusion. Stopping as soon as the first
+                # route fills the pool would make RRF depend on route order.
                 if all_failed:
                     break
             if all_failed or (not raw and len(outcome.products) >= pool_target):
@@ -860,6 +875,38 @@ class SearchService:
                 exclude=exclude,
                 cap=pool_target,
             )
+            if broaden and len(raw_route_pairs) > 1:
+                # Import lazily: convsearch.retrieval intentionally reuses
+                # SearchService as its provider adapter.
+                from services.convsearch.retrieval import merge_route_results
+
+                route_rankings = [
+                    self._deduplicate(route_pairs)
+                    for route_pairs in raw_route_pairs
+                ]
+                fused = merge_route_results(*route_rankings)
+                fused_count = len(fused)
+                if exclude:
+                    fused = [
+                        product for product in fused
+                        if identity_pair(product) not in exclude
+                    ]
+                outcome.products = fused[:pool_target]
+                outcome.products_before_filtering = fused_count
+                outcome.comparisons = build_comparison(outcome.products)
+                logger.info(
+                    "RAW conversational RRF fused %d route(s): %d unique candidates",
+                    len(route_rankings), len(fused),
+                )
+            if broaden:
+                variants_used = len(pairs) // max(1, len(active))
+                logger.info(
+                    "RAW conversational retrieval used %d grounded query variant(s) "
+                    "on one page (pool=%d cap=%d)",
+                    variants_used,
+                    outcome.found_count,
+                    pool_target,
+                )
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -1163,9 +1210,12 @@ class SearchService:
         """
 
         for provider, result in pairs:
-            if isinstance(result, BaseException):
+            provider_error = getattr(result, "provider_error", None)
+            if isinstance(result, BaseException) or provider_error:
+                reason = provider_error or type(result).__name__
                 logger.error(
-                    "%s lookup failed: %s", provider.display_name, result, exc_info=result
+                    "%s lookup failed: %s", provider.display_name, reason,
+                    exc_info=result if isinstance(result, BaseException) else None,
                 )
                 if provider.display_name not in outcome.failed_marketplaces:
                     outcome.failed_marketplaces.append(provider.display_name)
@@ -1208,10 +1258,13 @@ class SearchService:
         """
 
         for provider, result in pairs:
-            if isinstance(result, BaseException):
+            provider_error = getattr(result, "provider_error", None)
+            if isinstance(result, BaseException) or provider_error:
                 # One marketplace being down must not affect the others.
+                reason = provider_error or type(result).__name__
                 logger.error(
-                    "%s lookup failed: %s", provider.display_name, result, exc_info=result
+                    "%s lookup failed: %s", provider.display_name, reason,
+                    exc_info=result if isinstance(result, BaseException) else None,
                 )
                 if provider.display_name not in outcome.failed_marketplaces:
                     outcome.failed_marketplaces.append(provider.display_name)
@@ -1335,7 +1388,11 @@ class SearchService:
 
         merged: list[Product] = []
         for _, result in pairs:
-            if isinstance(result, BaseException) or result is None:
+            if (
+                isinstance(result, BaseException)
+                or result is None
+                or getattr(result, "provider_error", None)
+            ):
                 continue
             merged.extend(result)  # type: ignore[arg-type]
 

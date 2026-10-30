@@ -9,20 +9,27 @@ own ledger.
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from models.product import Marketplace, Product
-from services.convsearch.engine import ConversationSearchEngine
+from services.convsearch.engine import ConversationSearchEngine, AI_CONVERSATION_SELECTION_LIMIT
+from services.convsearch.contract import Outcome, SearchDecision
+from services.convsearch.state import Slot
 from services.convsearch.state import ConversationEngineState, MessageIntent
 
 
-def product(pid: str, title: str, *, price: float = 25.0, orders: int = 10) -> Product:
+def product(
+    pid: str, title: str, *, price: float = 25.0, orders: int = 10,
+    currency: str = "USD",
+) -> Product:
     return Product(
         marketplace=Marketplace.ALIEXPRESS,
         product_id=pid,
         title=title,
         product_url=f"https://www.aliexpress.com/item/{pid}.html",
         price=price,
-        currency="USD",
+        currency=currency,
         orders_count=orders,
     )
 
@@ -58,10 +65,10 @@ def powerbank_pool() -> list[Product]:
 
 def household_pool() -> list[Product]:
     return [
-        product("hh-1", "Органайзер для дома настольный", price=12.0, orders=90),
-        product("hh-2", "Органайзер для дома стеклянный", price=20.0, orders=60),
-        product("hh-3", "Органайзер для дома металлический", price=25.0, orders=45),
-        product("hh-expensive", "Робот-пылесос для дома", price=120.0, orders=300),
+        product("hh-1", "Органайзер для дома настольный", price=12.0, orders=90, currency="UAH"),
+        product("hh-2", "Органайзер для дома стеклянный", price=20.0, orders=60, currency="UAH"),
+        product("hh-3", "Органайзер для дома металлический", price=25.0, orders=45, currency="UAH"),
+        product("hh-expensive", "Робот-пылесос для дома", price=120.0, orders=300, currency="UAH"),
     ]
 
 
@@ -227,6 +234,167 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(len(ranked), 1)
         self.assertEqual(ranked[0].product_url, "https://www.aliexpress.com/item/aff-1.html")
         self.assertEqual(report["reason"], "ok")
+
+
+
+class RankingRequestPropagationTests(unittest.TestCase):
+    def test_engine_passes_the_built_request_into_ranking(self):
+        from unittest.mock import patch
+        from models.search_request import SearchRequest
+
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="ranking-request")
+        candidate = product("reel", "Рыболовная катушка")
+        request = SearchRequest(
+            original_query="рыболовная катушка",
+            normalized_query="рыболовная катушка",
+        )
+        strategy = SimpleNamespace(
+            product_type="рыболовная катушка",
+            request=request,
+            result_limit=30,
+        )
+
+        with patch(
+            "services.convsearch.engine.ranking_mod.rank_candidates",
+            wraps=__import__(
+                "services.convsearch.ranking", fromlist=["rank_candidates"]
+            ).rank_candidates,
+        ) as rank:
+            decision = engine._evaluate_pool(
+                state, [candidate], strategy,
+                refined=False, intent=MessageIntent.NEW_SEARCH,
+                observation={}, exclude_shown=False,
+            )
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertIs(rank.call_args.kwargs["request"], request)
+
+
+class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_selector_receives_at_most_twenty_candidates(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=["p0"])
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-pool")
+        candidates = [product(f"p{i}", "Рыболовная катушка") for i in range(30)]
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(decision.products[0].product_id, "p0")
+
+    async def test_selector_timeout_does_not_return_unverified_excluded_class(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(side_effect=TimeoutError)
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-exclusion")
+        state.slots.append(Slot(
+            kind="exclusion", value="полуавтомат", source_turn=1,
+            raw_text="Только не полуавтомат",
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("welder-unknown", "Сварочный аппарат")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="сварочный аппарат", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["reason"], "semantic_validation_timeout")
+
+
+class ConstraintAndFusionRegressionTests(unittest.TestCase):
+    def _product(self, pid: str, title: str, *, price=None, currency=None) -> Product:
+        return Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id=pid,
+            title=title,
+            product_url=f"https://www.aliexpress.com/item/{pid}.html",
+            price=price,
+            currency=currency,
+        )
+
+    def test_budget_rejects_unknown_price_and_currency_mismatch(self) -> None:
+        from services.convsearch.retrieval import filter_by_budget
+        from services.convsearch.state import Slot
+
+        state = ConversationEngineState(user_key="budget")
+        state.slots.append(Slot(
+            kind="budget", value="2000 UAH", source_turn=1, raw_text="до 2000 гривен"
+        ))
+        products = [
+            self._product("uah-ok", "Товар", price=1800, currency="UAH"),
+            self._product("uah-over", "Товар", price=2200, currency="UAH"),
+            self._product("usd-unknown", "Товар", price=20, currency="USD"),
+            self._product("price-unknown", "Товар", price=None, currency="UAH"),
+            self._product("currency-unknown", "Товар", price=100, currency=None),
+        ]
+
+        survivors, rejected = filter_by_budget(products, state)
+
+        self.assertEqual([p.product_id for p in survivors], ["uah-ok"])
+        self.assertEqual(
+            {p.product_id for p in rejected},
+            {"uah-over", "usd-unknown", "price-unknown", "currency-unknown"},
+        )
+
+    def test_required_feature_needs_positive_evidence(self) -> None:
+        from services.convsearch.retrieval import filter_by_required_features
+        from services.convsearch.state import Slot
+
+        state = ConversationEngineState(user_key="feature")
+        state.slots.append(Slot(
+            kind="feature", value="для дома", source_turn=1, raw_text="Для дома"
+        ))
+        products = [
+            self._product("home", "Сварочный аппарат инверторный для дома"),
+            self._product("industrial", "Сварочный аппарат промышленный"),
+        ]
+
+        survivors, rejected = filter_by_required_features(products, state)
+
+        self.assertEqual([p.product_id for p in survivors], ["home"])
+        self.assertEqual([p.product_id for p in rejected], ["industrial"])
+
+    def test_route_merge_uses_reciprocal_rank_fusion(self) -> None:
+        from services.convsearch.retrieval import merge_route_results
+
+        a = self._product("a", "Product A")
+        b = self._product("b", "Product B")
+        c = self._product("c", "Product C")
+
+        merged = merge_route_results(
+            [a, b, c],
+            [b, a],
+            [b],
+        )
+
+        self.assertEqual([p.product_id for p in merged], ["b", "a", "c"])
+        self.assertIs(merged[0], b)
+
+    def test_route_merge_respects_exclusions_and_stable_ties(self) -> None:
+        from services.convsearch.retrieval import merge_route_results
+
+        a = self._product("a", "Product A")
+        b = self._product("b", "Product B")
+        merged = merge_route_results([a, b], [b, a], exclude={"b"})
+        self.assertEqual([p.product_id for p in merged], ["a"])
 
 
 if __name__ == "__main__":
