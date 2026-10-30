@@ -445,11 +445,13 @@ class ConversationSearchEngine:
         report: dict = {
             "raw": len(products),
             "after_type": 0,
+            "after_feature": 0,
             "after_exclusion": 0,
             "after_budget": 0,
             "after_shown": 0,
             "ranked": 0,
             "rejected_type": 0,
+            "rejected_feature": 0,
             "rejected_exclusion": 0,
             "rejected_budget": 0,
             "excluded_shown": 0,
@@ -487,7 +489,15 @@ class ConversationSearchEngine:
         report["rejected_type"] = len(rejected_type)
         report["after_type"] = len(eligible)
 
-        # 2. Explicit constraints — exclusions, budget.
+        # 2. Mandatory positive features need affirmative evidence.
+        #    Missing title/description evidence is UNKNOWN, not a match.
+        eligible, rejected_features = retrieval_mod.filter_by_required_features(
+            eligible, state
+        )
+        report["rejected_feature"] = len(rejected_features)
+        report["after_feature"] = len(eligible)
+
+        # 3. Explicit negative and budget constraints are hard filters.
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         report["rejected_exclusion"] = len(rejected_ex)
         report["after_exclusion"] = len(eligible)
@@ -525,6 +535,8 @@ class ConversationSearchEngine:
 
         if rejected_type:
             report["reason"] = "rejected_by_type_gate"
+        elif rejected_features:
+            report["reason"] = "rejected_by_required_features"
         elif rejected_ex:
             report["reason"] = "rejected_by_exclusions"
         elif rejected_budget:
