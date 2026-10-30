@@ -229,5 +229,84 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(report["reason"], "ok")
 
 
+
+class ConstraintAndFusionRegressionTests(unittest.TestCase):
+    def _product(self, pid: str, title: str, *, price=None, currency=None) -> Product:
+        return Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id=pid,
+            title=title,
+            product_url=f"https://www.aliexpress.com/item/{pid}.html",
+            price=price,
+            currency=currency,
+        )
+
+    def test_budget_rejects_unknown_price_and_currency_mismatch(self) -> None:
+        from services.convsearch.retrieval import filter_by_budget
+        from services.convsearch.state import Slot
+
+        state = ConversationEngineState(user_key="budget")
+        state.slots.append(Slot(
+            kind="budget", value="2000 UAH", source_turn=1, raw_text="до 2000 гривен"
+        ))
+        products = [
+            self._product("uah-ok", "Товар", price=1800, currency="UAH"),
+            self._product("uah-over", "Товар", price=2200, currency="UAH"),
+            self._product("usd-unknown", "Товар", price=20, currency="USD"),
+            self._product("price-unknown", "Товар", price=None, currency="UAH"),
+            self._product("currency-unknown", "Товар", price=100, currency=None),
+        ]
+
+        survivors, rejected = filter_by_budget(products, state)
+
+        self.assertEqual([p.product_id for p in survivors], ["uah-ok"])
+        self.assertEqual(
+            {p.product_id for p in rejected},
+            {"uah-over", "usd-unknown", "price-unknown", "currency-unknown"},
+        )
+
+    def test_required_feature_needs_positive_evidence(self) -> None:
+        from services.convsearch.retrieval import filter_by_required_features
+        from services.convsearch.state import Slot
+
+        state = ConversationEngineState(user_key="feature")
+        state.slots.append(Slot(
+            kind="feature", value="для дома", source_turn=1, raw_text="Для дома"
+        ))
+        products = [
+            self._product("home", "Сварочный аппарат инверторный для дома"),
+            self._product("industrial", "Сварочный аппарат промышленный"),
+        ]
+
+        survivors, rejected = filter_by_required_features(products, state)
+
+        self.assertEqual([p.product_id for p in survivors], ["home"])
+        self.assertEqual([p.product_id for p in rejected], ["industrial"])
+
+    def test_route_merge_uses_reciprocal_rank_fusion(self) -> None:
+        from services.convsearch.retrieval import merge_route_results
+
+        a = self._product("a", "Product A")
+        b = self._product("b", "Product B")
+        c = self._product("c", "Product C")
+
+        merged = merge_route_results(
+            [a, b, c],
+            [b, a],
+            [b],
+        )
+
+        self.assertEqual([p.product_id for p in merged], ["b", "a", "c"])
+        self.assertIs(merged[0], b)
+
+    def test_route_merge_respects_exclusions_and_stable_ties(self) -> None:
+        from services.convsearch.retrieval import merge_route_results
+
+        a = self._product("a", "Product A")
+        b = self._product("b", "Product B")
+        merged = merge_route_results([a, b], [b, a], exclude={"b"})
+        self.assertEqual([p.product_id for p in merged], ["a"])
+
+
 if __name__ == "__main__":
     unittest.main()
