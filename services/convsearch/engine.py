@@ -526,7 +526,7 @@ class ConversationSearchEngine:
         # 3. Dedup by stable identity, then requirement-aware ranking.
         eligible = retrieval_mod._dedup_by_identity(eligible)
         ranked, _validations = ranking_mod.rank_candidates(
-            eligible, state, product_type
+            eligible, state, product_type, request=strategy.request
         )
         report["ranked"] = len(ranked)
 
