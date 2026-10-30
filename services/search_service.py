@@ -592,6 +592,7 @@ class SearchService:
         broaden: bool = True,
         feed_selection: bool = True,
         raw: bool = False,
+        raw_broaden: bool = False,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -657,7 +658,7 @@ class SearchService:
         # and deduplicated. NO relevance gate, NO ranking, NO curation and NO
         # AI selection runs here — the conversational engine owns candidate
         # evaluation, and a hidden second decision-maker must not pre-empt it.
-        broaden = broaden and not raw
+        broaden = broaden and (not raw or raw_broaden)
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
         t_search_started = time.perf_counter()
@@ -727,7 +728,7 @@ class SearchService:
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
         pages = (
             list(range(first_page, self.max_search_pages + 1))
-            if broaden and request.mode is SearchMode.SEARCH
+            if broaden and not raw and request.mode is SearchMode.SEARCH
             else [first_page]
         )
 
@@ -847,9 +848,26 @@ class SearchService:
                         and (expansion is None or variant == expansion)
                     ):
                         break
+                if raw and broaden:
+                    raw_count = sum(
+                        len(result)
+                        for _provider, result in pairs
+                        if isinstance(result, list)
+                    )
+                    if raw_count >= pool_target:
+                        break
                 if all_failed:
                     break
-            if all_failed or (not raw and len(outcome.products) >= pool_target):
+            raw_count = sum(
+                len(result)
+                for _provider, result in pairs
+                if isinstance(result, list)
+            ) if raw else 0
+            if (
+                all_failed
+                or (not raw and len(outcome.products) >= pool_target)
+                or (raw and broaden and raw_count >= pool_target)
+            ):
                 break
 
         if raw:
