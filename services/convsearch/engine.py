@@ -321,12 +321,13 @@ class ConversationSearchEngine:
         # One INFO line per turn: the intent, the action and the pool fate -
         # counts only, no user text (§7 traceability).
         logger.info(
-            "convsearch action=%s intent=%s reason=%s raw=%d kept=%d",
+            "convsearch action=%s intent=%s reason=%s raw=%d kept=%d ai_selection=%s",
             decision.outcome.value,
             getattr(intent, "value", str(intent)),
             decision.report.get("reason", "-"),
             decision.report.get("raw", 0),
             len(decision.products),
+            decision.report.get("ai_selection", "not_used"),
         )
         return decision
 
