@@ -350,6 +350,12 @@ class ConversationSearchEngine:
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
         query_parts.extend(state.active_values("feature"))
         query_parts.extend(state.active_values("preference"))
+        exclusions = state.active_values("exclusion")
+        if exclusions:
+            query_parts.append("ИСКЛЮЧИТЬ: " + "; ".join(exclusions))
+        budget = state.active_by_kind("budget")
+        if budget is not None:
+            query_parts.append(f"ЖЁСТКИЙ БЮДЖЕТ: до {budget.value}")
         query = " | ".join(part.strip() for part in query_parts if part and part.strip())
         wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(decision.products))
         if strategy.result_limit is not None:
