@@ -102,6 +102,25 @@ from services.text_matching import truncate_provider_phrase
 
 logger = logging.getLogger(__name__)
 
+
+class AliExpressSearchResults(list[Product]):
+    """List-compatible provider result that can carry a safe API failure class.
+
+    The marketplace interface remains list-compatible. SearchService can
+    distinguish a genuine empty answer from an API failure without relying
+    on mutable provider-global error state.
+    """
+
+    def __init__(
+        self,
+        products=(),
+        *,
+        provider_error: str | None = None,
+    ) -> None:
+        super().__init__(products)
+        self.provider_error = provider_error
+
+
 #: The affiliate API is localizable; the bot's audience is Russian, so
 #: product text is requested in Russian (a documented target_language).
 TARGET_LANGUAGE = "RU"
@@ -437,10 +456,16 @@ class AliExpressProvider(MarketplaceProvider):
                 METHOD_PRODUCT_QUERY, self._search_params(request)
             )
         except AliExpressApiError as exc:
-            logger.error("AliExpress search failed: %s", exc)
-            return []
+            # Preserve the provider contract (a list) while allowing the
+            # shared SearchService to distinguish an API failure from a
+            # legitimate empty marketplace answer. Keep diagnostics safe:
+            # code/status and exception class only, never request params.
+            error_code = exc.code or (str(exc.status) if exc.status else "unknown")
+            error_class = f"AliExpressApiError:{error_code}"
+            logger.error("AliExpress search failed (%s)", error_class)
+            return AliExpressSearchResults(provider_error=error_class)
 
-        return self.parse_products(payload)
+        return AliExpressSearchResults(self.parse_products(payload))
 
     async def get_product(
         self, product_id: str, currency: str | None = None
