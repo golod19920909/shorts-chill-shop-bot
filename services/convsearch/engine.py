@@ -366,7 +366,7 @@ class ConversationSearchEngine:
             decision.report["ai_selection"] = "error_fallback"
             return decision
 
-        if selected_ids is None:
+        if selected_ids is None or not isinstance(selected_ids, list):
             decision.report["ai_selection"] = "unavailable_fallback"
             return decision
 
