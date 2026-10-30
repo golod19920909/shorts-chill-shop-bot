@@ -23,6 +23,7 @@ The engine NEVER fabricates a product, price, rating or link.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -41,6 +42,8 @@ logger = logging.getLogger(__name__)
 #: The presentation cap. The engine never pads a smaller eligible pool to
 #: reach it, and never exceeds it.
 RESULT_CARD_LIMIT = 30
+AI_CONVERSATION_SELECTION_LIMIT = 20
+AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 3.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
@@ -310,6 +313,9 @@ class ConversationSearchEngine:
             refined=refined, intent=intent, observation=observation,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
         )
+        decision = await self._apply_ai_candidate_selection(
+            decision, strategy, state
+        )
         state.last_outcome = decision.outcome.value
         if decision.outcome is Outcome.RESULTS:
             state.record_shown([p.product_id for p in decision.products])
@@ -325,6 +331,63 @@ class ConversationSearchEngine:
         )
         return decision
 
+    async def _apply_ai_candidate_selection(
+        self, decision: SearchDecision, strategy, state: ConversationEngineState
+    ) -> SearchDecision:
+        """Use Gemini as a bounded semantic selector over real marketplace rows.
+
+        Deterministic filters and ranking run first. Gemini can only return ids
+        from that already validated pool. On timeout/error, keep deterministic
+        results; a valid empty selection means no supplied row fits the request.
+        """
+        if decision.outcome is not Outcome.RESULTS or len(decision.products) < 2:
+            return decision
+
+        selector = getattr(self._ai_service, "select_conversation_candidates", None)
+        if not callable(selector):
+            return decision
+
+        query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
+        query_parts.extend(state.active_values("feature"))
+        query_parts.extend(state.active_values("preference"))
+        query = " | ".join(part.strip() for part in query_parts if part and part.strip())
+        wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(decision.products))
+        if strategy.result_limit is not None:
+            wanted = min(wanted, max(1, int(strategy.result_limit)))
+
+        try:
+            async with asyncio.timeout(AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS):
+                selected_ids = await selector(decision.products, query=query, wanted=wanted)
+        except TimeoutError:
+            logger.info("Gemini conversation selection timed out; keeping deterministic ranking")
+            decision.report["ai_selection"] = "timeout_fallback"
+            return decision
+        except Exception:
+            logger.exception("Gemini conversation selection failed; keeping deterministic ranking")
+            decision.report["ai_selection"] = "error_fallback"
+            return decision
+
+        if selected_ids is None:
+            decision.report["ai_selection"] = "unavailable_fallback"
+            return decision
+
+        allowed = {product.product_id: product for product in decision.products if product.product_id}
+        selected = [
+            allowed[product_id]
+            for product_id in selected_ids
+            if isinstance(product_id, str) and product_id in allowed
+        ]
+        if not selected:
+            decision.products = []
+            decision.outcome = Outcome.NO_ELIGIBLE
+            decision.report["reason"] = "no_semantically_relevant_candidates"
+            decision.report["ai_selection"] = "no_match"
+            return decision
+
+        decision.products = selected[:wanted]
+        decision.report["ai_selection"] = "selected"
+        decision.report["ai_selected"] = len(decision.products)
+        return decision
     # -- clarification policy ------------------------------------------------
 
     async def _clarification_question(self, text: str) -> str:
