@@ -135,7 +135,7 @@ omit the preference: AliExpress titles often lack reliable weight/specification
 metadata, so the bot must not claim it verified an unlisted attribute.
 
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
-| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True)` — normalized + deduplicated provider rows, nothing else applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval exclusion/budget filters and shown-id exclusion. |
+| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page, merged and deduplicated; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval exclusion/budget filters and shown-id exclusion. |
 | `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
 | `type_validation.py` | The hard product-type gate: principal-product vs accessory/incidental-mention, decided from the candidate's own title structure (head noun, «для …» role clauses, accessory head words, stem matching). Category-general; no per-product keyword patch. |
 | `text.py` | Tokenisation / constraint-span extraction (reference `text.py` contract, rebuilt for RU/EN mixed marketplace queries). |
@@ -170,8 +170,7 @@ one clarification instead of searching the literal question.
 
 `RetrievalBackend.retrieve` asks the EXISTING `SearchService` (its provider
 auth, retries, rate limits, normalization and dedup stay untouched) with
-`raw=True`: the service gathers the provider rows for the ONE phrase the
-engine built and returns them RAW. Inside `find_products`, `raw=True` skips
+`raw=True, raw_broaden=True`: the service gathers provider rows for the primary phrase and up to two additional user-grounded variants on one provider page, then returns them RAW. Inside `find_products`, `raw=True` skips
 **everything** decision-shaped — including the per-page `_collect` pass whose
 relevance gate, constraint filter and sort used to run before `_collect_raw`
 (the live symptom: legacy `Relevance filter …` / `Pipeline stages …` log
