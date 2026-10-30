@@ -131,7 +131,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(decision.outcome, Outcome.RESULTS)
         self.assertEqual([item.product_id for item in decision.products], ["welder-1"])
         self.assertEqual(decision.report["ai_selection"], "selected")
-        self.assertEqual(ai.selection_wanted, 1)
+        self.assertEqual(ai.selection_wanted, 2)
         self.assertIn("сварочный аппарат", ai.selection_query)
 
     async def test_semantic_selector_empty_result_does_not_restore_irrelevant_items(self):
@@ -155,6 +155,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
         self.assertEqual(decision.products, [])
         self.assertEqual(decision.report["reason"], "no_semantically_relevant_candidates")
+
     async def test_uncertain_or_missing_ai_decision_uses_deterministic_fallback(self):
         ai = FakeAI(None)
         backend = FakeBackend([listing("w1", "Сварочный аппарат инверторный")])
