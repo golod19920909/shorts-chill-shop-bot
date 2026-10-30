@@ -189,6 +189,17 @@ enforcement is the FILTER in step 2; `WEIGHTS["budget"] = 0.0`).
 `filter_by_type` (the legacy stem-only duplicate of the type gate) was
 removed — `type_validation.validate_product_type` is the one gate.
 
+### Semantic selector constraint context (2026-10-30)
+
+The bounded Gemini candidate selector receives the active exclusion slots and
+hard-budget slot in addition to product type, required features, and soft
+preferences. Its prompt treats explicit exclusions and budgets as mandatory.
+For a negated product class, absence of the forbidden word is not proof that a
+candidate belongs to an allowed alternative class; an unknown class is not
+selected by the model. Deterministic type, feature, exclusion, and budget gates
+remain authoritative, and the selector can only return IDs from the supplied
+candidate pool.
+
 ### AliExpress provider failure propagation (2026-10-30)
 
 The AliExpress provider still returns a list-compatible result to preserve the
