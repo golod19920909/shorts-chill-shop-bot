@@ -20,12 +20,5 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run focused offline tests
-        run: >
-          python -m pytest -q
-          tests/test_ai_conversation_turn.py
-          tests/test_convsearch_budget_followups.py
-          tests/test_convsearch_turn_interpretation.py
-          tests/test_convsearch_engine.py
-          tests/test_convsearch_type_validation.py
-          tests/test_search_service.py
+      - name: Run full offline test suite
+        run: python -m pytest -q tests
