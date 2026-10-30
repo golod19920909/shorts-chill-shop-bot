@@ -136,10 +136,9 @@ class ConversationSearchEngine:
         #: for tests; defaults to the explicit adapter in
         #: ``services.convsearch.retrieval.RetrievalBackend``.
         self._backend = retrieval_backend or retrieval_mod.RetrievalBackend()
-        #: Optional Gemini client for the clarification policy. Only ONE
-        #: decision is ever delegated to it (may a very short, product-free
-        #: message be searched at all, or should ONE question be asked?) —
-        #: the deterministic route stays the fallback.
+        #: Optional Gemini client for bounded turn interpretation and
+        #: semantic selection of real candidates. Both calls have validated
+        #: outputs and deterministic fallbacks.
         self._ai_service = None
 
     def bind_search_service(self, search_service) -> None:
@@ -148,10 +147,10 @@ class ConversationSearchEngine:
         self._backend.bind(search_service)
 
     def bind_ai_service(self, ai_service) -> None:
-        """Bind the Gemini client used by the clarification policy (optional).
+        """Bind the optional Gemini conversation interpreter/selector.
 
-        The policy stays deterministic when no service is bound (tests,
-        offline runs): a strategy-less turn always asks the default question.
+        Tests and offline runs may omit it; deterministic intent, filtering
+        and ranking remain available without a model.
         """
 
         self._ai_service = ai_service
