@@ -125,6 +125,28 @@ class SearchServiceTestCase(unittest.TestCase):
 
 
 class RawConversationalRetrievalTests(SearchServiceTestCase):
+    def test_api_error_result_is_not_reported_as_a_valid_empty_answer(self) -> None:
+        from services.marketplaces.aliexpress import AliExpressSearchResults
+
+        provider = self.ali_express([])
+        async def api_error(_request):
+            return AliExpressSearchResults(provider_error="AliExpressApiError:405")
+
+        provider.search_products = api_error
+        service = SearchService([provider])
+        request = SearchRequest(
+            original_query="welding machine",
+            normalized_query="welding machine",
+        )
+
+        outcome = self.run_async(
+            service.find_products(request, raw=True, broaden=False)
+        )
+
+        self.assertEqual(outcome.products, [])
+        self.assertEqual(outcome.failed_marketplaces, ["AliExpress"])
+        self.assertEqual(outcome.searched_marketplaces, [])
+
     def test_raw_conversation_can_use_bounded_grounded_variants(self) -> None:
         products = [make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)]
         provider = self.ali_express(products)
