@@ -354,3 +354,16 @@ analytics, admin.
 ### Conversational ranking request context (2026-10-30)
 
 The live conversational engine now passes the exact RetrievalStrategy.request built from the active conversation ledger into ranking_mod.rank_candidates(..., request=...). This is required: the ranking module's optional SearchRequest argument drives the existing services.relevance.relevance_tier() and relevance_score() inputs. A missing request silently disables that relevance contribution while leaving the other deterministic score components active. Keep this propagation covered by an offline engine regression test whenever the ranking call or strategy contract changes. The optional argument remains optional for non-conversational compatibility callers.
+
+### Negated refinement must not broaden the positive query (2026-11-02)
+
+When the user excludes a product class in a follow-up (for example,
+«Только не полуавтомат» while searching for a welding machine), the excluded
+term is a negative constraint only. It must not be appended to the positive
+AliExpress retrieval phrase or to `required_features`. Otherwise the provider
+is asked for the forbidden class and can return an empty pool before the
+post-retrieval exclusion filter has a chance to act. The retrieval strategy
+builder now removes active exclusion tokens (using the same stem comparison
+as the rest of the conversational query builder) from newly captured
+constraint words. A focused offline regression test covers the full ledger →
+strategy path. GitHub Actions run 41385685439: 95 focused tests passed.
