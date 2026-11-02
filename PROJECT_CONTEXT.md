@@ -400,3 +400,31 @@ matches while removing ambiguous candidates.
 
 This is not a per-category alias dictionary. Do not turn semantic ambiguity
 into a growing list of product-specific keyword exceptions.
+
+### Conversational exclusions must reach query-variant generation (2026-11-02)
+
+Option C stores active follow-up exclusions in `SearchRequest.excluded_features`.
+The legacy query-variant builder originally guarded derived phrases only with
+`intent_excluded_product_types`, which is populated by the older query-intent
+parser. Because the conversational request's `original_query` is the latest
+user turn, a derived phrase could be built from «Только не полуавтомат» and
+reintroduce «полуавтомат» even though the primary normalized phrase correctly
+remained «сварочный аппарат».
+
+`services.query_variants._excluded_stems` now combines both exclusion
+sources, and the derived-noun guard runs when either source is populated.
+The Option C regression test builds the real conversation ledger and
+retrieval strategy, then passes that exact request through
+`product_query_variants`; it asserts that no derived variant contains the
+excluded «полуавтомат».
+
+The AliExpress API's `resp_code=405` with `The result is empty` is an
+empty-result response in the observed client behavior, not evidence by itself
+of an API transport/authentication failure. Do not label this specific
+response as an outage without inspecting the raw response contract. The
+current change addresses the unsafe derived query; it does not claim that
+every empty result after a negative refinement is solved.
+
+GitHub Actions run 41390656114 on commit 332b268:
+101 focused offline tests passed in 1.26s. Full repository suite and live
+AliExpress/Telegram behavior are not claimed as verified.
