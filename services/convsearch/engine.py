@@ -628,7 +628,7 @@ class ConversationSearchEngine:
         rejected_type = 0
         for product in products:
             verdict = validate_product_type(product, product_type)
-            if verdict.qualifies:
+            if verdict.qualifies and "type_identity_requires_semantic_review" not in verdict.reasons:
                 eligible.append(product)
             else:
                 rejected_type += 1
