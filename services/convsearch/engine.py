@@ -344,7 +344,20 @@ class ConversationSearchEngine:
             return decision
 
         selector = getattr(self._ai_service, "select_conversation_candidates", None)
+        semantic_review_ids = {
+            product_id for product_id in decision.report.get("semantic_review_ids", [])
+            if product_id
+        }
         if not callable(selector):
+            if semantic_review_ids:
+                decision.products = [
+                    product for product in decision.products
+                    if product.product_id not in semantic_review_ids
+                ]
+                decision.report["ai_selection"] = "semantic_review_unavailable"
+                if not decision.products:
+                    decision.outcome = Outcome.NO_ELIGIBLE
+                    decision.report["reason"] = "unverified_product_identity"
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
@@ -371,6 +384,14 @@ class ConversationSearchEngine:
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
             decision.report["ai_selection"] = "timeout"
+            if semantic_review_ids:
+                decision.products = [
+                    product for product in decision.products
+                    if product.product_id not in semantic_review_ids
+                ]
+                if not decision.products:
+                    decision.outcome = Outcome.NO_ELIGIBLE
+                    decision.report["reason"] = "unverified_product_identity"
             if state.active_values("exclusion"):
                 decision.products = []
                 decision.outcome = Outcome.NO_ELIGIBLE
@@ -379,6 +400,14 @@ class ConversationSearchEngine:
         except Exception:
             logger.exception("Gemini conversation selection failed")
             decision.report["ai_selection"] = "error"
+            if semantic_review_ids:
+                decision.products = [
+                    product for product in decision.products
+                    if product.product_id not in semantic_review_ids
+                ]
+                if not decision.products:
+                    decision.outcome = Outcome.NO_ELIGIBLE
+                    decision.report["reason"] = "unverified_product_identity"
             if state.active_values("exclusion"):
                 decision.products = []
                 decision.outcome = Outcome.NO_ELIGIBLE
@@ -387,6 +416,14 @@ class ConversationSearchEngine:
 
         if selected_ids is None or not isinstance(selected_ids, list):
             decision.report["ai_selection"] = "unavailable_fallback"
+            if semantic_review_ids:
+                decision.products = [
+                    product for product in decision.products
+                    if product.product_id not in semantic_review_ids
+                ]
+                if not decision.products:
+                    decision.outcome = Outcome.NO_ELIGIBLE
+                    decision.report["reason"] = "unverified_product_identity"
             return decision
 
         allowed = {product.product_id: product for product in decision.products if product.product_id}
@@ -474,6 +511,7 @@ class ConversationSearchEngine:
             "rejected_budget": 0,
             "excluded_shown": 0,
             "type_rejections": [],
+            "semantic_review_ids": [],
         }
 
         if not products:
@@ -499,6 +537,8 @@ class ConversationSearchEngine:
             verdict = validate_product_type(product, product_type)
             if verdict.qualifies:
                 eligible.append(product)
+                if "type_identity_requires_semantic_review" in verdict.reasons:
+                    report["semantic_review_ids"].append(product.product_id)
             else:
                 rejected_type.append(product)
                 report["type_rejections"].append(
