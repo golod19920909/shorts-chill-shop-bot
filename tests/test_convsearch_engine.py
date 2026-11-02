@@ -293,6 +293,52 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
         self.assertEqual(decision.products[0].product_id, "p0")
 
+    async def test_semantic_selector_can_confirm_alternative_product_head(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=["welder-semi"])
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="semantic-product-identity")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[
+                product("welder-semi", "Сварочный полуавтомат MIG"),
+                product("welder-table", "Сварочный стол усиленный"),
+            ],
+            report={"semantic_review_ids": ["welder-semi", "welder-table"]},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="сварочный аппарат", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual([p.product_id for p in decision.products], ["welder-semi"])
+        self.assertEqual(decision.report["ai_selection"], "selected")
+
+    async def test_semantic_review_candidates_are_removed_on_selector_timeout(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(side_effect=TimeoutError)
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="semantic-review-timeout")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[
+                product("exact", "Сварочный аппарат инверторный"),
+                product("ambiguous", "Сварочный стол усиленный"),
+            ],
+            report={"semantic_review_ids": ["ambiguous"]},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="сварочный аппарат", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual([p.product_id for p in decision.products], ["exact"])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+
     async def test_selector_timeout_does_not_return_unverified_excluded_class(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(side_effect=TimeoutError)
