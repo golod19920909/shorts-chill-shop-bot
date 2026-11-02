@@ -402,6 +402,18 @@ def build_retrieval_strategy(
             )
         )
 
+    # A negated term is a negative constraint, never a positive retrieval
+    # keyword or required feature. Without this guard, a follow-up such as
+    # «Только не полуавтомат» was composed as
+    # «сварочный аппарат полуавтомат» and could make AliExpress return no
+    # candidates before the exclusion filter even ran.
+    excluded_tokens = [
+        token for exclusion in exclusions for token in tokens(exclusion)
+    ]
+
+    def _is_excluded_token(token: str) -> bool:
+        return any(stems_match(token, excluded) for excluded in excluded_tokens)
+
     def _new_word(token: str) -> bool:
         return (
             len(token) >= 3
@@ -413,6 +425,7 @@ def build_retrieval_strategy(
             and token not in _DISCOURSE_MARKERS
             and not is_colour_word(token)
             and not _already_covered(token)
+            and not _is_excluded_token(token)
             and not any(stems_match(token, kept) for kept in constraint_words)
         )
 
