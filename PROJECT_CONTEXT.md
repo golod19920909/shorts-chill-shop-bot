@@ -367,3 +367,36 @@ builder now removes active exclusion tokens (using the same stem comparison
 as the rest of the conversational query builder) from newly captured
 constraint words. A focused offline regression test covers the full ledger →
 strategy path. GitHub Actions run 41385685439: 95 focused tests passed.
+
+### Product identity: exact vs semantically ambiguous heads (2026-11-02)
+
+The deterministic product-type gate must not treat a shared modifier as proof
+of product identity. For example, «сварочный стол» is not automatically a
+«сварочный аппарат» merely because both titles contain «сварочный». However,
+a different head noun can be a legitimate product variant («сварочный
+полуавтомат»), so rejecting every title without the literal requested head
+would also be wrong.
+
+Current handling is deliberately two-stage:
+
+- Clear principal-product evidence continues through the deterministic gate.
+  Clear accessory / genitive-role mentions continue to be rejected there.
+- A candidate whose title contains the request's type wording but has a
+  different, non-accessory head is marked
+  `type_identity_requires_semantic_review` and receives a low deterministic
+  score. It is not considered a verified match.
+- The bounded conversation selector decides whether that real listing is
+  the same product / an acceptable variant for the active query. It receives
+  the candidate's real fields and the full active constraints.
+- If the selector is unavailable, errors, or times out, candidates marked for
+  semantic review are removed; exact deterministic matches may remain. The
+  legacy synchronous `shape_pool` also fails closed on these ambiguous rows.
+- The selector can only return IDs from the supplied real candidate pool.
+
+Regression coverage includes «сварочный стол» vs «сварочный аппарат»,
+«сварочный полуавтомат» as a candidate requiring semantic confirmation,
+successful semantic confirmation, and timeout fallback preserving exact
+matches while removing ambiguous candidates.
+
+This is not a per-category alias dictionary. Do not turn semantic ambiguity
+into a growing list of product-specific keyword exceptions.
