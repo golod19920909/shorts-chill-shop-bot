@@ -1,57 +1,56 @@
 # AGENTS.md
 
-Guidance for AI agents (and humans acting as one) working in this repository.
+Guidance for AI agents and maintainers working in this repository.
 
 ## Environment
 
-- Windows / PowerShell. NEVER use bash syntax (`ls`, `cat`, `rm`) in terminal
-  commands — use `Get-ChildItem`, `Get-Content`, `Remove-Item`, etc.
-- Python: `.venv\Scripts\python.exe` (Python 3.14).
-- No git metadata in this folder — don't attempt `git status/diff`.
+- Windows / PowerShell. Use PowerShell commands, not bash syntax.
+- Python: `.venv\\Scripts\\python.exe` (Python 3.14).
+- Read `PROJECT_CONTEXT.md` before changing conversational-search behavior.
+- Inspect current source and call sites before editing; do not rely on old
+  architecture notes or historical logs.
 
 ## Golden rules
 
-1. **Read before editing.** Inspect the real current source (signatures, call
-   sites) before claiming anything about behaviour. Never reason from memory
-   of a previous session.
-2. **Minimal changes.** Touch only files the task requires. Do not rewrite
-   working code, do not chase unrelated test failures, do not "improve"
-   `services/query_intent.py` unless the assigned bug proves it necessary.
-3. **Verify with tests, not claims.** Run the focused test files for the area
-   you changed. A full-suite run (`pytest tests -q`, ~40s) is appropriate once
-   per session or after broad changes; otherwise stay focused.
-4. **No network in tests.** All tests must pass offline with fakes/stubs.
-   Any new test must not require Gemini, AliExpress, or Telegram connectivity.
-5. **Honest-data invariant.** The bot never fabricates products, prices,
-   links, discounts, or "AI results". Any change must preserve this.
+1. **Preserve Option C.** Gemini interprets each user turn in dialogue context
+   and returns a validated structured decision. The conversation engine owns
+   state and policy. Deterministic services own AliExpress retrieval, product
+   validation, hard constraints, ranking, and Telegram delivery.
+2. **No legacy ShoppingAgent loop.** Do not restore the removed full Gemini
+   tool loop or give old chat routing / post-hoc curation decision authority.
+3. **Systemic fixes only.** Do not add product-specific or phrase-specific
+   exceptions to make an individual query pass.
+4. **Minimal changes.** Touch only files required by the assigned task. Do not
+   chase unrelated legacy test failures.
+5. **Verify with offline tests.** Tests must use fakes/stubs and must not call
+   Gemini, AliExpress, or Telegram. Report exactly what ran and its result.
+6. **Honest data.** Never fabricate products, prices, attributes, availability,
+   or affiliate URLs. Gemini may select only IDs in the real candidate pool.
+7. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
+   selection defaults to 20; these are separate limits.
+8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
+   or include secret values in logs/reports.
 
 ## Test commands
 
 ```powershell
-.venv\Scripts\python.exe -m pytest tests -q                    # full suite
-.venv\Scripts\python.exe -m pytest tests/test_agent_service.py -q   # agent loop/tools
+.venv\\Scripts\\python.exe -m pytest tests -q
+.venv\\Scripts\\python.exe -m pytest tests/test_convsearch_engine.py -q
 ```
 
-## Known pitfalls
-
-- `_agent_search_adapter` (handlers/search.py) takes currency as the
-  KEYWORD `currency_arg`; passing `currency=` as a keyword collides with the
-  removed positional slot. `services.agent_service.run_tool` maps
-  `validated["currency"]` → `currency_arg=`. Regression test:
-  `HandlerAgentTests::test_agent_search_adapter_accepts_currency_kwarg`.
-- The Gemini tool loop disables SDK automatic function calling explicitly
-  (`AutomaticFunctionCallingConfig(disable=True)` in
-  `services/agent_loop.py::_build_config`) — do not remove this; the SDK
-  otherwise emits "Direct use of AFC ... is not recommended" warnings.
-- Log files like `bot_stdout.log` are historical runtime logs, not specs.
-  `tmp_*` files are scratch artifacts — never treat them as source.
+The repository currently documents stale legacy test modules excluded from
+the conversational-regression workflow. Do not describe a filtered run as an
+unfiltered full-suite pass.
 
 ## Where to look first
 
 | Topic | File |
 |---|---|
-| Agent tool loop | `services/agent_loop.py`, `services/agent_service.py` |
-| Search pipeline | `services/search_service.py` |
-| Gemini client | `services/ai_service.py` |
-| Handler wiring / cards | `handlers/search.py`, `handlers/common.py` |
-| Long-form architecture | `DOCS/PROJECT_OVERVIEW.md`, `PROJECT_CONTEXT.md` |
+| Current architecture and decisions | `PROJECT_CONTEXT.md` |
+| Conversation state, intent, clarification | `services/convsearch/state.py`, `engine.py` |
+| Retrieval adapter and query strategy | `services/convsearch/retrieval.py` |
+| Candidate validation and ranking | `services/convsearch/ranking.py`, `type_validation.py` |
+| Gemini interpretation and candidate selection | `services/ai_service.py` |
+| AliExpress API and provider | `services/marketplaces/aliexpress.py`, `aliexpress_client.py` |
+| Telegram integration and card delivery | `handlers/search.py` |
+| Provider orchestration and performance diagnostics | `services/search_service.py` |

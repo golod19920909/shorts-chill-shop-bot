@@ -750,7 +750,7 @@ class SearchService:
             page_variants = variants if page_no == pages[0] else variants[:1]
             pages_used = page_no
 
-            for variant in page_variants:
+            for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
                 # parser's request object; a further variant (or a deeper
                 # page) only ever replaces the marketplace phrase / the page
@@ -762,6 +762,7 @@ class SearchService:
                     variant_request = request.model_copy(
                         update={"normalized_query": variant, "page_no": page_no}
                     )
+                route_started = time.perf_counter()
                 results = await asyncio.gather(
                     *(
                         self._timed_provider_call(
@@ -772,6 +773,33 @@ class SearchService:
                     return_exceptions=True,
                 )
                 route_pairs = list(zip(active, results, strict=True))
+                if raw:
+                    # Per-route timing makes the conversational retrieval
+                    # budget observable without logging the user's query or
+                    # any product data. Provider calls for one route run
+                    # concurrently; different grounded routes remain
+                    # sequential so RRF sees the complete bounded route set.
+                    route_rows = sum(
+                        len(result) for result in results
+                        if isinstance(result, list)
+                    )
+                    route_failures = sum(
+                        1 for result in results
+                        if isinstance(result, BaseException)
+                        or bool(getattr(result, "provider_error", None))
+                    )
+                    logger.info(
+                        "RAW conversational route completed: page=%d "
+                        "variant=%d/%d providers=%d rows=%d failures=%d "
+                        "duration_ms=%.0f",
+                        page_no,
+                        variant_index,
+                        len(page_variants),
+                        len(active),
+                        route_rows,
+                        route_failures,
+                        (time.perf_counter() - route_started) * 1000.0,
+                    )
                 pairs.extend(route_pairs)
                 if raw:
                     raw_route_pairs.append(route_pairs)

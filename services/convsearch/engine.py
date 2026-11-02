@@ -88,6 +88,14 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         "thousand", "thousands", "that", "the", "with", "without",
         "not", "and", "but", "or", "more", "other", "another",
         "compare", "better", "which", "what", "about", "tell",
+        "расскажи", "рассказать", "объясни", "объяснить", "подробнее",
+        "про", "почему", "насчет", "насчёт", "что", "чем", "какой", "какая",
+        "нибудь", "полезное", "полезный", "полезная", "интересное", "интересный",
+        "интересная", "необычное", "необычный", "необычная", "любое", "любой",
+        "любая", "то", "useful", "interesting", "unusual", "random",
+        "какие", "какого", "какую", "каким", "зачем", "где", "когда",
+        "втором", "первом", "второй",
+        "первый", "третий",
     }
 )
 
@@ -100,7 +108,7 @@ _DISCOURSE_MARKERS: frozenset[str] = frozenset(
         "теперь", "ну", "давай", "давайте", "ладно", "кстати", "вобщем",
         "вообще", "так", "итак", "тоже", "только", "сначала", "потом",
         "затем", "вместо", "вместо", "now", "well", "also", "instead",
-        "actually", "maybe", "please",
+        "actually", "maybe", "please", "самом", "деле",
     }
 )
 
@@ -204,6 +212,7 @@ class ConversationSearchEngine:
                 "active_slots": [slot.as_dict() for slot in state.active()],
                 "shown_product_count": len(state.shown_product_ids),
                 "last_outcome": state.last_outcome,
+                "pending_question": state.last_question,
             }
             try:
                 ai_turn = await interpreter(text, context=context_payload)
@@ -223,17 +232,83 @@ class ConversationSearchEngine:
             action_to_intent.get(ai_turn.get("action"))
             if isinstance(ai_turn, dict) else None
         )
+        # A pending clarification answer fills a gap in the CURRENT request;
+        # it is not a replacement search. Gemini may correctly identify the
+        # missing product in the answer and call it "new_search", but allowing
+        # that action to supersede the ledger would erase constraints captured
+        # before the clarification (budget, use case, exclusions, etc.).
+        # last_question is deliberately retained across provider failures,
+        # where last_outcome becomes PROVIDER_ERROR. It is therefore the
+        # authoritative pending-clarification marker; checking last_outcome
+        # here would break the retry and let a repeated answer reset the
+        # already-populated ledger.
+        pending_clarification = bool(state.last_question)
+        if (
+            pending_clarification
+            and isinstance(ai_turn, dict)
+            and ai_turn.get("action") == "new_search"
+        ):
+            current_type = state.active_by_kind("type")
+            proposed_type = (
+                ai_turn.get("product_type")
+                if isinstance(ai_turn.get("product_type"), str) else None
+            ) or _product_type_of(text)
+            if current_type is None:
+                # The clarification is filling the missing type in a vague
+                # request. Preserve any budget/use-case context already
+                # captured before the question.
+                intent_override = MessageIntent.REFINE
+            elif proposed_type:
+                from services.convsearch.text import tokens
+                from services.convsearch.type_validation import stems_match
+                current_tokens = tokens(current_type.value)
+                proposed_tokens = tokens(proposed_type)
+                same_head = bool(
+                    current_tokens and proposed_tokens
+                    and stems_match(current_tokens[-1], proposed_tokens[-1])
+                )
+                if same_head:
+                    # The user answered a question about the existing product;
+                    # this is still the same search, not a reset.
+                    intent_override = MessageIntent.REFINE
+                # A different product head is an explicit switch. Keep
+                # NEW_SEARCH so observe() supersedes the old product ledger,
+                # budget and shown-result history instead of mixing categories.
 
         # ONE state transition and ONE strategy build. The model selects the
         # action; the ledger records this turn and keeps slot provenance.
-        observation = state.observe(text, intent_override=intent_override)
+        model_slot_updates = (
+            ai_turn.get("slot_updates", [])
+            if isinstance(ai_turn, dict)
+            and ai_turn.get("action") in {"new_search", "refine", "correction"}
+            else []
+        )
+        observation = state.observe(
+            text,
+            intent_override=intent_override,
+            slot_updates=model_slot_updates,
+        )
+        if model_slot_updates:
+            observation["model_slot_updates"] = model_slot_updates
         state.record_slots(observation)
         intent = observation["intent"]
 
         if isinstance(ai_turn, dict) and ai_turn.get("action") == "clarify":
+            # If the message itself clearly introduced a new product, retain
+            # that type even though Gemini needs one more detail before
+            # retrieval. Otherwise the user's answer to «for what task?» would
+            # have no product type to attach to and could fall back to the
+            # previous product's ledger.
+            if intent is MessageIntent.NEW_SEARCH:
+                clarified_type = _product_type_of(text)
+                if clarified_type:
+                    state.record_product_type(clarified_type)
+            question = ai_turn.get("question") or DEFAULT_CLARIFY_QUESTION
+            state.last_outcome = Outcome.CLARIFY.value
+            state.last_question = question
             return SearchDecision(
                 outcome=Outcome.CLARIFY,
-                question=ai_turn.get("question") or DEFAULT_CLARIFY_QUESTION,
+                question=question,
                 refined=False,
                 report={"intent": intent, "reason": "gemini_clarify",
                         "snapshot": state.snapshot()},
@@ -250,6 +325,8 @@ class ConversationSearchEngine:
                     outcome=Outcome.COMPARE, refined=True,
                     report={"intent": intent, "snapshot": state.snapshot()},
                 )
+            state.last_outcome = Outcome.CLARIFY.value
+            state.last_question = DEFAULT_CLARIFY_QUESTION
             return SearchDecision(
                 outcome=Outcome.CLARIFY,
                 question=DEFAULT_CLARIFY_QUESTION,
@@ -260,14 +337,23 @@ class ConversationSearchEngine:
         # A NEW search names the product in THIS message: record it as the
         # active type and make the just-recorded type the hard gate for the
         # pool (an accessory or a spare part can never pass as the product).
+        model_type = (
+            ai_turn.get("product_type")
+            if isinstance(ai_turn, dict) else None
+        )
         if intent is MessageIntent.NEW_SEARCH:
-            model_type = (
-                ai_turn.get("product_type")
-                if isinstance(ai_turn, dict) else None
-            )
             new_type = model_type or _product_type_of(text) or None
             if new_type:
                 state.record_product_type(new_type)
+        elif (
+            pending_clarification
+            and not state.active_by_kind("type")
+            and isinstance(model_type, str)
+            and model_type.strip()
+        ):
+            # The answer supplies the missing type without resetting the
+            # other slots already recorded from the original request.
+            state.record_product_type(model_type.strip())
 
         strategy = retrieval_mod.build_retrieval_strategy(
             state, text,
@@ -276,6 +362,8 @@ class ConversationSearchEngine:
         )
         if strategy is None:
             question = await self._clarification_question(text)
+            state.last_outcome = Outcome.CLARIFY.value
+            state.last_question = question
             return SearchDecision(
                 outcome=Outcome.CLARIFY,
                 question=question,
@@ -290,6 +378,8 @@ class ConversationSearchEngine:
             )
         except Exception as exc:  # noqa: BLE001 - provider failures are honest
             logger.warning("convsearch retrieval failed: %s", type(exc).__name__)
+            state.last_outcome = Outcome.PROVIDER_ERROR.value
+            # A failed provider call does not consume a pending clarification.
             return SearchDecision(
                 outcome=Outcome.PROVIDER_ERROR,
                 refined=refined,
@@ -299,6 +389,7 @@ class ConversationSearchEngine:
 
         if not backend_outcome.ok:
             state.last_outcome = backend_outcome.reason
+            # Keep the pending question so the user can retry the same answer.
             return SearchDecision(
                 outcome=Outcome.PROVIDER_ERROR,
                 refined=refined,
@@ -316,6 +407,7 @@ class ConversationSearchEngine:
             decision, strategy, state
         )
         state.last_outcome = decision.outcome.value
+        state.last_question = None
         if decision.outcome is Outcome.RESULTS:
             state.record_shown([p.product_id for p in decision.products])
         # One INFO line per turn: the intent, the action and the pool fate -
@@ -334,11 +426,18 @@ class ConversationSearchEngine:
     async def _apply_ai_candidate_selection(
         self, decision: SearchDecision, strategy, state: ConversationEngineState
     ) -> SearchDecision:
-        """Use Gemini as a bounded semantic selector over real marketplace rows.
+        """Use Gemini to rank a bounded slice of already validated listings.
 
-        Deterministic filters and ranking run first. Gemini can only return ids
-        from that already validated pool. On timeout/error, keep deterministic
-        results; a valid empty selection means no supplied row fits the request.
+        Deterministic product-type, exclusion, budget and feature checks run
+        before this method. Gemini may rank the first 20 candidates, but it
+        is not a second hard filter: timeouts, errors, malformed output and
+        an empty selection preserve the deterministic safe pool. Candidates
+        marked for semantic product-identity review are the exception: they
+        remain quarantined unless Gemini explicitly confirms them.
+
+        The AI selection window (20) is separate from the presentation cap
+        (30). After the AI-ranked window, up to ten additional deterministic
+        candidates may fill the remaining presentation slots.
         """
         if decision.outcome is not Outcome.RESULTS or not decision.products:
             return decision
@@ -348,19 +447,53 @@ class ConversationSearchEngine:
             product_id for product_id in decision.report.get("semantic_review_ids", [])
             if product_id
         }
-        if not callable(selector):
-            if semantic_review_ids:
-                decision.products = [
-                    product for product in decision.products
-                    if product.product_id not in semantic_review_ids
-                ]
-                decision.report["ai_selection"] = "semantic_review_unavailable"
-                if not decision.products:
-                    decision.outcome = Outcome.NO_ELIGIBLE
+        original_pool = list(decision.products)
+        # Give uncertain-but-potentially-valid candidates a place in the
+        # bounded review window; otherwise they could sit beyond the first
+        # 20 ranked rows and never receive the semantic check they need.
+        review_pool = [
+            product for product in original_pool
+            if product.product_id in semantic_review_ids
+        ]
+        ordinary_pool = [
+            product for product in original_pool
+            if product.product_id not in semantic_review_ids
+        ]
+        selector_pool = (
+            review_pool + ordinary_pool
+        )[:AI_CONVERSATION_SELECTION_LIMIT]
+        presentation_limit = RESULT_CARD_LIMIT
+        if strategy.result_limit is not None:
+            presentation_limit = min(
+                RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
+            )
+        wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool), presentation_limit)
+
+        def deterministic_safe_pool() -> list[Product]:
+            return [
+                product for product in original_pool
+                if product.product_id not in semantic_review_ids
+            ]
+
+        def finish_fallback(reason: str) -> SearchDecision:
+            decision.products = deterministic_safe_pool()[:presentation_limit]
+            decision.report["ai_selection"] = reason
+            if not decision.products:
+                decision.outcome = Outcome.NO_ELIGIBLE
+                feature_review_ids = set(decision.report.get("feature_review_ids", []))
+                if feature_review_ids and feature_review_ids.issuperset(semantic_review_ids):
+                    decision.report["reason"] = "unverified_required_features"
+                else:
                     decision.report["reason"] = "unverified_product_identity"
             return decision
 
+        if not callable(selector):
+            if semantic_review_ids:
+                return finish_fallback("semantic_review_unavailable")
+            return decision
+
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
+        query_parts.extend(state.active_values("use_case"))
         query_parts.extend(state.active_values("feature"))
         query_parts.extend(state.active_values("preference"))
         exclusions = state.active_values("exclusion")
@@ -370,78 +503,58 @@ class ConversationSearchEngine:
         if budget is not None:
             query_parts.append(f"ЖЁСТКИЙ БЮДЖЕТ: до {budget.value}")
         query = " | ".join(part.strip() for part in query_parts if part and part.strip())
-        wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(decision.products))
-        if strategy.result_limit is not None:
-            wanted = min(wanted, max(1, int(strategy.result_limit)))
 
         try:
             async with asyncio.timeout(AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS):
-                # The selector needs only the deterministic top 20, not
-                # the entire 30-card presentation pool. Smaller evidence
-                # payloads reduce Gemini latency without changing browse cap.
-                selector_pool = decision.products[:AI_CONVERSATION_SELECTION_LIMIT]
                 selected_ids = await selector(selector_pool, query=query, wanted=wanted)
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
-            decision.report["ai_selection"] = "timeout"
-            if semantic_review_ids:
-                decision.products = [
-                    product for product in decision.products
-                    if product.product_id not in semantic_review_ids
-                ]
-                if not decision.products:
-                    decision.outcome = Outcome.NO_ELIGIBLE
-                    decision.report["reason"] = "unverified_product_identity"
-            if state.active_values("exclusion"):
-                decision.products = []
-                decision.outcome = Outcome.NO_ELIGIBLE
-                decision.report["reason"] = "semantic_validation_timeout"
-            return decision
+            return finish_fallback("timeout_fallback")
         except Exception:
             logger.exception("Gemini conversation selection failed")
-            decision.report["ai_selection"] = "error"
-            if semantic_review_ids:
-                decision.products = [
-                    product for product in decision.products
-                    if product.product_id not in semantic_review_ids
-                ]
-                if not decision.products:
-                    decision.outcome = Outcome.NO_ELIGIBLE
-                    decision.report["reason"] = "unverified_product_identity"
-            if state.active_values("exclusion"):
-                decision.products = []
-                decision.outcome = Outcome.NO_ELIGIBLE
-                decision.report["reason"] = "semantic_validation_error"
-            return decision
+            return finish_fallback("error_fallback")
 
         if selected_ids is None or not isinstance(selected_ids, list):
-            decision.report["ai_selection"] = "unavailable_fallback"
-            if semantic_review_ids:
-                decision.products = [
-                    product for product in decision.products
-                    if product.product_id not in semantic_review_ids
-                ]
-                if not decision.products:
-                    decision.outcome = Outcome.NO_ELIGIBLE
-                    decision.report["reason"] = "unverified_product_identity"
-            return decision
+            return finish_fallback("unavailable_fallback")
 
-        allowed = {product.product_id: product for product in decision.products if product.product_id}
-        selected = [
-            allowed[product_id]
-            for product_id in selected_ids
-            if isinstance(product_id, str) and product_id in allowed
-        ]
+        allowed = {
+            product.product_id: product
+            for product in selector_pool
+            if product.product_id
+        }
+        selected: list[Product] = []
+        seen: set[str] = set()
+        for product_id in selected_ids:
+            if (
+                isinstance(product_id, str)
+                and product_id in allowed
+                and product_id not in seen
+            ):
+                selected.append(allowed[product_id])
+                seen.add(product_id)
+            if len(selected) >= wanted:
+                break
+
+        # Empty/invalid model output is not proof that deterministic
+        # candidates are irrelevant. Preserve safe results; only semantic
+        # identity-review candidates remain quarantined.
         if not selected:
-            decision.products = []
-            decision.outcome = Outcome.NO_ELIGIBLE
-            decision.report["reason"] = "no_semantically_relevant_candidates"
-            decision.report["ai_selection"] = "no_match"
-            return decision
+            return finish_fallback("empty_fallback")
 
-        decision.products = selected[:wanted]
+        # The model only sees/selects the first 20. Keep its ordering, then
+        # fill the remaining 30-card presentation window from the untouched
+        # deterministic tail. Never leak unreviewed semantic-identity rows.
+        tail = [
+            product for product in original_pool[AI_CONVERSATION_SELECTION_LIMIT:]
+            if product.product_id not in semantic_review_ids
+            and product.product_id not in seen
+        ]
+        decision.products = (selected + tail)[:presentation_limit]
         decision.report["ai_selection"] = "selected"
-        decision.report["ai_selected"] = len(decision.products)
+        decision.report["ai_selected"] = len(selected)
+        decision.report["ai_tail_added"] = min(
+            len(tail), max(0, presentation_limit - len(selected))
+        )
         return decision
 
     # -- clarification policy ------------------------------------------------
@@ -498,6 +611,10 @@ class ConversationSearchEngine:
 
         product_type = strategy.product_type
         report: dict = {
+            # The Telegram handler uses this authoritative outcome metadata
+            # to invalidate the previous shown-session pointer on a product
+            # switch, including empty and rejected result pools.
+            "intent": intent,
             "raw": len(products),
             "after_type": 0,
             "after_feature": 0,
@@ -512,6 +629,7 @@ class ConversationSearchEngine:
             "excluded_shown": 0,
             "type_rejections": [],
             "semantic_review_ids": [],
+            "feature_review_ids": [],
         }
 
         if not products:
@@ -548,11 +666,18 @@ class ConversationSearchEngine:
         report["after_type"] = len(eligible)
 
         # 2. Mandatory positive features need affirmative evidence.
-        #    Missing title/description evidence is UNKNOWN, not a match.
-        eligible, rejected_features = retrieval_mod.filter_by_required_features(
-            eligible, state
+        #    Missing listing evidence is UNKNOWN, not proof of mismatch:
+        #    quarantine it for semantic review instead of silently dropping
+        #    a potentially suitable product with a sparse AliExpress title.
+        verified_features, feature_review = (
+            retrieval_mod.partition_required_feature_evidence(eligible, state)
         )
-        report["rejected_feature"] = len(rejected_features)
+        report["feature_review_ids"] = [
+            product.product_id for product in feature_review if product.product_id
+        ]
+        report["semantic_review_ids"].extend(report["feature_review_ids"])
+        eligible = verified_features + feature_review
+        report["rejected_feature"] = 0
         report["after_feature"] = len(eligible)
 
         # 3. Explicit negative and budget constraints are hard filters.
@@ -593,8 +718,6 @@ class ConversationSearchEngine:
 
         if rejected_type:
             report["reason"] = "rejected_by_type_gate"
-        elif rejected_features:
-            report["reason"] = "rejected_by_required_features"
         elif rejected_ex:
             report["reason"] = "rejected_by_exclusions"
         elif rejected_budget:

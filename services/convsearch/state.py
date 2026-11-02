@@ -3,8 +3,8 @@
 Adapted from the reference ``src/state.py`` dialog-state design (utterances
 with provenance, active/superseded slot ledger, override down-weighting,
 productive-turn tracking), specialised for the bot's real question types:
-an AliExpress product request with product type, features, exclusions,
-budget+currency and optional preferences.
+an AliExpress product request with product type, soft use-case context,
+required features, exclusions, budget+currency and optional preferences.
 
 One authoritative state per user lives in ``context.user_data`` (the bot's
 existing per-user, expiring in-memory store) — no second persistence system
@@ -47,7 +47,7 @@ class Slot:
     down-weights rather than erases and stays auditable.
     """
 
-    kind: str            # "type" | "feature" | "exclusion" | "budget" | "preference"
+    kind: str            # "type" | "use_case" | "feature" | "exclusion" | "budget" | "preference"
     value: str
     source_turn: int
     raw_text: str
@@ -81,12 +81,17 @@ class MessageIntent:
 #: constraint set the way the reference's OVERRIDE_CUES does.
 _NEGATION_RE = re.compile(r"(?:^|\s)(?:не|без|without|not)\s+", re.IGNORECASE)
 
-#: «с X» / «со X» / «without X» adds a required characteristic even when it
-#: is a SINGLE word («а есть с чехлом?» — the question mark ends the clause
-#: before a two-word span could form). Matched clause-bounded like the
-#: engine's own constraint spans.
+#: «с X» / «со X» / «для X» / «под X» adds a required
+#: characteristic or fitment target even when it is a SINGLE word («для
+#: дома», «под iPhone», «а есть с чехлом?»). The general span parser drops
+#: one-word fragments by design; this connector grammar preserves them.
 _FEATURE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:с|со|with)\s+([\w\-]+(?:\s+[\w\-]+)?)", re.IGNORECASE
+    r"(?:^|\s)(?:с|со|под|with)\s+([\w\-]+(?:\s+[\w\-]+)?)",
+    re.IGNORECASE,
+)
+_USE_CASE_INTRO_RE = re.compile(
+    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|без|под|with|without)\s+|[,!?;:]|$)",
+    re.IGNORECASE,
 )
 _REVERSAL_RE = re.compile(
     r"(?:^|\s)(?:на самом деле|вообще|забудь|передумал|передумала|"
@@ -161,10 +166,9 @@ _CHARACTERISTIC_NOUNS = _COUNT_WORDS | frozenset(
 _COMPARE_RE = re.compile(
     r"(?:как[ао][яй]? (?:лучше|выбрать|отлич)|вариант выбрать|какой выбрать|"
     r"чем отлич|сравни|разниц|чем они|котор[а-я]* (?:лучше|выбрать)|"
-    r"расскажи|объясни|подробнее|почему|что насчет|что насчёт|"
     r"о втором|о первом|про второй|про первый|про третий|"
     r"который из них|какой из них|какая из них|какие из них|"
-    r"which is better|compare|tell me|explain|more about)",
+    r"which is better|compare)",
     re.IGNORECASE,
 )
 
@@ -194,7 +198,8 @@ class ConversationEngineState:
     slots: list[Slot] = field(default_factory=list)
     shown_product_ids: list[str] = field(default_factory=list)
     #: The last meaningful search outcome, honestly recorded.
-    last_outcome: str | None = None   # "ok" | "no_candidates" | "rejected" | "provider_failure"
+    last_outcome: str | None = None   # "ok" | "no_candidates" | "rejected" | "provider_failure" | "clarify"
+    last_question: str | None = None
     updated_at: float = field(default_factory=time.monotonic)
 
     # -- lifecycle ---------------------------------------------------------
@@ -242,7 +247,11 @@ class ConversationEngineState:
         return not any(token not in known_context for token in content)
 
     def observe(
-        self, text: str, *, intent_override: str | None = None
+        self,
+        text: str,
+        *,
+        intent_override: str | None = None,
+        slot_updates: list[dict] | None = None,
     ) -> dict:
         """Record one user message and return its classified intent.
 
@@ -269,6 +278,29 @@ class ConversationEngineState:
                 for span in message_spans
             ):
                 message_spans.append(value)
+
+        # Use-case / application context is a SOFT slot, not a mandatory
+        # title feature: a household listing may be suitable even when the
+        # seller never writes «для дома» in its title. Keep it separate from
+        # explicit equipment/features such as «с двумя аккумуляторами».
+        use_case_spans: list[str] = []
+        for match in _USE_CASE_INTRO_RE.finditer(message):
+            value = " ".join(tokens(match.group(1)))
+            if value:
+                use_case_spans.append(value)
+        if use_case_spans:
+            use_case_tokens = {
+                token for value in use_case_spans for token in tokens(value)
+            }
+            residual_spans: list[str] = []
+            for span in message_spans:
+                residual = [
+                    token for token in tokens(span)
+                    if token not in use_case_tokens and token not in {"с", "со", "для", "for"}
+                ]
+                if len(residual) >= 2:
+                    residual_spans.append(" ".join(residual))
+            message_spans = list(dict.fromkeys(residual_spans))
         # «Подешевле.» / «А есть полегче?» carry no multi-word span but DO
         # refine the current search: a short comparative/qualifier follow-up
         # is a REFINE, never an ambiguous message and never a new product.
@@ -285,7 +317,11 @@ class ConversationEngineState:
             intent = MessageIntent.ALTERNATIVES
         elif reversal:
             intent = MessageIntent.CORRECTION
-        elif index == 1:
+        elif index == 1 and not self.active():
+            # A genuinely empty ledger means this is the first product request.
+            # A restored/seeded ledger can contain active slots before the
+            # in-memory turn transcript is reconstructed; do not discard that
+            # context merely because this is the first locally observed turn.
             intent = MessageIntent.NEW_SEARCH
         else:
             known = {slot.value for slot in self.active() if slot.kind == "feature"}
@@ -351,40 +387,114 @@ class ConversationEngineState:
             MessageIntent.COMPARE, MessageIntent.AMBIGUOUS,
         }
         if intent_override in allowed_overrides:
-            intent = intent_override
+            # Gemini may interpret ambiguous turns, but it must not overturn
+            # either strong deterministic boundary: a newly named product
+            # remains NEW_SEARCH, and a question about the shown set remains
+            # COMPARE. This protects against any contradictory model action
+            # (refine/correction/alternatives/clarify as well as the opposite
+            # boundary action).
+            protected_transition = (
+                intent is MessageIntent.NEW_SEARCH
+                and intent_override != MessageIntent.NEW_SEARCH
+            ) or (
+                intent is MessageIntent.COMPARE
+                and intent_override != MessageIntent.COMPARE
+            )
+            if not protected_transition:
+                intent = intent_override
 
         # A short follow-up must NOT reset the product context: only a NEW
         # SEARCH (a genuine new product request, reversal excluded) and an
         # explicit reset replace the ledger's active view.
-        if intent is MessageIntent.NEW_SEARCH and not reversal:
+        if intent is MessageIntent.NEW_SEARCH and (
+            not reversal or intent_override == MessageIntent.NEW_SEARCH
+        ):
+            # An explicit, validated new_search decision wins over a reversal
+            # marker when the user is switching products («на самом деле нужен
+            # пылесос»). Otherwise the old product's budget/features/exclusions
+            # would survive beside the new type. Shown IDs belong to the old
+            # product too, so they must not leak into alternatives/compare.
             self._supersede_all(index)
+            self.shown_product_ids.clear()
         elif intent is MessageIntent.CORRECTION:
-            # A correction supersedes only the slot kinds the new message
-            # actually corrects. A budget correction must not erase the
-            # product type; a feature correction must not erase the budget.
-            corrected_kinds: set[str] = set()
+            # A negated follow-up normally ADDS an exclusion; it does not
+            # replace every earlier feature and exclusion. Only supersede a
+            # positive feature that is directly contradicted by this exact
+            # negated phrase. This keeps unrelated requirements (and prior
+            # exclusions) intact when Gemini labels an additive refinement
+            # as "correction".
             if negations:
-                corrected_kinds.update({"feature", "exclusion"})
-            if _budget(message):
-                corrected_kinds.add("budget")
-            has_feature_span = any(
-                (span_tokens := tokens(span))
-                and not all(
-                    token in _BUDGET_FRAMING_WORDS
-                    or token in _COUNT_WORDS
-                    or token in _QUALIFIER_WORDS
-                    or token.isdigit()
-                    or is_colour_word(token)
-                    for token in span_tokens
-                )
-                for span in message_spans
-            )
-            if has_feature_span:
-                corrected_kinds.add("feature")
-            if not corrected_kinds:
-                corrected_kinds.update({"feature", "exclusion"})
-            self._supersede_kinds(index, corrected_kinds)
+                structured_targets = {
+                    " ".join(str(update.get("target") or "").split()).casefold()
+                    for update in (slot_updates or [])
+                    if isinstance(update, dict)
+                    and update.get("operation") == "replace"
+                    and update.get("kind") == "feature"
+                    and isinstance(update.get("target"), str)
+                }
+                if structured_targets:
+                    # A validated explicit replacement names the exact old
+                    # feature. Do not let token overlap supersede a different
+                    # feature that happens to share a stem (e.g. battery type).
+                    for slot in self.slots:
+                        if (
+                            slot.status == "active"
+                            and slot.kind == "feature"
+                            and " ".join(slot.value.split()).casefold() in structured_targets
+                        ):
+                            slot.status = "superseded"
+                            slot.superseded_turn = index
+                else:
+                    from services.convsearch.type_validation import stems_match
 
+                    negated_phrases = [
+                        tokens(value) for value in negations if tokens(value)
+                    ]
+                    for slot in self.slots:
+                        if slot.status != "active" or slot.kind != "feature":
+                            continue
+                        existing_tokens = tokens(slot.value)
+                        # Require the complete negated phrase to match this
+                        # feature. A shared single stem is not enough to
+                        # erase a separate requirement (e.g. «аккумуляторная
+                        # батарея» when the user replaces «два аккумулятора»).
+                        if any(
+                            all(
+                                any(stems_match(existing, negated) for existing in existing_tokens)
+                                for negated in phrase
+                            )
+                            for phrase in negated_phrases
+                        ):
+                            slot.status = "superseded"
+                            slot.superseded_turn = index
+
+            # A budget statement replaces only the previous budget. New
+            # feature spans and exclusions are otherwise additive unless a
+            # future structured correction contract identifies a narrower
+            # replacement target.
+            if _budget(message):
+                self._supersede_kinds(index, {"budget"})
+            structured_use_case_targets = {
+                " ".join(str(update.get("target") or "").split()).casefold()
+                for update in (slot_updates or [])
+                if isinstance(update, dict)
+                and update.get("operation") == "replace"
+                and update.get("kind") == "use_case"
+                and isinstance(update.get("target"), str)
+            }
+            if use_case_spans and (reversal or structured_use_case_targets):
+                if structured_use_case_targets:
+                    for slot in self.slots:
+                        if (
+                            slot.status == "active"
+                            and slot.kind == "use_case"
+                            and " ".join(slot.value.split()).casefold()
+                            in structured_use_case_targets
+                        ):
+                            slot.status = "superseded"
+                            slot.superseded_turn = index
+                else:
+                    self._supersede_kinds(index, {"use_case"})
         self.turns.append(Turn(index=index, text=message))
         self.touch()
         preferences = [
@@ -398,6 +508,7 @@ class ConversationEngineState:
             "spans": message_spans,
             "budget": _budget(message),
             "preferences": list(dict.fromkeys(preferences)),
+            "use_cases": list(dict.fromkeys(use_case_spans)),
             "reversal": reversal,
         }
 
@@ -405,20 +516,79 @@ class ConversationEngineState:
         """Turn the observation result into authoritative slots."""
 
         index = len(self.turns)
+        model_updates = [
+            update for update in (result.get("model_slot_updates") or [])
+            if isinstance(update, dict)
+        ]
+        replacement_targets = {
+            (
+                update.get("kind"),
+                " ".join(str(update.get("target") or "").split()).casefold(),
+            )
+            for update in model_updates
+            if update.get("operation") == "replace"
+            and update.get("kind") in {"use_case", "feature", "preference"}
+            and isinstance(update.get("target"), str)
+        }
         negations = result.get("negations") or []
         for value in negations:
+            # «Не X, а Y» is a targeted replacement, not a request to
+            # permanently exclude X from all future results. The replacement
+            # operation supersedes the old slot below; do not also create an
+            # exclusion for the same phrase.
+            negation_tokens = set(tokens(str(value)))
+            if any(
+                kind in {"feature", "use_case", "preference"}
+                and target_tokens
+                and target_tokens.issubset(negation_tokens)
+                for kind, target in replacement_targets
+                for target_tokens in [set(tokens(target))]
+            ):
+                continue
             self._add_slot(Slot(kind="exclusion", value=value, source_turn=index, raw_text=""))
+        # Application context is searchable and available to semantic
+        # selection, but is never a hard title-evidence requirement. Do not
+        # re-add the old side of an explicit use-case replacement from the
+        # deterministic phrase extractor.
+        use_case_replacement_targets = {
+            " ".join(str(update.get("target") or "").split()).casefold()
+            for update in model_updates
+            if update.get("operation") == "replace"
+            and update.get("kind") == "use_case"
+            and isinstance(update.get("target"), str)
+        }
+        for value in result.get("use_cases") or []:
+            if " ".join(str(value).split()).casefold() in use_case_replacement_targets:
+                continue
+            self._add_slot(Slot(
+                kind="use_case", value=value, source_turn=index, raw_text=""
+            ))
         # Feature spans are CONSTRAINTS of an active search. A NEW_SEARCH
         # message names a product, not a feature: recording its span
         # ("5 вариантов шуруповерта") as a required feature would demand
         # that literal phrase in every title and reject everything.
         # AMBIGUOUS messages carry no verified constraint either: recording
         # one would make a vague remark into a literal title requirement.
+        model_use_case_tokens = [
+            set(tokens(update.get("value", "")))
+            for update in model_updates
+            if update.get("kind") == "use_case" and isinstance(update.get("value"), str)
+        ]
         if result.get("intent") not in (
             MessageIntent.NEW_SEARCH, MessageIntent.AMBIGUOUS,
             MessageIntent.COMPARE, MessageIntent.ALTERNATIVES,
         ):
             for span in result.get("spans") or []:
+                # If Gemini has identified a grounded application-context
+                # phrase inside a larger grammatical span («буду работать
+                # на стройке»), do not misrecord the whole sentence as a
+                # mandatory product feature.
+                span_token_set = set(tokens(span))
+                if any(
+                    wanted and wanted.issubset(span_token_set)
+                    for wanted in model_use_case_tokens
+                ):
+                    continue
                 # A «не X» span is an EXCLUSION (the negation slot already
                 # carries it) — never a positive feature.
                 if span.startswith("не ") or span.startswith("not "):
@@ -453,6 +623,43 @@ class ConversationEngineState:
                 value=f"{budget['max']} {budget.get('currency') or ''}".strip(),
                 source_turn=index, raw_text="",
             ))
+
+        # Gemini updates are validated against this exact user turn in
+        # AIService. Apply them as explicit ledger operations: an additive
+        # update cannot erase state, while replace/remove can affect only the
+        # named slot of the same kind (never every feature/exclusion).
+        for update in result.get("model_slot_updates") or []:
+            if not isinstance(update, dict):
+                continue
+            kind = update.get("kind")
+            operation = update.get("operation", "add")
+            target = update.get("target")
+            value = update.get("value")
+            if kind not in {"use_case", "feature", "exclusion", "preference"}:
+                continue
+            if operation not in {"add", "replace", "remove"}:
+                continue
+            if operation in {"replace", "remove"}:
+                if not isinstance(target, str) or not target.strip():
+                    continue
+                target_key = " ".join(target.split()).casefold()
+                for slot in self.slots:
+                    if (
+                        slot.status == "active"
+                        and slot.kind == kind
+                        and " ".join(slot.value.split()).casefold() == target_key
+                    ):
+                        slot.status = "superseded"
+                        slot.superseded_turn = index
+            if operation == "remove":
+                continue
+            if not isinstance(value, str):
+                continue
+            value = " ".join(value.split()).strip()
+            if value and len(value) <= 100:
+                self._add_slot(Slot(
+                    kind=kind, value=value, source_turn=index, raw_text=value,
+                ))
 
     def record_product_type(self, value: str) -> None:
         """Record the active product type (from the request's own intent)."""
@@ -494,7 +701,7 @@ class ConversationEngineState:
     def authoritative_text(self) -> str:
         """Compact query built from the active ledger (reference analogue)."""
 
-        order = {"type": 0, "feature": 1, "budget": 2, "preference": 3}
+        order = {"type": 0, "use_case": 1, "feature": 2, "budget": 3, "preference": 4}
         slots = sorted(
             self.active(),
             key=lambda slot: (order.get(slot.kind, 9), slot.source_turn),
@@ -507,7 +714,7 @@ class ConversationEngineState:
         seen: set[str] = set()
         out: list[str] = []
         for slot in self.active():
-            if slot.kind in ("exclusion", "budget"):
+            if slot.kind in ("exclusion", "budget", "use_case"):
                 continue
             for token in tokens(slot.value):
                 if token not in seen:
@@ -525,14 +732,19 @@ class ConversationEngineState:
             "superseded": sum(1 for slot in self.slots if slot.status != "active"),
             "shown_recent": self.shown_product_ids[-10:],
             "last_outcome": self.last_outcome,
+            "last_question": self.last_question,
             "structured_query": self.authoritative_text(),
         }
 
     # -- internals -----------------------------------------------------------
 
     def _add_slot(self, slot: Slot) -> None:
+        normalized_value = " ".join(slot.value.split()).casefold()
         for existing in self.active():
-            if existing.kind == slot.kind and existing.value == slot.value:
+            if (
+                existing.kind == slot.kind
+                and " ".join(existing.value.split()).casefold() == normalized_value
+            ):
                 return
         self.slots.append(slot)
 
@@ -653,6 +865,11 @@ _PREFERENCE_QUERY_TERMS: dict[str, str] = {
 
 _QUALIFIER_WORDS: frozenset[str] = frozenset(
     {
+        # Discourse words in reversal/opening phrases («на самом деле»)
+        # frame the turn; they are not product requirements.
+        "самом", "деле", "нибудь", "полезное", "полезный", "полезная",
+        "интересное", "интересный", "интересная", "необычное", "необычный",
+        "необычная", "любое", "любой", "любая", "то",
         "подешевле", "подороже", "полегче", "потяжелее", "получше", "похуже",
         "поменьше", "побольше", "покороче", "подлиннее", "компактнее",
         "мощнее", "дешевле", "дороже", "легче", "тяжелее", "быстрее",

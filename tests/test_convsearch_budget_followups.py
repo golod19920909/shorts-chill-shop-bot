@@ -167,5 +167,71 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(strategy.request.normalized_query, "шуруповерт")
 
 
+    def test_ai_correction_with_new_exclusion_preserves_unrelated_constraints(self):
+        state = ConversationEngineState(user_key="correction-exclusion-preserves-ledger")
+        first = "Сварочный аппарат"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        observation = state.observe("не ударный")
+        state.record_slots(observation)
+        observation = state.observe("с двумя аккумуляторами")
+        state.record_slots(observation)
+
+        # Gemini may classify the additive exclusion as "correction".
+        observation = state.observe(
+            "Только не полуавтомат",
+            intent_override=MessageIntent.CORRECTION,
+        )
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_by_kind("type").value, "сварочный аппарат")
+        self.assertTrue(any("двумя аккумуляторами" in value for value in state.active_values("feature")))
+        self.assertTrue(any("ударный" in value for value in state.active_values("exclusion")))
+        self.assertTrue(any("полуавтомат" in value for value in state.active_values("exclusion")))
+
+
+    def test_single_word_use_case_after_dlya_is_preserved_as_soft_context(self):
+        state = ConversationEngineState(user_key="single-word-use-case")
+        first = "Сварочный аппарат"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        observation = state.observe("Для дома")
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_by_kind("type").value, "сварочный аппарат")
+        self.assertTrue(any("дом" in value for value in state.active_values("use_case")))
+        self.assertFalse(state.active_values("feature"))
+
+        strategy = build_retrieval_strategy(state, "Для дома", currency="UAH")
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.product_type, "сварочный аппарат")
+        self.assertIn("дом", strategy.request.normalized_query)
+        self.assertFalse(strategy.request.required_features)
+
+
+    def test_explicit_use_case_correction_replaces_only_prior_use_case(self):
+        state = ConversationEngineState(user_key="use-case-correction")
+        first = "Сварочный аппарат"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        observation = state.observe("Для дома")
+        state.record_slots(observation)
+        self.assertEqual(state.active_values("use_case"), ["дома"])
+
+        correction = "На самом деле для гаража"
+        observation = state.observe(correction)
+        self.assertEqual(observation["intent"], MessageIntent.CORRECTION)
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_by_kind("type").value, "сварочный аппарат")
+        self.assertEqual(state.active_values("use_case"), ["гаража"])
+
+
 if __name__ == "__main__":
     unittest.main()

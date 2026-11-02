@@ -696,7 +696,16 @@ CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом �
 {message}
 
 Верни только один JSON-объект со строго такими полями:
-{{"action":"new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null}}
+{{"action":"new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null,"slot_updates":[]}}
+
+slot_updates — массив структурированных изменений ограничений из ТЕКУЩЕГО сообщения. Каждый элемент имеет поля:
+{{"operation":"add|replace|remove","kind":"use_case|feature|exclusion|preference","target":null,"value":"дословная фраза"}}
+- add: добавь новое ограничение. target должен быть null.
+- replace: замени ТОЛЬКО конкретный ранее активный слот того же kind. target должен дословно совпадать с value одного из active_slots в контексте; value — новая короткая дословная фраза из текущего сообщения. Используй replace только при явном исправлении («не X, а Y», «вместо X — Y», «замени X на Y», «instead», «replace»).
+- remove: удали ТОЛЬКО конкретный ранее активный слот. target должен дословно совпадать с value одного из active_slots и также присутствовать в текущем сообщении; value должен быть null. Используй только при явной просьбе убрать/отменить это ограничение.
+Не добавляй type или budget: product_type и бюджет обрабатываются отдельно.
+Не создавай элементы из догадок, общих знаний или старых сообщений.
+Если изменений нет — верни пустой массив.
 
 Правила:
 - new_search: пользователь хочет искать другой товар или впервые назвал конкретный товар. product_type — только ядро названия товара, без бюджета, количества, цвета, функций и слов «найди/покажи». Пример: «нужен недорогой шуруповёрт с двумя аккумуляторами» → «шуруповёрт».
@@ -1529,6 +1538,7 @@ class AIService:
 - Не принимай товар за подходящий только потому, что в названии совпадает прилагательное или часть названия. Например, сварочная маска не является сварочным аппаратом.
 - Учитывай явно указанные в запросе назначение и класс применения. Бытовой товар не заменяй промышленным оборудованием и наоборот.
 - Соблюдай каждое явное исключение из запроса. Если название/данные товара прямо противоречат запрету, не выбирай его.
+- Для КАЖДОГО обязательного положительного требования (например, число аккумуляторов, материал, тип крепления) ищи отдельное положительное подтверждение в названии или описании. Если данных недостаточно, НЕ додумывай характеристику и не выбирай товар.
 - Если запрет относится к типу или классу товара (например, «не полуавтомат»), отсутствие запрещённого слова в заголовке НЕ доказывает соответствие. Выбирай только кандидата, для которого из доступных данных положительно понятен другой тип; неизвестный тип пропускай.
 - Жёсткий бюджет обязателен: не выбирай товар без известной цены, с неизвестной валютой, с другой валютой или с ценой выше указанного лимита.
 - Если назначение не указано, не выдумывай его по цене, рейтингу или популярности.
@@ -1739,11 +1749,100 @@ class AIService:
         if action == "clarify" and not question:
             return None
 
+        raw_updates = payload.get("slot_updates", [])
+        if not isinstance(raw_updates, list) or len(raw_updates) > 8:
+            return None
+        # Slot values must be copied verbatim from this turn. This prevents
+        # the model from importing stale constraints from context or inventing
+        # requirements. State transitions remain additive; the model cannot
+        # delete or replace existing ledger slots.
+        normalized_message = " ".join((user_text or "").lower().split())
+        slot_updates: list[dict[str, str | None]] = []
+        seen_updates: set[tuple[str, str, str]] = set()
+        allowed_kinds = {"use_case", "feature", "exclusion", "preference"}
+        active_slots = context.get("active_slots", []) if isinstance(context, dict) else []
+        active_values = {
+            (
+                slot.get("kind"),
+                " ".join(str(slot.get("value") or "").split()).casefold(),
+            )
+            for slot in active_slots
+            if isinstance(slot, dict)
+        }
+        replacement_cue = bool(re.search(
+            r"(?:\bне\s+.+?[,;]\s*а\s+|\bвместо\b|\bзамени\b|"
+            r"\breplace\b|\binstead\b|\brather\b)",
+            normalized_message,
+        ))
+        removal_cue = bool(re.search(
+            r"(?:\bубери\b|\bудали\b|\bотмени\b|\bне\s+нужно\b|"
+            r"\bне\s+надо\b|\bremove\b|\bdelete\b|\bdrop\b|\bcancel\b)",
+            normalized_message,
+        ))
+        for item in raw_updates:
+            if not isinstance(item, dict):
+                return None
+            kind = item.get("kind")
+            operation = item.get("operation", "add")
+            target = item.get("target")
+            value = item.get("value")
+            if not isinstance(kind, str) or kind not in allowed_kinds:
+                return None
+            if not isinstance(operation, str) or operation not in {"add", "replace", "remove"}:
+                return None
+            if operation == "add":
+                if target is not None or not isinstance(value, str):
+                    return None
+                value = " ".join(value.split()).strip()
+                if not value or len(value) > 100 or len(value.split()) > 8:
+                    return None
+                if value.lower() not in normalized_message:
+                    return None
+                if kind == "exclusion":
+                    # A negative constraint needs an explicit negative marker;
+                    # "not only" is not an exclusion.
+                    if re.search(r"\bне\s+только\b|\bnot\s+only\b", normalized_message):
+                        return None
+                    if not re.search(r"(?:^|\s)(?:не|без|not|without|avoid|exclude)\s+", normalized_message):
+                        return None
+            elif operation == "replace":
+                if not replacement_cue or not isinstance(target, str) or not isinstance(value, str):
+                    return None
+                target = " ".join(target.split()).strip()
+                value = " ".join(value.split()).strip()
+                if (kind, target.casefold()) not in active_values:
+                    return None
+                if target.casefold() not in normalized_message:
+                    return None
+                if not value or len(value) > 100 or len(value.split()) > 8:
+                    return None
+                if value.lower() not in normalized_message:
+                    return None
+            else:  # remove
+                if not removal_cue or not isinstance(target, str) or value is not None:
+                    return None
+                target = " ".join(target.split()).strip()
+                if (kind, target) not in active_values:
+                    return None
+                if target.lower() not in normalized_message:
+                    return None
+
+            key = (operation, kind, (target or value or "").casefold())
+            if key not in seen_updates:
+                slot_updates.append({
+                    "operation": operation,
+                    "kind": kind,
+                    "target": target,
+                    "value": value,
+                })
+                seen_updates.add(key)
+
         return {
             "action": action,
             "confidence": confidence,
             "product_type": product_type,
             "question": question or None,
+            "slot_updates": slot_updates,
         }
 
     async def decide_chat_action(self, user_text: str) -> dict | None:

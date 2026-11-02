@@ -49,7 +49,7 @@ from utils.formatting import CAPTION_LIMIT
 
 from services.convsearch.contract import Outcome as ConvOutcome
 from services.convsearch.engine import ConversationSearchEngine
-from services.convsearch.state import ConversationEngineState
+from services.convsearch.state import ConversationEngineState, MessageIntent
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +191,15 @@ def _last_shown_session(context: ContextTypes.DEFAULT_TYPE) -> str | None:
         return None
     return session_id if common.get_cached_outcome(context, session_id) else None
 
+def _clear_stale_shown_session_for_new_search(
+    context: ContextTypes.DEFAULT_TYPE, decision
+) -> None:
+    """Do not let a failed product switch leave the previous cards as current."""
+
+    if decision.report.get("intent") == MessageIntent.NEW_SEARCH:
+        context.user_data.pop("last_shown_session", None)
+
+
 def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Forget the current shopping context (search, results, pending question).
 
@@ -209,6 +218,14 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
 #: conversation TTL: half an hour).
 CLARIFY_TTL_SECONDS = 30 * 60
 
+def _clear_ledger_pending_question(context: ContextTypes.DEFAULT_TYPE) -> None:
+    state = context.user_data.get("_convsearch_state")
+    if isinstance(state, ConversationEngineState):
+        state.last_question = None
+        if state.last_outcome == ConvOutcome.CLARIFY.value:
+            state.last_outcome = None
+
+
 def get_pending_clarify(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
     """The pending clarifying question, or ``None`` when absent/expired."""
 
@@ -218,12 +235,29 @@ def get_pending_clarify(context: ContextTypes.DEFAULT_TYPE) -> dict | None:
     asked_at = pending.get("asked_at")
     if not isinstance(asked_at, (int, float)):
         context.user_data.pop(PENDING_CLARIFY_KEY, None)
+        _clear_ledger_pending_question(context)
+        logger.info("Pending clarifying question had invalid timestamp and was dropped")
         return None
     if time.monotonic() - asked_at > CLARIFY_TTL_SECONDS:
         context.user_data.pop(PENDING_CLARIFY_KEY, None)
+        _clear_ledger_pending_question(context)
         logger.info("Pending clarifying question expired and was dropped")
         return None
     return pending
+
+def consume_pending_clarify(context: ContextTypes.DEFAULT_TYPE, outcome) -> bool:
+    """Consume a pending clarification only after a search actually completes.
+
+    Provider failures leave the original question and answer thread intact so
+    the next user message can retry without losing the conversational context.
+    """
+
+    if outcome is ConvOutcome.PROVIDER_ERROR:
+        return False
+    removed = context.user_data.pop(PENDING_CLARIFY_KEY, None) is not None
+    _clear_ledger_pending_question(context)
+    return removed
+
 
 def set_pending_clarify(context: ContextTypes.DEFAULT_TYPE, question: str, original: str) -> None:
     """Remember that we asked ``question`` about the vague ``original`` request."""
@@ -506,62 +540,57 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     original_text = text
 
-    # A pending clarifying question is answered FIRST: the next message is
-    # the user's ANSWER to what the engine asked, combined with the original
-    # vague request instead of searched on its own. The answer is fed back
-    # through the same engine turn as "original + answer" so the ledger
-    # records the full statement. An explicit cancel («отмена») drops it.
+    # A pending clarification answer belongs to the EXISTING ledger:
+    # the original request was already recorded as its own turn before the
+    # engine asked the question. Feed only the user's answer as this turn;
+    # concatenating the original text here would duplicate it in Gemini's
+    # recent-turn context and could make a missing product type look like a
+    # fresh request that supersedes earlier constraints. Keep a combined
+    # phrase only for the human-facing search-history record.
     pending = get_pending_clarify(context)
     if pending is not None:
         lowered = text.lower()
         if lowered in {"отмена", "отменить", "cancel", "забудь", "не надо"}:
             context.user_data.pop(PENDING_CLARIFY_KEY, None)
+            _clear_ledger_pending_question(context)
             await message.reply_text(
                 "Хорошо, отменил. Скажите, что искать.",
                 reply_markup=back_to_menu_keyboard(),
             )
             _turn_done("clarify-cancelled")
             return
-        context.user_data.pop(PENDING_CLARIFY_KEY, None)
-        text = f"{pending.get('original') or ''} {text}".strip()
-        original_text = text
+        original_text = f"{pending.get('original') or ''} {text}".strip()
 
-    # A question asked through «💬 Задать свой вопрос» is consumed here, so
-    # it never becomes a search. The state is popped by the consumer, and
-    # the import is local to avoid a module cycle (ai_assistant reuses
-    # ``send_search_results`` from this module).
-    from handlers import ai_assistant
+    # A pending clarification answer belongs to the conversation engine.
+    # Do not let cached-result shortcuts or the separate AI-question handler
+    # consume/reinterpret it before the original request is resumed.
+    if pending is None:
+        # A question asked through «💬 Задать свой вопрос» is consumed here,
+        # so it never becomes a search. The import is local to avoid a cycle.
+        from handlers import ai_assistant
 
-    if await ai_assistant.consume_pending_question(update, context):
-        return
+        if await ai_assistant.consume_pending_question(update, context):
+            return
 
-    # A «оставь 5 из этих 30» message narrows the SHOWN result set: it is
-    # deterministic, costs no model call and must never degrade into a new
-    # marketplace search or a prose-only reply. Everything else continues
-    # exactly as below.
-    if await _narrow_shown_results(update, context, text):
-        _turn_done("narrow")
-        return
-    # A count-only («покажи 5») or currency-only («используй гривны») follow-up
-    # is answered from the products ALREADY on screen: no model call and
-    # no marketplace request, and the current search context (product,
-    # filters, budget, currency) is kept. Anything else falls through to the
-    # conversational engine. A count-only message with no cached result set
-    # has nothing to apply the count to: it is answered honestly instead of
-    # being searched as the literal phrase.
-    if (
-        is_count_only_follow_up(text) is not None
-        and _has_no_shown_results(context)
-        and not extract_requested_result_count(_strip_option_count(text) or "")
-    ):
-        await message.reply_text(
-            STALE_RESULTS_TEXT, reply_markup=back_to_menu_keyboard()
-        )
-        _turn_done("count-no-context")
-        return
-    if await _answer_from_shown(update, context, text):
-        _turn_done("cache")
-        return
+        # A «оставь 5 из этих 30» message narrows the SHOWN result set.
+        if await _narrow_shown_results(update, context, text):
+            _turn_done("narrow")
+            return
+
+        # Count-only and currency-only follow-ups use the shown cache.
+        if (
+            is_count_only_follow_up(text) is not None
+            and _has_no_shown_results(context)
+            and not extract_requested_result_count(_strip_option_count(text) or "")
+        ):
+            await message.reply_text(
+                STALE_RESULTS_TEXT, reply_markup=back_to_menu_keyboard()
+            )
+            _turn_done("count-no-context")
+            return
+        if await _answer_from_shown(update, context, text):
+            _turn_done("cache")
+            return
 
     # Read from the message the USER sent, before any routing rewrote it.
     original_count = extract_requested_result_count(original_text)
@@ -625,6 +654,17 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         _turn_done("engine-error")
         return
+
+    # A product switch invalidates the previous result set even when
+    # the new provider request fails or returns no eligible products. A new
+    # successful result set will install its own session in _deliver_decision.
+    _clear_stale_shown_session_for_new_search(context, decision)
+
+    # A pending clarification is consumed only when the engine completed
+    # this turn. Provider errors and raised exceptions keep the original
+    # question so the next user message can retry the same clarification.
+    if pending is not None:
+        consume_pending_clarify(context, decision.outcome)
 
     # D1 (state consistency): the request the engine built is committed
     # BEFORE the outcome decides what ships, so a provider outage must not

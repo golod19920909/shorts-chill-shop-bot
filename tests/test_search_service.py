@@ -160,10 +160,19 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             "services.query_variants.product_query_variants",
             return_value=["wireless headphones for running", "wireless headphones"],
         ):
-            outcome = self.run_async(
-                service.find_products(request, raw=True, broaden=True, raw_broaden=True)
-            )
+            with self.assertLogs("services.search_service", level="INFO") as captured:
+                outcome = self.run_async(
+                    service.find_products(request, raw=True, broaden=True, raw_broaden=True)
+                )
 
+        route_logs = "\n".join(
+            line for line in captured.output
+            if "RAW conversational route completed:" in line
+        )
+        self.assertIn("variant=1/2", route_logs)
+        self.assertIn("variant=2/2", route_logs)
+        self.assertIn("duration_ms=", route_logs)
+        self.assertNotIn("wireless headphones", route_logs)
         self.assertEqual(provider.search_calls, 2)
         self.assertEqual(
             provider.search_queries,

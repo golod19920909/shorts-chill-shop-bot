@@ -41,6 +41,152 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["action"], "refine")
         self.assertIsNone(result["product_type"])
 
+    async def test_grounded_slot_updates_are_returned(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":['
+            '{"kind":"use_case","value":"на стройке"},'
+            '{"kind":"feature","value":"защита IP67"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Буду работать на стройке, нужна защита IP67",
+            context={"active_slots": [{"kind": "type", "value": "устройство"}]},
+        )
+
+        self.assertEqual(
+            result["slot_updates"],
+            [
+                {"operation": "add", "kind": "use_case", "target": None, "value": "на стройке"},
+                {"operation": "add", "kind": "feature", "target": None, "value": "защита IP67"},
+            ],
+        )
+
+    async def test_targeted_replace_is_accepted_only_for_an_active_slot(self):
+        service = self.make_service(
+            '{"action":"correction","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":"replace","kind":"feature",'
+            '"target":"ДВА аккумулятора","value":"один аккумулятор"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Не два аккумулятора, а один аккумулятор",
+            context={"active_slots": [
+                {"kind": "feature", "value": "два аккумулятора"},
+            ]},
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result["slot_updates"],
+            [{
+                "operation": "replace",
+                "kind": "feature",
+                "target": "ДВА аккумулятора",
+                "value": "один аккумулятор",
+            }],
+        )
+
+    async def test_targeted_replace_must_mention_the_old_target_in_current_message(self):
+        service = self.make_service(
+            '{"action":"correction","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":"replace","kind":"feature",'
+            '"target":"два аккумулятора","value":"один аккумулятор"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Не один аккумулятор, а два",
+            context={"active_slots": [
+                {"kind": "feature", "value": "два аккумулятора"},
+            ]},
+        )
+
+        self.assertIsNone(result)
+
+    async def test_targeted_remove_is_accepted_only_for_an_active_slot(self):
+        service = self.make_service(
+            '{"action":"correction","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":"remove","kind":"exclusion",'
+            '"target":"ударный","value":null}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Убери ударный из исключений",
+            context={"active_slots": [
+                {"kind": "exclusion", "value": "ударный"},
+            ]},
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["slot_updates"][0]["operation"], "remove")
+
+    async def test_targeted_replace_cannot_change_an_inactive_slot(self):
+        service = self.make_service(
+            '{"action":"correction","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":"replace","kind":"feature",'
+            '"target":"титановый корпус","value":"алюминиевый корпус"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Вместо титанового корпуса алюминиевый корпус",
+            context={"active_slots": []},
+        )
+
+        self.assertIsNone(result)
+
+    async def test_malformed_operation_type_is_rejected_without_raising(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":["remove"],"kind":"feature",'
+            '"target":"IP67","value":null}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Убери IP67",
+            context={"active_slots": [{"kind": "feature", "value": "IP67"}]},
+        )
+
+        self.assertIsNone(result)
+
+    async def test_slot_update_not_grounded_in_current_message_is_rejected(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"kind":"feature","value":"титановый корпус"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Хочу что-нибудь надёжное",
+            context={"active_slots": [{"kind": "type", "value": "устройство"}]},
+        )
+
+        self.assertIsNone(result)
+
+    async def test_malformed_slot_kind_is_rejected_without_raising(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"kind":["feature"],"value":"IP67"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Нужна защита IP67",
+            context={},
+        )
+
+        self.assertIsNone(result)
+
+    async def test_not_only_is_not_accepted_as_an_exclusion(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"kind":"exclusion","value":"пластик"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Не только пластик, но и металл",
+            context={},
+        )
+
+        self.assertIsNone(result)
+
     async def test_low_confidence_non_clarify_action_falls_back(self):
         service = self.make_service(
             '{"action":"new_search","confidence":0.3,'

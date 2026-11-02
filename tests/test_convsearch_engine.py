@@ -78,6 +78,99 @@ class EngineScenarioTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = ConversationSearchEngine()
 
+    def test_targeted_slot_replace_preserves_unrelated_features_and_exclusions(self) -> None:
+        state = ConversationEngineState(user_key="targeted-replace")
+        state.slots.extend([
+            Slot(kind="feature", value="два аккумулятора", source_turn=1, raw_text=""),
+            Slot(kind="feature", value="аккумуляторная батарея", source_turn=1, raw_text=""),
+            Slot(kind="feature", value="защита IP67", source_turn=1, raw_text=""),
+            Slot(kind="exclusion", value="ударный", source_turn=1, raw_text=""),
+        ])
+
+        updates = [{
+            "operation": "replace",
+            "kind": "feature",
+            "target": "два аккумулятора",
+            "value": "один аккумулятор",
+        }]
+        observation = state.observe(
+            "Не два аккумулятора, а один аккумулятор",
+            intent_override=MessageIntent.CORRECTION,
+            slot_updates=updates,
+        )
+        observation["model_slot_updates"] = updates
+        state.record_slots(observation)
+
+        self.assertEqual(
+            state.active_values("feature"),
+            ["аккумуляторная батарея", "защита IP67", "один аккумулятор"],
+        )
+        # A targeted correction is not a permanent exclusion of the old
+        # value; it only supersedes the named feature slot.
+        self.assertEqual(state.active_values("exclusion"), ["ударный"])
+        self.assertNotIn("два аккумулятора", state.active_values("exclusion"))
+        self.assertEqual(
+            [
+                slot.value for slot in state.slots
+                if slot.kind == "feature" and slot.value == "два аккумулятора"
+            ][0],
+            "два аккумулятора",
+        )
+        self.assertEqual(
+            next(
+                slot.status for slot in state.slots
+                if slot.kind == "feature" and slot.value == "два аккумулятора"
+            ),
+            "superseded",
+        )
+
+    def test_targeted_use_case_replace_preserves_other_use_cases(self) -> None:
+        state = ConversationEngineState(user_key="targeted-use-case")
+        state.slots.extend([
+            Slot(kind="use_case", value="дома", source_turn=1, raw_text=""),
+            Slot(kind="use_case", value="автомобиля", source_turn=1, raw_text=""),
+        ])
+        updates = [{
+            "operation": "replace",
+            "kind": "use_case",
+            "target": "дома",
+            "value": "дачи",
+        }]
+
+        observation = state.observe(
+            "Не для дома, а для дачи",
+            intent_override=MessageIntent.CORRECTION,
+            slot_updates=updates,
+        )
+        observation["model_slot_updates"] = updates
+        state.record_slots(observation)
+
+        self.assertEqual(
+            state.active_values("use_case"),
+            ["автомобиля", "дачи"],
+        )
+        self.assertEqual(state.active_values("exclusion"), [])
+
+    def test_targeted_slot_remove_preserves_other_slots_of_same_kind(self) -> None:
+        state = ConversationEngineState(user_key="targeted-remove")
+        state.slots.extend([
+            Slot(kind="exclusion", value="ударный", source_turn=1, raw_text=""),
+            Slot(kind="exclusion", value="полуавтомат", source_turn=1, raw_text=""),
+            Slot(kind="feature", value="защита IP67", source_turn=1, raw_text=""),
+        ])
+
+        state.record_slots({
+            "model_slot_updates": [{
+                "operation": "remove",
+                "kind": "exclusion",
+                "target": "ударный",
+                "value": None,
+            }]
+        })
+
+        self.assertEqual(state.active_values("exclusion"), ["полуавтомат"])
+        self.assertEqual(state.active_values("feature"), ["защита IP67"])
+
     def test_scenario_a_complete_fishing_reel(self) -> None:
         state = ConversationEngineState(user_key="u-a")
         observation = state.observe("Нужна недорогая рыболовная катушка.")
@@ -173,6 +266,22 @@ class EngineScenarioTests(unittest.TestCase):
         state.record_slots(obs3)
         self.assertEqual(obs3["intent"], MessageIntent.ALTERNATIVES)
         self.assertIsNotNone(state.active_by_kind("budget"))
+
+    def test_explain_request_naming_another_product_is_a_new_search(self) -> None:
+        state = ConversationEngineState(user_key="explain-new-product")
+        first = state.observe("Нужен аккумуляторный шуруповёрт.")
+        state.record_slots(first)
+        state.record_product_type("шуруповёрт")
+
+        followup = state.observe("Расскажи про пылесос.")
+
+        self.assertEqual(followup["intent"], MessageIntent.NEW_SEARCH)
+        self.assertEqual(state.active_by_kind("type"), None)
+
+        from services.convsearch.engine import _product_type_of
+        self.assertEqual(_product_type_of("Расскажи про пылесос."), "пылесос")
+        self.assertEqual(_product_type_of("Что насчёт пылесоса?"), "пылесоса")
+        self.assertEqual(_product_type_of("Какой пылесос лучше?"), "пылесос")
 
     def test_new_product_request_resets(self) -> None:
         state = ConversationEngineState(user_key="u-e")
@@ -292,6 +401,89 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
         self.assertEqual(decision.products[0].product_id, "p0")
+        self.assertEqual(len(decision.products), 11)
+        self.assertEqual(
+            [p.product_id for p in decision.products[-10:]],
+            [f"p{i}" for i in range(20, 30)],
+        )
+        self.assertEqual(decision.report["ai_selected"], 1)
+        self.assertEqual(decision.report["ai_tail_added"], 10)
+
+    async def test_missing_required_feature_evidence_is_quarantined_for_ai_review(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="feature-review")
+        state.record_product_type("сварочный аппарат")
+        state.slots.append(Slot(
+            kind="feature",
+            value="двумя аккумуляторами",
+            source_turn=2,
+            raw_text="С двумя аккумуляторами",
+        ))
+        strategy = SimpleNamespace(
+            product_type="сварочный аппарат",
+            request=SimpleNamespace(
+                normalized_query="сварочный аппарат двумя аккумуляторами",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        candidate = product("welder-unknown-batteries", "Сварочный аппарат инверторный")
+
+        decision = engine._evaluate_pool(
+            state, [candidate], strategy,
+            refined=True, intent=MessageIntent.REFINE,
+            observation={}, exclude_shown=False,
+        )
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            decision.report["feature_review_ids"],
+            ["welder-unknown-batteries"],
+        )
+        self.assertIn(
+            "welder-unknown-batteries",
+            decision.report["semantic_review_ids"],
+        )
+
+        selector = AsyncMock(return_value=["welder-unknown-batteries"])
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(
+            [p.product_id for p in decision.products],
+            ["welder-unknown-batteries"],
+        )
+        self.assertEqual(selector.await_args.kwargs["query"].find("двумя аккумуляторами") >= 0, True)
+
+    async def test_unknown_required_feature_stays_hidden_without_ai_confirmation(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="feature-review-no-ai")
+        state.slots.append(Slot(
+            kind="feature",
+            value="двумя аккумуляторами",
+            source_turn=2,
+            raw_text="С двумя аккумуляторами",
+        ))
+        strategy = SimpleNamespace(
+            product_type="сварочный аппарат",
+            request=SimpleNamespace(
+                normalized_query="сварочный аппарат",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        candidate = product("welder-unknown-batteries", "Сварочный аппарат инверторный")
+        decision = engine._evaluate_pool(
+            state, [candidate], strategy,
+            refined=True, intent=MessageIntent.REFINE,
+            observation={}, exclude_shown=False,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["reason"], "unverified_required_features")
 
     async def test_semantic_selector_can_confirm_alternative_product_head(self):
         engine = ConversationSearchEngine()
@@ -339,7 +531,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([p.product_id for p in decision.products], ["exact"])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
 
-    async def test_selector_timeout_does_not_return_unverified_excluded_class(self):
+    async def test_selector_timeout_preserves_deterministically_validated_candidates_with_exclusion(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(side_effect=TimeoutError)
         engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
@@ -350,7 +542,10 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         ))
         decision = SearchDecision(
             outcome=Outcome.RESULTS,
-            products=[product("welder-unknown", "Сварочный аппарат")],
+            products=[
+                product("welder-inverter", "Сварочный аппарат инверторный"),
+                product("welder-mma", "Сварочный аппарат MMA"),
+            ],
             report={},
         )
         strategy = SimpleNamespace(
@@ -360,9 +555,54 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["reason"], "semantic_validation_timeout")
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            [p.product_id for p in decision.products],
+            ["welder-inverter", "welder-mma"],
+        )
+        self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
+
+    async def test_empty_selector_response_preserves_deterministic_safe_pool(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=[])
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-empty")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("p1", "Рыболовная катушка")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([p.product_id for p in decision.products], ["p1"])
+        self.assertEqual(decision.report["ai_selection"], "empty_fallback")
+
+    async def test_selector_error_preserves_deterministic_safe_pool(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(side_effect=RuntimeError("model unavailable"))
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-error")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("p1", "Рыболовная катушка")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([p.product_id for p in decision.products], ["p1"])
+        self.assertEqual(decision.report["ai_selection"], "error_fallback")
 
 
 class ConstraintAndFusionRegressionTests(unittest.TestCase):
