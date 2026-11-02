@@ -201,6 +201,32 @@ def _feature_is_evidenced(product: Product, feature: str) -> bool:
     return matched / len(wanted) >= 0.6
 
 
+def partition_required_feature_evidence(
+    products: list[Product],
+    state: ConversationEngineState,
+) -> tuple[list[Product], list[Product]]:
+    """Separate proven feature matches from candidates needing semantic review.
+
+    A missing phrase in an AliExpress title/description is not proof that the
+    product lacks the requested feature. Keep such candidates in a separate
+    review bucket; the conversation engine may show them only after Gemini
+    positively verifies every mandatory feature from the supplied listing
+    data. If semantic review is unavailable, they remain quarantined.
+    """
+
+    required = state.active_values("feature")
+    if not required:
+        return list(products), []
+    verified: list[Product] = []
+    needs_review: list[Product] = []
+    for product in products:
+        if all(_feature_is_evidenced(product, feature) for feature in required):
+            verified.append(product)
+        else:
+            needs_review.append(product)
+    return verified, needs_review
+
+
 def filter_by_required_features(
     products: list[Product],
     state: ConversationEngineState,
@@ -366,6 +392,14 @@ def build_retrieval_strategy(
     phrase_parts: list[str] = []
     if product_type:
         phrase_parts.append(product_type)
+    # Use-case context belongs in retrieval and semantic interpretation, but
+    # it is NOT a mandatory title feature. «Для дома» should broaden the
+    # search toward household models without rejecting a suitable listing
+    # whose seller omitted those exact words.
+    for use_case in state.active_values("use_case"):
+        kept = [token for token in tokens(use_case) if not _covered_by_type(token)]
+        if kept:
+            phrase_parts.append(" ".join(kept))
     # Carry comparative preferences into the provider query in a searchable
     # canonical form («полегче» -> «легкий»). Preferences are soft signals:
     # unlike required features, they must never reject a real product solely
@@ -376,13 +410,11 @@ def build_retrieval_strategy(
     for feature in features:
         if feature not in phrase_parts:
             phrase_parts.append(feature)
-    # A compatibility constraint stated in THIS message («для hyundai
-    # tucson») rides along with the product type: the phrase becomes
-    # «<type> для hyundai tucson» and the constraint tokens are validated
-    # against the returned titles. Category-general: the words are whatever
-    # the user wrote, never a curated list. Scaffolding/qualifier/budget/
-    # count/colour words are NOT constraints — they would pollute the
-    # marketplace query («катушка долларов») and dilute its relevance.
+    # Use-case context («для дома», «for workshop») is kept in the
+    # retrieval phrase but stored separately from mandatory features; a
+    # suitable listing must not be rejected just because its seller omitted
+    # those words. Explicit fitment introduced by «под» remains a required
+    # feature and is checked against title/description evidence.
     from services.convsearch.state import (
         _BUDGET_FRAMING_WORDS, _CHARACTERISTIC_NOUNS, _COUNT_WORDS,
         _QUALIFIER_WORDS, is_colour_word,
@@ -429,14 +461,35 @@ def build_retrieval_strategy(
             and not any(stems_match(token, kept) for kept in constraint_words)
         )
 
+    # The active ledger is authoritative once this turn has yielded an
+    # explicit slot. Do not re-parse the remaining grammatical words from
+    # the raw sentence as extra requirements: «буду работать на стройке,
+    # нужна защита IP67» must not turn «буду/работать» into mandatory
+    # product features after Gemini has extracted the use case and feature.
+    current_turn = len(state.turns)
+    has_current_turn_slots = any(
+        slot.status == "active"
+        and slot.source_turn == current_turn
+        and slot.kind in {"use_case", "feature", "exclusion", "preference", "budget"}
+        for slot in state.slots
+    )
     constraint_words: list[str] = []
-    for token in tokens(text):
-        if _new_word(token):
-            constraint_words.append(token)
-    if constraint_words:
-        for word in constraint_words:
-            if word not in phrase_parts:
-                phrase_parts.append(word)
+    if not has_current_turn_slots:
+        for token in tokens(text):
+            if _new_word(token):
+                constraint_words.append(token)
+        if constraint_words:
+            for word in constraint_words:
+                if word not in phrase_parts:
+                    phrase_parts.append(word)
+    # A use case or preference alone is not a product to search for.
+    # When a clarification answer only says «для дома» / «полегче», keep
+    # asking for the missing product instead of querying AliExpress for that
+    # fragment. A real product type or an independently extracted feature /
+    # constraint is still allowed to form a retrieval phrase.
+    if not product_type and not features and not constraint_words:
+        return None
+
     # Fall back to the user's own words when the ledger has no type yet
     # (first message that has not produced an intent_product_type).
     if not phrase_parts:
