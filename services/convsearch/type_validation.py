@@ -284,14 +284,21 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if bare_noun_only:
         qualifies = False
         reasons.append("ambiguous_bare_noun")
+    semantic_review_required = False
     if not head_ok and not head_after_role:
-        # Head missing entirely: reject unless the whole title is just the
-        # type words in different order (e.g. «катушка рыболовная»).
+        # A shared modifier alone does not prove product identity:
+        # «сварочный стол» is not necessarily a «сварочный аппарат».
+        # But it also does not prove the candidate is unrelated: valid
+        # product variants may use a different head noun (e.g. «сварочный
+        # полуавтомат»). Keep this as a low-confidence candidate for the
+        # conversation's semantic selector, never as a deterministic match.
         if coverage < 1.0:
             qualifies = False
             reasons.append("type_head_missing")
         else:
-            reasons.append("type_reordered")
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
     if coverage < 1.0 and qualifies:
         # Partial coverage still accepted (title carries the head plus
         # context), but scored lower than an exact head match.
