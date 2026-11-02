@@ -77,6 +77,29 @@ class BudgetFollowUpTests(unittest.TestCase):
             any("полуавтомат" in exclusion for exclusion in strategy.request.excluded_features)
         )
 
+    def test_exclusion_is_not_reintroduced_by_raw_query_variants(self):
+        from services.query_variants import product_query_variants
+
+        state = ConversationEngineState(user_key="negated-variant-follow-up")
+        first = "Сварочный аппарат"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        follow_up = "Только не полуавтомат"
+        observation = state.observe(follow_up)
+        state.record_slots(observation)
+        strategy = build_retrieval_strategy(state, follow_up)
+        self.assertIsNotNone(strategy)
+
+        # This is the exact adapter path: primary query is the active product,
+        # but original_query is the latest follow-up. Derived variants must
+        # honor the conversational excluded_features field as well.
+        variants = product_query_variants(strategy.request)
+        self.assertEqual(variants[0], "сварочный аппарат")
+        for variant in variants[1:]:
+            self.assertNotIn("полуавтомат", variant.casefold())
+
     def test_budget_only_first_message_has_no_fake_product_type(self):
         text = "До 2000 тысяч гривен"
         self.assertIsNone(_product_type_of(text))
