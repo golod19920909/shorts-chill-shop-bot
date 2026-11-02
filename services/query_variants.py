@@ -159,11 +159,18 @@ def _excluded_stems(request: SearchRequest) -> frozenset[str]:
     request excludes nothing, which is the common case.
     """
 
-    if not request.intent_excluded_product_types:
-        return frozenset()
+    # Both the legacy intent parser and the conversational ledger can
+    # carry exclusions. Option C stores active turn exclusions in
+    # SearchRequest.excluded_features; checking only
+    # intent_excluded_product_types lets a derived variant reintroduce the
+    # forbidden word from original_query (e.g. «Только не полуавтомат»).
+    excluded_phrases = [
+        *request.intent_excluded_product_types,
+        *request.excluded_features,
+    ]
     return frozenset(
         token.casefold()[:PREFIX_MATCH_LENGTH]
-        for phrase in request.intent_excluded_product_types
+        for phrase in excluded_phrases
         for token in tokenize(phrase)
         if len(token) >= MIN_TERM_LENGTH
     )
@@ -231,7 +238,7 @@ def product_query_variants(request: SearchRequest) -> list[str]:
     # variant (the primary phrase, with «без» intact, is never touched); it
     # does not replace it with an invented opposite, and it does not change
     # downstream filtering (intent_excluded_product_types keeps its meaning).
-    if request.intent_excluded_product_types:
+    if request.intent_excluded_product_types or request.excluded_features:
         excluded_stems = _excluded_stems(request)
         nouns = [
             word for word in nouns
