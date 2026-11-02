@@ -18,7 +18,8 @@ import logging
 from dataclasses import dataclass, field
 
 from models.product import Product
-from services.relevance import relevance_tier
+from services.relevance import relevance_score, relevance_tier
+from models.search_request import SearchRequest
 from services.convsearch.text import join_tokens, tokens
 from services.convsearch.state import Slot
 
@@ -124,6 +125,7 @@ def score_product(
     product: Product,
     state: object,
     validation: Validation,
+    request: SearchRequest | None = None,
 ) -> float:
     """Deterministic ranking score for one validated candidate."""
 
@@ -133,11 +135,16 @@ def score_product(
     score += WEIGHTS["budget"] * (1 if "budget" in validation.evidence else 0)
     score += WEIGHTS["preference"] * len([e for e in validation.evidence if e.startswith("preference:")])
 
-    try:
-        tier = relevance_tier(product, None)
-        score += WEIGHTS["relevance"] * (1 if tier >= 1 else 0)
-    except Exception:  # noqa: BLE001 - relevance_tier may reject a request
-        pass
+    # Evaluate relevance against the actual conversational request. Passing
+    # None here silently disabled this ranking signal: relevance_tier requires
+    # a SearchRequest. Relevance remains a soft ranking input, never a gate.
+    if request is not None:
+        try:
+            tier = relevance_tier(product, request)
+            score += WEIGHTS["relevance"] * (tier / 2.0)
+            score += WEIGHTS["relevance"] * relevance_score(product, request)
+        except Exception:  # noqa: BLE001 - relevance is not a hard gate
+            logger.debug("Candidate relevance scoring unavailable", exc_info=True)
 
     orders = product.orders_count or 0
     if orders > 0:
@@ -153,6 +160,7 @@ def rank_candidates(
     products: list[Product],
     state: object,
     product_type: str | None,
+    request: SearchRequest | None = None,
 ) -> tuple[list[Product], list[Validation]]:
     """Rank the pool; return ordered products plus their validation verdicts.
 
@@ -167,7 +175,7 @@ def rank_candidates(
     rejected: list[Validation] = []
     for product in products:
         validation = validate_candidate(product, state, product_type)
-        score = score_product(product, state, validation)
+        score = score_product(product, state, validation, request=request)
         hard_rejected = any(
             violation.startswith("exclusion:") or violation == "product_type"
             for violation in validation.violations

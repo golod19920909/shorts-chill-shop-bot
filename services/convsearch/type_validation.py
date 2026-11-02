@@ -190,12 +190,15 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     any_type_in_own = any(
         _contains(own_tokens, token) for token in type_tokens
     )
-    head_ok = any_type_in_own
+    # The requested distinguishing noun is stronger identity evidence than
+    # a shared modifier. Keep the broader signal separately for ambiguous
+    # candidates that need semantic review.
+    head_ok = head is not None and _contains(own_tokens, head)
     # A head that appears ONLY after the role preposition (with nothing of
     # the type in the own identity) is an accessory reference:
     # «пружина для катушки» mentions «катушка» but is not one.
     head_after_role = (
-        not head_ok
+        not any_type_in_own
         and head is not None
         and split is not None
         and _contains(title_tokens[split + 1:], head)
@@ -278,16 +281,25 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if genitive_mention:
         qualifies = False
         reasons.append("type_mentioned_as_genitive_modifier")
-    if accessory_head is not None and (not head_ok or accessory_composite):
+    if accessory_head is not None and (not any_type_in_own or accessory_composite):
         qualifies = False
         reasons.append(f"accessory_head:{accessory_head}")
     if bare_noun_only:
         qualifies = False
         reasons.append("ambiguous_bare_noun")
+    semantic_review_required = False
     if not head_ok and not head_after_role:
-        # Head missing entirely: reject unless the whole title is just the
-        # type words in different order (e.g. «катушка рыболовная»).
-        if coverage < 1.0:
+        # A shared modifier alone does not prove product identity:
+        # «сварочный стол» is not necessarily a «сварочный аппарат».
+        # But it also does not prove the candidate is unrelated: valid
+        # product variants may use a different head noun (e.g. «сварочный
+        # полуавтомат»). Keep candidates carrying a type token in their OWN
+        # identity for semantic review, never as deterministic matches.
+        if any_type_in_own:
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
+        elif coverage < 1.0:
             qualifies = False
             reasons.append("type_head_missing")
         else:

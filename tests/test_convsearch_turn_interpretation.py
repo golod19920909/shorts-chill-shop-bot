@@ -107,6 +107,55 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.question, "Что именно хотите подобрать?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_semantic_selector_removes_wrong_product_from_results(self):
+        class SelectingAI(FakeAI):
+            async def select_conversation_candidates(self, candidates, *, query, wanted=20):
+                self.selection_input = [item.product_id for item in candidates]
+                self.selection_query = query
+                self.selection_wanted = wanted
+                return ["welder-1"]
+
+        ai = SelectingAI(None)
+        backend = FakeBackend([
+            listing("mask-1", "Сварочная маска автоматическая"),
+            listing("welder-1", "Сварочный аппарат инверторный бытовой"),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+
+        decision = await engine.handle_message(
+            "semantic-user", "Сварочный аппарат",
+            state=ConversationEngineState(user_key="semantic-user"), currency="UAH"
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([item.product_id for item in decision.products], ["welder-1"])
+        self.assertEqual(decision.report["ai_selection"], "selected")
+        self.assertEqual(ai.selection_wanted, 2)
+        self.assertIn("сварочный аппарат", ai.selection_query)
+
+    async def test_semantic_selector_empty_result_does_not_restore_irrelevant_items(self):
+        class EmptySelectingAI(FakeAI):
+            async def select_conversation_candidates(self, candidates, *, query, wanted=20):
+                return []
+
+        ai = EmptySelectingAI(None)
+        backend = FakeBackend([
+            listing("mask-1", "Сварочная маска автоматическая"),
+            listing("mask-2", "Маска сварщика защитная"),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+
+        decision = await engine.handle_message(
+            "semantic-empty-user", "Сварочный аппарат",
+            state=ConversationEngineState(user_key="semantic-empty-user"), currency="UAH"
+        )
+
+        self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["reason"], "no_semantically_relevant_candidates")
+
     async def test_uncertain_or_missing_ai_decision_uses_deterministic_fallback(self):
         ai = FakeAI(None)
         backend = FakeBackend([listing("w1", "Сварочный аппарат инверторный")])

@@ -108,6 +108,23 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 msg=title,
             )
 
+    def test_shared_modifier_without_requested_head_requires_semantic_review(self) -> None:
+        verdict = validate_product_type(
+            product("welder-table", "Сварочный стол усиленный"),
+            "сварочный аппарат",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+        self.assertLess(verdict.score, 0.5)
+
+    def test_valid_variant_head_is_deferred_for_semantic_confirmation(self) -> None:
+        verdict = validate_product_type(
+            product("welder-semi", "Сварочный полуавтомат MIG"),
+            "сварочный аппарат",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+
     def test_drill_qualifies_but_bits_rejected(self) -> None:
         self.assertTrue(validate_product_type(
             product("d1", "Дрель аккумуляторная ударная 21V"), DRILL
