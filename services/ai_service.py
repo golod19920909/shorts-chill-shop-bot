@@ -1761,9 +1761,14 @@ class AIService:
                 # the product the user asked us to find.
                 item_phrase = _product_type_of(user_text)
                 item_tokens = tokens(item_phrase or "")
-                if not proposed_tokens or not item_tokens or not any(
-                    stems_match(proposed_tokens[-1], observed)
-                    for observed in item_tokens
+                # Compare the proposed head with the requested phrase's
+                # head, not with any token in that phrase. Otherwise a model
+                # can pass a different product by reusing only its modifier
+                # (for example, «стол сварочный» for «сварочный аппарат»).
+                if (
+                    not proposed_tokens
+                    or not item_tokens
+                    or not stems_match(proposed_tokens[-1], item_tokens[-1])
                 ):
                     return None
 
