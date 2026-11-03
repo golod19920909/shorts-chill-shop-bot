@@ -188,6 +188,23 @@ class CrossCategoryValidationTests(unittest.TestCase):
         )
         self.assertLess(verdict.score, 0.5)
 
+    def test_host_product_with_requested_accessory_is_not_the_accessory(self) -> None:
+        for title in (
+            "Дрель аккумуляторная с насадкой",
+            "Телефон с защитным чехлом",
+            "Шуруповёрт с насадкой-миксером",
+        ):
+            verdict = validate_product_type(product("host-with-accessory", title), "насадка" if "насадк" in title else "чехол")
+            self.assertFalse(verdict.qualifies, msg=title)
+            self.assertIn("type_is_accessory_of_host_product", verdict.reasons)
+
+    def test_adjective_before_requested_accessory_is_still_valid(self) -> None:
+        verdict = validate_product_type(
+            product("real-attachment", "Аккумуляторная насадка для дрели"),
+            "насадка",
+        )
+        self.assertTrue(verdict.qualifies)
+
     def test_requested_type_in_primary_title_clause_is_deterministic(self) -> None:
         verdict = validate_product_type(
             product("real-attachment", "Насадка для дрели по дереву"),
