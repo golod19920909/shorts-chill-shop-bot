@@ -353,6 +353,7 @@ class ConversationSearchEngine:
             text,
             intent_override=intent_override,
             slot_updates=model_slot_updates,
+            allow_product_switch=explicit_product_switch,
         )
         if model_slot_updates:
             observation["model_slot_updates"] = model_slot_updates
@@ -366,7 +367,10 @@ class ConversationSearchEngine:
             # have no product type to attach to and could fall back to the
             # previous product's ledger.
             if intent is MessageIntent.NEW_SEARCH:
-                clarified_type = explicit_product_type or _product_type_of(text)
+                clarified_type = (
+                    (explicit_product_type if explicit_product_switch else None)
+                    or _product_type_of(text)
+                )
                 if clarified_type:
                     state.record_product_type(clarified_type)
             question = ai_turn.get("question") or DEFAULT_CLARIFY_QUESTION
@@ -410,7 +414,13 @@ class ConversationSearchEngine:
         if intent is MessageIntent.NEW_SEARCH:
             # The explicit request head is grounded in the user's own words
             # and takes precedence over a stale or contradictory model type.
-            new_type = explicit_product_type or model_type or _product_type_of(text) or None
+            new_type = (
+                (explicit_product_type if explicit_product_switch else None)
+                or model_type
+                or explicit_product_type
+                or _product_type_of(text)
+                or None
+            )
             if new_type:
                 state.record_product_type(new_type)
         elif (
