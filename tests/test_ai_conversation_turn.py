@@ -40,6 +40,19 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(result)
 
+    async def test_model_cannot_use_a_shared_modifier_as_the_product_head(self):
+        service = self.make_service(
+            '{"action":"new_search","confidence":0.99,'
+            '"product_type":"стол сварочный","question":null}'
+        )
+        result = await service.decide_conversation_turn(
+            "Нужен сварочный аппарат",
+            context={"active_slots": [], "recent_turns": []},
+        )
+        # The modifier «сварочный» occurs in the request, but the requested
+        # head noun is «аппарат», not «стол».
+        self.assertIsNone(result)
+
     async def test_model_cannot_promote_a_relation_target_to_product_type(self):
         service = self.make_service(
             '{"action":"new_search","confidence":0.99,'
