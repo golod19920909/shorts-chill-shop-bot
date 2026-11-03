@@ -159,6 +159,29 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
 
+    async def test_remove_target_matching_is_case_insensitive(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"operation":"remove","kind":"use_case",'
+            '"target":"Дома","value":null}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Убери Дома",
+            context={"active_slots": [{"kind": "use_case", "value": "дома"}]},
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result["slot_updates"],
+            [{
+                "operation": "remove",
+                "kind": "use_case",
+                "target": "Дома",
+                "value": None,
+            }],
+        )
+
     async def test_targeted_remove_is_accepted_only_for_an_active_slot(self):
         service = self.make_service(
             '{"action":"correction","confidence":0.98,'
