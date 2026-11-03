@@ -443,7 +443,11 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             {"action": "new_search", "confidence": 0.99,
              "product_type": "пинцет", "question": None},
             {"action": "refine", "confidence": 0.99,
-             "product_type": None, "question": None},
+             "product_type": None, "question": None,
+             "slot_updates": [
+                 {"kind": "feature", "operation": "add",
+                  "value": "нержавеющая сталь"},
+             ]},
         )
         backend = SequencedBackend()
         engine = ConversationSearchEngine(retrieval_backend=backend)
@@ -467,6 +471,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.report["intent"], MessageIntent.NEW_SEARCH)
         self.assertEqual(state.active_values("type"), ["насадка"])
         self.assertEqual(state.active_values("use_case"), ["дрель", "дерева"])
+        self.assertEqual(state.active_values("feature"), [])
         self.assertEqual(
             backend.strategies[-1].product_type,
             "насадка",
