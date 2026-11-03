@@ -475,7 +475,10 @@ def build_retrieval_strategy(
     has_current_turn_slots = any(
         slot.status == "active"
         and slot.source_turn == current_turn
-        and slot.kind in {"use_case", "feature", "exclusion", "preference", "budget"}
+        and slot.kind in {
+            "use_case", "compatibility", "feature", "exclusion",
+            "preference", "budget",
+        }
         for slot in state.slots
     )
     constraint_words: list[str] = []
