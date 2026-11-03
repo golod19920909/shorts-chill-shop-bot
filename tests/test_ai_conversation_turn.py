@@ -29,6 +29,28 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["confidence"], 0.94)
         service._generate.assert_awaited_once()
 
+    async def test_model_cannot_invent_a_product_head_not_in_user_message(self):
+        service = self.make_service(
+            '{"action":"new_search","confidence":0.99,'
+            '"product_type":"сварочный стол","question":null}'
+        )
+        result = await service.decide_conversation_turn(
+            "Нужен сварочный аппарат",
+            context={"active_slots": [], "recent_turns": []},
+        )
+        self.assertIsNone(result)
+
+    async def test_model_product_head_accepts_user_inflection(self):
+        service = self.make_service(
+            '{"action":"new_search","confidence":0.99,'
+            '"product_type":"шуруповёрт","question":null}'
+        )
+        result = await service.decide_conversation_turn(
+            "Ищу шуруповерта для дома",
+            context={"active_slots": [], "recent_turns": []},
+        )
+        self.assertEqual(result["product_type"], "шуруповёрт")
+
     async def test_budget_followup_action_is_accepted_without_product_type(self):
         service = self.make_service(
             '{"action":"refine","confidence":0.98,'
