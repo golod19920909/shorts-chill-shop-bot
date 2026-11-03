@@ -91,7 +91,7 @@ _FEATURE_INTRO_RE = re.compile(
     re.IGNORECASE,
 )
 _USE_CASE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
+    r"(?:^|\s)(?:для|for|на(?!\s+самом\s+деле\b))\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|для|for|на(?!\s+самом\s+деле\b)|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _REVERSAL_RE = re.compile(
