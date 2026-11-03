@@ -562,7 +562,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
 
-    async def test_empty_selector_response_preserves_deterministic_safe_pool(self):
+    async def test_valid_empty_selector_response_is_an_explicit_no_match(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(return_value=[])
         engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
@@ -579,9 +579,10 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(decision.outcome, Outcome.RESULTS)
-        self.assertEqual([p.product_id for p in decision.products], ["p1"])
-        self.assertEqual(decision.report["ai_selection"], "empty_fallback")
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
+        self.assertEqual(decision.report["reason"], "semantic_no_match")
 
     async def test_selector_error_preserves_deterministic_safe_pool(self):
         engine = ConversationSearchEngine()
