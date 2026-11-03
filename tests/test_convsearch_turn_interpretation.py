@@ -849,7 +849,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
         self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["reason"], "unverified_product_identity")
+        self.assertEqual(decision.report["reason"], "semantic_no_match")
 
     async def test_uncertain_or_missing_ai_decision_uses_deterministic_fallback(self):
         ai = FakeAI(None)
