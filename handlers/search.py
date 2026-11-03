@@ -1,4 +1,4 @@
-﻿"""Free-form search handler plus product-card actions.
+"""Free-form search handler plus product-card actions.
 
 The search flow is ONE screen:
 
@@ -198,6 +198,20 @@ def _clear_stale_shown_session_for_new_search(
 
     if decision.report.get("intent") == MessageIntent.NEW_SEARCH:
         context.user_data.pop("last_shown_session", None)
+
+
+def _get_convsearch_state(context: ContextTypes.DEFAULT_TYPE, user_key: str) -> ConversationEngineState:
+    """Return a live ledger, dropping it BEFORE touching an expired one.
+
+    Touching the TTL before checking expiry would accidentally revive stale
+    product types, budgets and exclusions whenever a user returned later.
+    """
+    state = context.user_data.get("_convsearch_state")
+    if not isinstance(state, ConversationEngineState) or state.is_expired():
+        state = ConversationEngineState(user_key=user_key)
+    state.touch()
+    context.user_data["_convsearch_state"] = state
+    return state
 
 
 def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -615,10 +629,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # The per-user conversation ledger lives in the bot's EXISTING
     # ``context.user_data`` store (per-user isolation and expiry follow
     # the architecture the bot already trusts) — no parallel state store.
-    conv_state = context.user_data.get("_convsearch_state")
-    if not isinstance(conv_state, ConversationEngineState):
-        conv_state = ConversationEngineState(user_key=user_key)
-    conv_state.touch()
+    conv_state = _get_convsearch_state(context, user_key)
 
     await common.record_event(
         context,
