@@ -4,6 +4,8 @@ from __future__ import annotations
 import time
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
 
 from handlers.search import (
     CLARIFY_TTL_SECONDS,
@@ -13,6 +15,8 @@ from handlers.search import (
     set_pending_clarify,
     _clear_stale_shown_session_for_new_search,
     _get_convsearch_state,
+    _record_browsed_conversation_product,
+    _send_product_cards,
 )
 from services.convsearch.contract import Outcome
 from services.convsearch.state import ConversationEngineState
@@ -134,3 +138,73 @@ class PendingClarificationLifecycleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
+    async def test_failed_initial_card_send_does_not_mark_any_product_shown(self):
+        product = SimpleNamespace(product_id="product-1")
+        context = SimpleNamespace(user_data={})
+        outcome = SimpleNamespace(products=[product])
+        with (
+            patch("handlers.search.common.get_outcome_meta", return_value={"header": None}),
+            patch("handlers.search.common.is_product_tracked", new=AsyncMock(return_value=False)),
+            patch("handlers.search.common.send_product_card", new=AsyncMock(side_effect=RuntimeError("Telegram unavailable"))),
+            patch("handlers.search.common.record_event", new=AsyncMock()) as record_event,
+            patch("handlers.search.common.remember_shown", new=AsyncMock()) as remember_shown,
+            patch("handlers.search.common.remember_views", new=AsyncMock()) as remember_views,
+            patch("handlers.search.common.session_flow", return_value="search"),
+            patch("handlers.search._card_caption", return_value="caption"),
+            patch("handlers.search._browse_keyboard", return_value=None),
+        ):
+            delivered = await _send_product_cards(
+                context, 123, outcome, "session-1"
+            )
+
+        self.assertFalse(delivered)
+        record_event.assert_not_awaited()
+        remember_shown.assert_not_awaited()
+        remember_views.assert_not_awaited()
+
+    async def test_successful_initial_card_send_is_acknowledged_by_caller(self):
+        product = SimpleNamespace(product_id="product-1")
+        context = SimpleNamespace(user_data={})
+        outcome = SimpleNamespace(products=[product])
+        with (
+            patch("handlers.search.common.get_outcome_meta", return_value={"header": None}),
+            patch("handlers.search.common.is_product_tracked", new=AsyncMock(return_value=False)),
+            patch("handlers.search.common.send_product_card", new=AsyncMock()) as send_card,
+            patch("handlers.search.common.record_event", new=AsyncMock()) as record_event,
+            patch("handlers.search.common.remember_shown", new=AsyncMock()) as remember_shown,
+            patch("handlers.search.common.remember_views", new=AsyncMock()) as remember_views,
+            patch("handlers.search.common.session_flow", return_value="search"),
+            patch("handlers.search._card_caption", return_value="caption"),
+            patch("handlers.search._browse_keyboard", return_value=None),
+        ):
+            delivered = await _send_product_cards(
+                context, 123, outcome, "session-1"
+            )
+
+        self.assertTrue(delivered)
+        send_card.assert_awaited_once()
+        record_event.assert_awaited_once()
+        remember_shown.assert_awaited_once()
+        remember_views.assert_awaited_once()
+
+    async def test_browsed_product_is_recorded_only_for_current_search_session(self):
+        state = ConversationEngineState(user_key="delivery-ledger")
+        context = SimpleNamespace(
+            user_data={
+                "last_shown_session": "active-session",
+                "_convsearch_state": state,
+            }
+        )
+
+        await _record_browsed_conversation_product(
+            context, "stale-session", "not-visible"
+        )
+        self.assertEqual(state.shown_product_ids, [])
+
+        await _record_browsed_conversation_product(
+            context, "active-session", "visible-after-edit"
+        )
+        self.assertEqual(state.shown_product_ids, ["visible-after-edit"])
