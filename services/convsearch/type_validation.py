@@ -328,7 +328,11 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             stems_match(accessory_head, bundle_head)
             for bundle_head in _GENERIC_BUNDLE_HEADS
         )
-        if is_generic_bundle and description_has_type and not head_after_role:
+        if (
+            is_generic_bundle
+            and (description_has_type or any_type_in_own)
+            and not head_after_role
+        ):
             # A bundle title can be broad while its description identifies
             # the actual contents. It is not an automatic match; defer it.
             semantic_review_required = True
