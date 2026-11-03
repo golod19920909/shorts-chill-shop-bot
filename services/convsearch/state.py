@@ -640,15 +640,30 @@ class ConversationEngineState:
         # selection, but is never a hard title-evidence requirement. Do not
         # re-add the old side of an explicit use-case replacement from the
         # deterministic phrase extractor.
-        use_case_replacement_targets = {
+        structured_use_case_targets = {
             " ".join(str(update.get("target") or "").split()).casefold()
             for update in model_updates
             if update.get("operation") == "replace"
             and update.get("kind") == "use_case"
             and isinstance(update.get("target"), str)
         }
+        # If Gemini identifies a connector phrase as hard compatibility,
+        # do not also keep the deterministic parser's softer use_case copy
+        # of the same target. Include old/new values for compatibility
+        # corrections and removals so stale duplicates cannot survive.
+        structured_compatibility_targets = {
+            " ".join(str(value).split()).casefold()
+            for update in model_updates
+            if update.get("kind") == "compatibility"
+            for value in (update.get("target"), update.get("value"))
+            if isinstance(value, str) and value.strip()
+        }
         for value in result.get("use_cases") or []:
-            if " ".join(str(value).split()).casefold() in use_case_replacement_targets:
+            normalized_use_case = " ".join(str(value).split()).casefold()
+            if (
+                normalized_use_case in structured_use_case_targets
+                or normalized_use_case in structured_compatibility_targets
+            ):
                 continue
             self._add_slot(Slot(
                 kind="use_case", value=value, source_turn=index, raw_text=""
