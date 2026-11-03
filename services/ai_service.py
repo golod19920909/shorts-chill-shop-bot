@@ -1743,6 +1743,21 @@ class AIService:
                 return None
             if not product_type:
                 product_type = None
+            if product_type:
+                # The model may normalize inflection, but it must not invent
+                # a different product identity. Ground the distinguishing
+                # head noun in the user's current words; otherwise the
+                # deterministic parser (or a clarification) takes over.
+                from services.convsearch.text import tokens
+                from services.convsearch.type_validation import stems_match
+
+                proposed_tokens = tokens(product_type)
+                message_tokens = tokens(user_text)
+                if not proposed_tokens or not any(
+                    stems_match(proposed_tokens[-1], observed)
+                    for observed in message_tokens
+                ):
+                    return None
 
         question = payload.get("question")
         if question is not None and not isinstance(question, str):
