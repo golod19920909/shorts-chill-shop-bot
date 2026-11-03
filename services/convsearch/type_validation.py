@@ -6,25 +6,22 @@ not an accessory, spare part, or an unrelated product that merely mentions
 the same words. The rules are category-general — no per-product keyword
 patch:
 
-1.  Type-token coverage. The candidate's title must carry the type's
-    content tokens ("рыболовная катушка" → «рыболовная», «катушка»).
-2.  Head-noun consistency. When the type has a distinguishing head noun
-    («катушка» for a reel, «повербанк» for a power bank), the title must
-    contain it. A title that mentions the noun only inside a subordinate
-    phrase ("пружина для катушки", "держатель катушки", "чехол для
-    катушки") fails: its OWN head noun is the accessory, not the product.
-3.  Whole-product signals. Compound titles that lead with another product
-    ("набор отвёрток для шуруповёрта") are rejected when their own head
-    noun differs from the requested one.
-4.  Ambiguous words are resolved by collocation. "катушка" alone means
-    both a fishing reel and an audio/line spool; the request's context
-    tokens («рыболовная») must also appear for the candidate to qualify.
-    A title that is only "катушка" without any context token is NOT
-    accepted (insufficient evidence — honesty rule), while
-    "рыболовная катушка" is.
-5.  Missing metadata is never treated as presence. A candidate without
-    description/category still has its TITLE as evidence; a title that
-    does not state the type is rejected, not down-ranked.
+1.  Type-token coverage and head-noun consistency are read from the title.
+    The candidate's own identity must carry the requested product type; an
+    explicit accessory title such as «пружина для катушки» still fails even
+    if its description repeats the host product.
+2.  Generic bundle titles (a set/kit) are not automatically the requested
+    item, but they may be sent for semantic review when the description
+    names the requested type.
+3.  Description-only type evidence never creates an automatic match. It only
+    opens the candidate for bounded semantic review, where title and
+    description are considered together.
+4.  Ambiguous words are resolved by collocation. «Катушка» alone may mean
+    a fishing reel or an audio/line spool; without the request's context
+    tokens the candidate is not accepted automatically.
+5.  A type mentioned only in a later comma/semicolon/pipe-separated title
+    fragment is also sent for semantic review, never treated as a verified
+    principal-item match.
 
 Everything here is deterministic and unit-testable; the engine consumes it
 in ``services.convsearch.ranking``/``engine.shape_pool``.
@@ -44,6 +41,10 @@ from services.convsearch.text import tokens
 #: names): «держатель», «пружина», «запчасть», «ремкомплект», «футляр»…
 #: A title that LEADS with one of these and mentions the type only after
 #: «для …» is an accessory FOR the product, never the product itself.
+_GENERIC_BUNDLE_HEADS: frozenset[str] = frozenset(
+    {"набор", "комплект", "set", "kit", "bundle", "pack"}
+)
+
 ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
     {
         # RU generic accessory/repair heads
@@ -318,13 +319,27 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if genitive_mention:
         qualifies = False
         reasons.append("type_mentioned_as_genitive_modifier")
+    semantic_review_required = False
+    description_has_type = any(
+        _contains(description_tokens, token) for token in type_tokens
+    )
     if accessory_head is not None and (not any_type_in_own or accessory_composite):
-        qualifies = False
-        reasons.append(f"accessory_head:{accessory_head}")
+        is_generic_bundle = any(
+            stems_match(accessory_head, bundle_head)
+            for bundle_head in _GENERIC_BUNDLE_HEADS
+        )
+        if is_generic_bundle and description_has_type and not head_after_role:
+            # A bundle title can be broad while its description identifies
+            # the actual contents. It is not an automatic match; defer it.
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
+        else:
+            qualifies = False
+            reasons.append(f"accessory_head:{accessory_head}")
     if bare_noun_only:
         qualifies = False
         reasons.append("ambiguous_bare_noun")
-    semantic_review_required = False
     if late_type_mention and qualifies:
         semantic_review_required = True
         score = 0.15
@@ -336,13 +351,13 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         # product variants may use a different head noun (e.g. «сварочный
         # полуавтомат»). Keep candidates carrying a type token in their OWN
         # identity for semantic review, never as deterministic matches.
-        if any_type_in_own:
+        if semantic_review_required:
+            pass
+        elif any_type_in_own:
             semantic_review_required = True
             score = 0.15
             reasons.append("type_identity_requires_semantic_review")
-        elif any(
-            _contains(description_tokens, token) for token in type_tokens
-        ):
+        elif description_has_type:
             # AliExpress titles can be generic while the description names
             # the actual item. Description evidence is never enough for an
             # automatic identity pass: it only opens the candidate for the
