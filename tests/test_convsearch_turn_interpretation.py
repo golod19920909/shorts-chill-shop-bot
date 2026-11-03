@@ -7,7 +7,7 @@ from models.product import Marketplace, Product
 from services.convsearch.contract import Outcome
 from services.convsearch.engine import ConversationSearchEngine
 from services.convsearch.retrieval import BackendOutcome, build_retrieval_strategy
-from services.convsearch.state import ConversationEngineState, MessageIntent
+from services.convsearch.state import ConversationEngineState, MessageIntent, Slot, Turn
 
 
 def listing(pid: str, title: str, price: float = 1000.0) -> Product:
@@ -562,22 +562,16 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_model_compatibility_slot_prevents_raw_followup_words_becoming_features(self):
         state = ConversationEngineState(user_key="compatibility-query")
         state.record_product_type("насадка")
-        updates = [{
-            "operation": "add",
-            "kind": "compatibility",
-            "target": None,
-            "value": "дрели",
-        }]
-        observation = state.observe(
-            "и подходит дрели",
-            intent_override=MessageIntent.REFINE,
-            slot_updates=updates,
-        )
-        observation["model_slot_updates"] = updates
-        state.record_slots(observation)
+        state.turns.append(Turn(index=0, text="подходит дрели"))
+        state.slots.append(Slot(
+            kind="compatibility",
+            value="дрели",
+            source_turn=1,
+            raw_text="",
+        ))
 
         strategy = build_retrieval_strategy(
-            state, "и подходит дрели", currency="UAH"
+            state, "подходит дрели", currency="UAH"
         )
 
         self.assertIsNotNone(strategy)
