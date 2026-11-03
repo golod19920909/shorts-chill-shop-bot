@@ -249,6 +249,23 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         )
     )
 
+    # A type mentioned only in a later comma-separated listing fragment is
+    # not strong evidence that the listing's principal item IS that type.
+    # AliExpress titles often concatenate several unrelated products; for
+    # example, a title may begin with a drill and mention attachments only in
+    # a later list. Do not accept that incidental mention as a deterministic
+    # identity match. Keep it eligible for the bounded semantic review, where
+    # the full listing and active intent can be considered; if review is
+    # unavailable, the engine quarantines it rather than showing it blindly.
+    primary_clause = re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
+    primary_tokens = _raw_tokens(primary_clause)
+    head_in_primary = head is not None and _contains(primary_tokens, head)
+    late_type_mention = (
+        head_ok
+        and not head_in_primary
+        and any(_contains(title_tokens, token) for token in type_tokens)
+    )
+
     # 3. Token coverage over the whole title (fallback evidence).
     matched = sum(1 for token in type_tokens if _contains(title_tokens, token))
     coverage = matched / len(type_tokens)
@@ -288,6 +305,10 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         qualifies = False
         reasons.append("ambiguous_bare_noun")
     semantic_review_required = False
+    if late_type_mention and qualifies:
+        semantic_review_required = True
+        score = 0.15
+        reasons.append("type_mentioned_only_after_listing_separator")
     if not head_ok and not head_after_role:
         # A shared modifier alone does not prove product identity:
         # «сварочный стол» is not necessarily a «сварочный аппарат».
