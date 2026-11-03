@@ -534,7 +534,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_by_kind("type").value, "шуруповёрт")
         self.assertTrue(state.active_values("use_case"))
         self.assertTrue(state.active_values("feature") or state.active_values("exclusion"))
-        self.assertEqual(state.shown_product_ids, ["screwdriver-1"])
+        # Engine selection is not proof that Telegram delivered the card.
+        self.assertEqual(state.shown_product_ids, [])
 
         # «На самом деле» is a reversal marker, but Gemini has explicitly
         # identified a different product. This must start a clean request.
@@ -551,7 +552,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_values("feature"), [])
         self.assertEqual(state.active_values("exclusion"), [])
         self.assertEqual(state.active_values("budget"), [])
-        self.assertEqual(state.shown_product_ids, ["vacuum-1"])
+        self.assertEqual(state.shown_product_ids, [])
         self.assertEqual(backend.strategies[-1].product_type, "пылесос")
         self.assertIsNone(backend.strategies[-1].request.max_price)
         self.assertEqual(backend.strategies[-1].request.required_features, [])
