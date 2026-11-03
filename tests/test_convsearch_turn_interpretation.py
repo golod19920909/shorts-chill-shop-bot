@@ -470,7 +470,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(second.outcome, Outcome.RESULTS)
         self.assertEqual(second.report["intent"], MessageIntent.NEW_SEARCH)
         self.assertEqual(state.active_values("type"), ["насадка"])
-        self.assertEqual(state.active_values("use_case"), ["дрель", "дерева"])
+        self.assertEqual(state.active_values("compatibility"), ["дрель"])
+        self.assertEqual(state.active_values("use_case"), ["дерева"])
         self.assertEqual(state.active_values("feature"), [])
         self.assertEqual(
             backend.strategies[-1].product_type,
@@ -485,6 +486,26 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             ["drill-attachment-1"],
         )
         self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
+        self.assertEqual(state.active_values("compatibility"), ["дрель"])
+
+    async def test_accessory_fitment_is_mandatory_and_missing_evidence_is_quarantined(self):
+        backend = FakeBackend([
+            listing("unknown-fitment", "Насадка универсальная для обработки"),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        state = ConversationEngineState(user_key="fitment-required")
+
+        decision = await engine.handle_message(
+            "fitment-required", "Нужна насадка на дрель по дереву",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(state.active_values("compatibility"), ["дрель"])
+        self.assertIn("дрель", backend.strategies[-1].request.normalized_query)
+        self.assertIn("дрель", backend.strategies[-1].request.required_features)
+        self.assertEqual(decision.report["reason"], "unverified_required_features")
 
     async def test_work_material_context_after_po_is_preserved_without_ai(self):
         # «по X» is a productive Russian application/material construction,
@@ -503,7 +524,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertIs(decision.outcome, Outcome.RESULTS)
                 self.assertEqual(state.active_values("type"), ["насадка"])
-                self.assertEqual(state.active_values("use_case"), ["дрель", material])
+                self.assertEqual(state.active_values("compatibility"), ["дрель"])
+                self.assertEqual(state.active_values("use_case"), [material])
                 self.assertIn("насадка дрель", backend.strategies[-1].request.normalized_query)
                 self.assertIn(material, backend.strategies[-1].request.normalized_query)
                 self.assertEqual(state.active_values("feature"), [])
