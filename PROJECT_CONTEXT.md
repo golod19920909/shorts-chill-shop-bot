@@ -207,6 +207,12 @@ enforcement is the FILTER in step 2; `WEIGHTS["budget"] = 0.0`).
 `filter_by_type` (the legacy stem-only duplicate of the type gate) was
 removed — `type_validation.validate_product_type` is the one gate.
 
+A valid empty candidate-ID list from Gemini is an explicit semantic
+no-match, not a failed response. The engine must return no eligible products
+rather than silently restoring the deterministic pool. Only an unavailable,
+malformed, or timed-out selector response may use the documented deterministic
+fallback (with candidates requiring semantic review still quarantined).
+
 ### Selector latency and fail-closed behavior (2026-10-30)
 
 The conversational selector receives only the deterministic top 20 candidates
