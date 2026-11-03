@@ -259,8 +259,11 @@ fallback (with candidates requiring semantic review still quarantined).
 
 The conversational selector receives only the deterministic top 20 candidates
 (the user-facing browse/presentation cap remains 30), with bounded real
-descriptions included in the evidence payload. Its orchestration timeout is
-8 seconds rather than 3 seconds. If semantic validation times out or fails
+descriptions included in the evidence payload. If Gemini returns fewer than
+20 valid candidates, that partial selection is authoritative and must not be
+padded with unseen tail rows. Append up to ten deterministic tail candidates
+only when Gemini fills the full 20-item selection window. Its orchestration
+timeout is 8 seconds rather than 3 seconds. If semantic validation times out or fails
 while a negative constraint is active, the engine returns no candidates
 instead of silently showing products whose compliance with that exclusion
 could not be established. Without active exclusions, the deterministic
