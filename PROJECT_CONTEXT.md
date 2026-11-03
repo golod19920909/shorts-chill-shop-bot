@@ -148,6 +148,14 @@ enough for an automatic identity pass. An explicit title identifying a
 different accessory or spare part still wins over a description that mentions
 the requested host product.
 
+Provider limitation: the current AliExpress product.query normalizer maps the
+documented title and commercial fields but does not populate Product.description.
+Description-backed review therefore applies only when a provider actually
+supplies that field; it is not evidence of live description enrichment for
+ordinary AliExpress search results. Do not claim that the bot currently reads
+full AliExpress product descriptions unless the detail API mapping is separately
+verified and implemented.
+
 Russian «по X» application/material phrases are captured as soft use-case
 context just like «для X». They are carried into retrieval and semantic
 selection, but are not treated as a mandatory literal title feature.
