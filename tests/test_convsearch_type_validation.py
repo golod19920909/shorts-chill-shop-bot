@@ -125,6 +125,14 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertTrue(verdict.qualifies)
         self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
 
+    def test_non_accessory_set_requests_are_not_fitment_relations(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        self.assertFalse(is_accessory_product_type("наборы на свадьбу"))
+        self.assertFalse(is_accessory_product_type("комплекты для дома"))
+        self.assertTrue(is_accessory_product_type("набор насадок"))
+        self.assertTrue(is_accessory_product_type("комплект кабелей"))
+
     def test_late_type_mention_in_a_mixed_listing_title_requires_review(self) -> None:
         verdict = validate_product_type(
             product(
