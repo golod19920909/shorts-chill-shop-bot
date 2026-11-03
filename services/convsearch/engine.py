@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
 AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0
+AI_TURN_MODEL_BUDGET_SECONDS = 8.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
@@ -263,6 +264,7 @@ class ConversationSearchEngine:
         # ranking. If the model is unavailable, malformed, or uncertain, the
         # state machine keeps its deterministic classification.
         ai_turn = None
+        ai_model_time_spent = 0.0
         ai = self._ai_service
         interpreter = getattr(ai, "decide_conversation_turn", None) if ai is not None else None
         if callable(interpreter):
@@ -273,11 +275,14 @@ class ConversationSearchEngine:
                 "last_outcome": state.last_outcome,
                 "pending_question": state.last_question,
             }
+            ai_started = asyncio.get_running_loop().time()
             try:
                 ai_turn = await interpreter(text, context=context_payload)
             except Exception:  # noqa: BLE001 - deterministic fallback must survive AI failure
                 logger.info("Gemini turn interpretation failed; using deterministic intent")
                 ai_turn = None
+            finally:
+                ai_model_time_spent += asyncio.get_running_loop().time() - ai_started
 
         action_to_intent = {
             "new_search": MessageIntent.NEW_SEARCH,
@@ -509,8 +514,16 @@ class ConversationSearchEngine:
             refined=refined, intent=intent, observation=observation,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
         )
+        # Both Gemini calls in one turn share a wall-clock budget. A slow
+        # interpretation must not be followed by another full selector wait;
+        # if the first call consumed most of the budget, selection gets only
+        # the remainder and deterministic safe candidates ship promptly.
+        remaining_ai_budget = max(
+            0.0, AI_TURN_MODEL_BUDGET_SECONDS - ai_model_time_spent
+        )
         decision = await self._apply_ai_candidate_selection(
-            decision, strategy, state
+            decision, strategy, state,
+            timeout_seconds=remaining_ai_budget,
         )
         state.last_outcome = decision.outcome.value
         state.last_question = None
@@ -530,7 +543,8 @@ class ConversationSearchEngine:
         return decision
 
     async def _apply_ai_candidate_selection(
-        self, decision: SearchDecision, strategy, state: ConversationEngineState
+        self, decision: SearchDecision, strategy, state: ConversationEngineState,
+        *, timeout_seconds: float | None = None,
     ) -> SearchDecision:
         """Use Gemini to rank a bounded slice of already validated listings.
 
@@ -611,8 +625,17 @@ class ConversationSearchEngine:
             query_parts.append(f"ЖЁСТКИЙ БЮДЖЕТ: до {budget.value}")
         query = " | ".join(part.strip() for part in query_parts if part and part.strip())
 
+        selection_timeout = min(
+            AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
+            max(0.0, timeout_seconds)
+            if timeout_seconds is not None
+            else AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
+        )
+        if selection_timeout <= 0:
+            return finish_fallback("turn_budget_exhausted")
+
         try:
-            async with asyncio.timeout(AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS):
+            async with asyncio.timeout(selection_timeout):
                 selected_ids = await selector(selector_pool, query=query, wanted=wanted)
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
