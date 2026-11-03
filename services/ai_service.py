@@ -1749,14 +1749,20 @@ class AIService:
                 # a different product identity. Ground the distinguishing
                 # head noun in the user's current words; otherwise the
                 # deterministic parser (or a clarification) takes over.
+                from services.convsearch.engine import _product_type_of
                 from services.convsearch.text import tokens
                 from services.convsearch.type_validation import stems_match
 
                 proposed_tokens = tokens(product_type)
-                message_tokens = tokens(user_text)
-                if not proposed_tokens or not any(
+                # Ground the model's distinguishing noun in the leading
+                # requested-item phrase, not merely anywhere in the message.
+                # A relation target («дрель» in «насадка на дрель») is not
+                # the product the user asked us to find.
+                item_phrase = _product_type_of(user_text)
+                item_tokens = tokens(item_phrase or "")
+                if not proposed_tokens or not item_tokens or not any(
                     stems_match(proposed_tokens[-1], observed)
-                    for observed in message_tokens
+                    for observed in item_tokens
                 ):
                     return None
 
