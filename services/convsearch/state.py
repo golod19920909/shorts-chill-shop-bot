@@ -81,16 +81,17 @@ class MessageIntent:
 #: constraint set the way the reference's OVERRIDE_CUES does.
 _NEGATION_RE = re.compile(r"(?:^|\s)(?:не|без|without|not)\s+", re.IGNORECASE)
 
-#: «с X» / «со X» / «для X» / «под X» adds a required
-#: characteristic or fitment target even when it is a SINGLE word («для
-#: дома», «под iPhone», «а есть с чехлом?»). The general span parser drops
-#: one-word fragments by design; this connector grammar preserves them.
+#: Connector-led characteristics include equipment, fitment and material
+#: ("с чехлом", "под iPhone", "из нержавеющей стали", "made of steel").
+#: Capture short fragments even when the general span parser drops them.
 _FEATURE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:с|со|под|with)\s+([\w\-]+(?:\s+[\w\-]+)?)",
+    r"(?:^|\s)(?:(?:с|со|из|под|with)\s+|"
+    r"(?:(?:сделан|изготовлен|выполнен)\s+из\s+)|"
+    r"(?:made\s+(?:of|from)\s+))([\w\-]+(?:\s+[\w\-]+)?)",
     re.IGNORECASE,
 )
 _USE_CASE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|без|под|with|without)\s+|[,!?;:]|$)",
+    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _REVERSAL_RE = re.compile(
@@ -358,7 +359,7 @@ class ConversationEngineState:
             # the product, never a product switch. Category-general: no
             # brand or model list, the connector grammar itself decides.
             characteristic = bool(re.search(
-                r"(?:^|\s)(?:с|со|без|для|под|не|for|чтобы|чтоб|and|so\s+that)\s+",
+                r"(?:^|\s)(?:с|со|из|без|для|под|не|for|with|made\s+(?:of|from)|сделан\s+из|изготовлен\s+из|выполнен\s+из|чтобы|чтоб|and|so\s+that)\s+",
                 message, re.IGNORECASE
             ))
             names_other_product = bool(
@@ -393,12 +394,26 @@ class ConversationEngineState:
             # COMPARE. This protects against any contradictory model action
             # (refine/correction/alternatives/clarify as well as the opposite
             # boundary action).
+            # Connector-led characteristics are strong evidence of a
+            # refinement, even if Gemini mistakes a material phrase for a
+            # new product type. A genuinely named new product is still
+            # classified as NEW_SEARCH by the message's own evidence.
+            connector_led_refinement = bool(re.search(
+                r"(?:^|\s)(?:с|со|из|без|для|под|не|for|with|"
+                r"made\s+(?:of|from)|сделан\s+из|изготовлен\s+из|"
+                r"выполнен\s+из|чтобы|чтоб|and|so\s+that)\s+",
+                message, re.IGNORECASE,
+            ))
             protected_transition = (
                 intent is MessageIntent.NEW_SEARCH
                 and intent_override != MessageIntent.NEW_SEARCH
             ) or (
                 intent is MessageIntent.COMPARE
                 and intent_override != MessageIntent.COMPARE
+            ) or (
+                intent is MessageIntent.REFINE
+                and intent_override is MessageIntent.NEW_SEARCH
+                and connector_led_refinement
             )
             if not protected_transition:
                 intent = intent_override
