@@ -137,10 +137,6 @@ class PendingClarificationLifecycleTests(unittest.TestCase):
         self.assertNotIn(PENDING_CLARIFY_KEY, context.user_data)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_initial_card_send_does_not_mark_any_product_shown(self):
         product = SimpleNamespace(product_id="product-1")
@@ -244,3 +240,7 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(session_id, "session-delivered")
         self.assertEqual(state.shown_product_ids, ["delivered-product"])
+
+
+if __name__ == "__main__":
+    unittest.main()
