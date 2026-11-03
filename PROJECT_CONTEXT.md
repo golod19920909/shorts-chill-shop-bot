@@ -139,6 +139,12 @@ machine, even though the title contains both words. Keep this category-general
 and protect it with negative accessory-title tests plus positive real-product
 title tests; never add a welding-machine-specific keyword exception.
 
+When the title is generic but the product description names the requested
+type, keep the listing only for bounded semantic review; description text is
+not enough for an automatic identity pass. An explicit title identifying a
+different accessory or spare part still wins over a description that mentions
+the requested host product.
+
 Russian «по X» application/material phrases are captured as soft use-case
 context just like «для X». They are carried into retrieval and semantic
 selection, but are not treated as a mandatory literal title feature.
