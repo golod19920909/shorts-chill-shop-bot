@@ -270,6 +270,32 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         )
     )
 
+    # A title may describe a HOST PRODUCT that comes «with» the
+    # requested accessory («дрель с насадкой», «телефон с чехлом»).
+    # The accessory word is present in the title, but it is not the listing's
+    # principal item. Treat this as a relation, not as type identity. Leading
+    # adjectives are allowed («аккумуляторная насадка»); a preceding noun
+    # before «с/со/with» means the title is about that host product.
+    with_relation_accessory = False
+    if head is not None:
+        head_positions = [
+            i for i, token in enumerate(own_tokens)
+            if stems_match(token, head)
+        ]
+        if head_positions:
+            head_pos = head_positions[0]
+            relation_positions = [
+                i for i, token in enumerate(own_tokens[:head_pos])
+                if token in {"с", "со", "with"}
+            ]
+            if relation_positions:
+                relation_pos = relation_positions[-1]
+                host_prefix = own_tokens[:relation_pos]
+                with_relation_accessory = bool(
+                    host_prefix
+                    and any(not _is_adjective(token) for token in host_prefix)
+                )
+
     # A type mentioned only in a later comma-separated listing fragment is
     # not strong evidence that the listing's principal item IS that type.
     # AliExpress titles often concatenate several unrelated products; for
@@ -316,6 +342,9 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if head_after_role:
         qualifies = False
         reasons.append("type_only_in_role_clause")
+    if with_relation_accessory:
+        qualifies = False
+        reasons.append("type_is_accessory_of_host_product")
     if genitive_mention:
         qualifies = False
         reasons.append("type_mentioned_as_genitive_modifier")
