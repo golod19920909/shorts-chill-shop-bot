@@ -2079,7 +2079,7 @@ class AIService:
         return {
             "id": product.product_id,
             "title": product.title,
-            "description": (product.description or "")[:500],
+            "description": (product.description or "")[:1500],
             "price": product.price,
             "currency": product.currency,
             "discount_percent": product.discount_percent,
