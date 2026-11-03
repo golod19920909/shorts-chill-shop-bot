@@ -1847,7 +1847,7 @@ class AIService:
                 if not removal_cue or not isinstance(target, str) or value is not None:
                     return None
                 target = " ".join(target.split()).strip()
-                if (kind, target) not in active_values:
+                if (kind, target.casefold()) not in active_values:
                     return None
                 if target.lower() not in normalized_message:
                     return None
