@@ -492,16 +492,20 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         state = ConversationEngineState(user_key="compatibility-followup")
         state.record_product_type("насадка")
 
+        updates = [{
+            "operation": "add",
+            "kind": "compatibility",
+            "target": None,
+            "value": "дрели",
+        }]
         observation = state.observe(
             "для дрели",
             intent_override=MessageIntent.REFINE,
-            slot_updates=[{
-                "operation": "add",
-                "kind": "compatibility",
-                "target": None,
-                "value": "дрели",
-            }],
+            slot_updates=updates,
         )
+        # The engine attaches only AIService-validated updates to the
+        # observation after the deterministic state transition.
+        observation["model_slot_updates"] = updates
         state.record_slots(observation)
 
         self.assertEqual(state.active_values("compatibility"), ["дрели"])
