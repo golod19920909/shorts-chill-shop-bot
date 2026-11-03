@@ -214,7 +214,7 @@ def partition_required_feature_evidence(
     data. If semantic review is unavailable, they remain quarantined.
     """
 
-    required = state.active_values("feature")
+    required = [*state.active_values("feature"), *state.active_values("compatibility")]
     if not required:
         return list(products), []
     verified: list[Product] = []
@@ -383,6 +383,7 @@ def build_retrieval_strategy(
         kept = [token for token in tokens(feature) if not _covered_by_type(token)]
         if kept:
             features.append(" ".join(kept))
+    compatibility = state.active_values("compatibility")
     exclusions = state.active_values("exclusion")
     budget = state.active_by_kind("budget")
 
@@ -396,6 +397,10 @@ def build_retrieval_strategy(
     # it is NOT a mandatory title feature. «Для дома» should broaden the
     # search toward household models without rejecting a suitable listing
     # whose seller omitted those exact words.
+    for compatible_target in compatibility:
+        kept = [token for token in tokens(compatible_target) if not _covered_by_type(token)]
+        if kept:
+            phrase_parts.append(" ".join(kept))
     for use_case in state.active_values("use_case"):
         kept = [token for token in tokens(use_case) if not _covered_by_type(token)]
         if kept:
@@ -520,7 +525,7 @@ def build_retrieval_strategy(
         mode=SearchMode.SEARCH,
         result_limit=result_limit,
         currency=currency,
-        required_features=[*list(state.active_values("feature")), *constraint_words],
+        required_features=[*list(state.active_values("feature")), *list(state.active_values("compatibility")), *constraint_words],
         excluded_features=list(exclusions),
     )
     if budget is not None:
