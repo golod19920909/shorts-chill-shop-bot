@@ -62,7 +62,7 @@ Telegram text (handlers/search.py::search_message)
        (COMPARE / ALTERNATIVES resolved over the ledger, no retrieval)
        build_retrieval_strategy(...)  # ledger -> ONE SearchRequest phrase
        RetrievalBackend.retrieve()    # explicit adapter -> SearchService RAW
-       _evaluate_pool()               # type gate -> exclusions -> budget
+       _evaluate_pool()               # type gate -> required features / compatibility -> exclusions -> budget
                                       #   -> dedup -> rank_candidates
                                       #   -> per-stage count report
        -> ONE SearchDecision
@@ -161,8 +161,8 @@ omit the preference: AliExpress titles often lack reliable weight/specification
 metadata, so the bot must not claim it verified an unlisted attribute.
 
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
-| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
-| `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
+| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + compatibility + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
+| `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature/compatibility evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
 | `type_validation.py` | The hard product-type gate: principal-product vs accessory/incidental-mention, decided from the candidate's own title structure (head noun, «для …» role clauses, accessory head words, stem matching). Category-general; no per-product keyword patch. |
 | `text.py` | Tokenisation / constraint-span extraction (reference `text.py` contract, rebuilt for RU/EN mixed marketplace queries). |
 
@@ -183,7 +183,7 @@ assistant, favorites-context) keep reading the same request the engine
 produced. There is no second conversational source of truth: the ledger owns
 WHY, the `ConversationState` request is the artifact the engine returned.
 
-Use-case follow-ups («для дома», «for workshop») are stored as
+Use-case follow-ups («для дома», «for workshop», «по дереву») are stored as
 soft `use_case` context and join the retrieval phrase / Gemini selection
 context, but are NOT mandatory title matches. A suitable household listing
 must not be rejected merely because its seller omitted «для дома». Explicit
