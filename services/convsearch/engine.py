@@ -332,12 +332,12 @@ class ConversationSearchEngine:
                 ai_turn.get("product_type")
                 if isinstance(ai_turn.get("product_type"), str) else None
             ) or _product_type_of(text)
-            if current_type is None:
-                # The clarification is filling the missing type in a vague
-                # request. Preserve any budget/use-case context already
-                # captured before the question.
+            if current_type is None or not proposed_type:
+                # The clarification is filling a missing type, or answering
+                # a question about the already-active product without naming
+                # a different one. Preserve the existing ledger in both cases.
                 intent_override = MessageIntent.REFINE
-            elif proposed_type:
+            else:
                 from services.convsearch.text import tokens
                 from services.convsearch.type_validation import stems_match
                 current_tokens = tokens(current_type.value)
