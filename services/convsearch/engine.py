@@ -424,12 +424,21 @@ class ConversationSearchEngine:
             # grammatical head is authoritative. Gemini may help interpret
             # the turn, but must not replace «насадка» with another noun from
             # the same sentence such as its compatibility target «дрель».
-            new_type = (
-                explicit_product_type
-                or model_type
-                or _product_type_of(text)
-                or None
-            )
+            if explicit_product_type and model_type:
+                from services.convsearch.text import tokens
+                from services.convsearch.type_validation import stems_match
+
+                explicit_tokens = tokens(explicit_product_type)
+                model_tokens = tokens(model_type)
+                same_requested_head = bool(
+                    explicit_tokens and model_tokens
+                    and stems_match(explicit_tokens[-1], model_tokens[-1])
+                )
+                new_type = (
+                    model_type if same_requested_head else explicit_product_type
+                )
+            else:
+                new_type = explicit_product_type or model_type or _product_type_of(text) or None
             if new_type:
                 state.record_product_type(new_type)
         elif (
