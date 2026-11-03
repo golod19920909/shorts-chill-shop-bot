@@ -47,7 +47,7 @@ class Slot:
     down-weights rather than erases and stays auditable.
     """
 
-    kind: str            # "type" | "use_case" | "feature" | "exclusion" | "budget" | "preference"
+    kind: str            # "type" | "use_case" | "compatibility" | "feature" | "exclusion" | "budget" | "preference"
     value: str
     source_turn: int
     raw_text: str
@@ -342,8 +342,17 @@ class ConversationEngineState:
             value = " ".join(tokens(match.group(1)))
             if value:
                 use_case_spans.append(value)
-        use_case_spans = list(dict.fromkeys(use_case_spans))
         compatibility_spans = list(dict.fromkeys(compatibility_spans))
+        compatibility_token_sets = [
+            set(tokens(value)) for value in compatibility_spans
+        ]
+        use_case_spans = [
+            value for value in dict.fromkeys(use_case_spans)
+            if not any(
+                set(tokens(value)) == target_tokens
+                for target_tokens in compatibility_token_sets
+            )
+        ]
         if use_case_spans or compatibility_spans:
             context_tokens = {
                 token
@@ -548,27 +557,29 @@ class ConversationEngineState:
             # replacement target.
             if _budget(message):
                 self._supersede_kinds(index, {"budget"})
-            structured_use_case_targets = {
-                " ".join(str(update.get("target") or "").split()).casefold()
+            structured_context_targets = {
+                (update.get("kind"), " ".join(str(update.get("target") or "").split()).casefold())
                 for update in (slot_updates or [])
                 if isinstance(update, dict)
                 and update.get("operation") == "replace"
-                and update.get("kind") == "use_case"
+                and update.get("kind") in {"use_case", "compatibility"}
                 and isinstance(update.get("target"), str)
             }
-            if use_case_spans and (reversal or structured_use_case_targets):
-                if structured_use_case_targets:
+            if (use_case_spans or compatibility_spans) and (
+                reversal or structured_context_targets
+            ):
+                if structured_context_targets:
                     for slot in self.slots:
                         if (
                             slot.status == "active"
-                            and slot.kind == "use_case"
-                            and " ".join(slot.value.split()).casefold()
-                            in structured_use_case_targets
+                            and slot.kind in {"use_case", "compatibility"}
+                            and (slot.kind, " ".join(slot.value.split()).casefold())
+                            in structured_context_targets
                         ):
                             slot.status = "superseded"
                             slot.superseded_turn = index
                 else:
-                    self._supersede_kinds(index, {"use_case"})
+                    self._supersede_kinds(index, {"use_case", "compatibility"})
         self.turns.append(Turn(index=index, text=message))
         self.touch()
         preferences = [
