@@ -690,6 +690,35 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
         self.assertEqual(decision.report["reason"], "semantic_no_match")
 
+    async def test_exhausted_turn_model_budget_skips_second_gemini_call(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=["p1"])
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        state = ConversationEngineState(user_key="selector-budget")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("p1", "Рыболовная катушка")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(
+            decision, strategy, state, timeout_seconds=0.0
+        )
+
+        selector.assert_not_awaited()
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([item.product_id for item in decision.products], ["p1"])
+        self.assertEqual(decision.report["ai_selection"], "turn_budget_exhausted")
+
     async def test_selector_error_preserves_deterministic_safe_pool(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(side_effect=RuntimeError("model unavailable"))
