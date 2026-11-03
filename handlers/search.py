@@ -1097,9 +1097,19 @@ async def send_search_results(
     if follow_up:
         hint = _result_summary_text(outcome)
         if hint:
-            await context.bot.send_message(
-                chat_id, hint, reply_markup=back_to_menu_keyboard()
-            )
+            try:
+                await context.bot.send_message(
+                    chat_id, hint, reply_markup=back_to_menu_keyboard()
+                )
+            except Exception:
+                # The product card is already delivered and the session is
+                # valid. A failed optional hint must not hide its session id
+                # from the caller or break compare/browse follow-ups.
+                logger.warning(
+                    "Failed to send the post-card follow-up hint for session %s",
+                    session_id,
+                    exc_info=True,
+                )
     return session_id
 
 def _browse_keyboard(
