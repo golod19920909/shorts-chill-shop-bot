@@ -986,3 +986,16 @@ A real new product named in the message remains eligible to start a new search.
 An offline integration regression simulates Gemini proposing the material
 itself as a new product type; the engine must preserve the original product,
 record the material constraint and retrieve against the original type.
+
+
+### Explicit product-switch boundary (2026-11-03)
+
+An explicit request construction that names a different item (for example,
+«мне нужна насадка на дрель для дерева») is a new product search even when
+the sentence also contains prepositional use-case/fitment context. The
+conversation engine extracts the requested product phrase before those
+context connectors and protects the switch from a contradictory Gemini
+`refine` action. Old type, feature, budget, use-case and shown-result state
+must not leak into the new product search. Prepositional targets introduced
+by «на» / «для» are retained as soft use-case context, not hard product-type
+tokens or mandatory title features.

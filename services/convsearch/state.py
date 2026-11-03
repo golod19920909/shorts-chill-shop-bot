@@ -94,6 +94,15 @@ _USE_CASE_INTRO_RE = re.compile(
     r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
+_EXPLICIT_REQUEST_RE = re.compile(
+    r"\b(?:нужен|нужна|нужно|нужны|ищу|хочу|требуется|требуются|"
+    r"подбери|подберите|найди|найдите|закажи|закажите|купи|купите)\s+(.+)",
+    re.IGNORECASE,
+)
+_REQUEST_TARGET_RE = re.compile(
+    r"\bна\s+(.+?)(?=\s+(?:для|с|со|из|без|под|до|от|в|по|к|у|о|об)\b|[,!?;:]|$)",
+    re.IGNORECASE,
+)
 _REVERSAL_RE = re.compile(
     r"(?:^|\s)(?:на самом деле|вообще|забудь|передумал|передумала|"
     r"не надо|не нужно|смени|замени|наоборот|actually|instead|"
@@ -159,6 +168,7 @@ _CHARACTERISTIC_NOUNS = _COUNT_WORDS | frozenset(
     {
         "зарядка", "заряд", "емкость", "ёмкость", "мощность", "вес", "весу",
         "экран", "камера", "микрофон", "батаре", "шум", "качество",
+        "защита", "защиты", "защиту", "защитой",
         "водонепрониц", "waterproof", "battery", "capacity", "charging",
     }
 )
@@ -253,6 +263,7 @@ class ConversationEngineState:
         *,
         intent_override: str | None = None,
         slot_updates: list[dict] | None = None,
+        allow_product_switch: bool = False,
     ) -> dict:
         """Record one user message and return its classified intent.
 
@@ -299,10 +310,20 @@ class ConversationEngineState:
         # seller never writes «для дома» in its title. Keep it separate from
         # explicit equipment/features such as «с двумя аккумуляторами».
         use_case_spans: list[str] = []
+        # «на X» is soft target/context only inside an explicit product request
+        # («насадка на дрель для дерева»). Do not reinterpret unrelated
+        # activity context such as «буду работать на стройке».
+        request_match = _EXPLICIT_REQUEST_RE.search(message)
+        if request_match:
+            for match in _REQUEST_TARGET_RE.finditer(request_match.group(1)):
+                value = " ".join(tokens(match.group(1)))
+                if value:
+                    use_case_spans.append(value)
         for match in _USE_CASE_INTRO_RE.finditer(message):
             value = " ".join(tokens(match.group(1)))
             if value:
                 use_case_spans.append(value)
+        use_case_spans = list(dict.fromkeys(use_case_spans))
         if use_case_spans:
             use_case_tokens = {
                 token for value in use_case_spans for token in tokens(value)
@@ -428,6 +449,7 @@ class ConversationEngineState:
                 intent is MessageIntent.REFINE
                 and intent_override is MessageIntent.NEW_SEARCH
                 and connector_led_refinement
+                and not allow_product_switch
             )
             if not protected_transition:
                 intent = intent_override

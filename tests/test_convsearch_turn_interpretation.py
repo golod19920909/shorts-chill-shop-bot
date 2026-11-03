@@ -417,6 +417,75 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.strategies[-1].request.required_features, [])
         self.assertEqual(backend.strategies[-1].request.excluded_features, [])
 
+    async def test_explicit_new_product_request_switches_context_despite_use_case_connectors(self):
+        class SequencedBackend:
+            def __init__(self):
+                self.products = [
+                    [listing("tweezer-1", "Пинцет для наращивания ресниц")],
+                    [listing("drill-attachment-1", "Насадка на дрель для обработки дерева")],
+                ]
+                self.strategies = []
+
+            async def retrieve(self, strategy, *, exclude=None):
+                index = len(self.strategies)
+                self.strategies.append(strategy)
+                products = self.products[index]
+                return BackendOutcome(
+                    ok=True,
+                    reason="ok" if products else "no_candidates",
+                    products=products,
+                    request=strategy.request,
+                )
+
+        # Gemini incorrectly labels the second, explicitly new product request
+        # as a refinement. The user's request construction must win.
+        ai = FakeAI(
+            {"action": "new_search", "confidence": 0.99,
+             "product_type": "пинцет", "question": None},
+            {"action": "refine", "confidence": 0.99,
+             "product_type": None, "question": None,
+             "slot_updates": [
+                 {"kind": "feature", "operation": "add",
+                  "value": "нержавеющая сталь"},
+             ]},
+        )
+        backend = SequencedBackend()
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="explicit-product-switch")
+
+        first = await engine.handle_message(
+            "explicit-product-switch", "Пинцет для наращивания ресниц",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_values("type"), ["пинцет"])
+
+        second = await engine.handle_message(
+            "explicit-product-switch",
+            "А теперь мне нужна насадка на дрель для дерева",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.RESULTS)
+        self.assertEqual(second.report["intent"], MessageIntent.NEW_SEARCH)
+        self.assertEqual(state.active_values("type"), ["насадка"])
+        self.assertEqual(state.active_values("use_case"), ["дрель", "дерева"])
+        self.assertEqual(state.active_values("feature"), [])
+        self.assertEqual(
+            backend.strategies[-1].product_type,
+            "насадка",
+        )
+        self.assertEqual(
+            backend.strategies[-1].request.normalized_query,
+            "насадка дрель дерева",
+        )
+        self.assertEqual(
+            [item.product_id for item in second.products],
+            ["drill-attachment-1"],
+        )
+        self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
+
     async def test_material_followup_cannot_become_a_new_product_type(self):
         ai = FakeAI(
             {"action": "new_search", "confidence": 0.99,
