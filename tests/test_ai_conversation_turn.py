@@ -266,8 +266,8 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         await service.select_conversation_candidates(
             candidates,
             query=(
-                "сварочный аппарат | ИСКЛЮЧИТЬ: полуавтомат | "
-                "ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH"
+                "насадка | Совместимость: дрель | по дереву | "
+                "ИСКЛЮЧИТЬ: полуавтомат | ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH"
             ),
             wanted=20,
         )
@@ -277,6 +277,8 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH", prompt)
         self.assertIn("НЕ доказывает соответствие", prompt)
         self.assertIn("неизвестный тип пропускай", prompt)
+        self.assertIn("Проверяй совместимость отдельно", prompt)
+        self.assertIn("после запятой", prompt)
 
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
         service = self.make_service('{"ids":[]}')
