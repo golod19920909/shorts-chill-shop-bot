@@ -1777,10 +1777,10 @@ class AIService:
         raw_updates = payload.get("slot_updates", [])
         if not isinstance(raw_updates, list) or len(raw_updates) > 8:
             return None
-        # Slot values must be copied verbatim from this turn. This prevents
-        # the model from importing stale constraints from context or inventing
-        # requirements. State transitions remain additive; the model cannot
-        # delete or replace existing ledger slots.
+        # Slot values must be grounded in this exact user turn. Additions
+        # may only use current-turn phrases; replace/remove operations also
+        # require an explicit cue and an exact active target of the same kind.
+        # The state ledger applies those validated operations narrowly.
         normalized_message = " ".join((user_text or "").lower().split())
         slot_updates: list[dict[str, str | None]] = []
         seen_updates: set[tuple[str, str, str]] = set()
