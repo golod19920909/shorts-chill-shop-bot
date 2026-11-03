@@ -381,7 +381,7 @@ class RankingRequestPropagationTests(unittest.TestCase):
 
 
 class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_selector_receives_at_most_twenty_candidates(self):
+    async def test_selector_underselection_is_not_padded_by_unseen_tail(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(return_value=["p0"])
         engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
@@ -400,13 +400,35 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
         self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
-        self.assertEqual(decision.products[0].product_id, "p0")
-        self.assertEqual(len(decision.products), 11)
+        self.assertEqual([item.product_id for item in decision.products], ["p0"])
+        self.assertEqual(decision.report["ai_selected"], 1)
+        self.assertEqual(decision.report["ai_tail_added"], 0)
+
+    async def test_full_selector_window_keeps_default_thirty_card_tail(self):
+        engine = ConversationSearchEngine()
+        selected_ids = [f"p{i}" for i in range(AI_CONVERSATION_SELECTION_LIMIT)]
+        selector = AsyncMock(return_value=selected_ids)
+        engine.bind_ai_service(SimpleNamespace(select_conversation_candidates=selector))
+        state = ConversationEngineState(user_key="selector-full-window")
+        candidates = [product(f"p{i}", "Рыболовная катушка") for i in range(30)]
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(decision.products), 30)
         self.assertEqual(
-            [p.product_id for p in decision.products[-10:]],
+            [item.product_id for item in decision.products[-10:]],
             [f"p{i}" for i in range(20, 30)],
         )
-        self.assertEqual(decision.report["ai_selected"], 1)
+        self.assertEqual(decision.report["ai_selected"], 20)
         self.assertEqual(decision.report["ai_tail_added"], 10)
 
     async def test_late_type_mention_is_quarantined_when_semantic_selector_times_out(self):
