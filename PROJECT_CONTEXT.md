@@ -126,6 +126,17 @@ machine, even though the title contains both words. Keep this category-general
 and protect it with negative accessory-title tests plus positive real-product
 title tests; never add a welding-machine-specific keyword exception.
 
+### Principal-item evidence in mixed marketplace titles
+
+A requested type that appears only after a comma/semicolon/pipe in a title is
+not a deterministic identity match. Marketplace listings sometimes concatenate
+multiple unrelated items into one title; a later mention can be incidental.
+Such candidates are marked for bounded Gemini semantic review and remain
+quarantined if that review times out or is unavailable. A type present in the
+primary title clause can still pass the deterministic gate. This rule is
+general across product categories and must not be implemented as product-name
+exceptions.
+
 ### Comparative follow-ups
 
 Comparatives such as «полегче» are soft preferences, not hard requirements.
