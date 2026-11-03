@@ -5,7 +5,7 @@ import unittest
 
 from models.product import Marketplace, Product
 from services.convsearch.contract import Outcome
-from services.convsearch.engine import ConversationSearchEngine
+from services.convsearch.engine import ConversationSearchEngine, _product_type_of
 from services.convsearch.retrieval import BackendOutcome, build_retrieval_strategy
 from services.convsearch.state import ConversationEngineState, MessageIntent, Slot, Turn
 
@@ -47,6 +47,21 @@ class FakeBackend:
 
 
 class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_deterministic_product_type_excludes_request_verbs_and_relation_targets(self):
+        self.assertEqual(
+            _product_type_of("Ищу шуруповерта для дома"),
+            "шуруповерта",
+        )
+        self.assertEqual(
+            _product_type_of("Требуется аккумуляторный шуруповерт для дома"),
+            "аккумуляторный шуруповерт",
+        )
+        self.assertEqual(
+            _product_type_of("Нужна насадка на дрель по дереву"),
+            "насадка",
+        )
+        self.assertIsNone(_product_type_of("для дома"))
+
     async def test_budget_followup_keeps_active_product_and_is_not_searched_as_type(self):
         ai = FakeAI(
             {
