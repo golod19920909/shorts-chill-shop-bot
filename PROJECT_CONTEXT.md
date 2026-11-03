@@ -126,6 +126,10 @@ machine, even though the title contains both words. Keep this category-general
 and protect it with negative accessory-title tests plus positive real-product
 title tests; never add a welding-machine-specific keyword exception.
 
+Russian «по X» application/material phrases are captured as soft use-case
+context just like «для X». They are carried into retrieval and semantic
+selection, but are not treated as a mandatory literal title feature.
+
 ### Principal-item evidence in mixed marketplace titles
 
 A requested type that appears only after a comma/semicolon/pipe in a title is
