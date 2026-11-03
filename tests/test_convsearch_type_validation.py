@@ -189,14 +189,23 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertLess(verdict.score, 0.5)
 
     def test_host_product_with_requested_accessory_is_not_the_accessory(self) -> None:
-        for title in (
-            "Дрель аккумуляторная с насадкой",
-            "Телефон с защитным чехлом",
-            "Шуруповёрт с насадкой-миксером",
+        for title, requested_type in (
+            ("Дрель аккумуляторная с насадкой", "насадка"),
+            ("Телефон с защитным чехлом", "чехол"),
+            ("Шуруповёрт с насадкой-миксером", "насадка"),
         ):
-            verdict = validate_product_type(product("host-with-accessory", title), "насадка" if "насадк" in title else "чехол")
+            verdict = validate_product_type(
+                product("host-with-accessory", title), requested_type
+            )
             self.assertFalse(verdict.qualifies, msg=title)
-            self.assertIn("type_is_accessory_of_host_product", verdict.reasons)
+
+    def test_english_host_product_with_accessory_is_not_the_accessory(self) -> None:
+        verdict = validate_product_type(
+            product("drill-with-attachment", "Drill with attachment"),
+            "attachment",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("type_is_accessory_of_host_product", verdict.reasons)
 
     def test_adjective_before_requested_accessory_is_still_valid(self) -> None:
         verdict = validate_product_type(
