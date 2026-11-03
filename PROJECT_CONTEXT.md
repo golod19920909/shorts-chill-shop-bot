@@ -85,6 +85,12 @@ transition. It also accepts only the engine's validated action enum as an
 override; slot extraction, budget/exclusion parsing, retrieval, type gate,
 ranking and Telegram rendering remain deterministic.
 
+A model-proposed product type is accepted only when its distinguishing head
+noun is grounded in the user's current message. When the user explicitly names
+the requested item, that item remains authoritative: Gemini may normalize its
+wording/inflection, but cannot replace it with a relation target mentioned in
+the same sentence (for example, an attachment's host tool).
+
 When the model is unavailable, `observe()` classifies each message from its
 own evidence, in order:
 
