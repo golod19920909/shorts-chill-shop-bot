@@ -104,7 +104,7 @@ _EXPLICIT_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 _REQUEST_TARGET_RE = re.compile(
-    r"\bна\s+(.+?)(?=\s+(?:для|с|со|из|без|под|до|от|в|по|к|у|о|об)\b|[,!?;:]|$)",
+    r"\b(?:на|для|под)\s+(.+?)(?=\s+(?:на|для|с|со|из|без|под|до|от|в|по|к|у|о|об)\b|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _REVERSAL_RE = re.compile(
