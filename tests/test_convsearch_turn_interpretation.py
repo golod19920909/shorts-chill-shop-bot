@@ -6,7 +6,7 @@ import unittest
 from models.product import Marketplace, Product
 from services.convsearch.contract import Outcome
 from services.convsearch.engine import ConversationSearchEngine
-from services.convsearch.retrieval import BackendOutcome
+from services.convsearch.retrieval import BackendOutcome, build_retrieval_strategy
 from services.convsearch.state import ConversationEngineState, MessageIntent
 
 
@@ -558,6 +558,31 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
         self.assertEqual(state.active_values("compatibility"), ["дрель"])
+
+    async def test_model_compatibility_slot_prevents_raw_followup_words_becoming_features(self):
+        state = ConversationEngineState(user_key="compatibility-query")
+        state.record_product_type("насадка")
+        updates = [{
+            "operation": "add",
+            "kind": "compatibility",
+            "target": None,
+            "value": "дрели",
+        }]
+        observation = state.observe(
+            "подходит дрели",
+            intent_override=MessageIntent.REFINE,
+            slot_updates=updates,
+        )
+        observation["model_slot_updates"] = updates
+        state.record_slots(observation)
+
+        strategy = build_retrieval_strategy(
+            state, "подходит дрели", currency="UAH"
+        )
+
+        self.assertIsNotNone(strategy)
+        self.assertIn("дрели", strategy.request.normalized_query)
+        self.assertNotIn("подходит", strategy.request.required_features)
 
     async def test_model_compatibility_does_not_duplicate_soft_use_case(self):
         state = ConversationEngineState(user_key="compatibility-followup")
