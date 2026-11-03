@@ -125,6 +125,32 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertTrue(verdict.qualifies)
         self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
 
+    def test_late_type_mention_in_a_mixed_listing_title_requires_review(self) -> None:
+        verdict = validate_product_type(
+            product(
+                "mixed-listing",
+                "Многофункциональная дрель, угловая шлифовальная машина, "
+                "набор шатунов, насадки для шатунов, регулируемый диск",
+            ),
+            "насадка",
+        )
+        # A later mention must not count as a verified principal-product match.
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "type_mentioned_only_after_listing_separator", verdict.reasons
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_requested_type_in_primary_title_clause_is_deterministic(self) -> None:
+        verdict = validate_product_type(
+            product("real-attachment", "Насадка для дрели по дереву"),
+            "насадка",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertNotIn(
+            "type_mentioned_only_after_listing_separator", verdict.reasons
+        )
+
     def test_drill_qualifies_but_bits_rejected(self) -> None:
         self.assertTrue(validate_product_type(
             product("d1", "Дрель аккумуляторная ударная 21V"), DRILL
