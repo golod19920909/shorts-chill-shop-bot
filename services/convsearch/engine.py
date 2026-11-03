@@ -619,9 +619,16 @@ class ConversationSearchEngine:
             if len(selected) >= wanted:
                 break
 
-        # Empty/invalid model output is not proof that deterministic
-        # candidates are irrelevant. Preserve safe results; only semantic
-        # identity-review candidates remain quarantined.
+        # AIService distinguishes a valid empty ID list (no supplied
+        # listing fits) from an unusable response (None). Respect that
+        # explicit no-match decision: falling back here would re-display the
+        # very candidates Gemini just rejected as irrelevant.
+        if not selected and selected_ids == []:
+            decision.products = []
+            decision.outcome = Outcome.NO_ELIGIBLE
+            decision.report["ai_selection"] = "semantic_no_match"
+            decision.report["reason"] = "semantic_no_match"
+            return decision
         if not selected:
             return finish_fallback("empty_fallback")
 
