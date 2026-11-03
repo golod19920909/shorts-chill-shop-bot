@@ -227,6 +227,31 @@ def partition_required_feature_evidence(
     return verified, needs_review
 
 
+def partition_use_case_evidence(
+    products: list[Product],
+    state: ConversationEngineState,
+) -> tuple[list[Product], list[Product]]:
+    """Keep evidenced application matches separate from uncertain candidates.
+
+    Use-case slots remain SOFT: missing a word such as «дерево» does not
+    prove that a drill attachment cannot work on wood. But if the listing
+    data does not support the requested task/material, it must be reviewed
+    semantically before display. This prevents selector timeouts from
+    silently turning an unverified application into a claimed match.
+    """
+    use_cases = state.active_values("use_case")
+    if not use_cases:
+        return list(products), []
+    verified: list[Product] = []
+    needs_review: list[Product] = []
+    for product in products:
+        if all(_feature_is_evidenced(product, use_case) for use_case in use_cases):
+            verified.append(product)
+        else:
+            needs_review.append(product)
+    return verified, needs_review
+
+
 def filter_by_required_features(
     products: list[Product],
     state: ConversationEngineState,
