@@ -313,6 +313,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("неизвестный тип пропускай", prompt)
         self.assertIn("Проверяй совместимость отдельно", prompt)
         self.assertIn("после запятой", prompt)
+        self.assertIn("проверь описание и состав", prompt)
 
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
         service = self.make_service('{"ids":[]}')
