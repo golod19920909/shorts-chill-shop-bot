@@ -409,6 +409,45 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["ai_selected"], 1)
         self.assertEqual(decision.report["ai_tail_added"], 10)
 
+    async def test_late_type_mention_is_quarantined_when_semantic_selector_times_out(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="late-type-review")
+        state.record_product_type("насадка")
+        strategy = SimpleNamespace(
+            product_type="насадка",
+            request=SimpleNamespace(
+                normalized_query="насадка на дрель по дереву",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        mixed_listing = product(
+            "mixed-drill-attachments",
+            "Многофункциональная дрель, угловая шлифовальная машина, "
+            "набор шатунов, насадки для шатунов, регулируемый диск",
+        )
+
+        decision = engine._evaluate_pool(
+            state, [mixed_listing], strategy,
+            refined=False, intent=MessageIntent.NEW_SEARCH,
+            observation={}, exclude_shown=False,
+        )
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            decision.report["semantic_review_ids"],
+            ["mixed-drill-attachments"],
+        )
+        selector = AsyncMock(side_effect=TimeoutError)
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
+
     async def test_missing_required_feature_evidence_is_quarantined_for_ai_review(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="feature-review")
