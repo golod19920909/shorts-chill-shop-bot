@@ -176,6 +176,7 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     """
 
     title_tokens = _raw_tokens(product.title or "")
+    description_tokens = _raw_tokens(product.description or "")
     type_tokens = tokens(product_type or "")
 
     reasons: list[str] = []
@@ -336,6 +337,17 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         # полуавтомат»). Keep candidates carrying a type token in their OWN
         # identity for semantic review, never as deterministic matches.
         if any_type_in_own:
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
+        elif any(
+            _contains(description_tokens, token) for token in type_tokens
+        ):
+            # AliExpress titles can be generic while the description names
+            # the actual item. Description evidence is never enough for an
+            # automatic identity pass: it only opens the candidate for the
+            # bounded semantic review, where title and description are read
+            # together. An explicit title naming another product still wins.
             semantic_review_required = True
             score = 0.15
             reasons.append("type_identity_requires_semantic_review")
