@@ -488,6 +488,25 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
         self.assertEqual(state.active_values("compatibility"), ["дрель"])
 
+    async def test_model_compatibility_does_not_duplicate_soft_use_case(self):
+        state = ConversationEngineState(user_key="compatibility-followup")
+        state.record_product_type("насадка")
+
+        observation = state.observe(
+            "для дрели",
+            intent_override=MessageIntent.REFINE,
+            slot_updates=[{
+                "operation": "add",
+                "kind": "compatibility",
+                "target": None,
+                "value": "дрели",
+            }],
+        )
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_values("compatibility"), ["дрели"])
+        self.assertEqual(state.active_values("use_case"), [])
+
     async def test_for_preposition_also_captures_accessory_compatibility(self):
         backend = FakeBackend([
             listing("attachment-for-drill", "Насадка для дрели универсальная"),
