@@ -527,8 +527,8 @@ class ConversationSearchEngine:
         )
         state.last_outcome = decision.outcome.value
         state.last_question = None
-        if decision.outcome is Outcome.RESULTS:
-            state.record_shown([p.product_id for p in decision.products])
+        # Selection is not delivery. The Telegram handler acknowledges the
+        # products only after the first card was successfully sent.
         # One INFO line per turn: the intent, the action and the pool fate -
         # counts only, no user text (§7 traceability).
         logger.info(
