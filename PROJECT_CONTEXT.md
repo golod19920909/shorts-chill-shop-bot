@@ -1108,11 +1108,19 @@ not write into the conversational ledger. Engine regressions now assert that
 a selected result is not considered shown before the handler acknowledges
 delivery.
 
+The optional post-card hint is also isolated from the primary delivery result:
+if Telegram accepts the product card but rejects the separate hint message,
+send_search_results still returns the valid session id. This keeps the
+handler's last_shown_session pointer aligned with the card the user actually
+received, so compare/browse follow-ups remain available. A regression covers
+this failure path.
+
 This change is covered by offline CI only. Live Telegram delivery behavior
 has not been exercised in this environment.
 
-GitHub Actions run **41701836374** on delivery-ledger regression commit `714bb1d`:
-- Focused conversational regressions: **181 passed, 8 subtests passed**.
-- Repository suite excluding the documented stale legacy modules: **2,058 passed, 678 subtests passed, 1 warning**.
-- All workflow steps passed. The added tests cover failed initial card delivery, successful card delivery, and session-scoped browse acknowledgement. Tests are offline; no live Telegram, Gemini or AliExpress calls were made.
-- This remains a filtered repository pass, not an unfiltered full-suite pass.
+GitHub Actions run **41702370560** on delivery and optional-hint regression
+commit `fbcaaeb`:
+- Focused conversational regressions: **182 passed, 8 subtests passed**.
+- Repository suite excluding the documented stale legacy modules: **2,059 passed, 678 subtests passed, 1 warning**.
+- All workflow steps passed. Coverage includes failed initial card delivery, successful card delivery, session-scoped browse acknowledgement, and a failed optional hint after successful card delivery.
+- This remains a filtered repository pass, not an unfiltered full-suite pass. Tests are offline; no live Telegram, Gemini or AliExpress calls were made.
