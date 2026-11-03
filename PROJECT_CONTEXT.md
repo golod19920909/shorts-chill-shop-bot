@@ -1124,3 +1124,30 @@ commit `fbcaaeb`:
 - Repository suite excluding the documented stale legacy modules: **2,059 passed, 678 subtests passed, 1 warning**.
 - All workflow steps passed. Coverage includes failed initial card delivery, successful card delivery, session-scoped browse acknowledgement, and a failed optional hint after successful card delivery.
 - This remains a filtered repository pass, not an unfiltered full-suite pass. Tests are offline; no live Telegram, Gemini or AliExpress calls were made.
+
+
+### Product identity grounding and final offline verification (2026-11-03)
+
+Gemini's proposed product type is now grounded against the final head noun of
+the leading requested-item phrase, not against any token in that phrase.
+Matching a shared modifier is insufficient: for example, «стол сварочный»
+cannot replace «сварочный аппарат» merely because both contain «сварочный».
+The model may still normalize inflection when the requested product head
+matches. The deterministic parser remains the fallback when the model's
+proposal fails this validation. A regression covers this reversed-word-order
+substitution.
+
+GitHub Actions run **41703431090** on head commit
+`72462efdf175f1bb6e25918db4c6df5b98fa0ee7` completed successfully:
+- Focused conversational regressions: **183 passed, 8 subtests passed**.
+- Repository suite excluding the documented stale legacy modules:
+  **2,060 passed, 678 subtests passed, 1 warning**.
+- All workflow steps passed. The suite is filtered; it is not an
+  unfiltered full-suite pass.
+- Tests are offline. No live Telegram, Gemini or AliExpress calls were made.
+  Live delivery, provider latency, catalog relevance and real conversation
+  quality remain unverified.
+
+The pull request remains a draft and must not be merged or treated as
+production/live-test ready until the remaining review and user-controlled
+Telegram smoke test are completed.
