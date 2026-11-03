@@ -505,6 +505,32 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_values("use_case"), ["дереву"])
         self.assertIn("дрели", backend.strategies[-1].request.required_features)
 
+    async def test_explicit_item_head_wins_over_model_relation_target(self):
+        ai = FakeAI({
+            "action": "new_search",
+            "confidence": 0.99,
+            # Deliberately wrong: «дрель» is the compatibility target, not
+            # the item the user asked the bot to find.
+            "product_type": "дрель",
+            "question": None,
+        })
+        backend = FakeBackend([
+            listing("attachment", "Насадка для дрели по дереву"),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="item-head-authority")
+
+        decision = await engine.handle_message(
+            "item-head-authority", "Нужна насадка на дрель по дереву",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_values("type"), ["насадка"])
+        self.assertEqual(state.active_values("compatibility"), ["дрель"])
+        self.assertEqual(backend.strategies[-1].product_type, "насадка")
+
     async def test_accessory_fitment_is_mandatory_and_missing_evidence_is_quarantined(self):
         backend = FakeBackend([
             listing("unknown-fitment", "Насадка универсальная для обработки"),
