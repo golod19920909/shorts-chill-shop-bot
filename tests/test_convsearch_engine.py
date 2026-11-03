@@ -448,6 +448,51 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.products, [])
         self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
 
+    async def test_description_only_product_identity_reaches_semantic_selector(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="description-identity-review")
+        state.record_product_type("насадка")
+        strategy = SimpleNamespace(
+            product_type="насадка",
+            request=SimpleNamespace(
+                normalized_query="насадка дрель дерево",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        candidate = product(
+            "description-attachment",
+            "Универсальный набор инструментов",
+        ).model_copy(update={
+            "description": "Насадка для дрели по дереву с хвостовиком",
+        })
+
+        decision = engine._evaluate_pool(
+            state, [candidate], strategy,
+            refined=False, intent=MessageIntent.NEW_SEARCH,
+            observation={}, exclude_shown=False,
+        )
+
+        self.assertEqual(
+            decision.report["semantic_review_ids"],
+            ["description-attachment"],
+        )
+        selector = AsyncMock(return_value=["description-attachment"])
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            [item.product_id for item in decision.products],
+            ["description-attachment"],
+        )
+        self.assertEqual(
+            selector.await_args.args[0][0].description,
+            "Насадка для дрели по дереву с хвостовиком",
+        )
+
     async def test_missing_required_feature_evidence_is_quarantined_for_ai_review(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="feature-review")
