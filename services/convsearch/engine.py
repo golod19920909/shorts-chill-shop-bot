@@ -420,10 +420,13 @@ class ConversationSearchEngine:
         if intent is MessageIntent.NEW_SEARCH:
             # The explicit request head is grounded in the user's own words
             # and takes precedence over a stale or contradictory model type.
+            # When the user explicitly names the requested item, its
+            # grammatical head is authoritative. Gemini may help interpret
+            # the turn, but must not replace «насадка» with another noun from
+            # the same sentence such as its compatibility target «дрель».
             new_type = (
-                (explicit_product_type if explicit_product_switch else None)
+                explicit_product_type
                 or model_type
-                or explicit_product_type
                 or _product_type_of(text)
                 or None
             )
