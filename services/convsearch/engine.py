@@ -759,7 +759,13 @@ class ConversationSearchEngine:
             verdict = validate_product_type(product, product_type)
             if verdict.qualifies:
                 eligible.append(product)
-                if "type_identity_requires_semantic_review" in verdict.reasons:
+                if any(
+                    reason in verdict.reasons
+                    for reason in (
+                        "type_identity_requires_semantic_review",
+                        "type_mentioned_only_after_listing_separator",
+                    )
+                ):
                     report["semantic_review_ids"].append(product.product_id)
             else:
                 rejected_type.append(product)
