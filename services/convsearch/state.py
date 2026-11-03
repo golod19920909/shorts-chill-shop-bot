@@ -168,6 +168,7 @@ _CHARACTERISTIC_NOUNS = _COUNT_WORDS | frozenset(
     {
         "зарядка", "заряд", "емкость", "ёмкость", "мощность", "вес", "весу",
         "экран", "камера", "микрофон", "батаре", "шум", "качество",
+        "защита", "защиты", "защиту", "защитой",
         "водонепрониц", "waterproof", "battery", "capacity", "charging",
     }
 )
@@ -309,10 +310,6 @@ class ConversationEngineState:
         # seller never writes «для дома» in its title. Keep it separate from
         # explicit equipment/features such as «с двумя аккумуляторами».
         use_case_spans: list[str] = []
-        for match in _USE_CASE_INTRO_RE.finditer(message):
-            value = " ".join(tokens(match.group(1)))
-            if value:
-                use_case_spans.append(value)
         # «на X» is soft target/context only inside an explicit product request
         # («насадка на дрель для дерева»). Do not reinterpret unrelated
         # activity context such as «буду работать на стройке».
@@ -322,6 +319,10 @@ class ConversationEngineState:
                 value = " ".join(tokens(match.group(1)))
                 if value:
                     use_case_spans.append(value)
+        for match in _USE_CASE_INTRO_RE.finditer(message):
+            value = " ".join(tokens(match.group(1)))
+            if value:
+                use_case_spans.append(value)
         use_case_spans = list(dict.fromkeys(use_case_spans))
         if use_case_spans:
             use_case_tokens = {
