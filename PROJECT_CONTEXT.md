@@ -191,6 +191,11 @@ primary title clause can still pass the deterministic gate. This rule is
 general across product categories and must not be implemented as product-name
 exceptions.
 
+A requested accessory mentioned only as something the host product «comes
+with» («дрель с насадкой», «телефон с чехлом») is not the listing's principal
+product. Leading descriptive adjectives remain valid («аккумуляторная
+насадка»). This is a generic relation check, not a product-specific exception.
+
 ### Comparative follow-ups
 
 Comparatives such as «полегче» are soft preferences, not hard requirements.
