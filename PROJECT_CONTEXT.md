@@ -86,10 +86,12 @@ override; slot extraction, budget/exclusion parsing, retrieval, type gate,
 ranking and Telegram rendering remain deterministic.
 
 A model-proposed product type is accepted only when its distinguishing head
-noun is grounded in the user's current message. When the user explicitly names
-the requested item, that item remains authoritative: Gemini may normalize its
-wording/inflection, but cannot replace it with a relation target mentioned in
-the same sentence (for example, an attachment's host tool).
+noun is grounded in the leading requested-item phrase, before a relation target
+such as «для дома», «на дрель» or «по дереву». A word appearing only in a
+compatibility/purpose phrase is not sufficient grounding. When the user
+explicitly names the requested item, that item remains authoritative: Gemini
+may normalize its wording/inflection, but cannot replace it with a relation
+target mentioned in the same sentence (for example, an attachment's host tool).
 
 When the model is unavailable, `observe()` classifies each message from its
 own evidence, in order:
@@ -139,9 +141,10 @@ machine, even though the title contains both words. Keep this category-general
 and protect it with negative accessory-title tests plus positive real-product
 title tests; never add a welding-machine-specific keyword exception.
 
-When the title is generic but the product description names the requested
-type, keep the listing only for bounded semantic review; description text is
-not enough for an automatic identity pass. An explicit title identifying a
+When the title is a generic bundle or otherwise does not establish the
+requested identity, but its title contents or description mention the requested
+type, keep the listing only for bounded semantic review; this evidence is not
+enough for an automatic identity pass. An explicit title identifying a
 different accessory or spare part still wins over a description that mentions
 the requested host product.
 
