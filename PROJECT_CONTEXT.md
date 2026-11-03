@@ -143,6 +143,12 @@ Russian «по X» application/material phrases are captured as soft use-case
 context just like «для X». They are carried into retrieval and semantic
 selection, but are not treated as a mandatory literal title feature.
 
+A soft use-case phrase is not a hard title filter: missing an exact word in a
+listing does not by itself disqualify a candidate. The phrase remains context
+for retrieval, ranking and Gemini's semantic decision. This is intentionally
+different from explicit accessory compatibility and mandatory product
+features, whose missing evidence is quarantined until semantic confirmation.
+
 ### Accessory compatibility is a hard requirement
 
 For generic accessory product roles (attachments, cases, adapters, cables and
