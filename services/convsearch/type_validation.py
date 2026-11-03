@@ -331,7 +331,7 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         score = 0.5 * coverage
         reasons.append("partial_type_coverage")
 
-    if qualifies and head_ok:
+    if qualifies and head_ok and not semantic_review_required:
         score = 1.0 + 0.5 * (coverage - 1.0) if coverage < 1.0 else 1.0
         reasons.append("type_head")
 
