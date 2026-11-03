@@ -511,22 +511,22 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_values("compatibility"), ["дрели"])
         self.assertEqual(state.active_values("use_case"), [])
 
-    async def test_for_preposition_also_captures_accessory_compatibility(self):
+    async def test_ambiguous_for_phrase_stays_soft_without_semantic_confirmation(self):
         backend = FakeBackend([
-            listing("attachment-for-drill", "Насадка для дрели универсальная"),
+            listing("attachment-for-wood", "Насадка для обработки дерева"),
         ])
         engine = ConversationSearchEngine(retrieval_backend=backend)
-        state = ConversationEngineState(user_key="fitment-for")
+        state = ConversationEngineState(user_key="fitment-for-soft")
 
         decision = await engine.handle_message(
-            "fitment-for", "Нужна насадка для дрели по дереву",
+            "fitment-for-soft", "Нужна насадка для дерева",
             state=state, currency="UAH",
         )
 
         self.assertIs(decision.outcome, Outcome.RESULTS)
-        self.assertEqual(state.active_values("compatibility"), ["дрели"])
-        self.assertEqual(state.active_values("use_case"), ["дереву"])
-        self.assertIn("дрели", backend.strategies[-1].request.required_features)
+        self.assertEqual(state.active_values("compatibility"), [])
+        self.assertEqual(state.active_values("use_case"), ["дерева"])
+        self.assertNotIn("дерева", backend.strategies[-1].request.required_features)
 
     async def test_explicit_item_head_wins_over_model_relation_target(self):
         ai = FakeAI({
