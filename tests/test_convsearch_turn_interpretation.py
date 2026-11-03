@@ -175,7 +175,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIs(second.outcome, Outcome.RESULTS)
         self.assertEqual(state.active_by_kind("type").value, "насадка")
-        self.assertEqual(state.active_values("compatibility"), ["дрели"])
+        self.assertEqual(state.active_values("compatibility"), ["дрель"])
         self.assertEqual(state.active_values("use_case"), ["дерева"])
         self.assertEqual(backend.strategies[-1].product_type, "насадка")
 
@@ -928,10 +928,13 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         engine.bind_ai_service(ai)
         state = ConversationEngineState(user_key="ai-refine-shown-question")
 
-        await engine.handle_message(
+        first = await engine.handle_message(
             "ai-refine-shown-question", "Нужен шуруповёрт",
             state=state, currency="UAH",
         )
+        self.assertIs(first.outcome, Outcome.RESULTS)
+        # Simulate the handler acknowledging the first card after Telegram send.
+        state.record_shown([first.products[0].product_id])
         strategy_count = len(backend.strategies)
         second = await engine.handle_message(
             "ai-refine-shown-question", "Какой из них лучше?",
@@ -1020,6 +1023,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             state=state, currency="UAH",
         )
         self.assertIs(first.outcome, Outcome.RESULTS)
+        # Simulate successful delivery of the first card by the Telegram handler.
+        state.record_shown([first.products[0].product_id])
         strategy_count = len(backend.strategies)
 
         second = await engine.handle_message(
