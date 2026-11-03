@@ -139,6 +139,46 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.last_question, "Что именно хотите подобрать?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_pending_clarification_new_search_without_new_type_preserves_active_product(self):
+        ai = FakeAI(
+            {
+                "action": "clarify",
+                "confidence": 0.97,
+                "product_type": None,
+                "question": "Для какой задачи нужна насадка?",
+            },
+            {
+                "action": "new_search",
+                "confidence": 0.98,
+                "product_type": None,
+                "question": None,
+            },
+        )
+        backend = FakeBackend([
+            listing("wood-bit", "Насадка для дрели по дереву")
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="pending-use-case-answer")
+
+        first = await engine.handle_message(
+            "pending-use-case-answer", "Нужна насадка на дрель",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.CLARIFY)
+        self.assertEqual(state.active_by_kind("type").value, "насадка")
+
+        second = await engine.handle_message(
+            "pending-use-case-answer", "для дерева",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_by_kind("type").value, "насадка")
+        self.assertEqual(state.active_values("compatibility"), ["дрели"])
+        self.assertEqual(state.active_values("use_case"), ["дерева"])
+        self.assertEqual(backend.strategies[-1].product_type, "насадка")
+
     async def test_clarification_answer_keeps_type_when_gemini_calls_it_refinement(self):
         ai = FakeAI(
             {
