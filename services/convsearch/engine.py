@@ -524,12 +524,12 @@ class ConversationSearchEngine:
     ) -> SearchDecision:
         """Use Gemini to rank a bounded slice of already validated listings.
 
-        Deterministic product-type, exclusion, budget and feature checks run
-        before this method. Gemini may rank the first 20 candidates, but it
-        is not a second hard filter: timeouts, errors, malformed output and
-        an empty selection preserve the deterministic safe pool. Candidates
-        marked for semantic product-identity review are the exception: they
-        remain quarantined unless Gemini explicitly confirms them.
+        Deterministic product-type, exclusion, budget and verified-feature
+        checks run before this method. Gemini ranks the first 20 candidates.
+        A valid empty selection is an explicit semantic no-match. On timeout
+        or malformed/unavailable output, deterministic candidates may remain,
+        but every candidate requiring semantic identity/feature review stays
+        quarantined unless Gemini explicitly confirms it.
 
         The AI selection window (20) is separate from the presentation cap
         (30). After the AI-ranked window, up to ten additional deterministic
