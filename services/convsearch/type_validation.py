@@ -50,7 +50,7 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
         "держатель", "подставка", "крепление", "кронштейн", "чехол",
         "футляр", "сумка", "кейс", "коробка", "подставка",
         "пружина", "шестерн", "шестерён", "подшипник", "подшипники",
-        "винт", "винты", "болт", "гайка", "кронштейн", "ремкомплект",
+        "винт", "винты", "болт", "гайка", "кронштейн", "ремкомплект", "кабель", "провод",
         "запчасть", "запчасти", "ремонт", "набор", "комплект", "детал",
         "замен", "сменный", "сменная", "сменные", "сменное",
         "запасн", "запасная", "запасные", "фитинг", "адаптер",
@@ -108,6 +108,23 @@ class TypeVerdict:
     score: float
     #: Human-readable reasons (log only): "type_head", "accessory_head:держатель"…
     reasons: list[str] = field(default_factory=list)
+
+
+def is_accessory_product_type(product_type: str | None) -> bool:
+    """Whether the requested product identity is a generic accessory/fitment.
+
+    This role-level check lets the conversation state distinguish «X на Y»
+    compatibility (an attachment for a drill, a case for a phone) from a
+    soft activity context («подарок на свадьбу»). It uses generic product
+    roles, never individual product names or brands.
+    """
+
+    type_tokens = tokens(product_type or "")
+    return any(
+        stems_match(token, accessory)
+        for token in type_tokens
+        for accessory in ACCESSORY_HEAD_WORDS
+    )
 
 
 def _head_noun(type_tokens: list[str]) -> str | None:
