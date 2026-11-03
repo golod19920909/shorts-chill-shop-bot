@@ -1086,9 +1086,9 @@ async def send_search_results(
     # Engine selection is not delivery. Acknowledge only the products the
     # user can actually see; discovery feeds do not pass this state object.
     if conversation_state is not None:
-        conversation_state.record_shown(
-            [product.product_id for product in outcome.products]
-        )
+        # Only the first card is sent now; the remaining products are
+        # reachable through the browse button and are acknowledged on edit.
+        conversation_state.record_shown([outcome.products[0].product_id])
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
     # invented here - only the count actually delivered above. A caller with
@@ -1196,21 +1196,28 @@ async def _send_product_cards(
         return False
 
     # Only a successfully sent card is a shown product. Keep user-facing
-    # histories and analytics behind the same delivery boundary.
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        product=products[0],
-    )
-    await common.remember_shown(
-        context,
-        user_id,
-        products[0],
-        flow=common.session_flow(context, session_id),
-    )
-    await common.remember_views(context, user_id, [products[0]])
+    # histories and analytics behind the same delivery boundary. These
+    # secondary writes must not turn a successful Telegram send into a
+    # reported delivery failure.
+    try:
+        await common.record_event(
+            context,
+            analytics.EVENT_PRODUCT_SHOWN,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            product=products[0],
+        )
+        await common.remember_shown(
+            context,
+            user_id,
+            products[0],
+            flow=common.session_flow(context, session_id),
+        )
+        await common.remember_views(context, user_id, [products[0]])
+    except Exception:
+        logger.exception(
+            "Failed to record post-delivery history for session %s", session_id
+        )
     return True
 
 async def _edit_browsed_card(
