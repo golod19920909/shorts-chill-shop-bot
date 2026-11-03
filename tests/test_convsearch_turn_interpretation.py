@@ -607,6 +607,45 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("дрели", strategy.request.normalized_query)
         self.assertNotIn("подходит", strategy.request.required_features)
 
+    async def test_model_remove_operations_do_not_readd_deterministic_extractions(self):
+        cases = [
+            ("use_case", "дома", "use_cases"),
+            ("compatibility", "дрели", "compatibilities"),
+            ("feature", "IP67", "spans"),
+            ("preference", "полегче", "preferences"),
+            ("exclusion", "ударный", "negations"),
+        ]
+        for kind, value, extracted_key in cases:
+            with self.subTest(kind=kind):
+                state = ConversationEngineState(user_key=f"remove-{kind}")
+                state.slots.append(Slot(
+                    kind=kind,
+                    value=value,
+                    source_turn=1,
+                    raw_text="",
+                ))
+                state.turns.append(Turn(index=0, text=f"Убери {value}"))
+                observation = {
+                    "intent": MessageIntent.CORRECTION,
+                    "model_slot_updates": [{
+                        "operation": "remove",
+                        "kind": kind,
+                        "target": value,
+                        "value": None,
+                    }],
+                    "use_cases": [],
+                    "compatibilities": [],
+                    "spans": [],
+                    "preferences": [],
+                    "negations": [],
+                    "budget": {},
+                }
+                observation[extracted_key] = [value]
+
+                state.record_slots(observation)
+
+                self.assertEqual(state.active_values(kind), [])
+
     async def test_model_compatibility_does_not_duplicate_soft_use_case(self):
         state = ConversationEngineState(user_key="compatibility-followup")
         state.record_product_type("насадка")
