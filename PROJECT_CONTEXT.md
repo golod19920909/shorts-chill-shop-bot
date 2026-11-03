@@ -1082,3 +1082,31 @@ context connectors and protects the switch from a contradictory Gemini
 must not leak into the new product search. Prepositional targets introduced
 by «на» / «для» are retained as soft use-case context, not hard product-type
 tokens or mandatory title features.
+
+
+### Conversational shown-product ledger follows Telegram delivery (2026-11-03)
+
+The engine previously recorded every selected result as `shown` before the
+Telegram handler attempted to send the browsing card. This conflated candidate
+selection with actual user-visible delivery. It could also mark the whole
+result pool as seen even though the UI initially sends only the first card.
+
+The engine no longer mutates `shown_product_ids` when it creates a
+`RESULTS` decision. The text-search handler passes its conversation state to
+`send_search_results`; that function acknowledges only the first product
+after `_send_product_cards` confirms the Telegram card send. A failed card
+send returns no shown session and leaves the conversational shown ledger
+unchanged. The shared card helper now returns an explicit delivery boolean,
+and its analytics/view-history writes occur after the send rather than before
+it. Failures in those secondary writes are logged without misreporting a card
+that Telegram already accepted as undelivered.
+
+When the user successfully browses to another product in that same
+conversation-search session, the handler adds that product to the ledger
+after the Telegram edit/replacement succeeds. Other discovery sessions do
+not write into the conversational ledger. Engine regressions now assert that
+a selected result is not considered shown before the handler acknowledges
+delivery.
+
+This change is covered by offline CI only. Live Telegram delivery behavior
+has not been exercised in this environment.
