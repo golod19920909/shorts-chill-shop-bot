@@ -646,6 +646,28 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(state.active_values(kind), [])
 
+    async def test_model_added_exclusion_is_not_recreated_as_positive_feature(self):
+        state = ConversationEngineState(user_key="negative-slot")
+        state.turns.append(Turn(index=0, text="без ударного режима"))
+        state.record_slots({
+            "intent": MessageIntent.REFINE,
+            "model_slot_updates": [{
+                "operation": "add",
+                "kind": "exclusion",
+                "target": None,
+                "value": "ударного режима",
+            }],
+            "negations": ["ударного режима"],
+            "spans": ["ударного режима"],
+            "use_cases": [],
+            "compatibilities": [],
+            "preferences": [],
+            "budget": {},
+        })
+
+        self.assertEqual(state.active_values("exclusion"), ["ударного режима"])
+        self.assertEqual(state.active_values("feature"), [])
+
     async def test_model_compatibility_does_not_duplicate_soft_use_case(self):
         state = ConversationEngineState(user_key="compatibility-followup")
         state.record_product_type("насадка")
