@@ -12,12 +12,37 @@ from handlers.search import (
     get_pending_clarify,
     set_pending_clarify,
     _clear_stale_shown_session_for_new_search,
+    _get_convsearch_state,
 )
 from services.convsearch.contract import Outcome
 from services.convsearch.state import ConversationEngineState
 
 
 class PendingClarificationLifecycleTests(unittest.TestCase):
+    def test_expired_conversation_ledger_is_replaced_before_touch(self):
+        old = ConversationEngineState(user_key="old-ledger")
+        old.record_product_type("наушники")
+        old.updated_at = time.monotonic() - 30 * 60 - 1
+        context = SimpleNamespace(user_data={"_convsearch_state": old})
+
+        current = _get_convsearch_state(context, "telegram-user")
+
+        self.assertIsNot(current, old)
+        self.assertIsNone(current.active_by_kind("type"))
+        self.assertEqual(current.user_key, "telegram-user")
+        self.assertIs(context.user_data["_convsearch_state"], current)
+
+    def test_active_conversation_ledger_is_preserved_and_touched(self):
+        current = ConversationEngineState(user_key="telegram-user")
+        current.record_product_type("наушники")
+        context = SimpleNamespace(user_data={"_convsearch_state": current})
+
+        result = _get_convsearch_state(context, "telegram-user")
+
+        self.assertIs(result, current)
+        self.assertEqual(result.active_by_kind("type").value, "наушники")
+        self.assertFalse(result.is_expired())
+
     def test_new_product_search_invalidates_previous_shown_session_pointer(self):
         context = SimpleNamespace(user_data={"last_shown_session": "old-session"})
         decision = SimpleNamespace(report={"intent": "new_search"})
