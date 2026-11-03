@@ -110,6 +110,77 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.last_question, "Что именно хотите подобрать?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_clarification_answer_keeps_type_when_gemini_calls_it_refinement(self):
+        ai = FakeAI(
+            {
+                "action": "clarify",
+                "confidence": 0.96,
+                "product_type": None,
+                "question": "Какой товар вас интересует?",
+            },
+            {
+                "action": "refine",
+                "confidence": 0.98,
+                "product_type": None,
+                "question": None,
+            },
+        )
+        backend = FakeBackend([
+            listing("vacuum-home", "Пылесос бытовой для дома")
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="clarification-refine")
+
+        first = await engine.handle_message(
+            "clarification-refine", "Что-нибудь полезное до 2000 гривен",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.CLARIFY)
+
+        second = await engine.handle_message(
+            "clarification-refine", "Пылесос для дома",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_by_kind("type").value, "пылесос")
+        self.assertEqual(state.active_by_kind("budget").value, "2000.0 UAH")
+        self.assertEqual(backend.strategies[-1].product_type, "пылесос")
+
+    async def test_clarification_answer_recovers_product_type_without_gemini(self):
+        ai = FakeAI(
+            {
+                "action": "clarify",
+                "confidence": 0.96,
+                "product_type": None,
+                "question": "Какой товар вас интересует?",
+            },
+            None,
+        )
+        backend = FakeBackend([
+            listing("vacuum-home", "Пылесос бытовой для дома")
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="clarification-no-ai")
+
+        first = await engine.handle_message(
+            "clarification-no-ai", "Что-нибудь полезное до 2000 гривен",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.CLARIFY)
+
+        second = await engine.handle_message(
+            "clarification-no-ai", "Пылесос для дома",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_by_kind("type").value, "пылесос")
+        self.assertEqual(state.active_by_kind("budget").value, "2000.0 UAH")
+        self.assertEqual(backend.strategies[-1].product_type, "пылесос")
+
     async def test_clarification_answer_receives_pending_question_context(self):
         question = "Какой товар вас интересует?"
         ai = FakeAI(
