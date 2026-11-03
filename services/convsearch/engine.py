@@ -164,6 +164,12 @@ def _explicit_requested_product_type(text: str) -> str | None:
         and token not in _DISCOURSE_MARKERS
         and not token.isdigit()
     ]
+    if words:
+        from services.convsearch.state import _CHARACTERISTIC_NOUNS
+        # A request for a feature/specification («нужна защита IP67»)
+        # modifies the active product; it is not itself a product switch.
+        if words[0] in _CHARACTERISTIC_NOUNS:
+            return None
     return " ".join(words) or None
 
 
