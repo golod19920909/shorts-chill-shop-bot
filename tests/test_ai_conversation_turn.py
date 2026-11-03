@@ -286,6 +286,28 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, ["real-2", "real-1"])
         service._generate.assert_awaited_once()
 
+    async def test_conversation_selector_receives_relevant_later_description_text(self):
+        service = self.make_service('{"ids":["described-item"]}')
+        description = (
+            "Описание товара. " * 50
+            + "Основное содержимое: насадка для дрели по дереву."
+        )
+        candidate = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="described-item",
+            title="Универсальный набор инструментов",
+            product_url="https://www.aliexpress.com/item/described-item.html",
+            description=description,
+        )
+
+        selected = await service.select_conversation_candidates(
+            [candidate], query="насадка для дрели по дереву", wanted=1
+        )
+
+        self.assertEqual(selected, ["described-item"])
+        prompt = service._generate.await_args.args[0]
+        self.assertIn("Основное содержимое: насадка для дрели по дереву", prompt)
+
     async def test_conversation_selector_prompt_enforces_exclusions_and_budget(self):
         service = self.make_service('{"ids":[]}')
         candidates = [
