@@ -451,10 +451,9 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(second.outcome, Outcome.RESULTS)
         self.assertEqual(second.report["intent"], MessageIntent.REFINE)
         self.assertEqual(state.active_by_kind("type").value, "пинцет")
-        self.assertTrue(any(
-            "нержавеющей" in value or "стали" in value
-            for value in state.active_values("feature")
-        ))
+        self.assertEqual(
+            state.active_values("feature"), ["нержавеющей стали"]
+        )
         self.assertEqual(backend.strategies[-1].product_type, "пинцет")
         self.assertIn("нержавеющей", backend.strategies[-1].request.normalized_query)
 
