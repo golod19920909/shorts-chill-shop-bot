@@ -690,6 +690,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await _deliver_decision(
         context, message, decision,
         user_id=user_id, telegram_id=telegram_id, original_text=original_text,
+        conversation_state=conv_state,
     )
     _turn_done(f"engine-{decision.outcome.value}")
 
@@ -702,6 +703,7 @@ async def _deliver_decision(
     user_id,
     telegram_id,
     original_text: str,
+    conversation_state: ConversationEngineState,
 ) -> None:
     """Render ONE ``SearchDecision``. No re-search, no re-filtering."""
 
@@ -800,6 +802,7 @@ async def _deliver_decision(
     shown = await send_search_results(
         context, message.chat_id, outcome,
         user_id=user_id, telegram_id=telegram_id, pre_curated=True,
+        conversation_state=conversation_state,
     )
     if shown:
         context.user_data["last_shown_session"] = shown
@@ -970,6 +973,7 @@ async def send_search_results(
     curation_mode: str | None = None,
     pre_curated: bool = False,
     follow_up: bool = True,
+    conversation_state: ConversationEngineState | None = None,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1069,7 +1073,7 @@ async def send_search_results(
         origin="telegram-sent",
         limit=AI_FEED_RESULTS,
     )
-    await _send_product_cards(
+    delivered = await _send_product_cards(
         context,
         chat_id,
         outcome,
@@ -1077,6 +1081,14 @@ async def send_search_results(
         user_id=user_id,
         telegram_id=telegram_id,
     )
+    if not delivered:
+        return None
+    # Engine selection is not delivery. Acknowledge only the products the
+    # user can actually see; discovery feeds do not pass this state object.
+    if conversation_state is not None:
+        conversation_state.record_shown(
+            [product.product_id for product in outcome.products]
+        )
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
     # invented here - only the count actually delivered above. A caller with
@@ -1149,7 +1161,7 @@ async def _send_product_cards(
     *,
     user_id: int | None = None,
     telegram_id: int | None = None,
-) -> None:
+) -> bool:
     """Send ONE card - the first product of the deduplicated result set.
 
     Navigation happens by editing this single message: every product of
@@ -1160,34 +1172,9 @@ async def _send_product_cards(
 
     products = outcome.products
     if not products:
-        return
+        return False
     meta = common.get_outcome_meta(context, session_id)
     header = meta.get("header")
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        product=products[0],
-    )
-
-    # The per-user history is written for EVERY flow (search, category,
-    # popular, photo) - each flow into its OWN scope: the next open of this
-    # feed must skip the card the user is looking at right now, while a
-    # normal search is never emptied by the popular rotation's state.
-    await common.remember_shown(
-        context,
-        user_id,
-        products[0],
-        flow=common.session_flow(context, session_id),
-    )
-
-    # The SAME instant is the only honest moment to call a product "seen": the
-    # card is in front of the user right now. The novelty history of the
-    # curation layer is written next to the per-scope history above - it never
-    # replaces it, and a failed write degrades to the old behaviour.
-    await common.remember_views(context, user_id, [products[0]])
 
     tracked = await common.is_product_tracked(
         context, user_id, products[0].product_id
@@ -1206,6 +1193,25 @@ async def _send_product_cards(
         )
     except Exception:
         logger.exception("Failed to send the browsing card of session %s", session_id)
+        return False
+
+    # Only a successfully sent card is a shown product. Keep user-facing
+    # histories and analytics behind the same delivery boundary.
+    await common.record_event(
+        context,
+        analytics.EVENT_PRODUCT_SHOWN,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        product=products[0],
+    )
+    await common.remember_shown(
+        context,
+        user_id,
+        products[0],
+        flow=common.session_flow(context, session_id),
+    )
+    await common.remember_views(context, user_id, [products[0]])
+    return True
 
 async def _edit_browsed_card(
     query,
