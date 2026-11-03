@@ -130,6 +130,16 @@ Russian «по X» application/material phrases are captured as soft use-case
 context just like «для X». They are carried into retrieval and semantic
 selection, but are not treated as a mandatory literal title feature.
 
+### Accessory compatibility is a hard requirement
+
+For generic accessory product roles (attachments, cases, adapters, cables and
+similar fitment items), an explicit «X на/для/под Y» relation is stored as a
+separate `compatibility` slot, not as soft use-case context. Compatibility
+is carried into the provider query and checked against title/description
+evidence. Missing evidence is quarantined for semantic review; it is not
+silently accepted. Ordinary purpose phrases such as «подарок на свадьбу» stay
+soft context because the requested item is not an accessory role.
+
 ### Principal-item evidence in mixed marketplace titles
 
 A requested type that appears only after a comma/semicolon/pipe in a title is
