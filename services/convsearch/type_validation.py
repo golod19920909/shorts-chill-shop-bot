@@ -120,9 +120,11 @@ def is_accessory_product_type(product_type: str | None) -> bool:
     """
 
     type_tokens = tokens(product_type or "")
+    non_fitment_set_words = {"набор", "комплект", "set", "kit"}
     return any(
         stems_match(token, accessory)
         for token in type_tokens
+        if token not in non_fitment_set_words
         for accessory in ACCESSORY_HEAD_WORDS
     )
 
