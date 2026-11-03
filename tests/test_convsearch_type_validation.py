@@ -147,6 +147,18 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
         self.assertLess(verdict.score, 0.5)
 
+    def test_bundle_title_containing_requested_item_is_deferred_for_review(self) -> None:
+        candidate = product(
+            "attachment-set",
+            "Набор насадок для дрели",
+        )
+
+        verdict = validate_product_type(candidate, "насадка")
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+        self.assertLess(verdict.score, 0.5)
+
     def test_description_cannot_override_title_identifying_an_accessory(self) -> None:
         candidate = product(
             "reel-spring-description",
