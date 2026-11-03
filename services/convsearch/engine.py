@@ -586,11 +586,8 @@ class ConversationSearchEngine:
             if not decision.products:
                 decision.outcome = Outcome.NO_ELIGIBLE
                 feature_review_ids = set(decision.report.get("feature_review_ids", []))
-                use_case_review_ids = set(decision.report.get("use_case_review_ids", []))
                 if feature_review_ids and feature_review_ids.issuperset(semantic_review_ids):
                     decision.report["reason"] = "unverified_required_features"
-                elif use_case_review_ids.intersection(semantic_review_ids):
-                    decision.report["reason"] = "unverified_use_case_context"
                 else:
                     decision.report["reason"] = "unverified_product_identity"
             return decision
@@ -746,7 +743,6 @@ class ConversationSearchEngine:
             "type_rejections": [],
             "semantic_review_ids": [],
             "feature_review_ids": [],
-            "use_case_review_ids": [],
         }
 
         if not products:
@@ -802,19 +798,6 @@ class ConversationSearchEngine:
         eligible = verified_features + feature_review
         report["rejected_feature"] = 0
         report["after_feature"] = len(eligible)
-
-        # Use-case context is soft, not a hard rejection. A listing with no
-        # title/description evidence may still be suitable, but only Gemini
-        # can confirm that from the supplied listing data. Quarantine it so a
-        # selector timeout cannot turn an unverified application into a match.
-        verified_use_cases, use_case_review = (
-            retrieval_mod.partition_use_case_evidence(eligible, state)
-        )
-        report["use_case_review_ids"] = [
-            product.product_id for product in use_case_review if product.product_id
-        ]
-        report["semantic_review_ids"].extend(report["use_case_review_ids"])
-        eligible = verified_use_cases + use_case_review
 
         # 3. Explicit negative and budget constraints are hard filters.
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
