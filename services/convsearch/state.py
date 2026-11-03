@@ -330,12 +330,16 @@ class ConversationEngineState:
                 )
                 requested_item = request_phrase[:target_matches[0].start()]
                 is_compatibility_relation = is_accessory_product_type(requested_item)
-                for match in target_matches:
+                for target_index, match in enumerate(target_matches):
                     value = " ".join(tokens(match.group(1)))
                     if value:
+                        # Only the FIRST target phrase names the accessory's
+                        # host device. Later «для/на X» phrases describe its
+                        # application/material («насадка на дрель для дерева»).
                         target = (
                             compatibility_spans
-                            if is_compatibility_relation else use_case_spans
+                            if is_compatibility_relation and target_index == 0
+                            else use_case_spans
                         )
                         target.append(value)
         for match in _USE_CASE_INTRO_RE.finditer(message):
