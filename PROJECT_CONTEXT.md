@@ -1018,10 +1018,14 @@ production timings:
 
 - Gemini turn interpretation is wrapped in an outer timeout of
   `min(AIService.timeout_seconds, 5s)`; its fallback path is deterministic.
-- Gemini candidate selection is wrapped by the engine in an 8-second timeout.
-  It runs after deterministic candidate validation/ranking when the outcome
-  contains results and a selector is available. The selector is capped at 20
-  candidates; the separate presentation cap remains 30.
+- Turn interpretation and candidate selection now share an **8-second
+  cumulative Gemini model-time budget**. Candidate selection gets only the
+  remaining time after interpretation, rather than starting another full
+  timeout after a slow first call. Deterministic validated fallback remains
+  in force when the budget is exhausted.
+- Candidate selection runs after deterministic candidate validation/ranking
+  when the outcome contains results and a selector is available. The selector
+  is capped at 20 candidates; the separate presentation cap remains 30.
 - The conversational retrieval adapter calls `SearchService.find_products`
   with `raw=True`, `broaden=True`, and `raw_broaden=True`. In this raw
   path, retrieval uses one page but evaluates every grounded query variant.
