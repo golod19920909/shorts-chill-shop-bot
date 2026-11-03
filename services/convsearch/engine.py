@@ -124,8 +124,13 @@ def _product_type_of(text: str) -> str | None:
 
     from services.convsearch.text import tokens
 
+    # Keep relation targets (purpose, fitment, material) out of the
+    # product identity. This matters especially when the user answers a
+    # clarification with a noun phrase rather than a full imperative:
+    # «Пылесос для дома» names a vacuum, not a product called «пылесос дома».
+    phrase = _EXPLICIT_PRODUCT_CONTEXT_RE.split(text or "", maxsplit=1)[0]
     words = [
-        token for token in tokens(text)
+        token for token in tokens(phrase)
         if token not in _REQUEST_FILLER
         and token not in _DISCOURSE_MARKERS
         and not token.isdigit()
@@ -441,15 +446,19 @@ class ConversationSearchEngine:
                 new_type = explicit_product_type or model_type or _product_type_of(text) or None
             if new_type:
                 state.record_product_type(new_type)
-        elif (
-            pending_clarification
-            and not state.active_by_kind("type")
-            and isinstance(model_type, str)
-            and model_type.strip()
-        ):
+        elif pending_clarification and not state.active_by_kind("type"):
             # The answer supplies the missing type without resetting the
-            # other slots already recorded from the original request.
-            state.record_product_type(model_type.strip())
+            # other slots already recorded from the original request. If
+            # Gemini timed out or returned no type, derive the leading item
+            # phrase deterministically; relation targets («для дома»,
+            # «на дрель», «по дереву») are not product identity.
+            clarification_type = (
+                model_type.strip()
+                if isinstance(model_type, str) and model_type.strip()
+                else _product_type_of(text)
+            )
+            if clarification_type:
+                state.record_product_type(clarification_type)
 
         strategy = retrieval_mod.build_retrieval_strategy(
             state, text,
