@@ -646,7 +646,7 @@ class ConversationEngineState:
                     continue
                 structured_targets[kind].add(normalized)
                 value_tokens = set(tokens(raw_value))
-                if value_tokens and kind in {"use_case", "compatibility", "feature", "preference"}:
+                if value_tokens:
                     structured_span_target_tokens.append(value_tokens)
             if kind == "exclusion" and operation in {"replace", "remove"}:
                 target = update.get("target")
