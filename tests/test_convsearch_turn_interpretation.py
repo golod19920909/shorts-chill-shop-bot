@@ -486,6 +486,28 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
 
+    async def test_work_material_context_after_po_is_preserved_without_ai(self):
+        # «по X» is a productive Russian application/material construction,
+        # not a new product type and not a hard literal title requirement.
+        for material in ("дереву", "металлу", "бетону"):
+            with self.subTest(material=material):
+                backend = FakeBackend([
+                    listing("attachment", "Насадка для дрели универсальная")
+                ])
+                engine = ConversationSearchEngine(retrieval_backend=backend)
+                state = ConversationEngineState(user_key=f"work-{material}")
+                decision = await engine.handle_message(
+                    f"work-{material}",
+                    f"Нужна насадка на дрель по {material}",
+                    state=state, currency="UAH",
+                )
+                self.assertIs(decision.outcome, Outcome.RESULTS)
+                self.assertEqual(state.active_values("type"), ["насадка"])
+                self.assertEqual(state.active_values("use_case"), ["дрель", material])
+                self.assertIn("насадка дрель", backend.strategies[-1].request.normalized_query)
+                self.assertIn(material, backend.strategies[-1].request.normalized_query)
+                self.assertEqual(state.active_values("feature"), [])
+
     async def test_material_followup_cannot_become_a_new_product_type(self):
         ai = FakeAI(
             {"action": "new_search", "confidence": 0.99,
