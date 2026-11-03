@@ -578,6 +578,7 @@ class ConversationSearchEngine:
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
         query_parts.extend(state.active_values("use_case"))
+        query_parts.extend("Совместимость: " + value for value in state.active_values("compatibility"))
         query_parts.extend(state.active_values("feature"))
         query_parts.extend(state.active_values("preference"))
         exclusions = state.active_values("exclusion")
