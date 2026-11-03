@@ -569,7 +569,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "value": "дрели",
         }]
         observation = state.observe(
-            "подходит дрели",
+            "и подходит дрели",
             intent_override=MessageIntent.REFINE,
             slot_updates=updates,
         )
@@ -577,7 +577,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         state.record_slots(observation)
 
         strategy = build_retrieval_strategy(
-            state, "подходит дрели", currency="UAH"
+            state, "и подходит дрели", currency="UAH"
         )
 
         self.assertIsNotNone(strategy)
