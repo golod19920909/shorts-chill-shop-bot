@@ -95,7 +95,7 @@ _USE_CASE_INTRO_RE = re.compile(
     # intended to work with («насадка по дереву», «диск по металлу»).
     # Keep this as soft application context: marketplace titles need not
     # repeat the exact wording for a candidate to be suitable.
-    r"(?:^|\s)(?:для|по|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
+    r"(?:^|\s)(?:для|по|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|по|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _EXPLICIT_REQUEST_RE = re.compile(
