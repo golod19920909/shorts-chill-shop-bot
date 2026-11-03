@@ -62,6 +62,20 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(_product_type_of("для дома"))
 
+    async def test_retrieval_does_not_turn_request_verbs_into_required_features(self):
+        state = ConversationEngineState(user_key="request-verb-filter")
+        state.record_product_type("шуруповерт")
+        state.turns.append(Turn(index=0, text="Ищу шуруповерта"))
+
+        strategy = build_retrieval_strategy(
+            state, "Ищу шуруповерта", currency="UAH"
+        )
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.product_type, "шуруповерт")
+        self.assertEqual(strategy.request.required_features, [])
+        self.assertEqual(strategy.request.normalized_query, "шуруповерт")
+
     async def test_budget_followup_keeps_active_product_and_is_not_searched_as_type(self):
         ai = FakeAI(
             {
