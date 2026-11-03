@@ -417,6 +417,47 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.strategies[-1].request.required_features, [])
         self.assertEqual(backend.strategies[-1].request.excluded_features, [])
 
+    async def test_material_followup_cannot_become_a_new_product_type(self):
+        ai = FakeAI(
+            {"action": "new_search", "confidence": 0.99,
+             "product_type": "пинцет", "question": None},
+            # Simulate the live failure: Gemini mistakes the material for a
+            # product and proposes it as the new product_type.
+            {"action": "new_search", "confidence": 0.99,
+             "product_type": "нержавеющая сталь", "question": None},
+        )
+        backend = FakeBackend([
+            listing(
+                "tweezer-1",
+                "Пинцет для наращивания ресниц из нержавеющей стали",
+            ),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="material-followup")
+
+        first = await engine.handle_message(
+            "material-followup", "Пинцет для наращивания ресниц",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_by_kind("type").value, "пинцет")
+
+        second = await engine.handle_message(
+            "material-followup", "Оставь варианты из нержавеющей стали",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.RESULTS)
+        self.assertEqual(second.report["intent"], MessageIntent.REFINE)
+        self.assertEqual(state.active_by_kind("type").value, "пинцет")
+        self.assertTrue(any(
+            "нержавеющей" in value or "стали" in value
+            for value in state.active_values("feature")
+        ))
+        self.assertEqual(backend.strategies[-1].product_type, "пинцет")
+        self.assertIn("нержавеющей", backend.strategies[-1].request.normalized_query)
+
     async def test_gemini_refine_cannot_override_a_message_naming_a_new_product(self):
         ai = FakeAI(
             {"action": "new_search", "confidence": 0.99,
