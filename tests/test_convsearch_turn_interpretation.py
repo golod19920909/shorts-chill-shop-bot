@@ -646,6 +646,34 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(state.active_values(kind), [])
 
+    async def test_removing_positive_slot_does_not_create_negative_exclusion(self):
+        state = ConversationEngineState(user_key="remove-positive")
+        state.slots.append(Slot(
+            kind="feature",
+            value="IP67",
+            source_turn=1,
+            raw_text="",
+        ))
+        state.turns.append(Turn(index=0, text="Не нужно IP67"))
+        state.record_slots({
+            "intent": MessageIntent.CORRECTION,
+            "model_slot_updates": [{
+                "operation": "remove",
+                "kind": "feature",
+                "target": "IP67",
+                "value": None,
+            }],
+            "negations": ["IP67"],
+            "spans": ["IP67"],
+            "use_cases": [],
+            "compatibilities": [],
+            "preferences": [],
+            "budget": {},
+        })
+
+        self.assertEqual(state.active_values("feature"), [])
+        self.assertEqual(state.active_values("exclusion"), [])
+
     async def test_model_added_exclusion_is_not_recreated_as_positive_feature(self):
         state = ConversationEngineState(user_key="negative-slot")
         state.turns.append(Turn(index=0, text="без ударного режима"))
