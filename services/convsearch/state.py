@@ -798,7 +798,7 @@ class ConversationEngineState:
     def authoritative_text(self) -> str:
         """Compact query built from the active ledger (reference analogue)."""
 
-        order = {"type": 0, "use_case": 1, "feature": 2, "budget": 3, "preference": 4}
+        order = {"type": 0, "compatibility": 1, "use_case": 2, "feature": 3, "budget": 4, "preference": 5}
         slots = sorted(
             self.active(),
             key=lambda slot: (order.get(slot.kind, 9), slot.source_turn),
