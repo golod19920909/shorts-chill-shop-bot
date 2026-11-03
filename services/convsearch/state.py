@@ -610,13 +610,13 @@ class ConversationEngineState:
             update for update in (result.get("model_slot_updates") or [])
             if isinstance(update, dict)
         ]
-        replacement_targets = {
+        structured_positive_targets = {
             (
                 update.get("kind"),
                 " ".join(str(update.get("target") or "").split()).casefold(),
             )
             for update in model_updates
-            if update.get("operation") == "replace"
+            if update.get("operation") in {"replace", "remove"}
             and update.get("kind") in {"use_case", "compatibility", "feature", "preference"}
             and isinstance(update.get("target"), str)
         }
@@ -665,7 +665,7 @@ class ConversationEngineState:
                 kind in {"feature", "use_case", "compatibility", "preference"}
                 and target_tokens
                 and target_tokens.issubset(negation_tokens)
-                for kind, target in replacement_targets
+                for kind, target in structured_positive_targets
                 for target_tokens in [set(tokens(target))]
             ):
                 continue
