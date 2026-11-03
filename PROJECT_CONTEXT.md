@@ -972,3 +972,17 @@ real bot diagnostics to separate Gemini interpretation, each AliExpress
 variant/retry, and Gemini selection before choosing a bounded optimization.
 The 5-second interpretation, 8-second selection, 20-candidate AI window and
 30-card presentation cap remain unchanged.
+
+
+### Material and composition follow-ups (2026-11-03)
+
+Material/composition phrases are refinements of the active product, not new
+product types. The conversation state recognizes connector-led forms such as
+Russian «из X», «сделан/изготовлен/выполнен из X» and English "made of/from X"
+as required feature evidence. A deterministic refinement boundary prevents a
+contradictory Gemini `new_search` decision from replacing the active product
+when the current message is grammatically a connector-led characteristic.
+A real new product named in the message remains eligible to start a new search.
+An offline integration regression simulates Gemini proposing the material
+itself as a new product type; the engine must preserve the original product,
+record the material constraint and retrieve against the original type.
