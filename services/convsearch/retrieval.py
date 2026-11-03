@@ -426,7 +426,7 @@ def build_retrieval_strategy(
     )
 
     covered = set(tokens(" ".join(phrase_parts)))
-    from services.convsearch.engine import _DISCOURSE_MARKERS
+    from services.convsearch.engine import _DISCOURSE_MARKERS, _REQUEST_FILLER
 
     def _already_covered(token: str) -> bool:
         return (
@@ -460,6 +460,7 @@ def build_retrieval_strategy(
             and token not in _CHARACTERISTIC_NOUNS
             and token not in _QUALIFIER_WORDS
             and token not in _DISCOURSE_MARKERS
+            and token not in _REQUEST_FILLER
             and not is_colour_word(token)
             and not _already_covered(token)
             and not _is_excluded_token(token)
