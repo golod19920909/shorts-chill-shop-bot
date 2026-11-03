@@ -1111,7 +1111,7 @@ delivery.
 This change is covered by offline CI only. Live Telegram delivery behavior
 has not been exercised in this environment.
 
-GitHub Actions run **41700404378** on the resulting delivery-aware commit:
+GitHub Actions run **41700404378** on delivery-aware code commit `5778471`; the current branch head `2df19f8` adds only this verification record:
 - Focused conversational regressions: **178 passed, 8 subtests passed**.
 - Repository suite excluding the documented stale legacy modules: **2,055 passed, 678 subtests passed, 1 warning**.
 - All workflow steps passed. Tests are offline; no live Telegram, Gemini or AliExpress calls were made.
