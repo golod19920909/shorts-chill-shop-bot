@@ -139,12 +139,14 @@ selection, but are not treated as a mandatory literal title feature.
 ### Accessory compatibility is a hard requirement
 
 For generic accessory product roles (attachments, cases, adapters, cables and
-similar fitment items), an explicit «X на/для/под Y» relation is stored as a
+similar fitment items), an explicit fitment relation «X на/под Y» is stored as a
 separate `compatibility` slot, not as soft use-case context. Compatibility
 is carried into the provider query and checked against title/description
-evidence. Gemini may also add compatibility from a later conversational
-follow-up; when it does, the same phrase is not retained as a duplicate soft
-use-case slot. Missing evidence is quarantined for semantic review; it is not
+evidence. Ambiguous «для X» phrases stay soft context in the deterministic fallback
+because X can be either a host device or an application/material; Gemini may
+promote a clearly identified device relation to `compatibility`. Gemini may
+also add compatibility from a later conversational follow-up; when it does,
+the same phrase is not retained as a duplicate soft use-case slot. Missing evidence is quarantined for semantic review; it is not
 silently accepted. Ordinary purpose phrases such as «подарок на свадьбу» stay
 soft context because the requested item is not an accessory role.
 
