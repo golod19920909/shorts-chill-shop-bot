@@ -135,6 +135,53 @@ def _product_type_of(text: str) -> str | None:
     return " ".join(words)
 
 
+_EXPLICIT_PRODUCT_REQUEST_RE = re.compile(
+    r"\b(?:нужен|нужна|нужно|нужны|ищу|хочу|требуется|требуются|"
+    r"подбери|подберите|найди|найдите|закажи|закажите|купи|купите)\s+(.+)",
+    re.IGNORECASE,
+)
+_EXPLICIT_PRODUCT_CONTEXT_RE = re.compile(
+    r"\b(?:для|с|со|из|без|под|на|до|от|в|по|к|у|о|об)\b",
+    re.IGNORECASE,
+)
+
+
+def _explicit_requested_product_type(text: str) -> str | None:
+    """Extract the requested item, leaving prepositional targets as context."""
+
+    match = _EXPLICIT_PRODUCT_REQUEST_RE.search(text or "")
+    if not match:
+        return None
+    phrase = match.group(1)
+    boundary = _EXPLICIT_PRODUCT_CONTEXT_RE.search(phrase)
+    if boundary:
+        phrase = phrase[:boundary.start()]
+    from services.convsearch.text import tokens
+
+    words = [
+        token for token in tokens(phrase)
+        if token not in _REQUEST_FILLER
+        and token not in _DISCOURSE_MARKERS
+        and not token.isdigit()
+    ]
+    return " ".join(words) or None
+
+
+def _is_different_product_type(candidate: str, current: str) -> bool:
+    """Compare product identities by stem overlap, not sentence framing."""
+
+    from services.convsearch.text import tokens
+    from services.convsearch.type_validation import stems_match
+
+    candidate_tokens = tokens(candidate)
+    current_tokens = tokens(current)
+    return bool(candidate_tokens and current_tokens) and not any(
+        stems_match(left, right)
+        for left in candidate_tokens
+        for right in current_tokens
+    )
+
+
 class ConversationSearchEngine:
     """The one search decision-maker. One instance per process."""
 
@@ -232,6 +279,19 @@ class ConversationSearchEngine:
             action_to_intent.get(ai_turn.get("action"))
             if isinstance(ai_turn, dict) else None
         )
+        # An explicit request naming a different item is a product switch
+        # even when it also contains prepositional context («насадка на
+        # дрель для дерева»). Do not let broad «для/на» framing or a
+        # contradictory Gemini action attach it to the previous product.
+        explicit_product_type = _explicit_requested_product_type(text)
+        current_type = state.active_by_kind("type")
+        if (
+            explicit_product_type
+            and current_type is not None
+            and _is_different_product_type(explicit_product_type, current_type.value)
+        ):
+            intent_override = MessageIntent.NEW_SEARCH
+
         # A pending clarification answer fills a gap in the CURRENT request;
         # it is not a replacement search. Gemini may correctly identify the
         # missing product in the answer and call it "new_search", but allowing
@@ -342,7 +402,9 @@ class ConversationSearchEngine:
             if isinstance(ai_turn, dict) else None
         )
         if intent is MessageIntent.NEW_SEARCH:
-            new_type = model_type or _product_type_of(text) or None
+            # The explicit request head is grounded in the user's own words
+            # and takes precedence over a stale or contradictory model type.
+            new_type = explicit_product_type or model_type or _product_type_of(text) or None
             if new_type:
                 state.record_product_type(new_type)
         elif (
