@@ -133,6 +133,33 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertTrue(is_accessory_product_type("набор насадок"))
         self.assertTrue(is_accessory_product_type("комплект кабелей"))
 
+    def test_description_only_product_identity_requires_semantic_review(self) -> None:
+        candidate = product(
+            "generic-title",
+            "Универсальный набор инструментов",
+        ).model_copy(update={
+            "description": "Насадка для дрели по дереву с хвостовиком",
+        })
+
+        verdict = validate_product_type(candidate, "насадка")
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+        self.assertLess(verdict.score, 0.5)
+
+    def test_description_cannot_override_title_identifying_an_accessory(self) -> None:
+        candidate = product(
+            "reel-spring-description",
+            "Пружина для рыболовной катушки",
+        ).model_copy(update={
+            "description": "Совместима с рыболовной катушкой",
+        })
+
+        verdict = validate_product_type(candidate, REEL)
+
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("type_only_in_role_clause", verdict.reasons)
+
     def test_late_type_mention_in_a_mixed_listing_title_requires_review(self) -> None:
         verdict = validate_product_type(
             product(
