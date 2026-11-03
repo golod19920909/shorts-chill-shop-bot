@@ -314,29 +314,48 @@ class ConversationEngineState:
         # seller never writes «для дома» in its title. Keep it separate from
         # explicit equipment/features such as «с двумя аккумуляторами».
         use_case_spans: list[str] = []
-        # «на X» is soft target/context only inside an explicit product request
-        # («насадка на дрель для дерева»). Do not reinterpret unrelated
-        # activity context such as «буду работать на стройке».
+        compatibility_spans: list[str] = []
+        # «X на Y» can mean a fitment relation («насадка на дрель»,
+        # «чехол на телефон») or an ordinary purpose («подарок на свадьбу»).
+        # Treat it as hard compatibility only when X is a generic accessory
+        # product role. Unrelated activity context such as «буду работать на
+        # стройке» is never parsed as a product relation.
         request_match = _EXPLICIT_REQUEST_RE.search(message)
         if request_match:
-            for match in _REQUEST_TARGET_RE.finditer(request_match.group(1)):
-                value = " ".join(tokens(match.group(1)))
-                if value:
-                    use_case_spans.append(value)
+            request_phrase = request_match.group(1)
+            target_matches = list(_REQUEST_TARGET_RE.finditer(request_phrase))
+            if target_matches:
+                from services.convsearch.type_validation import (
+                    is_accessory_product_type,
+                )
+                requested_item = request_phrase[:target_matches[0].start()]
+                is_compatibility_relation = is_accessory_product_type(requested_item)
+                for match in target_matches:
+                    value = " ".join(tokens(match.group(1)))
+                    if value:
+                        target = (
+                            compatibility_spans
+                            if is_compatibility_relation else use_case_spans
+                        )
+                        target.append(value)
         for match in _USE_CASE_INTRO_RE.finditer(message):
             value = " ".join(tokens(match.group(1)))
             if value:
                 use_case_spans.append(value)
         use_case_spans = list(dict.fromkeys(use_case_spans))
-        if use_case_spans:
-            use_case_tokens = {
-                token for value in use_case_spans for token in tokens(value)
+        compatibility_spans = list(dict.fromkeys(compatibility_spans))
+        if use_case_spans or compatibility_spans:
+            context_tokens = {
+                token
+                for value in [*use_case_spans, *compatibility_spans]
+                for token in tokens(value)
             }
             residual_spans: list[str] = []
             for span in message_spans:
                 residual = [
                     token for token in tokens(span)
-                    if token not in use_case_tokens and token not in {"с", "со", "для", "for"}
+                    if token not in context_tokens
+                    and token not in {"с", "со", "для", "по", "for"}
                 ]
                 if len(residual) >= 2:
                     residual_spans.append(" ".join(residual))
@@ -564,6 +583,7 @@ class ConversationEngineState:
             "budget": _budget(message),
             "preferences": list(dict.fromkeys(preferences)),
             "use_cases": list(dict.fromkeys(use_case_spans)),
+            "compatibilities": list(dict.fromkeys(compatibility_spans)),
             "reversal": reversal,
         }
 
@@ -582,7 +602,7 @@ class ConversationEngineState:
             )
             for update in model_updates
             if update.get("operation") == "replace"
-            and update.get("kind") in {"use_case", "feature", "preference"}
+            and update.get("kind") in {"use_case", "compatibility", "feature", "preference"}
             and isinstance(update.get("target"), str)
         }
         negations = result.get("negations") or []
@@ -593,7 +613,7 @@ class ConversationEngineState:
             # exclusion for the same phrase.
             negation_tokens = set(tokens(str(value)))
             if any(
-                kind in {"feature", "use_case", "preference"}
+                kind in {"feature", "use_case", "compatibility", "preference"}
                 and target_tokens
                 and target_tokens.issubset(negation_tokens)
                 for kind, target in replacement_targets
@@ -618,6 +638,13 @@ class ConversationEngineState:
             self._add_slot(Slot(
                 kind="use_case", value=value, source_turn=index, raw_text=""
             ))
+        # Explicit accessory fitment is a hard compatibility constraint,
+        # not merely soft application context («насадка на дрель» must fit a
+        # drill). Missing listing evidence is quarantined for semantic review.
+        for value in result.get("compatibilities") or []:
+            self._add_slot(Slot(
+                kind="compatibility", value=value, source_turn=index, raw_text=""
+            ))
         # Feature spans are CONSTRAINTS of an active search. A NEW_SEARCH
         # message names a product, not a feature: recording its span
         # ("5 вариантов шуруповерта") as a required feature would demand
@@ -627,7 +654,7 @@ class ConversationEngineState:
         model_use_case_tokens = [
             set(tokens(update.get("value", "")))
             for update in model_updates
-            if update.get("kind") == "use_case" and isinstance(update.get("value"), str)
+            if update.get("kind") in {"use_case", "compatibility"} and isinstance(update.get("value"), str)
         ]
         if result.get("intent") not in (
             MessageIntent.NEW_SEARCH, MessageIntent.AMBIGUOUS,
@@ -690,7 +717,7 @@ class ConversationEngineState:
             operation = update.get("operation", "add")
             target = update.get("target")
             value = update.get("value")
-            if kind not in {"use_case", "feature", "exclusion", "preference"}:
+            if kind not in {"use_case", "compatibility", "feature", "exclusion", "preference"}:
                 continue
             if operation not in {"add", "replace", "remove"}:
                 continue
