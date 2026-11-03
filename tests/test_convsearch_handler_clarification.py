@@ -17,6 +17,7 @@ from handlers.search import (
     _get_convsearch_state,
     _record_browsed_conversation_product,
     _send_product_cards,
+    send_search_results,
 )
 from services.convsearch.contract import Outcome
 from services.convsearch.state import ConversationEngineState
@@ -208,3 +209,38 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
             context, "active-session", "visible-after-edit"
         )
         self.assertEqual(state.shown_product_ids, ["visible-after-edit"])
+
+
+    async def test_failed_optional_hint_keeps_successfully_delivered_session(self):
+        product = SimpleNamespace(product_id="delivered-product")
+        outcome = SimpleNamespace(
+            products=[product],
+            request=SimpleNamespace(
+                mode=SimpleNamespace(value="text"),
+                original_query="test query",
+            ),
+        )
+        state = ConversationEngineState(user_key="hint-failure")
+        context = SimpleNamespace(
+            user_data={},
+            bot=SimpleNamespace(
+                send_message=AsyncMock(side_effect=RuntimeError("Telegram unavailable"))
+            ),
+        )
+        with (
+            patch("handlers.search.common.remember_outcome", return_value="session-delivered"),
+            patch("handlers.search._log_unapplied_constraints"),
+            patch("handlers.search.log_final_pool"),
+            patch("handlers.search._send_product_cards", new=AsyncMock(return_value=True)),
+            patch("handlers.search._result_summary_text", return_value="optional hint"),
+        ):
+            session_id = await send_search_results(
+                context,
+                123,
+                outcome,
+                pre_curated=True,
+                conversation_state=state,
+            )
+
+        self.assertEqual(session_id, "session-delivered")
+        self.assertEqual(state.shown_product_ids, ["delivered-product"])
