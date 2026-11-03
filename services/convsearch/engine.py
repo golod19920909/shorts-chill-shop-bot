@@ -655,14 +655,18 @@ class ConversationSearchEngine:
         if not selected:
             return finish_fallback("empty_fallback")
 
-        # The model only sees/selects the first 20. Keep its ordering, then
-        # fill the remaining 30-card presentation window from the untouched
-        # deterministic tail. Never leak unreviewed semantic-identity rows.
-        tail = [
-            product for product in original_pool[AI_CONVERSATION_SELECTION_LIMIT:]
-            if product.product_id not in semantic_review_ids
-            and product.product_id not in seen
-        ]
+        # The model only sees/selects the first 20. Keep its ordering.
+        # Append the untouched deterministic tail ONLY when Gemini filled
+        # the whole selection window. A shorter valid selection can mean
+        # that fewer candidates actually fit; padding it with unseen rows
+        # would silently override the model's semantic decision.
+        tail = []
+        if len(selected) >= wanted:
+            tail = [
+                product for product in original_pool[AI_CONVERSATION_SELECTION_LIMIT:]
+                if product.product_id not in semantic_review_ids
+                and product.product_id not in seen
+            ]
         decision.products = (selected + tail)[:presentation_limit]
         decision.report["ai_selection"] = "selected"
         decision.report["ai_selected"] = len(selected)
