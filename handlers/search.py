@@ -1220,6 +1220,20 @@ async def _send_product_cards(
         )
     return True
 
+async def _record_browsed_conversation_product(
+    context: ContextTypes.DEFAULT_TYPE,
+    session_id: str,
+    product_id: str,
+) -> None:
+    """Add a product to the conversation ledger only after a successful browse edit."""
+
+    if context.user_data.get("last_shown_session") != session_id:
+        return
+    state = context.user_data.get("_convsearch_state")
+    if isinstance(state, ConversationEngineState):
+        state.record_shown([product_id])
+
+
 async def _edit_browsed_card(
     query,
     context: ContextTypes.DEFAULT_TYPE,
@@ -1280,6 +1294,9 @@ async def _edit_browsed_card(
                 ),
                 reply_markup=reply_markup,
             )
+            await _record_browsed_conversation_product(
+                context, session_id, product.product_id
+            )
             return
         except Exception:
             # The new image URL may be unfetchable by Telegram; fall
@@ -1299,6 +1316,9 @@ async def _edit_browsed_card(
         await _replace_browsed_card(
             query, context, product, index, caption, reply_markup
         )
+        await _record_browsed_conversation_product(
+            context, session_id, product.product_id
+        )
         return
 
     if is_photo:
@@ -1311,6 +1331,9 @@ async def _edit_browsed_card(
         await query.edit_message_text(
             caption, parse_mode="HTML", reply_markup=reply_markup
         )
+    await _record_browsed_conversation_product(
+        context, session_id, product.product_id
+    )
 
 async def _replace_browsed_card(
     query,
