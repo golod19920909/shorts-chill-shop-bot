@@ -117,6 +117,13 @@ markers, comparative suffixes `_COMPARATIVE_SUFFIXES`, discourse markers
 `_DISCOURSE_MARKERS`, colours, count/budget framing words) — productive
 rules, not product- or query-specific phrase lists.
 
+A pending clarification answer must continue the existing ledger even if
+Gemini labels it as a refinement or is unavailable. The deterministic
+product-type fallback keeps the leading item phrase and excludes relation
+targets introduced by prepositions («Пылесос для дома» → «пылесос»;
+«Насадка на дрель по дереву» → «насадка»). A reply containing only a
+purpose/fitment phrase does not invent a product type; the bot asks again.
+
 ### Components (`services/convsearch/`)
 
 | File | Responsibility |
