@@ -620,6 +620,39 @@ class ConversationEngineState:
             and update.get("kind") in {"use_case", "compatibility", "feature", "preference"}
             and isinstance(update.get("target"), str)
         }
+        # Do not let deterministic extraction recreate a slot that Gemini
+        # explicitly replaced or removed in this same turn. The model update
+        # is applied at the end of this method, so all extraction loops below
+        # must know both sides of those operations in advance.
+        structured_targets: dict[str, set[str]] = {
+            kind: set()
+            for kind in {"use_case", "compatibility", "feature", "exclusion", "preference"}
+        }
+        structured_span_target_tokens: list[set[str]] = []
+        structured_exclusion_targets: set[str] = set()
+        for update in model_updates:
+            kind = update.get("kind")
+            operation = update.get("operation", "add")
+            if kind not in structured_targets:
+                continue
+            values: list[str] = []
+            if operation in {"replace", "remove"} and isinstance(update.get("target"), str):
+                values.append(update["target"])
+            if operation in {"add", "replace"} and isinstance(update.get("value"), str):
+                values.append(update["value"])
+            for raw_value in values:
+                normalized = " ".join(raw_value.split()).casefold()
+                if not normalized:
+                    continue
+                structured_targets[kind].add(normalized)
+                value_tokens = set(tokens(raw_value))
+                if value_tokens and kind in {"use_case", "compatibility", "feature", "preference"}:
+                    structured_span_target_tokens.append(value_tokens)
+            if kind == "exclusion" and operation in {"replace", "remove"}:
+                target = update.get("target")
+                if isinstance(target, str):
+                    structured_exclusion_targets.add(" ".join(target.split()).casefold())
+
         negations = result.get("negations") or []
         for value in negations:
             # «Не X, а Y» is a targeted replacement, not a request to
@@ -627,7 +660,8 @@ class ConversationEngineState:
             # operation supersedes the old slot below; do not also create an
             # exclusion for the same phrase.
             negation_tokens = set(tokens(str(value)))
-            if any(
+            normalized_negation = " ".join(str(value).split()).casefold()
+            if normalized_negation in structured_exclusion_targets or any(
                 kind in {"feature", "use_case", "compatibility", "preference"}
                 and target_tokens
                 and target_tokens.issubset(negation_tokens)
@@ -640,24 +674,12 @@ class ConversationEngineState:
         # selection, but is never a hard title-evidence requirement. Do not
         # re-add the old side of an explicit use-case replacement from the
         # deterministic phrase extractor.
-        structured_use_case_targets = {
-            " ".join(str(update.get("target") or "").split()).casefold()
-            for update in model_updates
-            if update.get("operation") == "replace"
-            and update.get("kind") == "use_case"
-            and isinstance(update.get("target"), str)
-        }
+        structured_use_case_targets = structured_targets["use_case"]
         # If Gemini identifies a connector phrase as hard compatibility,
         # do not also keep the deterministic parser's softer use_case copy
         # of the same target. Include old/new values for compatibility
         # corrections and removals so stale duplicates cannot survive.
-        structured_compatibility_targets = {
-            " ".join(str(value).split()).casefold()
-            for update in model_updates
-            if update.get("kind") == "compatibility"
-            for value in (update.get("target"), update.get("value"))
-            if isinstance(value, str) and value.strip()
-        }
+        structured_compatibility_targets = structured_targets["compatibility"]
         for value in result.get("use_cases") or []:
             normalized_use_case = " ".join(str(value).split()).casefold()
             if (
@@ -672,6 +694,8 @@ class ConversationEngineState:
         # not merely soft application context («насадка на дрель» must fit a
         # drill). Missing listing evidence is quarantined for semantic review.
         for value in result.get("compatibilities") or []:
+            if " ".join(str(value).split()).casefold() in structured_compatibility_targets:
+                continue
             self._add_slot(Slot(
                 kind="compatibility", value=value, source_turn=index, raw_text=""
             ))
@@ -699,6 +723,9 @@ class ConversationEngineState:
                 if any(
                     wanted and wanted.issubset(span_token_set)
                     for wanted in model_use_case_tokens
+                ) or any(
+                    wanted and wanted.issubset(span_token_set)
+                    for wanted in structured_span_target_tokens
                 ):
                     continue
                 # A «не X» span is an EXCLUSION (the negation slot already
@@ -725,6 +752,8 @@ class ConversationEngineState:
         # Comparative follow-ups must survive as active preferences. They
         # are useful retrieval/ranking signals, but never hard title filters.
         for value in result.get("preferences") or []:
+            if " ".join(str(value).split()).casefold() in structured_targets["preference"]:
+                continue
             self._add_slot(Slot(
                 kind="preference", value=value, source_turn=index, raw_text=""
             ))
