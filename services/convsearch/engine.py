@@ -285,11 +285,12 @@ class ConversationSearchEngine:
         # contradictory Gemini action attach it to the previous product.
         explicit_product_type = _explicit_requested_product_type(text)
         current_type = state.active_by_kind("type")
-        if (
+        explicit_product_switch = bool(
             explicit_product_type
             and current_type is not None
             and _is_different_product_type(explicit_product_type, current_type.value)
-        ):
+        )
+        if explicit_product_switch:
             intent_override = MessageIntent.NEW_SEARCH
 
         # A pending clarification answer fills a gap in the CURRENT request;
@@ -341,6 +342,10 @@ class ConversationSearchEngine:
             ai_turn.get("slot_updates", [])
             if isinstance(ai_turn, dict)
             and ai_turn.get("action") in {"new_search", "refine", "correction"}
+            and not (
+                explicit_product_switch
+                and ai_turn.get("action") != "new_search"
+            )
             else []
         )
         observation = state.observe(
@@ -360,7 +365,7 @@ class ConversationSearchEngine:
             # have no product type to attach to and could fall back to the
             # previous product's ledger.
             if intent is MessageIntent.NEW_SEARCH:
-                clarified_type = _product_type_of(text)
+                clarified_type = explicit_product_type or _product_type_of(text)
                 if clarified_type:
                     state.record_product_type(clarified_type)
             question = ai_turn.get("question") or DEFAULT_CLARIFY_QUESTION
