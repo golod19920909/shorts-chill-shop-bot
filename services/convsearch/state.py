@@ -1,4 +1,4 @@
-﻿"""Conversation state for the conversational search engine.
+"""Conversation state for the conversational search engine.
 
 Adapted from the reference ``src/state.py`` dialog-state design (utterances
 with provenance, active/superseded slot ledger, override down-weighting,
@@ -91,7 +91,11 @@ _FEATURE_INTRO_RE = re.compile(
     re.IGNORECASE,
 )
 _USE_CASE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
+    # «для X» and «по X» express the task/material the requested item is
+    # intended to work with («насадка по дереву», «диск по металлу»).
+    # Keep this as soft application context: marketplace titles need not
+    # repeat the exact wording for a candidate to be suitable.
+    r"(?:^|\s)(?:для|по|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _EXPLICIT_REQUEST_RE = re.compile(
