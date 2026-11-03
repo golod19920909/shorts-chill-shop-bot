@@ -306,6 +306,7 @@ class ConversationSearchEngine:
         pending_clarification = bool(state.last_question)
         if (
             pending_clarification
+            and not explicit_product_switch
             and isinstance(ai_turn, dict)
             and ai_turn.get("action") == "new_search"
         ):
