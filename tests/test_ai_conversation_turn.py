@@ -84,6 +84,28 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_grounded_accessory_compatibility_update_is_accepted(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.98,'
+            '"product_type":null,"question":null,'
+            '"slot_updates":[{"kind":"compatibility","value":"дрели"}]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Нужна насадка для дрели",
+            context={"active_slots": [{"kind": "type", "value": "насадка"}]},
+        )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(
+            result["slot_updates"],
+            [{
+                "operation": "add",
+                "kind": "compatibility",
+                "target": None,
+                "value": "дрели",
+            }],
+        )
+
     async def test_targeted_replace_is_accepted_only_for_an_active_slot(self):
         service = self.make_service(
             '{"action":"correction","confidence":0.98,'
