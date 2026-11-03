@@ -272,13 +272,27 @@ class ConversationEngineState:
         # A «с X» characteristic that a clause boundary truncated to one
         # word («а есть с чехлом?") is still a feature — capture it even
         # when constraint_spans dropped it for length.
+        introduced_features: list[str] = []
         for match in _FEATURE_INTRO_RE.finditer(message):
             value = " ".join(tokens(match.group(1)))
-            if value and not any(
-                value in span or span.endswith(value)
-                for span in message_spans
-            ):
-                message_spans.append(value)
+            if value:
+                introduced_features.append(value)
+        if introduced_features:
+            # The general span parser can retain the entire carrier sentence
+            # ("оставь варианты из нержавеющей стали"). Replace that broad
+            # span with the actual connector value so framing words never
+            # become mandatory product features.
+            cleaned_spans: list[str] = []
+            for span in message_spans:
+                residual = span
+                for value in introduced_features:
+                    residual = residual.replace(value, " ")
+                residual_tokens = tokens(residual)
+                if len(residual_tokens) >= 2:
+                    cleaned_spans.append(" ".join(residual_tokens))
+            message_spans = list(dict.fromkeys(
+                [*cleaned_spans, *introduced_features]
+            ))
 
         # Use-case / application context is a SOFT slot, not a mandatory
         # title feature: a household listing may be suitable even when the
