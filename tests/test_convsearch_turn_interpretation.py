@@ -488,6 +488,23 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("наращивания ресниц", state.active_values("use_case"))
         self.assertEqual(state.active_values("compatibility"), ["дрель"])
 
+    async def test_for_preposition_also_captures_accessory_compatibility(self):
+        backend = FakeBackend([
+            listing("attachment-for-drill", "Насадка для дрели универсальная"),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        state = ConversationEngineState(user_key="fitment-for")
+
+        decision = await engine.handle_message(
+            "fitment-for", "Нужна насадка для дрели по дереву",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(state.active_values("compatibility"), ["дрели"])
+        self.assertEqual(state.active_values("use_case"), ["дереву"])
+        self.assertIn("дрели", backend.strategies[-1].request.required_features)
+
     async def test_accessory_fitment_is_mandatory_and_missing_evidence_is_quarantined(self):
         backend = FakeBackend([
             listing("unknown-fitment", "Насадка универсальная для обработки"),
