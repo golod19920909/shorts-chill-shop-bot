@@ -198,7 +198,10 @@ def _feature_is_evidenced(product: Product, feature: str) -> bool:
         1 for token in wanted
         if any(stems_match(token, candidate) for candidate in observed)
     )
-    return matched / len(wanted) >= 0.6
+    # These slots are mandatory requirements, not soft query similarity.
+    # Partial token overlap (e.g. 3 of 4 words) must stay unverified; otherwise
+    # a Gemini timeout could expose a product missing part of a hard requirement.
+    return matched == len(wanted)
 
 
 def partition_required_feature_evidence(
