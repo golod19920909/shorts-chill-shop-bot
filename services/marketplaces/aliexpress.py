@@ -647,12 +647,19 @@ class AliExpressProvider(MarketplaceProvider):
         promo_code, promo_benefit, promo_valid_until = extract_promo_info(
             raw.get("promo_code_info")
         )
+        category_path = list(dict.fromkeys(
+            value for value in (
+                clean_text(raw.get("first_level_category_name")),
+                clean_text(raw.get("second_level_category_name")),
+            ) if value
+        ))
 
         return Product(
             marketplace=Marketplace.ALIEXPRESS,
             product_id=product_id,
             title=title,
             product_url=url,
+            category_path=category_path,
             image_url=clean_text(raw.get("product_main_image_url")),
             price=price,
             currency=currency,
