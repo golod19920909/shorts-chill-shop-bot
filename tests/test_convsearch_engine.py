@@ -228,6 +228,47 @@ class EngineScenarioTests(unittest.TestCase):
         )
         self.assertFalse(any("хочу" in value or "было" in value for value in features))
 
+    def test_subordinate_feature_followups_ignore_pronoun_and_modal_scaffolding(self) -> None:
+        from services.convsearch.engine import (
+            _explicit_requested_product_type,
+            _product_type_of,
+        )
+
+        messages = (
+            "Мне нужно, чтобы было два аккумулятора",
+            "Хочу, чтобы у него было два аккумулятора",
+            "Мне нужно, чтобы у него было два аккумулятора",
+            "Хочу, чтоб у него было два аккумулятора",
+            "Мне нужно, чтобы у него должно быть два аккумулятора",
+        )
+        for index, message in enumerate(messages):
+            with self.subTest(message=message):
+                state = ConversationEngineState(
+                    user_key=f"subordinate-feature-{index}"
+                )
+                state.record_product_type("шуруповёрт")
+
+                self.assertIsNone(_explicit_requested_product_type(message))
+                self.assertIsNone(_product_type_of(message))
+                observation = state.observe(message)
+                state.record_slots(observation)
+
+                self.assertEqual(observation["intent"], MessageIntent.REFINE)
+                self.assertEqual(state.active_values("type"), ["шуруповёрт"])
+                features = state.active_values("feature")
+                self.assertTrue(
+                    any("аккумулятор" in value for value in features),
+                    f"Battery requirement was not retained: {features!r}",
+                )
+                self.assertFalse(
+                    any(
+                        filler in value
+                        for value in features
+                        for filler in ("хочу", "нужно", "него", "было", "должно", "быть")
+                    ),
+                    f"Conversational scaffolding leaked into features: {features!r}",
+                )
+
     def test_scenario_b_non_impact_cordless_screwdriver(self) -> None:
         state = ConversationEngineState(user_key="u-b")
         obs1 = state.observe("Посоветуй аккумуляторный шуруповёрт.")
