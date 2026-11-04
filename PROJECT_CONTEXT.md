@@ -1498,3 +1498,12 @@ Verification for subordinate-clause follow-up fix on head
 - The workflow excludes the documented stale legacy modules; this is not an
   unfiltered full-suite pass.
 - Offline only; no live Telegram/Gemini/AliExpress calls were made.
+
+
+An additional integration regression now simulates Gemini incorrectly labelling
+«Хочу, чтобы было два аккумулятора» as `new_search` with proposed type
+«два аккумулятора». The engine must still retain the active «шуруповёрт» type,
+classify the turn as REFINE, query the existing item, and store the battery
+quantity as a feature. This protects the complete Option C boundary, not only
+the two deterministic extraction helpers. Verification for this extra
+integration regression is pending.
