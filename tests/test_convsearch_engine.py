@@ -205,7 +205,15 @@ class EngineScenarioTests(unittest.TestCase):
         state.record_slots(first)
         state.record_product_type("аккумуляторный шуруповёрт")
 
-        followup = state.observe("Хочу, чтобы было два аккумулятора")
+        from services.convsearch.engine import (
+            _explicit_requested_product_type,
+            _product_type_of,
+        )
+        message = "Хочу, чтобы было два аккумулятора"
+        self.assertIsNone(_explicit_requested_product_type(message))
+        self.assertIsNone(_product_type_of(message))
+
+        followup = state.observe(message)
         state.record_slots(followup)
 
         self.assertEqual(followup["intent"], MessageIntent.REFINE)
