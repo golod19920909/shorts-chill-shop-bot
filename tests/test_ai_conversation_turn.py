@@ -450,7 +450,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("проверь описание и состав", prompt)
 
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
-        service = self.make_service('{"ids":[]}')
+        service = self.make_service('{"selections":[]}')
         candidates = [
             Product(
                 marketplace=Marketplace.ALIEXPRESS, product_id="mask-1",
