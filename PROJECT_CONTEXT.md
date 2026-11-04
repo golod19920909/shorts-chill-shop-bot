@@ -1600,3 +1600,13 @@ GitHub Actions run **41892880227** on head `434ceeebbdb0d3cc0580c0686be83c8eed15
 - Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
 - The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
 - Offline tests only. No live AliExpress, Gemini or Telegram calls were made; current account quota, response latency and real catalogue quality remain unverified.
+
+### Pagination diagnostics (2026-11-04)
+
+The eligibility-driven page decision now emits a privacy-safe count-only line for each page: raw candidates, ranked candidates, verified candidates, target count and whether another page is requested. The final conversational pool summary also includes the verified count. No product titles or user message text are logged by these new lines. This makes the live run auditable: a raw pool may be large while the verified count remains low, and the log shows whether the engine correctly continued.
+
+GitHub Actions run **41893379896** on head `87e7bc661162a740599adcd9dba2c05ed7fa2377` passed:
+- Focused conversational regressions: **227 passed, 16 subtests passed**.
+- Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
+- Documented stale legacy modules are excluded; this is not an unfiltered full-suite pass.
+- Offline only; live provider behavior remains unverified.
