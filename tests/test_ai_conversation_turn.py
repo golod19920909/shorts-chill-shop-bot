@@ -65,6 +65,17 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
 
+    async def test_model_cannot_treat_a_standalone_adjective_as_product_type(self):
+        service = self.make_service(
+            '{"action":"new_search","confidence":0.99,'
+            '"product_type":"автомобильный","question":null}'
+        )
+        result = await service.decide_conversation_turn(
+            "Нужен автомобильный",
+            context={"active_slots": [], "recent_turns": []},
+        )
+        self.assertIsNone(result)
+
     async def test_model_product_head_accepts_user_inflection(self):
         service = self.make_service(
             '{"action":"new_search","confidence":0.99,'
