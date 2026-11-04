@@ -707,6 +707,20 @@ class ConversationSearchEngine:
         # time from candidate selection. The previous shared eight-second
         # budget routinely left the selector only 2-3 seconds after a normal
         # interpretation, causing deterministic mixed-pool fallbacks.
+        # Preserve the exact reason a non-empty provider pool is rejected by
+        # the hard identity gate. The compact action summary below is not
+        # sufficient to diagnose a bad active product type or a systematic
+        # title-parser false negative from live Telegram logs.
+        if decision.report.get("rejected_type", 0):
+            logger.warning(
+                "convsearch type gate diagnostic product_type=%r active_slots=%s "
+                "rejected=%d sample=%s",
+                strategy.product_type,
+                [(slot.kind, slot.value) for slot in state.active()],
+                decision.report.get("rejected_type", 0),
+                decision.report.get("type_rejections", [])[:8],
+            )
+
         decision = await self._apply_ai_candidate_selection(
             decision, strategy, state,
             timeout_seconds=AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
