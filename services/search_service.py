@@ -742,7 +742,6 @@ class SearchService:
         )
         pages_used = 0
         pages_scanned = 0
-        previous_raw_unique = 0
         all_failed = False
 
         for page_no in pages:
@@ -925,14 +924,6 @@ class SearchService:
                         current_unique, pool_target, page_no,
                     )
                     break
-                if page_no > first_page and current_unique <= previous_raw_unique:
-                    logger.info(
-                        "RAW conversational pagination stopped: page %d added "
-                        "no new unique products (pool=%d)",
-                        page_no, current_unique,
-                    )
-                    break
-                previous_raw_unique = current_unique
             elif len(outcome.products) >= pool_target:
                 break
 
