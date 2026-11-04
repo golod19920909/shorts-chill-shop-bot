@@ -1152,11 +1152,11 @@ Added regressions for a same-language alternate product name and for keeping
 an accessory listing rejected. The latter also protects inflected Russian
 accessory wording in a host-product relation.
 
-Latest successful workflow on branch head
-`e3a3527c0c0f38d79dbc7d79c731593a2176d590`:
-- Focused conversational regressions: **209 passed, 8 subtests passed**.
+Latest successful workflow on code head
+`5916efac3ebc1b7ca7b96796c989875e2eb823f2`:
+- Focused conversational regressions: **210 passed, 8 subtests passed**.
 - Repository suite excluding documented stale legacy modules:
-  **2,094 passed, 678 subtests passed, 1 warning**.
+  **2,096 passed, 678 subtests passed, 1 warning**.
 - This is filtered offline verification, not an unfiltered full-suite pass.
   No live Telegram, Gemini or AliExpress calls were made.
 
