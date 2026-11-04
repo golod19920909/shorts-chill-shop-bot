@@ -443,7 +443,7 @@ _QUESTION_STOPWORDS = frozenset(
         "этих", "это", "эти", "он", "она", "оно", "они", "подходит", "подойдет",
         "подойдёт", "для", "мне", "мой", "моя", "моего", "можно", "или", "чем",
         "что", "чего", "самый", "самая", "самое", "более", "менее", "нужен",
-        "нужна", "нужно",
+        "нужна", "нужно", "светит", "светят", "светить", "светится", "светятся",
     }
 )
 
@@ -488,6 +488,27 @@ def _feature_probe_words(question: str) -> list[str]:
         if len(word) >= 4 and word.lower() not in _QUESTION_STOPWORDS
     ]
 
+
+
+def matching_products_for_question(
+    question: str, products: list[Product]
+) -> list[Product]:
+    """Return existing products whose REAL titles contain a requested feature.
+
+    This is a deterministic, title-grounded selector. It never invents or
+    enriches product attributes; callers may re-render the returned Product
+    objects through the normal Telegram card path.
+    """
+
+    probes = _feature_probe_words(question)
+    if not probes or not products:
+        return []
+    matched = [
+        product
+        for product in products
+        if any(phrase_in_text(product.title, word) for word in probes)
+    ]
+    return matched[:MAX_RESULTS_SHOWN]
 
 
 def deterministic_answer(question: str, products: list[Product]) -> str | None:
@@ -568,21 +589,15 @@ def deterministic_answer(question: str, products: list[Product]) -> str | None:
     # Positive feature probe: report products whose REAL titles contain the
     # asked word. A negative result returns None (a different wording may
     # still match), so the bot never claims "нет" too confidently.
-    probes = _feature_probe_words(question)
-    if probes:
-        matched = [
-            product
-            for product in products
-            if any(phrase_in_text(product.title, word) for word in probes)
-        ]
-        if matched:
-            lines = ["✅ <b>Такие варианты есть в этой выборке</b>"]
-            lines.extend(
-                f"• {product.title[:70]} — "
-                f"{format_price(product.price, product.currency)}"
-                for product in matched[:MAX_RESULTS_SHOWN]
-            )
-            return "\n".join(lines)
+    matched = matching_products_for_question(question, products)
+    if matched:
+        lines = ["✅ <b>Такие варианты есть в этой выборке</b>"]
+        lines.extend(
+            f"• {product.title[:70]} — "
+            f"{format_price(product.price, product.currency)}"
+            for product in matched
+        )
+        return "\n".join(lines)
 
     return None
 
@@ -734,6 +749,13 @@ class ProductAssistant:
         self, product: Product, candidates: list[Product]
     ) -> CandidateSelection:
         return await self._select("better", product, candidates)
+
+    def matching_products(
+        self, question: str, products: list[Product]
+    ) -> list[Product]:
+        """Select already-shown products with title evidence for a feature question."""
+
+        return matching_products_for_question(question, products)
 
     async def answer(self, question: str, products: list[Product]) -> ProductAdvice:
         """«💬 Задать свой вопрос» - exact answers first, language second."""

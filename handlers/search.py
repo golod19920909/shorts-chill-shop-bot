@@ -499,20 +499,44 @@ async def _answer_over_shown(
     chat_id: int,
     question: str,
     session_id: str,
+    *,
+    user_id: int | None = None,
+    telegram_id: int | None = None,
+    conversation_state: ConversationEngineState | None = None,
 ) -> bool:
-    """Answer a COMPARE/EXPLAIN/ANSWER question over the SHOWN products.
+    """Answer or re-render a COMPARE/EXPLAIN question over the SHOWN products.
 
-    Reuses the SAME ``ProductAssistant`` the 🤖 menu uses, over the SAME cached
-    result set - so the answer is built only from real product fields and the
-    assistant says "нет данных" instead of inventing anything. Returns ``False``
-    when there is nothing to answer over, so the caller can fall back to a
-    normal search rather than showing an empty screen.
+    Feature matches backed by real listing titles are re-delivered as the
+    existing product cards. Questions requiring explanation still use the
+    factual ProductAssistant text answer. No provider search is performed.
     """
 
     assistant = context.application.bot_data.get("product_assistant")
     products = common.get_cached_products(context, session_id)
-    if assistant is None or not products:
+    source_outcome = common.get_cached_outcome(context, session_id)
+    if assistant is None or not products or source_outcome is None:
         return False
+
+    selector = getattr(assistant, "matching_products", None)
+    selected = selector(question, products[:8]) if callable(selector) else []
+    if selected:
+        narrowed = SearchOutcome(
+            request=source_outcome.request,
+            products=list(selected),
+        )
+        shown = await send_search_results(
+            context,
+            chat_id,
+            narrowed,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            pre_curated=True,
+            follow_up=False,
+            conversation_state=conversation_state,
+        )
+        if shown:
+            context.user_data["last_shown_session"] = shown
+        return True
 
     advice = await assistant.answer(question, products[:8])
     if advice is None or not getattr(advice, "text", "").strip():
@@ -739,7 +763,13 @@ async def _deliver_decision(
         session_id = _last_shown_session(context)
         if session_id is not None:
             answered = await _answer_over_shown(
-                context, message.chat_id, original_text, session_id
+                context,
+                message.chat_id,
+                original_text,
+                session_id,
+                user_id=user_id,
+                telegram_id=telegram_id,
+                conversation_state=conversation_state,
             )
             if answered:
                 return

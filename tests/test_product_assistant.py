@@ -26,6 +26,7 @@ from services.product_assistant import (
     cheaper_candidates,
     deterministic_advice,
     intent_from_title,
+    matching_products_for_question,
     product_facts,
 )
 from services.search_service import SearchOutcome
@@ -375,6 +376,19 @@ class QuestionTests(unittest.TestCase):
 
         self.assertFalse(advice.used_ai)
         self.assertIn("В данных AliExpress этого нет", advice.text)
+
+    def test_feature_question_selects_matching_existing_products(self) -> None:
+        products = [
+            make_product("dim", "Карманный светодиодный фонарик", 20.0),
+            make_product("bright", "Супер яркий мощный карманный фонарик", 30.0),
+            make_product("other", "Компактный фонарь с клипсой", 15.0),
+        ]
+
+        selected = matching_products_for_question(
+            "А какой из них ярко светит?", products
+        )
+
+        self.assertEqual([product.product_id for product in selected], ["bright"])
 
     def test_feature_question_uses_real_titles_only(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))

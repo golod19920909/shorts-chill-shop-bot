@@ -242,7 +242,11 @@ feature checked against listing evidence. These are refinements of the active
 product, not product switches. A COMPARE question
 («какие лучше?») is answered over the SHOWN candidates (via
 `ProductAssistant`), never re-searched; with nothing shown the engine asks
-one clarification instead of searching the literal question.
+one clarification instead of searching the literal question. Feature questions
+that match real listing-title evidence re-deliver the selected existing
+products through the unchanged Telegram card renderer; explanatory questions
+remain text answers. Both paths use the cached result set and make no provider
+search.
 
 ### Retrieval → AliExpress
 
