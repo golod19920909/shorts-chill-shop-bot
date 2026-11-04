@@ -316,8 +316,8 @@ class ShownQuestionRoutingTests(unittest.TestCase):
     def test_feature_match_reuses_existing_card_renderer(self) -> None:
         from handlers import common, search as search_handler
 
-        original = make_outcome(3)
-        selected = original.products[1]
+        original = make_outcome(10)
+        selected = original.products[9]
         assistant = RecordingAssistant(matching=[selected])
         context = FakeContext({
             "database": FakeDatabase(),

@@ -518,7 +518,7 @@ async def _answer_over_shown(
         return False
 
     selector = getattr(assistant, "matching_products", None)
-    selected = selector(question, products[:8]) if callable(selector) else []
+    selected = selector(question, products) if callable(selector) else []
     if selected:
         narrowed = SearchOutcome(
             request=source_outcome.request,
