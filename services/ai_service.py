@@ -687,6 +687,65 @@ MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выпо�
 #: Bounded turn planner for the conversational router. It interprets each
 #: user message against the active ledger and may ask one high-value question;
 #: its output is restricted to a validated action, product type, question or reply.
+def _bounded_conversation_context(context: dict, *, max_chars: int = 4000) -> dict:
+    """Return a compact, schema-safe snapshot without cutting JSON mid-field.
+
+    The latest user turn, pending clarification and active constraints are
+    more important than older transcript text or the tail of a long result
+    list. Only fields understood by the conversational planner are forwarded.
+    """
+    recent = context.get("recent_turns", [])
+    slots = context.get("active_slots", [])
+    shown = context.get("shown_products", [])
+
+    payload = {
+        "recent_turns": [
+            str(item)[:180] for item in recent[-6:]
+        ] if isinstance(recent, list) else [],
+        "active_slots": [
+            {
+                "kind": str(item.get("kind") or "")[:32],
+                "value": str(item.get("value") or "")[:120],
+                "source_turn": item.get("source_turn"),
+                "status": str(item.get("status") or "active")[:16],
+            }
+            for item in slots[-16:]
+            if isinstance(item, dict)
+        ] if isinstance(slots, list) else [],
+        "shown_product_count": max(
+            0, int(context.get("shown_product_count") or 0)
+        ),
+        "shown_products": [
+            {
+                "id": str(item.get("id") or "")[:64],
+                "title": str(item.get("title") or "")[:140],
+                "price": item.get("price"),
+                "currency": str(item.get("currency") or "")[:8],
+            }
+            for item in shown[:8]
+            if isinstance(item, dict)
+        ] if isinstance(shown, list) else [],
+        "last_outcome": str(context.get("last_outcome") or "")[:40],
+        "pending_question": str(context.get("pending_question") or "")[:240],
+    }
+
+    def encoded() -> str:
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+    # Drop the least valuable context first; never emit malformed JSON.
+    while len(encoded()) > max_chars and payload["shown_products"]:
+        payload["shown_products"].pop()
+    while len(encoded()) > max_chars and payload["recent_turns"]:
+        payload["recent_turns"].pop(0)
+    while len(encoded()) > max_chars and payload["active_slots"]:
+        payload["active_slots"].pop(0)
+    if len(encoded()) > max_chars:
+        payload["pending_question"] = payload["pending_question"][:80]
+    if len(encoded()) > max_chars:
+        payload["pending_question"] = ""
+    return payload
+
+
 CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
 
 Контекст диалога (JSON):
@@ -1711,9 +1770,15 @@ class AIService:
         if not self.is_available or not (user_text or "").strip():
             return None
 
-        context_json = json.dumps(context or {}, ensure_ascii=False, separators=(",", ":"))
+        # Build a bounded, valid JSON snapshot. Slicing serialized JSON at
+        # an arbitrary character offset can leave a broken document (and
+        # silently hide the pending question or the active constraints).
+        context_payload = _bounded_conversation_context(context or {})
+        context_json = json.dumps(
+            context_payload, ensure_ascii=False, separators=(",", ":")
+        )
         prompt = CONVERSATION_TURN_PROMPT.format(
-            context=context_json[:4000],
+            context=context_json,
             message=(user_text or "").strip()[:500],
         )
         try:

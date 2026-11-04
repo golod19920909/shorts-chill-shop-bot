@@ -15,6 +15,42 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         service._generate = AsyncMock(return_value=response)
         return service
 
+    async def test_long_context_is_compacted_as_valid_json_without_losing_pending_question(self):
+        import json
+
+        service = self.make_service(
+            '{"action":"clarify","confidence":0.4,'
+            '"product_type":null,"question":"Уточните задачу"}'
+        )
+        context = {
+            "recent_turns": [f"старое сообщение {i} " + ("текст " * 40) for i in range(10)],
+            "active_slots": [
+                {"kind": "feature", "value": f"ограничение {i} " + ("деталь " * 20),
+                 "source_turn": i, "status": "active"}
+                for i in range(20)
+            ],
+            "shown_product_count": 12,
+            "shown_products": [
+                {"id": f"product-{i}", "title": "Название " + ("товар " * 50),
+                 "price": 100 + i, "currency": "UAH"}
+                for i in range(12)
+            ],
+            "last_outcome": "results",
+            "pending_question": "Для какой задачи нужен товар?",
+        }
+
+        await service.decide_conversation_turn("для работы", context=context)
+
+        prompt = service._generate.await_args.args[0]
+        start = prompt.index("Контекст диалога (JSON):") + len("Контекст диалога (JSON):")
+        end = prompt.index("\n\nЕсли в контексте", start)
+        serialized = prompt[start:end].strip()
+        self.assertLessEqual(len(serialized), 4000)
+        parsed = json.loads(serialized)
+        self.assertEqual(parsed["pending_question"], "Для какой задачи нужен товар?")
+        self.assertIn("active_slots", parsed)
+        self.assertIn("shown_products", parsed)
+
     async def test_valid_natural_response_is_returned_without_shopping_slots(self):
         service = self.make_service(
             '{"action":"respond","confidence":0.99,"product_type":null,'
