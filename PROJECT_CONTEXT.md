@@ -1046,13 +1046,20 @@ production timings:
   when the outcome contains results and a selector is available. The selector
   is capped at 20 candidates; the separate presentation cap remains 30.
 - The conversational retrieval adapter calls `SearchService.find_products`
-  with `raw=True`, `broaden=True`, and `raw_broaden=True`. In this raw
-  path, retrieval uses one page but evaluates every grounded query variant.
+  with `raw=True`, `broaden=True`, and `raw_broaden=True`. The raw path
+  now uses the configured bounded page depth for product searches: page 1
+  evaluates every grounded query variant (maximum three); later pages repeat
+  only the primary phrase. All collected page/phrase routes are fused with
+  RRF. Pagination stops once the unique raw pool reaches its target or the
+  configured page limit is exhausted. The default `SEARCH_MAX_PAGES` is 3,
+  so one conversational turn makes at most five sequential AliExpress
+  product-query calls for one provider (three first-page variants plus two
+  primary-phrase pages); the actual count is lower when the pool fills sooner.
 - `services.query_variants.product_query_variants` caps the phrase list at
-  three. `SearchService.find_products` iterates those phrases sequentially;
-  provider calls for the same phrase are gathered concurrently. The route
-  rankings are fused with RRF after collection, so removing a route or
-  changing execution order without preserving the full route set could alter
+  three. `SearchService.find_products` iterates grounded phrases/pages
+  sequentially; provider calls for the same phrase are gathered concurrently.
+  RRF is applied across all collected routes, so removing a route or changing
+  execution order without preserving the complete route set could alter
   candidate quality.
 - The AliExpress HTTP client defaults to a 10-second HTTP timeout, one retry
   for transient timeout/transport/5xx failures, and a 1-second retry backoff.
@@ -1075,6 +1082,35 @@ variant/retry, and Gemini selection before choosing a bounded optimization.
 The 5-second interpretation, 8-second selection, 20-candidate AI window and
 30-card presentation cap remain unchanged.
 
+
+
+### Conversational retrieval pagination implementation (2026-11-04)
+
+The raw conversational path previously bypassed the existing
+`SEARCH_MAX_PAGES` loop because the page condition required `not raw`.
+That meant the engine fetched up to three grounded variants, but only from
+page 1, even though the AliExpress adapter already forwarded `page_no` and
+the project had a bounded three-page default.
+
+Fixed in `services/search_service.py`:
+- Raw conversational SEARCH requests now use the same configured page range.
+- Page 1 still gathers every grounded variant before any early stop, preserving
+  complete RRF route coverage. Deeper pages repeat only the primary phrase.
+- After each complete page, the service checks the fused unique pool and stops
+  when the raw pool target is reached. Otherwise it continues only up to the
+  configured page limit.
+- The final candidate pool is fused across all fetched page/phrase routes;
+  no provider products or fields are synthesized.
+
+Added an offline regression in `tests/test_search_service.py` proving that a
+thin first page triggers page 2 and that reaching the raw pool target stops
+before page 3. Existing tests continue to protect first-page route fusion and
+the single-page behavior when raw pagination is not explicitly enabled.
+
+This change addresses a concrete retrieval-depth defect; it does not by itself
+prove live catalog quality, fix every candidate-validation rejection, or
+establish end-to-end response speed. Those still require the remaining
+technical work and a live Telegram check with the user's own credentials.
 
 ### Material and composition follow-ups (2026-11-03)
 
