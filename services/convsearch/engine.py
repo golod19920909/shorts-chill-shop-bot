@@ -114,6 +114,23 @@ _DISCOURSE_MARKERS: frozenset[str] = frozenset(
 )
 
 
+_RUSSIAN_ADJECTIVE_ENDING_RE = re.compile(
+    r"(?:ый|ий|ой|ая|яя|ое|ее|ые|ие|ого|его|ому|ему|ым|им|ой|ей|"
+    r"ую|юю|ых|их|ыми|ими)$",
+    re.IGNORECASE,
+)
+
+
+def _is_modifier_only_phrase(words: list[str]) -> bool:
+    """Reject a phrase made only of inflected Russian modifiers, not a noun.
+
+    This is deliberately a narrow grammatical guard, not a product catalogue:
+    a lone adjective such as «автомобильный» cannot identify what to retrieve.
+    A phrase with a noun head («автомобильный компрессор») remains valid.
+    """
+    return bool(words) and all(_RUSSIAN_ADJECTIVE_ENDING_RE.search(word) for word in words)
+
+
 def _product_type_of(text: str) -> str | None:
     """The product type a NEW-search message names, or ``None``.
 
@@ -136,7 +153,7 @@ def _product_type_of(text: str) -> str | None:
         and token not in _DISCOURSE_MARKERS
         and not token.isdigit()
     ]
-    if not words:
+    if not words or _is_modifier_only_phrase(words):
         return None
     return " ".join(words)
 
@@ -171,6 +188,8 @@ def _explicit_requested_product_type(text: str) -> str | None:
         and not token.isdigit()
     ]
     if words:
+        if _is_modifier_only_phrase(words):
+            return None
         from services.convsearch.state import _CHARACTERISTIC_NOUNS
         # A request for a feature/specification («нужна защита IP67»)
         # modifies the active product; it is not itself a product switch.
@@ -304,6 +323,17 @@ class ConversationSearchEngine:
         )
         if explicit_product_switch:
             intent_override = MessageIntent.NEW_SEARCH
+
+        # Fail closed on a modifier-only fragment when there is no active
+        # product identity. A timeout or an over-eager model must not turn
+        # «Нужен автомобильный» into a marketplace query for that adjective.
+        # The next clarification answer remains attached to the conversation.
+        if (
+            current_type is None
+            and _product_type_of(text) is None
+            and intent_override in {None, MessageIntent.NEW_SEARCH}
+        ):
+            intent_override = MessageIntent.AMBIGUOUS
 
         # A pending clarification answer fills a gap in the CURRENT request;
         # it is not a replacement search. Gemini may correctly identify the
