@@ -44,7 +44,6 @@ logger = logging.getLogger(__name__)
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
 AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0
-AI_TURN_INTERPRETATION_TIMEOUT_SECONDS = 5.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
