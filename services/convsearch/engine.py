@@ -705,7 +705,7 @@ class ConversationSearchEngine:
                 refined=refined, intent=intent, observation=observation,
                 exclude_shown=(intent is MessageIntent.ALTERNATIVES),
             )
-            return len(preview.products) < candidate_target
+            return int(preview.report.get("safe_ranked", 0)) < candidate_target
 
         try:
             backend_outcome = await self._backend.retrieve(
@@ -1203,6 +1203,11 @@ class ConversationSearchEngine:
         )
         report["ranked"] = len(ranked)
         report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
+        review_ids = set(report["semantic_review_ids"])
+        report["safe_ranked"] = sum(
+            1 for product in ranked
+            if product.product_id not in review_ids
+        )
 
         # The presentation contract is an absolute 30-card ceiling.
         # An explicit user count may lower it, never raise it; otherwise the
