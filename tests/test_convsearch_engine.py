@@ -744,6 +744,43 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["reason"], "deterministic_fallback")
 
 
+    async def test_empty_search_gets_one_grounded_natural_followup(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        class EmptyBackend:
+            async def retrieve(self, strategy, *, exclude=None):
+                return BackendOutcome(
+                    ok=True,
+                    reason="no_candidates",
+                    products=[],
+                    request=strategy.request,
+                )
+
+        reply = "Пока не удалось подобрать подходящий вариант. Какое пожелание можно немного ослабить?"
+        composer = AsyncMock(return_value=reply)
+        interpreter = AsyncMock(return_value=None)
+        engine = ConversationSearchEngine(retrieval_backend=EmptyBackend())
+        engine.bind_ai_service(SimpleNamespace(
+            decide_conversation_turn=interpreter,
+            compose_no_results_reply=composer,
+        ))
+
+        decision = await engine.handle_message(
+            "no-results-user",
+            "Нужен аккумуляторный шуруповёрт",
+        )
+
+        self.assertEqual(decision.outcome, Outcome.NO_CANDIDATES)
+        self.assertEqual(decision.reply, reply)
+        composer.assert_awaited_once()
+        self.assertTrue(
+            any(
+                slot["kind"] == "type"
+                for slot in composer.await_args.kwargs["active_slots"]
+            )
+        )
+
+
 class ConstraintAndFusionRegressionTests(unittest.TestCase):
     def _product(self, pid: str, title: str, *, price=None, currency=None) -> Product:
         return Product(
