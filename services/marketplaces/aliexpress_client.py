@@ -360,7 +360,7 @@ class AliExpressClient:
             for key in ("sub_msg", "msg", "message")
         )
         match = re.search(
-            r"ban\\s+will\\s+last\\s+(\\d+(?:\\.\\d+)?)\\s+seconds?",
+            r"ban\s+will\s+last\s+(\d+(?:\.\d+)?)\s+seconds?",
             message,
             re.IGNORECASE,
         )
