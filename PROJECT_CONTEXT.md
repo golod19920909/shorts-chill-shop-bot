@@ -1112,6 +1112,31 @@ prove live catalog quality, fix every candidate-validation rejection, or
 establish end-to-end response speed. Those still require the remaining
 technical work and a live Telegram check with the user's own credentials.
 
+
+### Natural no-results follow-up and pool diagnostics (2026-11-04)
+
+When a completed conversational search returns `NO_CANDIDATES` or
+`NO_ELIGIBLE`, the engine now asks the bound Gemini service to write one
+short, natural follow-up question. The prompt receives only the user's latest
+message, active slot values and the internal outcome reason - no candidate
+rows, product facts, prices or URLs. The output is accepted only as plain
+text up to 450 characters with exactly one question and no links/markup.
+The generation is bounded to 3 seconds and is skipped after a candidate
+selection timeout/error so a slow model cannot delay an already-failed turn.
+If unavailable or invalid, Telegram uses one short, honest fallback question.
+Provider/API failures remain a separate outcome and are not described as an
+empty catalogue.
+
+The existing `SearchDecision.reply` field carries this follow-up text as
+well as ordinary `RESPOND` replies. The Telegram delivery layer prefers it
+for no-result outcomes and otherwise uses the safe fallback.
+
+The engine also logs one aggregate pool-stage line per turn:
+raw → type → required-feature → exclusion → budget → ranked → semantic-review
+→ AI-selected → final. This makes it possible to identify exactly where a
+live pool shrinks (for example, 39 retrieved rows to a smaller eligible set)
+without logging product titles or user text.
+
 ### Material and composition follow-ups (2026-11-03)
 
 Material/composition phrases are refinements of the active product, not new
