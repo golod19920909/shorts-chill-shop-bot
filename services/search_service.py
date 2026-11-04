@@ -751,6 +751,7 @@ class SearchService:
             page_variants = variants if page_no == pages[0] else variants[:1]
             pages_used = page_no
             pages_scanned += 1
+            page_rows = 0
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
@@ -785,6 +786,7 @@ class SearchService:
                         len(result) for result in results
                         if isinstance(result, list)
                     )
+                    page_rows += route_rows
                     route_failures = sum(
                         1 for result in results
                         if isinstance(result, BaseException)
@@ -897,13 +899,21 @@ class SearchService:
             if all_failed:
                 break
             if raw:
-                # The conversational path now uses the same bounded page
-                # depth as ordinary product search. Finish every grounded
-                # route on page 1 first (RRF must see the complete route set),
-                # then request only the primary phrase on deeper pages.
-                # Stop as soon as the fused unique pool is large enough, or a
-                # deeper page adds no new identities. This bounds API usage
-                # and avoids paying for pages that cannot improve the pool.
+                # An empty deeper page is the marketplace's end-of-results
+                # signal for this phrase; do not spend another request on a
+                # later page. Page 1 is different: every grounded variant
+                # must run before we decide whether the pool is empty.
+                if page_rows == 0:
+                    logger.info(
+                        "RAW conversational pagination stopped: page %d "
+                        "returned no rows",
+                        page_no,
+                    )
+                    break
+                # Finish every grounded route on page 1 first (RRF must see
+                # the complete route set), then request only the primary
+                # phrase on deeper pages. Stop when the fused unique pool
+                # reaches its target.
                 from services.convsearch.retrieval import merge_route_results
 
                 route_rankings = [
