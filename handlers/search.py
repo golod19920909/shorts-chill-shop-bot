@@ -97,6 +97,23 @@ SEARCH_UNAVAILABLE_TEXT = (
     "⚠️ Поиск временно недоступен. Попробуйте позже."
 )
 
+#: Real candidates were retrieved, but semantic selection could not verify
+#: which ones match the user's intent. Never show an unreviewed mixed pool.
+SEMANTIC_SELECTION_UNAVAILABLE_TEXT = (
+    "Не удалось надёжно проверить найденные варианты, поэтому я не буду "
+    "показывать случайные товары. Попробуйте повторить запрос чуть позже."
+)
+
+
+def _no_eligible_user_message(decision) -> str:
+    selection_status = (decision.report or {}).get("ai_selection")
+    if selection_status in {
+        "timeout_fallback", "error_fallback", "unavailable_fallback",
+        "turn_budget_exhausted", "empty_fallback",
+    }:
+        return SEMANTIC_SELECTION_UNAVAILABLE_TEXT
+    return EMPTY_RESULT_TEXT
+
 #: The ONLY text a user ever sees when a COMPARE/EXPLAIN/ANSWER question
 #: cannot be answered because the previously shown products are gone (the
 #: cache is empty, expired, evicted, or lost after a restart). It never
@@ -759,7 +776,7 @@ async def _deliver_decision(
             metadata={"source": "text", "reason": reason},
         )
         await context.bot.send_message(
-            message.chat_id, EMPTY_RESULT_TEXT,
+            message.chat_id, _no_eligible_user_message(decision),
             reply_markup=back_to_menu_keyboard(),
         )
         return
