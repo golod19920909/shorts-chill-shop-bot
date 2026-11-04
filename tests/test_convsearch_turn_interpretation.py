@@ -1430,7 +1430,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_semantic_selector_empty_result_does_not_restore_irrelevant_items(self):
         class EmptySelectingAI(FakeAI):
-            async def select_conversation_candidates(self, candidates, *, query, wanted=20):
+            async def select_conversation_candidates(self, candidates, *, query, wanted=20, required_features=None, identity_review_ids=None):
                 return []
 
         ai = EmptySelectingAI(None)
