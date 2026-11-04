@@ -1488,3 +1488,13 @@ extractors return no new item identity for this wording, that the turn is
 classified as a refinement, and that the clean «два аккумулятора» feature is
 stored without «хочу/было». This is a general subordinate-clause grammar rule,
 not a product/category-specific exception. CI verification is pending.
+
+
+Verification for subordinate-clause follow-up fix on head
+`0a269949bc9be576f5f1172ab905a5f6b821ed61`, GitHub Actions run
+**41868280671**:
+- Focused conversational regressions: **214 passed, 8 subtests passed**.
+- Filtered repository suite: **2,108 passed, 678 subtests passed, 1 warning**.
+- The workflow excludes the documented stale legacy modules; this is not an
+  unfiltered full-suite pass.
+- Offline only; no live Telegram/Gemini/AliExpress calls were made.
