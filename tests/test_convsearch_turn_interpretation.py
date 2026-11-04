@@ -168,11 +168,17 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         engine = ConversationSearchEngine(retrieval_backend=backend)
         engine.bind_ai_service(ai)
         state = ConversationEngineState(user_key="integration-budget")
+        search_started = []
+
+        async def announce_search_start():
+            search_started.append(len(backend.strategies))
 
         first = await engine.handle_message(
-            "integration-budget", "Сварочный аппарат", state=state, currency="UAH"
+            "integration-budget", "Сварочный аппарат", state=state, currency="UAH",
+            on_search_start=announce_search_start,
         )
         self.assertIs(first.outcome, Outcome.RESULTS)
+        self.assertEqual(search_started, [0])
         self.assertEqual(state.active_by_kind("type").value, "сварочный аппарат")
 
         followup = "До 2000 тысяч гривен"
