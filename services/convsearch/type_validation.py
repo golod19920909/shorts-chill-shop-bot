@@ -280,8 +280,20 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     #    ("держатель катушки" — the holder, not the reel). The requested
     #    head noun appearing AFTER the accessory head within the own
     #    identity is a genitive accessory relation, never the product.
+    def _is_accessory_head_token(token: str) -> bool:
+        # English accessory markers are complete words. Prefix matching
+        # "screw" against "screwdriver" incorrectly labels a real tool as
+        # a spare part. Russian entries that are intentional stems retain
+        # prefix matching for inflected forms.
+        return token in ACCESSORY_HEAD_WORDS or any(
+            marker
+            and "\u0400" <= marker[0] <= "\u052F"
+            and token.startswith(marker)
+            for marker in ACCESSORY_HEAD_WORDS
+        )
+
     accessory_head = next(
-        (token for token in own_tokens[:2] if token.startswith(tuple(ACCESSORY_HEAD_WORDS))),
+        (token for token in own_tokens[:2] if _is_accessory_head_token(token)),
         None,
     )
     accessory_composite = (
