@@ -63,7 +63,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             state=state, currency="UAH",
         )
 
-        self.assertIsNot(decision.outcome, Outcome.RESPOND)
+        self.assertIs(decision.outcome, Outcome.RESPOND)
         self.assertEqual(state.last_question, "Для какой задачи нужен товар?")
         self.assertEqual(backend.strategies, [])
 
