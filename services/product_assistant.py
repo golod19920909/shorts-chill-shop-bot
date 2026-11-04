@@ -500,6 +500,10 @@ def matching_products_for_question(
     objects through the normal Telegram card path.
     """
 
+    brightness = _brightness_comparison(question, products)
+    if brightness:
+        return brightness
+
     text = (question or "").lower()
     if any(
         marker in text
@@ -535,6 +539,49 @@ def matching_products_for_question(
         if any(title_matches_probe(product.title, word) for word in probes)
     ]
     return matched[:MAX_RESULTS_SHOWN]
+
+
+def _lumen_value(title: str | None) -> float | None:
+    """Extract a seller-advertised lumen value from a real listing title."""
+    if not title:
+        return None
+    match = re.search(
+        r"(?<!\\w)(\\d{2,5}(?:[.,]\\d+)?)\\s*(?:lm|лм|люмен(?:а|ов)?)",
+        str(title), flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    try:
+        return float(match.group(1).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _brightness_comparison(question: str, products: list[Product]) -> str | None:
+    """Compare seller-advertised lumen values; never infer brightness."""
+    lowered = (question or "").lower().replace("ё", "е")
+    if not any(m in lowered for m in ("ярк", "свет", "люмен", " lm", "лм", "освещ")):
+        return None
+    measured = [
+        (value, product) for product in products
+        if (value := _lumen_value(product.title)) is not None
+    ]
+    if not measured:
+        return None
+    measured.sort(key=lambda item: (item[0], item[1].orders_count or 0), reverse=True)
+    top_value = measured[0][0]
+    leaders = [product for value, product in measured if value == top_value]
+    lines = ["🔦 <b>По заявленным люменам ярче всего:</b>"]
+    for product in leaders[:3]:
+        lines.append(f"• {html.escape(product.title[:100])} — {top_value:g} лм")
+    lower_values = [value for value, _product in measured if value < top_value]
+    if lower_values:
+        lines.append(f"• Для сравнения: следующий указанный уровень — {max(lower_values):g} лм.")
+    lines.append(
+        "Это цифры из названий продавцов AliExpress, а не независимое измерение: "
+        "фактическую яркость они не подтверждают."
+    )
+    return "\n".join(lines)
 
 
 def deterministic_answer(question: str, products: list[Product]) -> str | None:

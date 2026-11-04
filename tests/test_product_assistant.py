@@ -368,6 +368,30 @@ class QuestionTests(unittest.TestCase):
 
         self.assertIn("900", advice.text)
 
+    def test_brightness_comparison_uses_lumen_values_from_titles(self) -> None:
+        assistant = ProductAssistant(ai_service=StubAI(available=False))
+        products = [
+            make_product("600", "Фонарик COB 600 лм", 290.0, "UAH"),
+            make_product("800", "Карманный фонарь 800LM", 378.0, "UAH"),
+            make_product("1100", "УФ-фонарик EDC 1100LM", 1503.0, "UAH"),
+            make_product("word", "Ультра яркий карманный фонарик", 250.0, "UAH"),
+        ]
+        advice = run(assistant.answer("А какой из них ярче светит?", products))
+        self.assertFalse(advice.used_ai)
+        self.assertIn("1100 лм", advice.text)
+        self.assertIn("не независимое измерение", advice.text)
+        self.assertNotIn("AliExpress этого нет", advice.text)
+
+    def test_brightness_comparison_does_not_invent_lumens(self) -> None:
+        assistant = ProductAssistant(ai_service=StubAI(available=False))
+        products = [
+            make_product("a", "Ультра яркий фонарик", 20.0, "UAH"),
+            make_product("b", "Мощный карманный фонарь", 25.0, "UAH"),
+        ]
+        advice = run(assistant.answer("Какой светит ярче?", products))
+        self.assertIn("В данных AliExpress этого нет", advice.text)
+
+
     def test_missing_information_is_reported_honestly(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))
         products = [make_product("a", "Наушники", 20.0)]

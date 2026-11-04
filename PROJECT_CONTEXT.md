@@ -1212,3 +1212,16 @@ This is a first systemic correction, not proof of production readiness. It
 does not change the Option C authority split, provider retrieval, deterministic
 product validation, the 30-card presentation cap, or the 20-candidate AI
 selection cap. Live Gemini/AliExpress/Telegram verification remains required.
+
+
+### Comparing specifications stated in listing titles
+
+Product follow-up answers may extract an explicit numeric specification from
+the real marketplace listing title when the provider's normalized product
+fields do not expose that specification separately. Brightness comparison
+recognizes seller-advertised lumen values (lm / лм / люмен), compares only
+those stated values across the complete shown result set, and labels them as
+seller claims rather than independently verified measurements. The handler
+passes the complete shown product set to ProductAssistant; an arbitrary
+first-eight slice can hide the strongest stated specification. No lumen value
+is inferred from adjectives such as «яркий».

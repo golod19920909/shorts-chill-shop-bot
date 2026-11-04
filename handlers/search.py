@@ -538,7 +538,8 @@ async def _answer_over_shown(
             context.user_data["last_shown_session"] = shown
         return True
 
-    advice = await assistant.answer(question, products[:8])
+    # Compare against every product shown, not an arbitrary first-eight subset.
+    advice = await assistant.answer(question, products)
     if advice is None or not getattr(advice, "text", "").strip():
         return False
     await context.bot.send_message(
