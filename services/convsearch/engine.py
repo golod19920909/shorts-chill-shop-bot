@@ -309,7 +309,7 @@ class ConversationSearchEngine:
             context_payload = {
                 "recent_turns": [turn.text for turn in state.turns[-6:]],
                 "active_slots": [slot.as_dict() for slot in state.active()],
-                "shown_product_count": len(state.shown_product_ids),
+                "shown_product_count": len(shown_products or []),
                 # Ground references such as «второй», «этот» and «из них»
                 # in the actual cached cards, not only a numeric count.
                 "shown_products": [

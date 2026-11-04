@@ -105,6 +105,29 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
+    async def test_shown_count_matches_current_visible_snapshot_not_stale_ledger_ids(self):
+        ai = FakeAI({
+            "action": "compare", "confidence": 0.99,
+            "product_type": None, "question": None,
+        })
+        engine = ConversationSearchEngine(retrieval_backend=FakeBackend([]))
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="shown-count")
+        state.record_product_type("устройство")
+        state.record_shown(["old-1", "old-2", "old-3"])
+
+        await engine.handle_message(
+            "shown-count", "Что лучше?",
+            state=state, currency="UAH",
+            shown_products=[listing("current-1", "Устройство первое")],
+        )
+
+        self.assertEqual(ai.contexts[0][1]["shown_product_count"], 1)
+        self.assertEqual(
+            [item["id"] for item in ai.contexts[0][1]["shown_products"]],
+            ["current-1"],
+        )
+
     async def test_natural_response_does_not_consume_pending_clarification(self):
         ai = FakeAI({
             "action": "respond", "confidence": 0.99,
