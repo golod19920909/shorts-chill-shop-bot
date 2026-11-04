@@ -243,6 +243,15 @@ class CrossCategoryValidationTests(unittest.TestCase):
     def test_empty_title_is_rejected_when_type_requested(self) -> None:
         self.assertFalse(validate_product_type(product("n2", ""), REEL).qualifies)
 
+    def test_trailing_adjective_does_not_replace_requested_product_head(self) -> None:
+        for requested_type in ("карманный фонарик", "фонарик карманный"):
+            verdict = validate_product_type(
+                product("flashlight", "Карманный светодиодный фонарик 1000 lm"),
+                requested_type,
+            )
+            self.assertTrue(verdict.qualifies, msg=requested_type)
+
+
 
 if __name__ == "__main__":
     unittest.main()
