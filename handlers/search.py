@@ -540,11 +540,17 @@ async def _answer_over_shown(
     cached_products = common.get_cached_products(context, session_id)
     source_outcome = common.get_cached_outcome(context, session_id)
     conversation_state = conversation_state or context.user_data.get("_convsearch_state")
-    shown_ids = (
-        conversation_state.shown_product_ids
-        if isinstance(conversation_state, ConversationEngineState) else []
-    )
-    products = _products_actually_shown(cached_products, shown_ids)
+    if isinstance(conversation_state, ConversationEngineState):
+        # The conversational search path has an explicit delivery ledger:
+        # only products opened in Telegram count as shown.
+        products = _products_actually_shown(
+            cached_products, conversation_state.shown_product_ids
+        )
+    else:
+        # Legacy card-action sessions predate this ledger. Preserve their
+        # established cached-result behavior; the main conversational path
+        # always supplies its state and takes the strict branch above.
+        products = cached_products
     if assistant is None or not products or source_outcome is None:
         return False
 
