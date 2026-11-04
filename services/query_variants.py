@@ -170,6 +170,25 @@ def _excluded_tokens(request: SearchRequest) -> frozenset[str]:
     )
 
 
+def _excluded_stems(request: SearchRequest) -> frozenset[str]:
+    """Legacy diagnostic view retained for the historical offline tests.
+
+    Production route filtering uses complete tokens via _excluded_tokens;
+    this helper preserves the former four-character representation for
+    existing test/audit callers only.
+    """
+
+    return frozenset(
+        token.casefold()[:PREFIX_MATCH_LENGTH]
+        for phrase in [
+            *request.intent_excluded_product_types,
+            *request.excluded_features,
+        ]
+        for token in tokenize(phrase)
+        if len(token) >= MIN_TERM_LENGTH
+    )
+
+
 def _reintroduces_excluded(
     phrase: str, excluded_tokens: frozenset[str]
 ) -> bool:
