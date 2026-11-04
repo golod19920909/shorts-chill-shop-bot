@@ -199,6 +199,27 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(state.active_by_kind("type").value, "рыболовная катушка")
         self.assertTrue(state.active_values("exclusion"))
 
+    def test_natural_two_battery_followup_is_a_feature_not_a_new_product(self) -> None:
+        state = ConversationEngineState(user_key="two-battery-natural-followup")
+        first = state.observe("Нужен аккумуляторный шуруповёрт для дома")
+        state.record_slots(first)
+        state.record_product_type("аккумуляторный шуруповёрт")
+
+        followup = state.observe("Хочу, чтобы было два аккумулятора")
+        state.record_slots(followup)
+
+        self.assertEqual(followup["intent"], MessageIntent.REFINE)
+        self.assertEqual(
+            state.active_by_kind("type").value,
+            "аккумуляторный шуруповёрт",
+        )
+        features = state.active_values("feature")
+        self.assertTrue(
+            any("аккумулятор" in value for value in features),
+            f"Expected the requested battery quantity to be recorded as a feature, got {features!r}",
+        )
+        self.assertFalse(any("хочу" in value or "было" in value for value in features))
+
     def test_scenario_b_non_impact_cordless_screwdriver(self) -> None:
         state = ConversationEngineState(user_key="u-b")
         obs1 = state.observe("Посоветуй аккумуляторный шуруповёрт.")
