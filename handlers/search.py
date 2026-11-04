@@ -35,6 +35,7 @@ from keyboards.products import (
     CB_PREFIX_TRACK,
     browse_card_keyboard,
 )
+from models.product import Product
 from models.search_request import SearchMode, SearchRequest
 from services import analytics
 from services.conversation import ConversationState, is_count_only_follow_up
