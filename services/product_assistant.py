@@ -500,6 +500,18 @@ def matching_products_for_question(
     objects through the normal Telegram card path.
     """
 
+    text = (question or "").lower()
+    if any(
+        marker in text
+        for marker in (*_PRICE_MARKERS, *_ORDERS_MARKERS, *_REVIEW_MARKERS)
+    ):
+        return []
+    if any(
+        marker in text
+        for marker in ("лучше", "лучший", "лучшие", "сравн", "почему")
+    ):
+        return []
+
     probes = _feature_probe_words(question)
     if not probes or not products:
         return []

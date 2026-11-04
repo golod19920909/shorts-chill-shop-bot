@@ -390,6 +390,21 @@ class QuestionTests(unittest.TestCase):
 
         self.assertEqual([product.product_id for product in selected], ["bright"])
 
+    def test_comparison_questions_are_not_mistaken_for_feature_selection(self) -> None:
+        products = [
+            make_product("cheap", "Дешёвый фонарик", 10.0),
+            make_product("normal", "Карманный фонарик", 20.0),
+        ]
+
+        self.assertEqual(
+            matching_products_for_question("Какой вариант дешевле?", products),
+            [],
+        )
+        self.assertEqual(
+            matching_products_for_question("Какой из них лучше?", products),
+            [],
+        )
+
     def test_feature_question_uses_real_titles_only(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))
         products = [
