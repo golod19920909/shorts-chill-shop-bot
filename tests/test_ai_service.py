@@ -163,6 +163,44 @@ class AIOutputValidationTests(unittest.TestCase):
 
         self.assertEqual(request.normalized_query, "беспроводные наушники")
 
+    def test_no_results_reply_is_natural_plain_text_with_one_question(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertEqual(operation, "no_results_reply")
+            self.assertEqual(models, (service.fast_model,))
+            self.assertIn("не удалось подобрать", contents)
+            return "Пока не вижу подходящего совпадения. Какое из пожеланий можно немного ослабить?"
+
+        service._generate = fake_generate
+        reply = asyncio.run(service.compose_no_results_reply(
+            "Нужен аккумуляторный инструмент",
+            active_slots=[{"kind": "budget", "value": "2500 UAH"}],
+            reason="no_eligible",
+        ))
+
+        self.assertEqual(
+            reply,
+            "Пока не вижу подходящего совпадения. Какое из пожеланий можно немного ослабить?",
+        )
+
+    def test_no_results_reply_rejects_unbounded_or_non_question_output(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            return "Поиск завершён. Подходящих товаров нет."
+
+        service._generate = fake_generate
+        reply = asyncio.run(service.compose_no_results_reply(
+            "Нужен инструмент",
+            active_slots=[],
+            reason="no_candidates",
+        ))
+
+        self.assertIsNone(reply)
+
     def test_valid_catalog_query_is_left_untouched(self) -> None:
         request = AIService._to_search_request(
             {"normalized_query": "wireless headphones"}, fallback_text="наушники"
