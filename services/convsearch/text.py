@@ -22,7 +22,7 @@ TOKEN_RE = re.compile(r"[^\W\d_][^\W_]*|\d+", re.UNICODE)
 STOPWORDS: frozenset[str] = frozenset(
     {
         # RU
-        "и", "а", "но", "или", "для", "с", "со", "в", "на", "по", "за", "из",
+        "и", "а", "но", "или", "для", "с", "со", "в", "на", "по", "за", "из", "у",
         "до", "от", "о", "об", "при", "что", "чтобы", "как", "это", "эта",
         "тот", "там", "мне", "меня", "я", "ты", "вы", "он", "она", "они",
         "него", "неё", "них", "должен", "должна", "должно", "должны", "быть",
@@ -75,7 +75,7 @@ def join_tokens(text: str) -> str:
 
 #: Fragment separators, mirroring the reference ``constraint_spans``: a
 #: constraint never crosses a clause boundary.
-_CLAUSE_SPLIT_RE = re.compile(r"[.;:,\n!?]| - ")
+_CLAUSE_SPLIT_RE = re.compile(r"[.;:,\n!?]|\b(?:чтобы|чтоб)\b| - ", re.IGNORECASE)
 
 
 def constraint_spans(text: str, min_words: int = 2) -> list[str]:
