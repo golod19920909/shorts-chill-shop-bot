@@ -416,11 +416,17 @@ analytics, admin.
   are NOT ported (different catalogue, no external model dependency) — the
   adaptation keeps its architecture (ledger, strategy, validation,
   deterministic ranking) and replaces its data layer.
-- Intent classification, constraint extraction and candidate evaluation are
-  deterministic closed-set grammars, NOT an LLM. Gemini is only asked (at
-  most) to phrase ONE clarifying question for a very short strategy-less
-  message. This keeps the turn fast, offline-safe and auditable; a fuller
-  LLM reasoner would need its own validation layer and quota budget.
+- Gemini interprets every user turn in the recent dialogue and active-slot
+  context, returning a validated structured action and (for a new search) a
+  proposed product type. The engine validates that proposal and owns the
+  conversation transition. Deterministic code remains authoritative for slot
+  provenance, budgets, exclusions, compatibility, product-type hard gates,
+  ranking, AliExpress retrieval and Telegram delivery. A separate bounded
+  Gemini selector may choose IDs only from the already retrieved real pool;
+  on timeout/error, only the deterministic candidates that passed every hard
+  gate remain eligible, while semantic-review candidates stay quarantined.
+  Both Gemini calls have independent bounded timeouts and deterministic
+  fallbacks.
 - Automated tests were NOT written or run for the 2026-10-28 migration
   (explicit task constraint). Runtime behaviour below was verified with
   OFFLINE source-level smoke runs against a FAKE retrieval backend (no
