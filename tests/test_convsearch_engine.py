@@ -792,14 +792,15 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(decision.report["ai_review_in_window"], 10)
         self.assertEqual(decision.report["ai_ordinary_in_window"], 10)
-        # The selector filled its 20-row window, so the remaining ten
-        # already-verified candidates can safely fill the 30-card ceiling.
-        self.assertEqual(len(decision.products), 30)
+        # The selector filled its 20-row window, so the five remaining
+        # already-verified candidates can safely join the 20 selected rows.
+        # The five unreviewed semantic candidates remain quarantined.
+        self.assertEqual(len(decision.products), 25)
         self.assertEqual(
             sum(pid.startswith("verified-") for pid in [
                 item.product_id for item in decision.products
             ]),
-            20,
+            15,
         )
 
     async def test_empty_search_gets_one_grounded_natural_followup(self):
