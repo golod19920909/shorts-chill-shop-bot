@@ -5,8 +5,9 @@ count how many times it was actually called. The rules under test:
 
 * timeouts, transport failures and 5xx gateway answers are retried a
   bounded number of times (``max_retries``, default 1) with backoff;
-* rate-limit answers (HTTP 429), business errors (``error_response``,
-  non-200 ``resp_code``) and malformed payloads are NEVER retried;
+* HTTP 429, permanent business errors, and malformed payloads are never
+  retried; an explicit short ``ApiCallLimit`` ban (up to five seconds)
+  gets one bounded server-directed retry;
 * a retry that fixes the call counts as a success (``calls_err == 0``),
   while a call that exhausts the budget counts as ONE error;
 * retries are visible in diagnostics via ``retries_spent``.
@@ -164,6 +165,55 @@ class NonRetryableTests(unittest.TestCase):
         self.assertEqual(client.retries_spent, 0)
         self.assertEqual(client.calls_err, 1)
         self.assertEqual(client.last_error_class, "HTTP 429")
+
+    def test_short_server_reported_api_call_limit_is_retried_once(self) -> None:
+        limited = {
+            "error_response": {
+                "code": "ApiCallLimit",
+                "msg": "Api access frequency exceeds the limit. this ban will last 1 seconds",
+            }
+        }
+        client, transport = make_client([limited, ok_payload()])
+
+        call(client)
+
+        self.assertEqual(transport.calls, 2)
+        self.assertEqual(client.retries_spent, 1)
+        self.assertEqual(client.calls_ok, 1)
+        self.assertEqual(client.calls_err, 0)
+        self.assertIsNone(client.last_error_class)
+
+    def test_api_call_limit_without_short_duration_is_not_retried(self) -> None:
+        limited = {
+            "error_response": {
+                "code": "ApiCallLimit",
+                "msg": "Api access frequency exceeds the limit",
+            }
+        }
+        client, transport = make_client([limited])
+
+        with self.assertRaises(AliExpressApiError):
+            call(client)
+
+        self.assertEqual(transport.calls, 1)
+        self.assertEqual(client.retries_spent, 0)
+        self.assertEqual(client.calls_err, 1)
+
+    def test_long_api_call_limit_ban_is_not_retried(self) -> None:
+        limited = {
+            "error_response": {
+                "code": "ApiCallLimit",
+                "msg": "Api access frequency exceeds the limit. this ban will last 30 seconds",
+            }
+        }
+        client, transport = make_client([limited])
+
+        with self.assertRaises(AliExpressApiError):
+            call(client)
+
+        self.assertEqual(transport.calls, 1)
+        self.assertEqual(client.retries_spent, 0)
+        self.assertEqual(client.calls_err, 1)
 
     def test_business_error_is_never_retried(self) -> None:
         client, transport = make_client([error_response_payload()])
