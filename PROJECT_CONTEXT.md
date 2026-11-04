@@ -1151,3 +1151,30 @@ GitHub Actions run **41703431090** on head commit
 The pull request remains a draft and must not be merged or treated as
 production/live-test ready until the remaining review and user-controlled
 Telegram smoke test are completed.
+
+
+## Live-log systemic correction — 2026-11-04
+
+The first live Telegram run exposed two independent weaknesses that offline
+tests did not exercise:
+
+1. The turn interpreter correctly returned a valid response but treated a
+   broad request with an underspecified purpose as ready for retrieval. The
+   conversation prompt now explicitly evaluates *search readiness*, not merely
+   whether a product noun is present. Broad application labels (for example,
+   "for a car") must not be mistaken for a sufficiently specific task when
+   materially different product classes remain possible. The model should ask
+   one discriminating question and keep short answers attached to the pending
+   request.
+2. Turn interpretation and post-retrieval selection previously shared one
+   eight-second cumulative budget. A normal ~4.7-second interpretation left
+   too little time for the second model call, so candidate selection often
+   timed out. They now have independent bounded windows: interpretation is
+   capped at five seconds in AIService; candidate selection receives its own
+   eight-second window. Worst-case sequential model wait is therefore bounded
+   at roughly thirteen seconds, excluding provider retrieval.
+
+This is a first systemic correction, not proof of production readiness. It
+does not change the Option C authority split, provider retrieval, deterministic
+product validation, the 30-card presentation cap, or the 20-candidate AI
+selection cap. Live Gemini/AliExpress/Telegram verification remains required.
