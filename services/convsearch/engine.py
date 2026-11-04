@@ -725,6 +725,38 @@ class ConversationSearchEngine:
             decision, strategy, state,
             timeout_seconds=AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
         )
+        # When the catalogue search completed but yielded no safe match,
+        # let Gemini phrase one grounded follow-up question. This call is
+        # skipped after a selector timeout/error so a slow or unavailable
+        # model cannot make an already-empty answer wait even longer.
+        selection_status = decision.report.get("ai_selection")
+        if (
+            decision.outcome in {Outcome.NO_CANDIDATES, Outcome.NO_ELIGIBLE}
+            and selection_status not in {
+                "timeout_fallback", "error_fallback", "unavailable_fallback",
+                "turn_budget_exhausted",
+            }
+        ):
+            composer = getattr(self._ai_service, "compose_no_results_reply", None)
+            if callable(composer):
+                try:
+                    async with asyncio.timeout(3.2):
+                        reply = await composer(
+                            text,
+                            active_slots=[
+                                {"kind": slot.kind, "value": slot.value}
+                                for slot in state.active()
+                            ],
+                            reason=str(decision.report.get("reason") or decision.outcome.value),
+                        )
+                    if isinstance(reply, str) and reply.strip():
+                        decision.reply = reply.strip()
+                        decision.report["no_results_reply"] = "gemini"
+                except Exception:  # noqa: BLE001 - a reply must never break search
+                    logger.info(
+                        "Natural no-results reply unavailable; using safe fallback",
+                        exc_info=True,
+                    )
         state.last_outcome = decision.outcome.value
         state.last_question = None
         # Selection is not delivery. The Telegram handler acknowledges the
