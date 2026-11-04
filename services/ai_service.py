@@ -1656,6 +1656,77 @@ class AIService:
             return None
         return selected[:limit]
 
+    async def compose_no_results_reply(
+        self,
+        user_text: str,
+        *,
+        active_slots: list[dict[str, str]],
+        reason: str,
+    ) -> str | None:
+        """Write one natural clarification after a completed empty search.
+
+        The model receives the user's wording and active constraints only - no
+        product rows - so it can ask how to refine the request but cannot
+        invent a catalogue result, price, feature or recommendation.
+        """
+        if not self.is_available:
+            return None
+
+        safe_slots = [
+            {
+                "kind": str(item.get("kind") or "")[:24],
+                "value": str(item.get("value") or "")[:100],
+            }
+            for item in active_slots[:12]
+            if isinstance(item, dict)
+        ]
+        context_json = json.dumps(
+            {"active_constraints": safe_slots, "search_outcome": str(reason)[:60]},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        prompt = f"""Ты — живой, внимательный консультант магазина.
+Поиск по запросу пользователя завершился, но подходящих и подтверждённых
+вариантов пока нет.
+
+Последнее сообщение пользователя:
+{(user_text or "").strip()[:300]}
+
+Активные пожелания из диалога (JSON):
+{context_json}
+
+Напиши короткий естественный ответ на языке пользователя: спокойно объясни,
+что в текущем поиске не удалось подобрать подходящий вариант, и задай РОВНО
+ОДИН конкретный вопрос, который поможет продолжить подбор. Если ограничений
+несколько, предложи уточнить, какое из них можно ослабить. Не заставляй
+повторять весь запрос. Не утверждай, что такого товара вообще не существует.
+Не выдумывай найденные товары, характеристики, цены, наличие, причины сбоя
+или уже выполненные дополнительные поиски. Не предлагай конкретные товары.
+Без ссылок, списков, разметки и приветствия. До 450 символов.
+Верни только готовый текст ответа, не JSON."""
+
+        try:
+            async with asyncio.timeout(min(self.timeout_seconds, 3.0)):
+                raw = await self._generate(
+                    prompt,
+                    models=(self.fast_model,),
+                    operation="no_results_reply",
+                )
+        except TimeoutError:
+            logger.info("Gemini no-results reply timed out; using safe fallback")
+            return None
+
+        reply = " ".join((raw or "").split()).strip().strip('"«»')
+        if (
+            not reply
+            or len(reply) > 450
+            or reply.count("?") != 1
+            or re.search(r"https?://|www\\.|<[^>]+>|\\{", reply, re.IGNORECASE)
+        ):
+            logger.info("Gemini no-results reply failed plain-text validation")
+            return None
+        return reply
+
     async def plan_product_search(self, product: Product, goal: str) -> str | None:
         """A short search wording for a candidate search, or ``None``.
 
