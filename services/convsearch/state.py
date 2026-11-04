@@ -488,6 +488,15 @@ class ConversationEngineState:
             protected_transition = (
                 intent is MessageIntent.NEW_SEARCH
                 and intent_override != MessageIntent.NEW_SEARCH
+                and (
+                    allow_product_switch
+                    or self.active_by_kind("type") is None
+                    or intent_override not in {
+                        MessageIntent.REFINE,
+                        MessageIntent.CORRECTION,
+                        MessageIntent.AMBIGUOUS,
+                    }
+                )
             ) or (
                 intent is MessageIntent.COMPARE
                 and intent_override != MessageIntent.COMPARE

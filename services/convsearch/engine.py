@@ -340,19 +340,63 @@ class ConversationSearchEngine:
             action_to_intent.get(ai_turn.get("action"))
             if isinstance(ai_turn, dict) else None
         )
-        # An explicit request naming a different item is a product switch
-        # even when it also contains prepositional context («насадка на
-        # дрель для дерева»). Do not let broad «для/на» framing or a
-        # contradictory Gemini action attach it to the previous product.
+        # Product continuity is decided from a grounded item identity, not
+        # from a raw-token mismatch. This lets Gemini interpret a follow-up
+        # naturally while still protecting a genuinely named product switch.
         explicit_product_type = _explicit_requested_product_type(text)
         current_type = state.active_by_kind("type")
-        explicit_product_switch = bool(
+        model_product_type = (
+            ai_turn.get("product_type")
+            if isinstance(ai_turn, dict)
+            and ai_turn.get("action") == "new_search"
+            and isinstance(ai_turn.get("product_type"), str)
+            else None
+        )
+        identity_actions = {
+            "new_search", "refine", "correction", "alternatives", "clarify",
+        }
+        message_product_type = (
             explicit_product_type
+            or model_product_type
+            or (
+                _product_type_of(text)
+                if isinstance(ai_turn, dict)
+                and ai_turn.get("action") in identity_actions
+                else None
+            )
+        )
+        explicit_product_switch = bool(
+            message_product_type
             and current_type is not None
-            and _is_different_product_type(explicit_product_type, current_type.value)
+            and _is_different_product_type(message_product_type, current_type.value)
         )
         if explicit_product_switch:
             intent_override = MessageIntent.NEW_SEARCH
+        elif (
+            current_type is not None
+            and isinstance(ai_turn, dict)
+            and ai_turn.get("action") == "new_search"
+            and not explicit_product_type
+        ):
+            if message_product_type:
+                # Gemini's proposed identity is the same item already being
+                # discussed: keep the current shopping thread and refine it.
+                intent_override = MessageIntent.REFINE
+            else:
+                # A claimed new search without a grounded product identity
+                # must not silently rerun the previous product's query.
+                question = "Какой именно товар вы хотите найти?"
+                state.record_turn(text)
+                state.last_outcome = Outcome.CLARIFY.value
+                state.last_question = question
+                return SearchDecision(
+                    outcome=Outcome.CLARIFY,
+                    question=question,
+                    refined=False,
+                    report={"intent": MessageIntent.AMBIGUOUS,
+                            "reason": "new_search_without_product_identity",
+                            "snapshot": state.snapshot()},
+                )
 
         # Fail closed on a modifier-only fragment when there is no active
         # product identity. A timeout or an over-eager model must not turn

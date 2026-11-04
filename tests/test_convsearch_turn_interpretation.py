@@ -67,6 +67,47 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.last_question, "Для какой задачи нужен товар?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_same_grounded_product_type_cannot_reset_active_search(self):
+        ai = FakeAI({
+            "action": "new_search", "confidence": 0.99,
+            "product_type": "устройство", "question": None,
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="same-type-continuity")
+        state.record_product_type("устройство")
+
+        decision = await engine.handle_message(
+            "same-type-continuity", "сделай устройство подешевле",
+            state=state, currency="UAH",
+        )
+
+        self.assertEqual(decision.report["intent"], MessageIntent.REFINE)
+        self.assertEqual(state.active_values("type"), ["устройство"])
+        self.assertEqual(backend.strategies[-1].product_type, "устройство")
+
+    async def test_new_search_without_grounded_identity_asks_instead_of_reusing_old_type(self):
+        ai = FakeAI({
+            "action": "new_search", "confidence": 0.99,
+            "product_type": None, "question": None,
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="missing-new-type")
+        state.record_product_type("устройство")
+
+        decision = await engine.handle_message(
+            "missing-new-type", "найди что-нибудь другое",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.CLARIFY)
+        self.assertEqual(decision.report["reason"], "new_search_without_product_identity")
+        self.assertEqual(state.active_values("type"), ["устройство"])
+        self.assertEqual(backend.strategies, [])
+
     async def test_natural_response_does_not_search_or_mutate_shopping_slots(self):
         ai = FakeAI({
             "action": "respond", "confidence": 0.99,
