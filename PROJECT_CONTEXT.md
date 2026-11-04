@@ -1137,6 +1137,29 @@ raw → type → required-feature → exclusion → budget → ranked → semant
 live pool shrinks (for example, 39 retrieved rows to a smaller eligible set)
 without logging product titles or user text.
 
+
+### Same-language synonym identity review (2026-11-04)
+
+The type validator no longer treats a same-script title with zero shared type
+tokens as an automatic mismatch. It is now quarantined for the same bounded
+Gemini semantic review used for other uncertain identities. This handles
+marketplace synonyms and alternate names without weakening the hard safety
+rules: explicit accessory heads, host-product relations, role clauses and
+genitive accessory mentions still fail before review. A quarantined candidate
+is never shown when semantic confirmation is unavailable or times out.
+
+Added regressions for a same-language alternate product name and for keeping
+an accessory listing rejected. The latter also protects inflected Russian
+accessory wording in a host-product relation.
+
+Latest successful workflow on branch head
+`e3a3527c0c0f38d79dbc7d79c731593a2176d590`:
+- Focused conversational regressions: **209 passed, 8 subtests passed**.
+- Repository suite excluding documented stale legacy modules:
+  **2,094 passed, 678 subtests passed, 1 warning**.
+- This is filtered offline verification, not an unfiltered full-suite pass.
+  No live Telegram, Gemini or AliExpress calls were made.
+
 ### Material and composition follow-ups (2026-11-03)
 
 Material/composition phrases are refinements of the active product, not new
