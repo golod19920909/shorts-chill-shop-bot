@@ -684,15 +684,14 @@ class ConversationSearchEngine:
                 decision.report["ai_selection"] = "semantic_review_unavailable"
                 if not decision.products:
                     decision.outcome = Outcome.NO_ELIGIBLE
-                    if decision.report.get("reason") != "unverified_required_features":
-                        feature_review_ids = set(
-                            decision.report.get("feature_review_ids", [])
-                        )
-                        if not (
-                            feature_review_ids
-                            and feature_review_ids.issuperset(semantic_review_ids)
-                        ):
-                            decision.report["reason"] = "unverified_product_identity"
+                    if (
+                        state.active_values("feature")
+                        or state.active_values("compatibility")
+                        or decision.report.get("feature_review_ids")
+                    ):
+                        decision.report["reason"] = "unverified_required_features"
+                    else:
+                        decision.report["reason"] = "unverified_product_identity"
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
