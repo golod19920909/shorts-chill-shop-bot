@@ -370,7 +370,13 @@ class AliExpressClient:
             return None
         return seconds
 
-    async def call(self, method: str, business: dict[str, Any] | None = None) -> dict:
+    async def call(
+        self,
+        method: str,
+        business: dict[str, Any] | None = None,
+        *,
+        _rate_limit_retry_used: bool = False,
+    ) -> dict:
         """Perform one documented API call and return its business payload.
 
         Raises :class:`AliExpressApiError` for HTTP failures, malformed
@@ -452,9 +458,20 @@ class AliExpressClient:
             error = payload["error_response"]
             code = error.get("code")
             wait = self._short_api_call_limit_wait(error)
-            if wait is not None and attempt < self.max_retries:
-                await self._retry("ApiCallLimit", attempt, delay=wait)
-                continue
+            if (
+                wait is not None
+                and self.max_retries > 0
+                and not _rate_limit_retry_used
+            ):
+                await self._retry("ApiCallLimit", 0, delay=wait)
+                # The business envelope is decoded after the transport loop,
+                # so re-enter once with an explicit guard rather than using
+                # continue outside that loop. A repeated ban is surfaced.
+                return await self.call(
+                    method,
+                    business,
+                    _rate_limit_retry_used=True,
+                )
             self.calls_err += 1
             self.last_error_class = f"error_response code={code}"
             raise AliExpressApiError(
