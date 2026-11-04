@@ -687,6 +687,13 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     async def announce_search_start() -> None:
         await message.reply_text(SEARCHING_TEXT)
 
+    shown_session_id = _last_shown_session(context)
+    shown_outcome = (
+        common.get_cached_outcome(context, shown_session_id)
+        if shown_session_id else None
+    )
+    shown_products = list(shown_outcome.products) if shown_outcome is not None else []
+
     try:
         decision = await engine.handle_message(
             user_key,
@@ -695,6 +702,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             result_limit=original_count,
             currency=region.get("currency"),
             state=conv_state,
+            shown_products=shown_products,
             on_search_start=announce_search_start,
         )
     except Exception:

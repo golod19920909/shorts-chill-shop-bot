@@ -283,6 +283,7 @@ class ConversationSearchEngine:
         result_limit: int | None = None,
         currency: str | None = None,
         state: ConversationEngineState | None = None,
+        shown_products: list[Product] | None = None,
         on_search_start=None,
     ) -> SearchDecision:
         """ONE user message → ONE ``SearchDecision``. The whole search flow.
@@ -309,6 +310,17 @@ class ConversationSearchEngine:
                 "recent_turns": [turn.text for turn in state.turns[-6:]],
                 "active_slots": [slot.as_dict() for slot in state.active()],
                 "shown_product_count": len(state.shown_product_ids),
+                # Ground references such as «второй», «этот» and «из них»
+                # in the actual cached cards, not only a numeric count.
+                "shown_products": [
+                    {
+                        "id": product.product_id,
+                        "title": product.title[:180],
+                        "price": product.price,
+                        "currency": product.currency,
+                    }
+                    for product in (shown_products or [])[:12]
+                ],
                 "last_outcome": state.last_outcome,
                 "pending_question": state.last_question,
             }

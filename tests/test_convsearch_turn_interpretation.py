@@ -47,6 +47,38 @@ class FakeBackend:
 
 
 class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_gemini_receives_grounded_context_for_shown_products(self):
+        ai = FakeAI({
+            "action": "compare", "confidence": 0.99,
+            "product_type": None, "question": None,
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="shown-context")
+        products = [
+            listing("shown-1", "Шуруповёрт бесщёточный 20 В", 2400),
+            listing("shown-2", "Шуруповёрт компактный 12 В", 1800),
+        ]
+        state.record_product_type("шуруповёрт")
+        state.record_shown([p.product_id for p in products])
+
+        await engine.handle_message(
+            "shown-context", "Какой из них лучше?",
+            state=state, currency="UAH", shown_products=products,
+        )
+
+        context = ai.contexts[0][1]
+        self.assertEqual(
+            context["shown_products"],
+            [
+                {"id": "shown-1", "title": "Шуруповёрт бесщёточный 20 В",
+                 "price": 2400, "currency": "UAH"},
+                {"id": "shown-2", "title": "Шуруповёрт компактный 12 В",
+                 "price": 1800, "currency": "UAH"},
+            ],
+        )
+
     async def test_natural_response_does_not_consume_pending_clarification(self):
         ai = FakeAI({
             "action": "respond", "confidence": 0.99,
