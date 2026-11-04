@@ -1534,3 +1534,8 @@ on head `53dbe86fb370dfdc9999651a0933193fe2381d33`, GitHub Actions run
   - Filtered repository suite: **2,110 passed, 683 subtests passed, 1 warning**.
   - The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
 - Offline tests only. No live Telegram, Gemini or AliExpress calls were made. The updated behavior still needs live validation with the user's credentials.
+
+
+### Explicit product-switch identity correction (2026-11-04)
+
+The turn router previously treated two product names as the same whenever ANY token overlapped. This incorrectly classified an explicit switch such as «сварочный аппарат» → «сварочный стол» as a refinement because the descriptive adjective «сварочный» is shared. Product-switch detection now compares the principal noun using the same head-noun rule as product-type validation. This preserves reordered/adjectival variants of the same item while recognizing a changed product head as a new search. Added direct and end-to-end regressions. CI verification is pending; no live provider calls have been made.
