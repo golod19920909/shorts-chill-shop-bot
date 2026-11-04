@@ -413,8 +413,36 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             qualifies = False
             reasons.append(f"accessory_head:{accessory_head}")
     if bare_noun_only:
-        qualifies = False
-        reasons.append("ambiguous_bare_noun")
+        # Sparse marketplace titles sometimes contain only the product head
+        # ("Reel 5000"), while the description supplies the missing subtype.
+        # That is not enough for an automatic pass, but it IS enough to ask
+        # Gemini for a bounded semantic review. A title that names another
+        # subtype ("cassette reel") remains a hard rejection even if the
+        # description contains a keyword-stuffed mention of the requested one.
+        head_positions = [
+            i for i, token in enumerate(own_tokens)
+            if head is not None and stems_match(token, head)
+        ]
+        head_position = head_positions[0] if head_positions else len(own_tokens)
+        has_conflicting_title_modifier = any(
+            _is_adjective(token)
+            and not any(
+                stems_match(token, qualifier)
+                for qualifier in type_tokens if qualifier != head
+            )
+            for token in own_tokens[:head_position]
+        )
+        description_confirms_qualifier = any(
+            _contains(description_tokens, qualifier)
+            for qualifier in type_tokens if qualifier != head
+        )
+        if description_confirms_qualifier and not has_conflicting_title_modifier:
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("bare_type_with_description_confirmation_requires_review")
+        else:
+            qualifies = False
+            reasons.append("ambiguous_bare_noun")
     if late_type_mention and qualifies:
         semantic_review_required = True
         score = 0.15
