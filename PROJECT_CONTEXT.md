@@ -1174,6 +1174,15 @@ tests did not exercise:
    eight-second window. Worst-case sequential model wait is therefore bounded
    at roughly thirteen seconds, excluding provider retrieval.
 
+3. If the semantic selector is actually attempted but times out, errors, or
+   returns an unusable answer, the engine no longer presents the unreviewed
+   deterministic pool as if it were semantically relevant. It returns an
+   honest no-eligible outcome instead. A lexical product-type match alone
+   cannot distinguish materially different classes that share a head noun.
+4. A standalone inflected modifier (for example, «автомобильный») is not
+   accepted as a product identity. The engine asks for the missing product
+   name instead of searching AliExpress for an adjective.
+
 This is a first systemic correction, not proof of production readiness. It
 does not change the Option C authority split, provider retrieval, deterministic
 product validation, the 30-card presentation cap, or the 20-candidate AI
