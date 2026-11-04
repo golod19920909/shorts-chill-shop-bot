@@ -560,6 +560,8 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             ["welder-unknown-batteries"],
         )
         self.assertEqual(selector.await_args.kwargs["query"].find("двумя аккумуляторами") >= 0, True)
+        self.assertEqual(selector.await_args.kwargs["required_features"], ["двумя аккумуляторами"])
+        self.assertEqual(selector.await_args.kwargs["identity_review_ids"], ["welder-unknown-batteries"])
 
     async def test_unknown_required_feature_stays_hidden_without_ai_confirmation(self):
         engine = ConversationSearchEngine()
