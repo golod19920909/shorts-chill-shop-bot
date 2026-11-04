@@ -95,6 +95,22 @@ class PendingClarificationLifecycleTests(unittest.TestCase):
             "Для какой задачи нужен товар?",
         )
 
+    def test_natural_reply_does_not_consume_pending_question(self):
+        state = ConversationEngineState(user_key="natural-reply-pending")
+        state.last_outcome = Outcome.CLARIFY.value
+        state.last_question = "Для какой задачи нужен товар?"
+        context = SimpleNamespace(user_data={"_convsearch_state": state})
+        set_pending_clarify(context, "Для какой задачи нужен товар?", "Компрессор")
+
+        consumed = consume_pending_clarify(context, Outcome.RESPOND)
+
+        self.assertFalse(consumed)
+        self.assertEqual(state.last_question, "Для какой задачи нужен товар?")
+        self.assertEqual(
+            get_pending_clarify(context)["question"],
+            "Для какой задачи нужен товар?",
+        )
+
     def test_completed_search_consumes_pending_question(self):
         state = ConversationEngineState(user_key="completed-pending")
         state.last_outcome = Outcome.CLARIFY.value

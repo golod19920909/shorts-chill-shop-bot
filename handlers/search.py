@@ -283,7 +283,9 @@ def consume_pending_clarify(context: ContextTypes.DEFAULT_TYPE, outcome) -> bool
     the next user message can retry without losing the conversational context.
     """
 
-    if outcome is ConvOutcome.PROVIDER_ERROR:
+    if outcome in {ConvOutcome.PROVIDER_ERROR, ConvOutcome.RESPOND}:
+        # A conversational aside (e.g. «спасибо») is not an answer to the
+        # pending shopping question; keep the original clarification alive.
         return False
     removed = context.user_data.pop(PENDING_CLARIFY_KEY, None) is not None
     _clear_ledger_pending_question(context)
