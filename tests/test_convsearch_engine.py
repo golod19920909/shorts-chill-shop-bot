@@ -699,6 +699,55 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selector.await_args.kwargs["required_features"], ["двумя аккумуляторами"])
         self.assertEqual(selector.await_args.kwargs["identity_review_ids"], ["welder-unknown-batteries"])
 
+    def test_required_feature_tokens_must_form_one_positive_span(self):
+        from services.convsearch.retrieval import _feature_is_evidenced
+
+        cases = [
+            (
+                product("affirmative", "Cordless tool with two batteries"),
+                "two batteries",
+                True,
+            ),
+            (
+                product(
+                    "scattered",
+                    "Cordless tool with two speed modes",
+                ).model_copy(update={"description": "Includes one battery"}),
+                "two batteries",
+                False,
+            ),
+            (
+                product(
+                    "negated-before",
+                    "Phone case",
+                ).model_copy(update={"description": "Not compatible with iPhone 15"}),
+                "iPhone 15",
+                False,
+            ),
+            (
+                product(
+                    "negated-after",
+                    "Battery pack",
+                ).model_copy(update={"description": "Two batteries not included"}),
+                "two batteries",
+                False,
+            ),
+            (
+                product(
+                    "positive-compatibility",
+                    "Phone case",
+                ).model_copy(update={"description": "Compatible with iPhone 15"}),
+                "iPhone 15",
+                True,
+            ),
+        ]
+        for candidate, feature, expected in cases:
+            with self.subTest(product_id=candidate.product_id):
+                self.assertEqual(
+                    _feature_is_evidenced(candidate, feature),
+                    expected,
+                )
+
     async def test_unknown_required_feature_stays_hidden_without_ai_confirmation(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="feature-review-no-ai")
