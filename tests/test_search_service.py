@@ -150,7 +150,9 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
     def test_raw_conversation_can_use_bounded_grounded_variants(self) -> None:
         products = [make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)]
         provider = self.ali_express(products)
-        service = SearchService([provider])
+        # This test isolates first-page variant fusion; multi-page traversal
+        # has its own regression below.
+        service = SearchService([provider], max_search_pages=1)
         request = SearchRequest(
             original_query="wireless headphones for running",
             normalized_query="wireless headphones for running",
