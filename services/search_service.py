@@ -903,7 +903,12 @@ class SearchService:
                 # signal for this phrase; do not spend another request on a
                 # later page. Page 1 is different: every grounded variant
                 # must run before we decide whether the pool is empty.
-                if page_rows == 0:
+                if page_rows == 0 and page_no > first_page:
+                    # Page 1 contains several independent grounded query
+                    # variants. An empty answer for the primary phrase does
+                    # not prove that the broader variants are empty too.
+                    # Only an empty DEEP page ends pagination, because deeper
+                    # pages repeat the primary phrase alone.
                     logger.info(
                         "RAW conversational pagination stopped: page %d "
                         "returned no rows",
