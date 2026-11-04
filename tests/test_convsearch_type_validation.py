@@ -11,7 +11,7 @@ from __future__ import annotations
 import unittest
 
 from models.product import Marketplace, Product
-from services.convsearch.type_validation import validate_product_type
+from services.convsearch.type_validation import stems_match, validate_product_type
 
 
 def product(pid: str, title: str, *, price: float = 25.0) -> Product:
@@ -28,6 +28,20 @@ def product(pid: str, title: str, *, price: float = 25.0) -> Product:
 REEL = "рыболовная катушка"
 BANK = "повербанк"
 DRILL = "дрель"
+
+
+class StemMatchingTests(unittest.TestCase):
+    """Word-form matching must not collapse unrelated Latin product nouns."""
+
+    def test_russian_inflections_keep_existing_stem_matching(self) -> None:
+        self.assertTrue(stems_match("шуруповерт", "шуруповерта"))
+        self.assertTrue(stems_match("катушка", "катушки"))
+
+    def test_english_plural_forms_match_without_prefix_false_positives(self) -> None:
+        self.assertTrue(stems_match("bearing", "bearings"))
+        self.assertTrue(stems_match("battery", "batteries"))
+        self.assertFalse(stems_match("table", "tablet"))
+        self.assertFalse(stems_match("drill", "drilling"))
 
 
 class FishingReelValidationTests(unittest.TestCase):
