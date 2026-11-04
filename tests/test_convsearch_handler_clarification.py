@@ -14,6 +14,7 @@ from handlers.search import (
     get_pending_clarify,
     set_pending_clarify,
     _clear_stale_shown_session_for_new_search,
+    _answer_over_shown,
     _get_convsearch_state,
     _record_browsed_conversation_product,
     _send_product_cards,
@@ -235,6 +236,45 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
             context, "active-session", "visible-after-edit"
         )
         self.assertEqual(state.shown_product_ids, ["visible-after-edit"])
+
+
+    async def test_product_answer_uses_only_cards_actually_seen_by_user(self):
+        from models.product import Marketplace, Product
+
+        products = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id=f"item-{i}",
+                title=f"Товар {i}",
+                product_url=f"https://www.aliexpress.com/item/item-{i}.html",
+            )
+            for i in range(1, 6)
+        ]
+        state = ConversationEngineState(user_key="visible-answer")
+        state.record_shown(["item-1"])
+        assistant = SimpleNamespace(
+            matching_products=lambda question, candidates: [],
+            answer=AsyncMock(return_value=SimpleNamespace(text="По открытой карточке данных недостаточно.")),
+        )
+        context = SimpleNamespace(
+            user_data={"_convsearch_state": state},
+            application=SimpleNamespace(bot_data={"product_assistant": assistant}),
+            bot=SimpleNamespace(send_message=AsyncMock()),
+        )
+        source = SimpleNamespace(request=SimpleNamespace(original_query="товар"))
+
+        with (
+            patch("handlers.search.common.get_cached_products", return_value=products),
+            patch("handlers.search.common.get_cached_outcome", return_value=source),
+        ):
+            answered = await _answer_over_shown(
+                context, 123, "Какая у него мощность?", "active-session"
+            )
+
+        self.assertTrue(answered)
+        passed_products = assistant.answer.await_args.args[1]
+        self.assertEqual([p.product_id for p in passed_products], ["item-1"])
+        context.bot.send_message.assert_awaited_once()
 
 
     async def test_failed_optional_hint_keeps_successfully_delivered_session(self):
