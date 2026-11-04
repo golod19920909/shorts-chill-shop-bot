@@ -75,16 +75,22 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         })
         backend = FakeBackend([listing("unused", "Фонарик 1000 лм")])
         engine = ConversationSearchEngine(retrieval_backend=backend)
+        search_started = []
+
+        async def announce_search_start():
+            search_started.append(True)
         engine.bind_ai_service(ai)
         state = ConversationEngineState(user_key="natural-response")
 
         decision = await engine.handle_message(
-            "natural-response", "Что означает люмен?", state=state, currency="UAH"
+            "natural-response", "Что означает люмен?", state=state, currency="UAH",
+            on_search_start=announce_search_start,
         )
 
         self.assertIs(decision.outcome, Outcome.RESPOND)
         self.assertEqual(decision.reply, "Люмен — единица светового потока.")
         self.assertEqual(backend.strategies, [])
+        self.assertEqual(search_started, [])
         self.assertEqual([turn.text for turn in state.turns], ["Что означает люмен?"])
         self.assertEqual(state.active(), [])
 

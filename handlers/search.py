@@ -684,7 +684,8 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
     seen = await common.seen_products(context, user_id)
-    await message.reply_text(SEARCHING_TEXT)
+    async def announce_search_start() -> None:
+        await message.reply_text(SEARCHING_TEXT)
 
     try:
         decision = await engine.handle_message(
@@ -694,6 +695,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             result_limit=original_count,
             currency=region.get("currency"),
             state=conv_state,
+            on_search_start=announce_search_start,
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")

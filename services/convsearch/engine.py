@@ -278,6 +278,7 @@ class ConversationSearchEngine:
         result_limit: int | None = None,
         currency: str | None = None,
         state: ConversationEngineState | None = None,
+        on_search_start=None,
     ) -> SearchDecision:
         """ONE user message → ONE ``SearchDecision``. The whole search flow.
 
@@ -596,6 +597,11 @@ class ConversationSearchEngine:
             )
 
         refined = intent is not MessageIntent.NEW_SEARCH
+        if callable(on_search_start):
+            try:
+                await on_search_start()
+            except Exception:  # noqa: BLE001 - UI status must not block a search
+                logger.debug("Could not send search-start status", exc_info=True)
         try:
             backend_outcome = await self._backend.retrieve(
                 strategy, exclude=exclude
