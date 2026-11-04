@@ -386,8 +386,8 @@ class ConversationSearchEngine:
                     _is_comparative_followup(text)
                     or _is_modifier_only_request(text)
                     or bool(re.search(
-                        r"(?:^|\\s)(?:с|со|из|без|для|под|по|до|with|without|"
-                        r"made\\s+(?:of|from))\\s+",
+                        r"(?:^|\s)(?:с|со|из|без|для|под|по|до|with|without|"
+                        r"made\s+(?:of|from))\s+",
                         text, re.IGNORECASE,
                     ))
                 )
