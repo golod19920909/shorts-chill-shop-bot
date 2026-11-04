@@ -152,6 +152,45 @@ class TransientRetryTests(unittest.TestCase):
         self.assertEqual(client.calls_err, 1)
 
 
+class SharedClientConcurrencyTests(unittest.TestCase):
+    def test_concurrent_tasks_are_serialized_per_application_key(self) -> None:
+        async def run() -> tuple[int, int]:
+            active = 0
+            max_active = 0
+            calls = 0
+
+            class ConcurrentTransport(httpx.AsyncBaseTransport):
+                async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                    nonlocal active, max_active, calls
+                    calls += 1
+                    active += 1
+                    max_active = max(max_active, active)
+                    await asyncio.sleep(0.01)
+                    active -= 1
+                    return httpx.Response(
+                        200, json=ok_payload(), request=request
+                    )
+
+            client = AliExpressClient(
+                CREDENTIALS,
+                http_client=httpx.AsyncClient(transport=ConcurrentTransport()),
+                retry_backoff=0.0,
+            )
+            try:
+                await asyncio.gather(
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "one"}),
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "two"}),
+                    client.call("aliexpress.affiliate.productdetail.get", {"product_ids": "3"}),
+                )
+            finally:
+                await client._http_client.aclose()
+            return calls, max_active
+
+        calls, max_active = asyncio.run(run())
+        self.assertEqual(calls, 3)
+        self.assertEqual(max_active, 1)
+
+
 class NonRetryableTests(unittest.TestCase):
     def test_rate_limit_429_is_never_retried(self) -> None:
         # Hiding a rate-limit problem behind retries would break the
