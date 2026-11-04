@@ -182,6 +182,55 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         )
         self.assertEqual([item.product_id for item in outcome.products], ["ali-1"])
 
+    def test_empty_primary_first_page_does_not_skip_other_grounded_variants(self) -> None:
+        found = make_product(
+            Marketplace.ALIEXPRESS, "broader-route-hit", 19.0,
+            title="Беспроводные наушники для спорта",
+        )
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            if request.page_no == 1 and phrase == "wireless headphones":
+                return []
+            if request.page_no == 1 and phrase == "bluetooth sport headphones":
+                return [found]
+            # The deeper page repeats only the primary phrase. An empty
+            # deeper page is the valid end-of-results signal.
+            return []
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_search_pages=2)
+        request = SearchRequest(
+            original_query="wireless headphones",
+            normalized_query="wireless headphones",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones", "bluetooth sport headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True
+                )
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                (1, "wireless headphones"),
+                (1, "bluetooth sport headphones"),
+                (2, "wireless headphones"),
+            ],
+        )
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["broader-route-hit"],
+        )
+
     def test_raw_conversation_fuses_all_routes_even_when_first_pool_is_full(self) -> None:
         a = make_product(Marketplace.ALIEXPRESS, "route-a", 19.0)
         b = make_product(Marketplace.ALIEXPRESS, "route-b", 18.0)
