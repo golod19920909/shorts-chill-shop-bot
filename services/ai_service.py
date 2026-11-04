@@ -1721,7 +1721,7 @@ class AIService:
             not reply
             or len(reply) > 450
             or reply.count("?") != 1
-            or re.search(r"https?://|www\\.|<[^>]+>|\\{", reply, re.IGNORECASE)
+            or re.search(r"https?://|www\.|<[^>]+>|\{", reply, re.IGNORECASE)
         ):
             logger.info("Gemini no-results reply failed plain-text validation")
             return None
