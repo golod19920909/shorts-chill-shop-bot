@@ -634,7 +634,8 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual([p.product_id for p in decision.products], ["exact"])
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
         self.assertEqual(decision.outcome, Outcome.RESULTS)
 
     async def test_selector_timeout_fails_closed_even_for_deterministically_validated_candidates(self):
@@ -688,7 +689,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
         self.assertEqual(decision.report["reason"], "semantic_no_match")
 
-    async def test_exhausted_turn_model_budget_skips_second_gemini_call(self):
+    async def test_zero_selector_window_fails_closed_without_second_gemini_call(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(return_value=["p1"])
         engine.bind_ai_service(SimpleNamespace(
@@ -713,8 +714,8 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         selector.assert_not_awaited()
-        self.assertEqual(decision.outcome, Outcome.RESULTS)
-        self.assertEqual([item.product_id for item in decision.products], ["p1"])
+        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
         self.assertEqual(decision.report["ai_selection"], "turn_budget_exhausted")
 
     async def test_selector_error_fails_closed_instead_of_showing_unreviewed_pool(self):
