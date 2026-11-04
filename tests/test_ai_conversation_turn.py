@@ -45,11 +45,48 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         start = prompt.index("Контекст диалога (JSON):") + len("Контекст диалога (JSON):")
         end = prompt.index("\n\nЕсли в контексте", start)
         serialized = prompt[start:end].strip()
-        self.assertLessEqual(len(serialized), 4000)
+        self.assertLessEqual(len(serialized), 6000)
         parsed = json.loads(serialized)
         self.assertEqual(parsed["pending_question"], "Для какой задачи нужен товар?")
         self.assertIn("active_slots", parsed)
         self.assertIn("shown_products", parsed)
+
+    async def test_thirty_shown_cards_fit_in_bounded_conversation_context(self):
+        service = self.make_service(
+            '{"action":"compare","confidence":0.99,"product_type":null,'
+            '"question":null,"slot_updates":[]}'
+        )
+        context = {
+            "recent_turns": [f"turn {i}" for i in range(6)],
+            "active_slots": [
+                {"kind": "feature", "value": f"required feature {i}",
+                 "source_turn": i, "status": "active"}
+                for i in range(4)
+            ],
+            "shown_product_count": 30,
+            "shown_products": [
+                {"id": f"product-{i:02d}", "title": f"Product {i:02d} " + ("detail " * 12),
+                 "price": 100 + i, "currency": "UAH"}
+                for i in range(30)
+            ],
+            "last_outcome": "results",
+            "pending_question": None,
+        }
+
+        await service.decide_conversation_turn("Compare all shown products", context=context)
+
+        prompt = service._generate.await_args.args[0]
+        start = prompt.index("Контекст диалога (JSON):") + len("Контекст диалога (JSON):")
+        end = prompt.index("\n\nЕсли в контексте", start)
+        serialized = prompt[start:end].strip()
+        parsed = json.loads(serialized)
+        self.assertLessEqual(len(serialized), 6000)
+        self.assertEqual(len(parsed["shown_products"]), 30)
+        self.assertEqual(
+            [item["id"] for item in parsed["shown_products"]],
+            [f"product-{i:02d}" for i in range(30)],
+        )
+
 
     async def test_valid_natural_response_is_returned_without_shopping_slots(self):
         service = self.make_service(
