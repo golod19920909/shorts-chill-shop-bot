@@ -448,8 +448,15 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             score = 0.15
             reasons.append("cross_language_identity_requires_semantic_review")
         elif coverage < 1.0:
-            qualifies = False
-            reasons.append("type_head_missing")
+            # A same-language title with no shared type token is not proof
+            # of a mismatch: marketplaces use synonyms and alternate names
+            # (for example, a drill may be listed under a different common
+            # name). Keep it quarantined for the bounded semantic selector.
+            # Explicit accessory/role relations above remain hard rejects,
+            # and a candidate is never auto-accepted on this branch.
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
         else:
             reasons.append("type_reordered")
     if coverage < 1.0 and qualifies:
