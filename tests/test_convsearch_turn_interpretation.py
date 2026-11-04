@@ -6,7 +6,11 @@ import unittest
 from models.product import Marketplace, Product
 from handlers.search import _products_actually_shown
 from services.convsearch.contract import Outcome
-from services.convsearch.engine import ConversationSearchEngine, _product_type_of
+from services.convsearch.engine import (
+    ConversationSearchEngine,
+    _is_different_product_type,
+    _product_type_of,
+)
 from services.convsearch.retrieval import BackendOutcome, build_retrieval_strategy
 from services.convsearch.state import ConversationEngineState, MessageIntent, Slot, Turn
 
@@ -167,6 +171,34 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["intent"], MessageIntent.REFINE)
         self.assertEqual(state.active_values("type"), ["устройство"])
         self.assertEqual(backend.strategies[-1].product_type, "устройство")
+
+    async def test_product_switch_uses_head_noun_not_shared_adjective(self):
+        self.assertTrue(
+            _is_different_product_type("сварочный стол", "сварочный аппарат")
+        )
+        self.assertFalse(
+            _is_different_product_type("шуруповёрт аккумуляторный", "аккумуляторный шуруповёрт")
+        )
+
+    async def test_explicit_product_switch_with_shared_adjective_starts_new_search(self):
+        ai = FakeAI({
+            "action": "new_search", "confidence": 0.99,
+            "product_type": "сварочный стол", "question": None,
+        })
+        backend = FakeBackend([listing("table", "Сварочный стол усиленный")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="shared-adjective-switch")
+        state.record_product_type("сварочный аппарат")
+
+        await engine.handle_message(
+            "shared-adjective-switch", "Хочу сварочный стол",
+            state=state, currency="UAH",
+        )
+
+        self.assertEqual(state.active_values("type"), ["сварочный стол"])
+        self.assertEqual(backend.strategies[-1].product_type, "сварочный стол")
+        self.assertEqual(backend.strategies[-1].request.normalized_query, "сварочный стол")
 
     async def test_subordinate_feature_clause_cannot_switch_product_even_if_ai_says_new_search(self):
         ai = FakeAI({
