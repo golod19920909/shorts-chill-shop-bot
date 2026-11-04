@@ -687,7 +687,7 @@ MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выпо�
 #: Bounded turn planner for the conversational router. It interprets each
 #: user message against the active ledger and may ask one high-value question;
 #: its output is restricted to a validated action, product type, question or reply.
-def _bounded_conversation_context(context: dict, *, max_chars: int = 4000) -> dict:
+def _bounded_conversation_context(context: dict, *, max_chars: int = 10000) -> dict:
     """Return a compact, schema-safe snapshot without cutting JSON mid-field.
 
     The latest user turn, pending clarification and active constraints are
@@ -718,11 +718,11 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 4000) -> di
         "shown_products": [
             {
                 "id": str(item.get("id") or "")[:64],
-                "title": str(item.get("title") or "")[:140],
+                "title": str(item.get("title") or "")[:100],
                 "price": item.get("price"),
                 "currency": str(item.get("currency") or "")[:8],
             }
-            for item in shown[:8]
+            for item in shown[:30]
             if isinstance(item, dict)
         ] if isinstance(shown, list) else [],
         "last_outcome": str(context.get("last_outcome") or "")[:40],
