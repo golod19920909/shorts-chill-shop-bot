@@ -728,12 +728,12 @@ class SearchService:
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
         pages = (
             list(range(first_page, self.max_search_pages + 1))
-            if broaden and not raw and request.mode is SearchMode.SEARCH
+            if broaden and request.mode is SearchMode.SEARCH
             else [first_page]
         )
 
         pairs: list[tuple[MarketplaceProvider, object]] = []
-        # Keep each grounded phrase's provider rows separate until RAW
+        # Keep each grounded phrase/page's provider rows separate until RAW
         # collection so conversational retrieval can fuse independent route
         # rankings instead of inheriting phrase execution order.
         raw_route_pairs: list[list[tuple[MarketplaceProvider, object]]] = []
@@ -741,6 +741,8 @@ class SearchService:
             request=request, unavailable_marketplaces=list(unavailable)
         )
         pages_used = 0
+        pages_scanned = 0
+        previous_raw_unique = 0
         all_failed = False
 
         for page_no in pages:
@@ -749,6 +751,7 @@ class SearchService:
             # never multiplies the variant list.
             page_variants = variants if page_no == pages[0] else variants[:1]
             pages_used = page_no
+            pages_scanned += 1
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
@@ -892,7 +895,45 @@ class SearchService:
                 # route fills the pool would make RRF depend on route order.
                 if all_failed:
                     break
-            if all_failed or (not raw and len(outcome.products) >= pool_target):
+            if all_failed:
+                break
+            if raw:
+                # The conversational path now uses the same bounded page
+                # depth as ordinary product search. Finish every grounded
+                # route on page 1 first (RRF must see the complete route set),
+                # then request only the primary phrase on deeper pages.
+                # Stop as soon as the fused unique pool is large enough, or a
+                # deeper page adds no new identities. This bounds API usage
+                # and avoids paying for pages that cannot improve the pool.
+                from services.convsearch.retrieval import merge_route_results
+
+                route_rankings = [
+                    self._deduplicate(route_pairs)
+                    for route_pairs in raw_route_pairs
+                ]
+                current_raw = merge_route_results(*route_rankings)
+                if exclude:
+                    current_raw = [
+                        product for product in current_raw
+                        if identity_pair(product) not in exclude
+                    ]
+                current_unique = len(current_raw)
+                if current_unique >= pool_target:
+                    logger.info(
+                        "RAW conversational pagination stopped: pool target "
+                        "reached (%d/%d) after page %d",
+                        current_unique, pool_target, page_no,
+                    )
+                    break
+                if page_no > first_page and current_unique <= previous_raw_unique:
+                    logger.info(
+                        "RAW conversational pagination stopped: page %d added "
+                        "no new unique products (pool=%d)",
+                        page_no, current_unique,
+                    )
+                    break
+                previous_raw_unique = current_unique
+            elif len(outcome.products) >= pool_target:
                 break
 
         if raw:
@@ -927,11 +968,11 @@ class SearchService:
                     len(route_rankings), len(fused),
                 )
             if broaden:
-                variants_used = len(pairs) // max(1, len(active))
                 logger.info(
-                    "RAW conversational retrieval used %d grounded query variant(s) "
-                    "on one page (pool=%d cap=%d)",
-                    variants_used,
+                    "RAW conversational retrieval used %d provider route(s) "
+                    "across %d page(s) (pool=%d cap=%d)",
+                    len(raw_route_pairs),
+                    pages_scanned,
                     outcome.found_count,
                     pool_target,
                 )
