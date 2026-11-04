@@ -86,8 +86,9 @@ WELCOME_SMART_SEARCH = (
 #: belong to the internal log - the user gets a short, honest sentence and
 #: the advice that actually helps: change the query or its parameters.
 EMPTY_RESULT_TEXT = (
-    "😕 По вашему запросу ничего не найдено. "
-    "Попробуйте изменить запрос или параметры поиска."
+    "Пока не удалось подобрать вариант, который уверенно подходит под ваши "
+    "пожелания. Что для вас важнее всего сохранить, а какое требование можно "
+    "немного ослабить, чтобы расширить поиск?"
 )
 
 #: The ONLY text a user ever sees when the search itself could not run: no
@@ -107,6 +108,9 @@ SEMANTIC_SELECTION_UNAVAILABLE_TEXT = (
 
 
 def _no_eligible_user_message(decision) -> str:
+    natural_reply = getattr(decision, "reply", None)
+    if isinstance(natural_reply, str) and natural_reply.strip():
+        return natural_reply.strip()
     selection_status = (decision.report or {}).get("ai_selection")
     if selection_status in {
         "timeout_fallback", "error_fallback", "unavailable_fallback",
