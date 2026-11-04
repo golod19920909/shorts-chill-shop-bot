@@ -1586,3 +1586,17 @@ The required-feature evidence helper previously accepted 60% token coverage. Tha
 ### Compact 30-card conversational context (2026-11-04)
 
 After expanding follow-up context from 12 to 30 actually shown cards, the bounded conversation snapshot still had a 10,000-character default and retained overlong identifiers/titles. The contract test expected a 4,000-character ceiling, and the new full-card context caused it to fail. The context is now capped at 6,000 characters and each shown-card summary is compacted to a 24-character ID and 48-character title while retaining price and currency. Added a regression proving all 30 shown product IDs fit in the bounded snapshot with representative conversation history and active slots. This is context compaction, not removal from the handler's 30-card shown-product cache. The same CI run **41891450786** passed the focused and filtered suites above. Live Gemini token/latency behavior remains unverified.
+
+### Eligibility-driven conversational pagination (2026-11-04)
+
+The conversational raw search previously stopped as soon as the unfiltered marketplace pool reached its raw target (normally 80). With several grounded query variants on page 1, irrelevant listings and accessories could fill that target before the deeper pages of the primary phrase were requested. The engine would then apply its product-type, mandatory-feature, exclusion and budget checks to an already-truncated pool.
+
+The conversational path now passes a bounded continuation decision from the engine into the existing SearchService. After each fetched page, the engine runs the same deterministic candidate evaluator used for the final answer and checks how many ranked candidates are verified rather than awaiting semantic review. It continues the primary phrase onto the next configured page until the requested number of verified candidates is available, or the provider returns an empty deeper page / the configured page limit is reached. When this callback is active, the bounded page results are preserved for the final engine evaluation instead of being truncated a second time by the raw-row target. The AI selector remains capped at 20 and Telegram presentation remains capped at 30.
+
+Added offline regressions for a raw pool that reaches its small raw target on page 1 but must still request page 2, preservation of the full bounded candidate set, and uncertain listings not counting as verified pagination supply. The callback is passed only through the existing Option C retrieval adapter; product validation, ranking, and delivery remain in the conversation engine.
+
+GitHub Actions run **41892880227** on head `434ceeebbdb0d3cc0580c0686be83c8eed1568e1` passed:
+- Focused conversational regressions: **227 passed, 16 subtests passed**.
+- Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
+- The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
+- Offline tests only. No live AliExpress, Gemini or Telegram calls were made; current account quota, response latency and real catalogue quality remain unverified.
