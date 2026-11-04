@@ -689,9 +689,27 @@ class ConversationSearchEngine:
                 await on_search_start()
             except Exception:  # noqa: BLE001 - UI status must not block a search
                 logger.debug("Could not send search-start status", exc_info=True)
+        # Reuse the exact production evaluator after each marketplace page.
+        # Pagination ends only when the current pool can already support the
+        # requested number of deliverable cards, or when the configured page
+        # limit / provider end-of-results signal is reached.
+        candidate_target = RESULT_CARD_LIMIT
+        if strategy.result_limit is not None:
+            candidate_target = min(
+                RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
+            )
+
+        def needs_more_candidates(products: list[Product]) -> bool:
+            preview = self._evaluate_pool(
+                state, products, strategy,
+                refined=refined, intent=intent, observation=observation,
+                exclude_shown=(intent is MessageIntent.ALTERNATIVES),
+            )
+            return len(preview.products) < candidate_target
+
         try:
             backend_outcome = await self._backend.retrieve(
-                strategy, exclude=exclude
+                strategy, exclude=exclude, should_continue=needs_more_candidates
             )
         except Exception as exc:  # noqa: BLE001 - provider failures are honest
             logger.warning("convsearch retrieval failed: %s", type(exc).__name__)
