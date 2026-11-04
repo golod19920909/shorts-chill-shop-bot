@@ -1507,3 +1507,14 @@ classify the turn as REFINE, query the existing item, and store the battery
 quantity as a feature. This protects the complete Option C boundary, not only
 the two deterministic extraction helpers. Verification for this extra
 integration regression is pending.
+
+
+Final verification including the Gemini-misclassification integration regression
+on head `53dbe86fb370dfdc9999651a0933193fe2381d33`, GitHub Actions run
+**41869058952**:
+- Focused conversational regressions: **215 passed, 8 subtests passed**.
+- Filtered repository suite: **2,109 passed, 678 subtests passed, 1 warning**.
+- The documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
+- Offline only. The live AliExpress/Gemini/Telegram sequence remains to be
+  checked with the user's local credentials.
