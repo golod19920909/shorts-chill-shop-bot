@@ -1242,3 +1242,27 @@ The conversation interpreter now also receives a bounded, grounded snapshot of u
 The delivery ledger is authoritative for visibility: the result cache may hold up to 30 cards, but only the first card is visible initially. The handler therefore filters the cached result pool through the IDs actually opened in Telegram and passes only those cards (up to the 12 most recently viewed) to Gemini. The COMPARE/EXPLAIN answer path uses the same visible-card filter, so it cannot compare or make factual claims about a card the user has not opened. Legacy card-action flows without this conversation ledger retain their existing behavior.
 
 The model context is compacted as a structured object before JSON serialization. It prioritizes active slots and the pending clarification, trims older turns and excess shown cards, and never slices serialized JSON at an arbitrary character boundary. This prevents a long conversation from corrupting the context payload or silently dropping its final fields. Product-category examples in the planner prompt were generalized to role-based examples; no product-specific rules were added.
+
+
+### Cross-language product identity review (2026-11-04)
+
+The live Telegram run showed that the product-type gate can reject a whole
+AliExpress result pool before Gemini sees it. Product names are often written
+in a different script from the user's request (for example, Cyrillic request
+and Latin-script listing title). When no title/description identity evidence
+matches and the dominant scripts differ, the validator now quarantines the
+candidate for bounded semantic review instead of treating the lack of shared
+stems as proof of mismatch. This is never an automatic acceptance: Gemini
+must still confirm the real listing, and explicit accessory/host-product
+relations remain rejected before this fallback.
+
+The same regression exposed an English prefix collision: the generic
+accessory marker `screw` matched the beginning of `screwdriver`, causing a
+real tool to be classified as a spare part. English accessory markers now
+require complete-token matches; intentional Russian stems retain inflection
+matching. Added regressions for Russian-to-English product identity and for
+English drill-bit accessories. CI on the latest branch head: focused suite
+**205 passed, 8 subtests passed**; repository suite excluding the documented
+stale legacy modules **2,088 passed, 678 subtests passed, 1 warning**. This
+remains offline verification only; live model selection and marketplace
+quality still require a Telegram run.
