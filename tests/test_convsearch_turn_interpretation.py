@@ -162,6 +162,41 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.last_question, "Что именно хотите подобрать?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_pending_clarification_fragment_does_not_search_when_gemini_times_out(self):
+        question = "Для какой задачи нужен компрессор?"
+        ai = FakeAI(
+            {
+                "action": "clarify",
+                "confidence": 0.97,
+                "product_type": None,
+                "question": question,
+            },
+            None,
+        )
+        backend = FakeBackend([
+            listing("wrong", "Компрессор кондиционера автомобильный")
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="pending-fragment-timeout")
+
+        first = await engine.handle_message(
+            "pending-fragment-timeout", "Нужен компрессор для машины",
+            state=state, currency="UAH",
+        )
+        self.assertIs(first.outcome, Outcome.CLARIFY)
+        self.assertEqual(first.question, question)
+
+        second = await engine.handle_message(
+            "pending-fragment-timeout", "автомобильный",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(second.outcome, Outcome.CLARIFY)
+        self.assertEqual(second.question, question)
+        self.assertEqual(backend.strategies, [])
+        self.assertEqual(state.active_by_kind("type").value, "компрессор")
+
     async def test_pending_clarification_new_search_without_new_type_preserves_active_product(self):
         ai = FakeAI(
             {
