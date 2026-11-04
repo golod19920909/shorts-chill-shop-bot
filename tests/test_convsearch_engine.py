@@ -451,6 +451,36 @@ class EngineScenarioTests(unittest.TestCase):
 
 
 
+class FullShownContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_interpreter_receives_all_thirty_shown_cards(self) -> None:
+        captured = {}
+
+        class CompareAI:
+            async def decide_conversation_turn(self, text, *, context):
+                captured.update(context)
+                return {"action": "compare"}
+
+        engine = ConversationSearchEngine()
+        engine.bind_ai_service(CompareAI())
+        state = ConversationEngineState(user_key="compare-thirty")
+        state.record_shown([f"p{index}" for index in range(30)])
+        shown = [product(f"p{index}", f"Товар {index}") for index in range(30)]
+
+        decision = await engine.handle_message(
+            "compare-thirty",
+            "Сравни все варианты",
+            state=state,
+            shown_products=shown,
+        )
+
+        self.assertEqual(decision.outcome, Outcome.COMPARE)
+        self.assertEqual(len(captured["shown_products"]), 30)
+        self.assertEqual(
+            [item["id"] for item in captured["shown_products"]],
+            [f"p{index}" for index in range(30)],
+        )
+
+
 class RankingRequestPropagationTests(unittest.TestCase):
     def test_engine_passes_the_built_request_into_ranking(self):
         from unittest.mock import patch
