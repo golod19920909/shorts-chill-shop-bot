@@ -385,13 +385,11 @@ class ConversationSearchEngine:
                 refinement_signal = (
                     _is_comparative_followup(text)
                     or _is_modifier_only_request(text)
-                    or bool(re.search(
-                        r"(?:^|\s)(?:с|со|из|без|для|под|по|до|with|without|"
-                        r"made\s+(?:of|from))\s+",
-                        text, re.IGNORECASE,
-                    ))
+                    or bool(_EXPLICIT_PRODUCT_CONTEXT_RE.search(text))
                 )
-                if refinement_signal:
+                if is_alternatives_request(text):
+                    intent_override = MessageIntent.ALTERNATIVES
+                elif refinement_signal:
                     intent_override = MessageIntent.REFINE
                 elif not state.last_question:
                     question = "Какой именно товар вы хотите найти?"

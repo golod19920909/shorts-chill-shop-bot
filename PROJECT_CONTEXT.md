@@ -1227,3 +1227,12 @@ seller claims rather than independently verified measurements. The handler
 passes the complete shown product set to ProductAssistant; an arbitrary
 first-eight slice can hide the strongest stated specification. No lumen value
 is inferred from adjectives such as «яркий».
+
+
+### Natural conversation and product-continuity safeguards (2026-11-04)
+
+The Option C conversation decision contract now includes a bounded `respond` outcome for greetings, acknowledgements and general concept questions that do not require marketplace facts. Such a turn is recorded in dialogue history without mutating the shopping ledger or calling AliExpress. Product-specific claims remain on the grounded product-answer path. A conversational aside does not consume an outstanding clarification, and the Telegram search-status message is emitted only when retrieval actually begins.
+
+Product continuity is protected by grounded item identity rather than raw-token mismatch. A proposed new search for the same active item is treated as a refinement unless the user explicitly starts a new request. A new-search decision without a grounded product identity cannot silently repeat the previous query: modifier/constraint language remains attached to the active request, alternatives are handled as alternatives, and an otherwise untyped new request asks which product the user means. The state classifier may accept Gemini's validated refine/correction/compare/alternatives decision over a weak deterministic new-search guess only when it has no evidence that a different product was named. A clear different-product mention continues to win over a contradictory model action.
+
+Comparative fragments and pronouns referring to the current result set are excluded from product-name extraction. This is grammatical handling, not a product-category exception. The latest offline CI run at this point is recorded on the PR; live Telegram, Gemini and AliExpress behavior remains unverified.

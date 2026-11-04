@@ -87,6 +87,27 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_values("type"), ["устройство"])
         self.assertEqual(backend.strategies[-1].product_type, "устройство")
 
+    async def test_untyped_alternatives_request_keeps_the_current_product(self):
+        ai = FakeAI({
+            "action": "new_search", "confidence": 0.99,
+            "product_type": None, "question": None,
+        })
+        backend = FakeBackend([listing("alternative", "Устройство новая модель")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="untyped-alternatives")
+        state.record_product_type("устройство")
+        state.record_shown(["previously-shown"])
+
+        decision = await engine.handle_message(
+            "untyped-alternatives", "Покажи другие варианты",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(decision.report["intent"], MessageIntent.ALTERNATIVES)
+        self.assertEqual(backend.strategies[-1].product_type, "устройство")
+
     async def test_new_search_without_grounded_identity_asks_instead_of_reusing_old_type(self):
         ai = FakeAI({
             "action": "new_search", "confidence": 0.99,

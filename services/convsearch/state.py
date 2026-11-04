@@ -608,7 +608,6 @@ class ConversationEngineState:
         ]
         return {
             "intent": intent,
-            "new_product_evidence": names_other_product,
             "negations": negations,
             "spans": message_spans,
             "budget": _budget(message),
