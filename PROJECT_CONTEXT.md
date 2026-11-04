@@ -1610,3 +1610,15 @@ GitHub Actions run **41893379896** on head `87e7bc661162a740599adcd9dba2c05ed7fa
 - Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
 - Documented stale legacy modules are excluded; this is not an unfiltered full-suite pass.
 - Offline only; live provider behavior remains unverified.
+
+### Shared AliExpress client concurrency guard (2026-11-04)
+
+The live logs previously showed short `ApiCallLimit` cooldowns while the bot also has background price tracking. Searches, product-detail lookups and the tracker use the same application credentials and may run as independent async tasks. The shared `AliExpressClient` now serializes complete calls with one per-client async lock, including the bounded server-directed short cooldown and its one retry. This prevents overlapping requests from the bot's own tasks from bursting the same app key. The lock adds no fixed delay between otherwise sequential requests, so it does not impose an arbitrary latency penalty. It does not guarantee that AliExpress will never rate-limit sequential requests or calls made by another process; the existing bounded `ApiCallLimit` retry and visible error reporting remain in place.
+
+Added a concurrent transport regression: three simultaneous search/detail operations against one client are proven to have a maximum of one in-flight HTTP request.
+
+GitHub Actions run **41894916161** on source head `45a99fb3c0f3cfd2ecbec65138894ffe3d989264` passed:
+- Focused conversational regressions: **227 passed, 16 subtests passed**.
+- Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
+- Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live AliExpress, Gemini or Telegram calls were made.
