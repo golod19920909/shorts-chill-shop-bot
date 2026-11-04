@@ -1427,3 +1427,21 @@ The previous selector contract returned only product IDs. That meant the convers
 The evidence validator also logs only the count of candidate decisions rejected for ungrounded quotes (no titles or user text). Product titles/descriptions are explicitly treated as untrusted data in the selector prompt; embedded instructions are ignored. Regression tests cover multiple independent requirements and ensure category-path labels cannot substitute for listing evidence.
 
 Evidence snippets are matched within one source field (title OR description), never across their boundary; a regression covers this. This prevents an apparently real quote from being assembled from two unrelated field fragments.
+
+
+### Balanced Gemini candidate window (2026-11-04)
+
+A mixed candidate pool can contain both (a) listings that passed deterministic
+identity/mandatory-feature checks and (b) listings quarantined for bounded
+semantic review. Previously the engine concatenated the entire review group
+before the verified group and then cut at 20. A large review group could
+therefore consume the full Gemini window, leaving verified candidates unseen.
+The selector window now reserves up to half for each group when both exist,
+then fills unused places from whichever group has more remaining candidates.
+The selector still receives at most 20 candidates; the presentation ceiling
+remains 30. If Gemini fills the selection window, remaining deterministic-safe
+candidates outside that window may fill the remaining presentation places;
+unreviewed semantic-review candidates remain quarantined. Added an offline
+regression with 15 review and 15 verified candidates. This is a candidate
+allocation fix, not evidence of improved live marketplace recall or Gemini
+latency.
