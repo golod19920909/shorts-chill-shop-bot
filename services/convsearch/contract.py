@@ -49,7 +49,8 @@ class SearchDecision:
     refined: bool = False
     #: Full traceability report (log only, never user-facing).
     report: dict = field(default_factory=dict)
-    #: Natural-language response for RESPOND, never product/catalog facts.
+    #: Natural-language response for RESPOND, or a grounded follow-up after
+    #: a completed search with no safe matches; never product/catalog facts.
     reply: str | None = None
 
     @property
