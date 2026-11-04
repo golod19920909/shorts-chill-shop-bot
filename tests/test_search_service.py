@@ -266,6 +266,45 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             ["page-1", "page-2"],
         )
 
+    def test_raw_conversation_stops_when_a_deeper_page_is_empty(self) -> None:
+        first = make_product(Marketplace.ALIEXPRESS, "first-page", 19.0)
+        later = make_product(Marketplace.ALIEXPRESS, "later-page", 17.0)
+        provider = self.ali_express([])
+        page_calls: list[int] = []
+
+        async def search_page(request):
+            page_calls.append(request.page_no)
+            return {
+                1: [first],
+                2: [],
+                3: [later],
+            }[request.page_no]
+
+        provider.search_products = search_page
+        service = SearchService(
+            [provider], max_results=3, max_search_pages=3
+        )
+        request = SearchRequest(
+            original_query="wireless headphones",
+            normalized_query="wireless headphones",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True
+                )
+            )
+
+        self.assertEqual(page_calls, [1, 2])
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["first-page"],
+        )
+
     def test_raw_retrieval_stays_single_phrase_without_explicit_opt_in(self) -> None:
         provider = self.ali_express([make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)])
         service = SearchService([provider])
