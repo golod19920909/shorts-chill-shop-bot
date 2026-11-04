@@ -827,9 +827,40 @@ class ConversationSearchEngine:
             product for product in original_pool
             if product.product_id not in semantic_review_ids
         ]
+        # Reserve room for BOTH kinds of candidates. A broad pool can
+        # contain many sparse-title / feature-review rows; putting all of
+        # them first used to let uncertain listings occupy the entire 20-row
+        # Gemini window and hide already-verified products from consideration.
+        # Split the window evenly when both groups are present, then use any
+        # unused places for the group that still has candidates. Ranking order
+        # is preserved inside each group.
+        review_quota = min(
+            len(review_pool), (AI_CONVERSATION_SELECTION_LIMIT + 1) // 2
+        )
+        ordinary_quota = min(
+            len(ordinary_pool), AI_CONVERSATION_SELECTION_LIMIT - review_quota
+        )
+        remaining_quota = (
+            AI_CONVERSATION_SELECTION_LIMIT - review_quota - ordinary_quota
+        )
+        extra_review = min(
+            remaining_quota, max(0, len(review_pool) - review_quota)
+        )
+        review_quota += extra_review
+        remaining_quota -= extra_review
+        ordinary_quota += min(
+            remaining_quota, max(0, len(ordinary_pool) - ordinary_quota)
+        )
         selector_pool = (
-            review_pool + ordinary_pool
-        )[:AI_CONVERSATION_SELECTION_LIMIT]
+            review_pool[:review_quota] + ordinary_pool[:ordinary_quota]
+        )
+        selector_ids = {
+            product.product_id for product in selector_pool if product.product_id
+        }
+        decision.report["ai_review_pool"] = len(review_pool)
+        decision.report["ai_ordinary_pool"] = len(ordinary_pool)
+        decision.report["ai_review_in_window"] = review_quota
+        decision.report["ai_ordinary_in_window"] = ordinary_quota
         presentation_limit = RESULT_CARD_LIMIT
         if strategy.result_limit is not None:
             presentation_limit = min(
@@ -974,8 +1005,9 @@ class ConversationSearchEngine:
         tail = []
         if len(selected) >= wanted:
             tail = [
-                product for product in original_pool[AI_CONVERSATION_SELECTION_LIMIT:]
-                if product.product_id not in semantic_review_ids
+                product for product in original_pool
+                if product.product_id not in selector_ids
+                and product.product_id not in semantic_review_ids
                 and product.product_id not in seen
             ]
         decision.products = (selected + tail)[:presentation_limit]
