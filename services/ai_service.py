@@ -1693,8 +1693,9 @@ class AIService:
         Gemini chooses the conversational action and, for a new search, the
         core product type. The caller validates the action against its fixed
         enum and keeps deterministic slot extraction, retrieval, product
-        validation, ranking and Telegram delivery. Any model failure returns
-        None so the existing deterministic classifier remains the fallback.
+        validation, ranking and Telegram delivery. Model failure returns
+        None; the engine must fail closed on incomplete product identity and
+        must never treat an unreviewed candidate pool as semantically ranked.
         """
         if not self.is_available or not (user_text or "").strip():
             return None
@@ -1705,11 +1706,10 @@ class AIService:
             message=(user_text or "").strip()[:500],
         )
         try:
-            # Conversational interpretation must not make every product
-            # search wait for the general 20-second AI timeout. If Gemini is
-            # slow, cancel this bounded attempt and use the deterministic
-            # state machine for the same turn.
-            async with asyncio.timeout(min(self.timeout_seconds, 5.0)):
+            # This is the decision that governs whether retrieval is
+            # appropriate at all. Give it a bounded but realistic window;
+            # candidate selection has its own independent window afterwards.
+            async with asyncio.timeout(min(self.timeout_seconds, 8.0)):
                 raw = await self._generate(
                     prompt,
                     models=(self.fast_model,),
