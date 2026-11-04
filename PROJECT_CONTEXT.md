@@ -1163,6 +1163,21 @@ Latest successful workflow on code head
 - This is filtered offline verification, not an unfiltered full-suite pass.
   No live Telegram, Gemini or AliExpress calls were made.
 
+
+### Sparse-title semantic review (2026-11-04)
+
+The product-type gate previously rejected every title that carried only the
+requested head noun but omitted its subtype, even when the AliExpress
+description explicitly confirmed that subtype. This discarded plausible
+listings before Gemini could inspect them.
+
+The validator now defers this narrow evidence pattern to the existing
+semantic-review queue instead of auto-accepting it or rejecting it outright.
+A conflicting subtype stated in the title remains a hard rejection; a
+keyword-stuffed description cannot override a title that identifies another
+product. Added cross-case regressions for both outcomes. This is a
+category-general evidence rule, not a product-name exception.
+
 ### Material and composition follow-ups (2026-11-03)
 
 Material/composition phrases are refinements of the active product, not new
