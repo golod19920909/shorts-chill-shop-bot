@@ -47,6 +47,26 @@ class FakeBackend:
 
 
 class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_natural_response_does_not_consume_pending_clarification(self):
+        ai = FakeAI({
+            "action": "respond", "confidence": 0.99,
+            "response": "Рад помочь!", "product_type": None, "slot_updates": [],
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="pending-natural-response")
+        state.last_question = "Для какой задачи нужен товар?"
+
+        decision = await engine.handle_message(
+            "pending-natural-response", "Спасибо!",
+            state=state, currency="UAH",
+        )
+
+        self.assertIsNot(decision.outcome, Outcome.RESPOND)
+        self.assertEqual(state.last_question, "Для какой задачи нужен товар?")
+        self.assertEqual(backend.strategies, [])
+
     async def test_natural_response_does_not_search_or_mutate_shopping_slots(self):
         ai = FakeAI({
             "action": "respond", "confidence": 0.99,

@@ -317,6 +317,7 @@ class ConversationSearchEngine:
         explicit_product_type = _explicit_requested_product_type(text)
         if (isinstance(ai_turn, dict) and ai_turn.get("action") == "respond"
                 and not explicit_product_type
+                and not state.last_question
                 and isinstance(ai_turn.get("response"), str)
                 and ai_turn["response"].strip()):
             state.record_turn(text)

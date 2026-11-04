@@ -74,8 +74,10 @@ Telegram text (handlers/search.py::search_message)
 For every text turn, `ConversationSearchEngine` first asks Gemini to
 interpret the message against the last six user turns, active slot ledger,
 shown-result count and last outcome. The response is a validated JSON object
-with a closed action enum, confidence, optional core product type and (only
-for clarification) one question. Non-clarify actions below 0.65 confidence,
+with a closed action enum, confidence, optional core product type, one
+clarification question or a bounded natural reply. The `respond` outcome is
+limited to general conversation and concepts; it cannot carry product facts,
+search slots or product identity. Non-clarify actions below 0.65 confidence,
 malformed output, timeouts (bounded to 8 seconds), quota/auth errors and
 missing Gemini all fall back to the deterministic classifier. Gemini never
 returns product cards or bypasses any deterministic validation.

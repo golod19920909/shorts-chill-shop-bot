@@ -45,12 +45,12 @@ class SearchDecision:
     request: object | None = None
     #: Clarification question for CLARIFY, else None.
     question: str | None = None
-    #: Natural-language response for RESPOND, never product/catalog facts.
-    reply: str | None = None
     #: Whether this turn refined the active conversation.
     refined: bool = False
     #: Full traceability report (log only, never user-facing).
     report: dict = field(default_factory=dict)
+    #: Natural-language response for RESPOND, never product/catalog facts.
+    reply: str | None = None
 
     @property
     def delivered(self) -> bool:

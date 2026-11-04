@@ -686,7 +686,7 @@ MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выпо�
 
 #: Bounded turn planner for the conversational router. It interprets each
 #: user message against the active ledger and may ask one high-value question;
-#: its output is restricted to a validated action, product type and question.
+#: its output is restricted to a validated action, product type, question or reply.
 CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
 
 Контекст диалога (JSON):
