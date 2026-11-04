@@ -17,6 +17,9 @@ from handlers.search import (
     _get_convsearch_state,
     _record_browsed_conversation_product,
     _send_product_cards,
+    _no_eligible_user_message,
+    SEMANTIC_SELECTION_UNAVAILABLE_TEXT,
+    EMPTY_RESULT_TEXT,
     send_search_results,
 )
 from services.convsearch.contract import Outcome
@@ -24,6 +27,17 @@ from services.convsearch.state import ConversationEngineState
 
 
 class PendingClarificationLifecycleTests(unittest.TestCase):
+    def test_semantic_selection_failure_is_not_reported_as_no_catalogue_match(self):
+        decision = SimpleNamespace(report={"ai_selection": "timeout_fallback"})
+        self.assertEqual(
+            _no_eligible_user_message(decision),
+            SEMANTIC_SELECTION_UNAVAILABLE_TEXT,
+        )
+
+    def test_real_semantic_no_match_keeps_the_empty_result_message(self):
+        decision = SimpleNamespace(report={"ai_selection": "semantic_no_match"})
+        self.assertEqual(_no_eligible_user_message(decision), EMPTY_RESULT_TEXT)
+
     def test_expired_conversation_ledger_is_replaced_before_touch(self):
         old = ConversationEngineState(user_key="old-ledger")
         old.record_product_type("наушники")
