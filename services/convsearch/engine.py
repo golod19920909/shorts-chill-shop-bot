@@ -44,7 +44,12 @@ logger = logging.getLogger(__name__)
 #: reach it, and never exceeds it.
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
-AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0
+# A 20-listing semantic review is materially heavier than turn routing.
+# Live telemetry showed the 8-second window repeatedly expired after the
+# interpreter had already succeeded, silently replacing Gemini's whole-pool
+# understanding with a deterministic fallback. Keep this bounded, but allow
+# a realistic window for the selector to inspect real listing evidence.
+AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0
 
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
