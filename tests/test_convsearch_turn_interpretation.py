@@ -62,6 +62,29 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIsNone(_product_type_of("для дома"))
 
+    async def test_modifier_only_fragment_never_starts_a_product_search(self):
+        self.assertIsNone(_product_type_of("Нужен автомобильный"))
+        self.assertIsNone(_product_type_of("Ищу промышленный"))
+        self.assertEqual(
+            _product_type_of("Нужен автомобильный компрессор"),
+            "автомобильный компрессор",
+        )
+
+        ai = FakeAI(None)
+        backend = FakeBackend([listing("wrong", "Автомобильный кондиционер")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="modifier-only-fragment")
+
+        decision = await engine.handle_message(
+            "modifier-only-fragment", "Нужен автомобильный",
+            state=state, currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.CLARIFY)
+        self.assertEqual(backend.strategies, [])
+        self.assertIsNone(state.active_by_kind("type"))
+
     async def test_retrieval_does_not_turn_request_verbs_into_required_features(self):
         state = ConversationEngineState(user_key="request-verb-filter")
         state.record_product_type("шуруповерт")
