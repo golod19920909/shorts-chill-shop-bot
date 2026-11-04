@@ -1622,3 +1622,17 @@ GitHub Actions run **41894916161** on source head `45a99fb3c0f3cfd2ecbec65138894
 - Filtered repository suite: **2,129 passed, 686 subtests passed, 1 warning**.
 - Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
 - Offline only; no live AliExpress, Gemini or Telegram calls were made.
+
+### Positive-span evidence for mandatory features (2026-11-04)
+
+A second audit found that the previous deterministic feature check could treat a requirement as proven when its words were scattered across the combined title/description (for example, "two modes" in the title and "one battery" in the description). It also treated a negated mention as positive evidence. That could bypass the semantic review bucket.
+
+The deterministic fast path now requires the complete feature token sequence, in order, within one actual field (title OR description), allowing the existing Russian/English word-form matcher. It also checks a small context window around the matched span for common Russian/English/Ukrainian negation markers. Scattered, incomplete, or locally negated mentions remain unverified and go to the existing Gemini semantic-review path; if Gemini is unavailable, they stay hidden. This deliberately prefers an honest clarification over silently treating unknown evidence as confirmed. It does not claim to understand every possible negation or synonym; semantic review remains responsible for ambiguous wording.
+
+Regression coverage includes affirmative contiguous evidence, tokens scattered across title and description, explicit negation before/after the phrase, and a positive compatibility mention.
+
+GitHub Actions run **41895844850** on head `beb11166a803d4a061f621f8d6b95803ec2cc865` passed:
+- Focused conversational regressions: **228 passed, 21 subtests passed**.
+- Filtered repository suite: **2,131 passed, 691 subtests passed, 1 warning**.
+- Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live provider calls were made.
