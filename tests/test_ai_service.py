@@ -281,6 +281,21 @@ class AIOutputValidationTests(unittest.TestCase):
         self.assertIsNone(asyncio.run(service.rank_candidates([product])))
 
 
+class CandidatePayloadTests(unittest.TestCase):
+    def test_rank_payload_carries_real_marketplace_category_context(self) -> None:
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="category-context",
+            title="Cordless screwdriver",
+            product_url="https://example.com/item/category-context.html",
+            category_path=["Tools", "Power Tools"],
+        )
+
+        payload = AIService._rank_payload(product)
+
+        self.assertEqual(payload["category_path"], ["Tools", "Power Tools"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
