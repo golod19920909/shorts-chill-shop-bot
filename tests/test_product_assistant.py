@@ -382,6 +382,16 @@ class QuestionTests(unittest.TestCase):
         self.assertIn("не независимое измерение", advice.text)
         self.assertNotIn("AliExpress этого нет", advice.text)
 
+    def test_brightness_question_is_not_a_product_selection(self) -> None:
+        products = [
+            make_product("600", "Фонарик 600 лм", 290.0, "UAH"),
+            make_product("1100", "Фонарик 1100 лм", 390.0, "UAH"),
+        ]
+        selected = matching_products_for_question(
+            "А какой из них ярче светит?", products
+        )
+        self.assertEqual(selected, [])
+
     def test_brightness_comparison_does_not_invent_lumens(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))
         products = [

@@ -500,10 +500,6 @@ def matching_products_for_question(
     objects through the normal Telegram card path.
     """
 
-    brightness = _brightness_comparison(question, products)
-    if brightness:
-        return brightness
-
     text = (question or "").lower()
     if any(
         marker in text
@@ -658,6 +654,13 @@ def deterministic_answer(question: str, products: list[Product]) -> str | None:
                 "есть не у всех товаров.",
             ]
         )
+
+    # Numeric comparisons are answers, not product selections. Keep the
+    # selector's return type strictly list[Product]; render the factual
+    # comparison here, where a text answer is expected.
+    brightness = _brightness_comparison(question, products)
+    if brightness:
+        return brightness
 
     # Positive feature probe: report products whose REAL titles contain the
     # asked word. A negative result returns None (a different wording may
