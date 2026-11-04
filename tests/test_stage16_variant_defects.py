@@ -148,6 +148,43 @@ class A3NegationNeverBecomesPositive(unittest.TestCase):
             self.assertNotIn("чехл", phrase.casefold())
 
 
+class LanguageAwareVariantMatching(unittest.TestCase):
+    """Derived-route exclusions must not collapse unrelated Latin words."""
+
+    def test_wireless_is_not_removed_by_a_wired_exclusion(self) -> None:
+        from models.search_request import SearchRequest
+        from services.query_variants import (
+            _reintroduces_excluded,
+            product_query_variants,
+        )
+
+        self.assertFalse(
+            _reintroduces_excluded("wireless headphones", frozenset({"wired"}))
+        )
+        self.assertTrue(
+            _reintroduces_excluded("wired headphones", frozenset({"wired"}))
+        )
+
+        request = SearchRequest(
+            original_query="wireless headphones",
+            normalized_query="wireless headphones",
+            excluded_features=["wired"],
+        )
+        variants = product_query_variants(request)
+        self.assertTrue(variants)
+        self.assertTrue(any("wireless" in phrase.casefold() for phrase in variants))
+
+    def test_unrelated_latin_prefixes_are_different_retrieval_questions(self) -> None:
+        from services.query_variants import _adds_a_different_question
+
+        self.assertTrue(_adds_a_different_question(
+            "wireless headphones", "wired headphones"
+        ))
+        self.assertTrue(_adds_a_different_question(
+            "table stand", "tablet stand"
+        ))
+
+
 class A4MissingUnitsAreExtracted(unittest.TestCase):
     """Stage 14.9 #34/#40/#24/#33/#09/#41: kg/liters/mm/GB/m/размер."""
 
