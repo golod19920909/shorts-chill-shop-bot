@@ -171,6 +171,41 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(state.active_values("exclusion"), ["полуавтомат"])
         self.assertEqual(state.active_values("feature"), ["защита IP67"])
 
+    def test_presentation_limit_is_hard_capped_at_30_even_without_ai(self) -> None:
+        from types import SimpleNamespace
+        from models.search_request import SearchRequest
+        from services.convsearch.engine import RESULT_CARD_LIMIT
+
+        state = ConversationEngineState(user_key="hard-card-cap")
+        candidates = [
+            product(f"organizer-{index:02d}", f"Органайзер настольный вариант {index}")
+            for index in range(35)
+        ]
+        request = SearchRequest(
+            original_query="органайзер",
+            normalized_query="органайзер",
+        )
+
+        for requested_limit, expected in ((50, 30), (5, 5), (None, 30)):
+            with self.subTest(requested_limit=requested_limit):
+                strategy = SimpleNamespace(
+                    product_type="органайзер",
+                    result_limit=requested_limit,
+                    request=request,
+                )
+                decision = self.engine._evaluate_pool(
+                    state,
+                    candidates,
+                    strategy,
+                    refined=False,
+                    intent=MessageIntent.NEW_SEARCH,
+                    observation={},
+                    exclude_shown=False,
+                )
+                self.assertEqual(decision.outcome, Outcome.RESULTS)
+                self.assertEqual(len(decision.products), expected)
+                self.assertLessEqual(len(decision.products), RESULT_CARD_LIMIT)
+
     def test_scenario_a_complete_fishing_reel(self) -> None:
         state = ConversationEngineState(user_key="u-a")
         observation = state.observe("Нужна недорогая рыболовная катушка.")
