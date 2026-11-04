@@ -942,7 +942,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         from services.convsearch.retrieval import BackendOutcome
 
         class EmptyBackend:
-            async def retrieve(self, strategy, *, exclude=None):
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
                 return BackendOutcome(
                     ok=True,
                     reason="no_candidates",
