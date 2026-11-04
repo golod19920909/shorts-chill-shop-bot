@@ -1050,8 +1050,8 @@ production timings:
   now uses the configured bounded page depth for product searches: page 1
   evaluates every grounded query variant (maximum three); later pages repeat
   only the primary phrase. All collected page/phrase routes are fused with
-  RRF. Pagination stops once the unique raw pool reaches its target or the
-  configured page limit is exhausted. The default `SEARCH_MAX_PAGES` is 3,
+  RRF. Pagination stops once the unique raw pool reaches its target, a provider
+  page returns no rows, or the configured page limit is exhausted. The default `SEARCH_MAX_PAGES` is 3,
   so one conversational turn makes at most five sequential AliExpress
   product-query calls for one provider (three first-page variants plus two
   primary-phrase pages); the actual count is lower when the pool fills sooner.
