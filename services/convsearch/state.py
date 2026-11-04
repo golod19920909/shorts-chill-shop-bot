@@ -388,6 +388,7 @@ class ConversationEngineState:
         # is a REFINE, never an ambiguous message and never a new product.
         # (Kept as message_spans evidence for the classifier below.)
 
+        names_other_product = False
         comparative_followup = _is_comparative_followup(message)
         explicit_compare = bool(_COMPARE_RE.search(message))
         if (
@@ -489,13 +490,9 @@ class ConversationEngineState:
                 intent is MessageIntent.NEW_SEARCH
                 and intent_override != MessageIntent.NEW_SEARCH
                 and (
-                    allow_product_switch
+                    names_other_product
+                    or allow_product_switch
                     or self.active_by_kind("type") is None
-                    or intent_override not in {
-                        MessageIntent.REFINE,
-                        MessageIntent.CORRECTION,
-                        MessageIntent.AMBIGUOUS,
-                    }
                 )
             ) or (
                 intent is MessageIntent.COMPARE
@@ -611,6 +608,7 @@ class ConversationEngineState:
         ]
         return {
             "intent": intent,
+            "new_product_evidence": names_other_product,
             "negations": negations,
             "spans": message_spans,
             "budget": _budget(message),

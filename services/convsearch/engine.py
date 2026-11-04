@@ -356,16 +356,13 @@ class ConversationSearchEngine:
             and isinstance(ai_turn.get("product_type"), str)
             else None
         )
-        identity_actions = {
-            "new_search", "refine", "correction", "alternatives", "clarify",
-        }
         message_product_type = (
             explicit_product_type
             or model_product_type
             or (
                 _product_type_of(text)
                 if isinstance(ai_turn, dict)
-                and ai_turn.get("action") in identity_actions
+                and ai_turn.get("action") == "new_search"
                 else None
             )
         )
@@ -381,6 +378,7 @@ class ConversationSearchEngine:
             and isinstance(ai_turn, dict)
             and ai_turn.get("action") == "new_search"
             and not explicit_product_type
+            and not state.last_question
         ):
             if message_product_type:
                 # Gemini's proposed identity is the same item already being
