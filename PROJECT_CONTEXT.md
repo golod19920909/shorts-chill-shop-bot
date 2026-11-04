@@ -1524,3 +1524,13 @@ on head `53dbe86fb370dfdc9999651a0933193fe2381d33`, GitHub Actions run
 - Extended the generic Russian conversational stopword set to remove pronoun/modal scaffolding from feature spans (e.g. «у него должно быть два аккумулятора»).
 - Added offline regression coverage for several natural subordinate-clause variants. They must remain refinements of the active product, not create a new product identity, and must preserve the actual requested feature without retaining filler words.
 - This is a grammar-level normalization, not a product/category exception. Live behavior remains unverified until the updated branch is run with the user's Telegram/Gemini/AliExpress credentials.
+
+
+### Subordinate-clause feature normalization — verification (2026-11-04)
+- The feature-span parser now treats «чтобы/чтоб» as a clause boundary and removes pronoun/modal scaffolding at the edge of the subordinate clause. This preserves the requested value (e.g. «два аккумулятора») without retaining «у него было/должно быть».
+- Added five natural-language regression variants. They remain refinements of the active product and do not create a new product type.
+- GitHub Actions run **41871384581** on code head `1d7e6df7bb3687286277c505e779f22d52d220d5` passed:
+  - Focused conversational regressions: **216 passed, 13 subtests passed**.
+  - Filtered repository suite: **2,110 passed, 683 subtests passed, 1 warning**.
+  - The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
+- Offline tests only. No live Telegram, Gemini or AliExpress calls were made. The updated behavior still needs live validation with the user's credentials.
