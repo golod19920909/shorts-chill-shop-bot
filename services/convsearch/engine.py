@@ -693,17 +693,24 @@ class ConversationSearchEngine:
             ]
 
         def finish_fallback(reason: str) -> SearchDecision:
-            # The model was available but could not complete semantic review.
-            # Showing the unreviewed deterministic pool would turn lexical
-            # overlap into a false recommendation (e.g. distinct compressor
-            # classes). Prefer an honest no-result response over unrelated
-            # cards; a subsequent user turn can retry or narrow the request.
+            # Gemini selection is an optional ranking/review layer. Candidates
+            # that passed every deterministic hard gate remain safe to show;
+            # only candidates explicitly quarantined for semantic review stay
+            # hidden when the model is unavailable.
+            safe = deterministic_safe_pool()[:presentation_limit]
+            decision.report["ai_selection"] = reason
+            if safe:
+                decision.products = safe
+                decision.report["reason"] = "deterministic_fallback"
+                decision.report["ai_fallback_kept"] = len(safe)
+                return decision
+
             decision.products = []
             decision.outcome = Outcome.NO_ELIGIBLE
-            decision.report["ai_selection"] = reason
-            feature_review_ids = set(decision.report.get("feature_review_ids", []))
-            if feature_review_ids:
+            if decision.report.get("feature_review_ids"):
                 decision.report["reason"] = "unverified_required_features"
+            elif semantic_review_ids:
+                decision.report["reason"] = "unverified_product_identity"
             else:
                 decision.report["reason"] = "semantic_selection_unavailable"
             return decision

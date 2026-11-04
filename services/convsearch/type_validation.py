@@ -131,14 +131,18 @@ def is_accessory_product_type(product_type: str | None) -> bool:
 
 
 def _head_noun(type_tokens: list[str]) -> str | None:
-    """The type's distinguishing head noun — the LAST content token.
+    """Return the rightmost noun-like token, not a trailing adjective.
 
-    «рыболовная катушка» → «катушка»; «повербанк» → «повербанк». English
-    types keep their last token the same way ("power bank" → "bank",
-    handled by token coverage anyway).
+    Both «карманный фонарик» and «фонарик карманный» identify a flashlight.
+    A trailing descriptive adjective must not become the product identity.
     """
 
-    return type_tokens[-1] if type_tokens else None
+    if not type_tokens:
+        return None
+    return next(
+        (token for token in reversed(type_tokens) if not _is_adjective(token)),
+        type_tokens[-1],
+    )
 
 
 def _is_adjective(token: str) -> bool:

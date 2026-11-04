@@ -634,8 +634,9 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual([p.product_id for p in decision.products], ["exact"])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
 
     async def test_selector_timeout_fails_closed_even_for_deterministically_validated_candidates(self):
         engine = ConversationSearchEngine()
@@ -661,10 +662,13 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            [p.product_id for p in decision.products],
+            ["welder-inverter", "welder-mma"],
+        )
         self.assertEqual(decision.report["ai_selection"], "timeout_fallback")
-        self.assertEqual(decision.report["reason"], "semantic_selection_unavailable")
+        self.assertEqual(decision.report["reason"], "deterministic_fallback")
 
     async def test_valid_empty_selector_response_is_an_explicit_no_match(self):
         engine = ConversationSearchEngine()
@@ -713,8 +717,8 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         selector.assert_not_awaited()
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([p.product_id for p in decision.products], ["p1"])
         self.assertEqual(decision.report["ai_selection"], "turn_budget_exhausted")
 
     async def test_selector_error_fails_closed_instead_of_showing_unreviewed_pool(self):
@@ -734,10 +738,10 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual([p.product_id for p in decision.products], ["p1"])
         self.assertEqual(decision.report["ai_selection"], "error_fallback")
-        self.assertEqual(decision.report["reason"], "semantic_selection_unavailable")
+        self.assertEqual(decision.report["reason"], "deterministic_fallback")
 
 
 class ConstraintAndFusionRegressionTests(unittest.TestCase):
