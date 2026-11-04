@@ -222,6 +222,48 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             ["route-b", "route-a", "route-c"],
         )
 
+    def test_raw_conversation_walks_deeper_pages_until_pool_target(self) -> None:
+        first = make_product(Marketplace.ALIEXPRESS, "page-1", 19.0)
+        second = make_product(Marketplace.ALIEXPRESS, "page-2", 18.0)
+        third = make_product(Marketplace.ALIEXPRESS, "page-3", 17.0)
+        provider = self.ali_express([])
+        page_calls: list[int] = []
+
+        async def search_page(request):
+            page_calls.append(request.page_no)
+            return {
+                1: [first],
+                2: [second],
+                3: [third],
+            }[request.page_no]
+
+        provider.search_products = search_page
+        # With a two-item raw target, the engine must ask page 2 after a thin
+        # first page, then stop before paying for page 3 once the pool is full.
+        service = SearchService(
+            [provider], max_results=2, max_search_pages=3
+        )
+        request = SearchRequest(
+            original_query="wireless headphones",
+            normalized_query="wireless headphones",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True
+                )
+            )
+
+        self.assertEqual(page_calls, [1, 2])
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["page-1", "page-2"],
+        )
+
     def test_raw_retrieval_stays_single_phrase_without_explicit_opt_in(self) -> None:
         provider = self.ali_express([make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)])
         service = SearchService([provider])
