@@ -182,26 +182,57 @@ def filter_by_budget(
     return survivors, rejected
 
 
-def _feature_is_evidenced(product: Product, feature: str) -> bool:
-    """Require positive title/description evidence for a mandatory feature."""
+_FEATURE_NEGATION_TOKENS = frozenset({
+    "не", "без", "нет", "нету", "несовместим", "несовместима",
+    "несовместимо", "неподдерживает", "неподходит", "неимеет",
+    "not", "no", "without", "incompatible", "unsupported",
+    "doesnt", "doesn", "dont", "excluded", "excluding",
+})
 
-    wanted = _terms(feature)
+
+def _feature_is_evidenced(product: Product, feature: str) -> bool:
+    """Require one contiguous, affirmative evidence span in a single field.
+
+    Token presence scattered across a title and description is not proof of
+    a relationship: a listing can mention "two modes" and "one battery" while
+    the user explicitly requires two batteries. Negated mentions are also
+    unknown, not positive evidence, and must go to semantic review.
+    """
+
+    from services.convsearch.type_validation import _raw_tokens, stems_match
+
+    wanted = _raw_tokens(feature)
     if not wanted:
         return True
-    evidence_text = " ".join(
-        part for part in (product.title or "", product.description or "") if part
-    )
-    observed = _terms(evidence_text)
-    from services.convsearch.type_validation import stems_match
 
-    matched = sum(
-        1 for token in wanted
-        if any(stems_match(token, candidate) for candidate in observed)
+    def has_positive_span(text: str) -> bool:
+        observed = _raw_tokens(text)
+        width = len(wanted)
+        if width > len(observed):
+            return False
+        for start in range(len(observed) - width + 1):
+            end = start + width
+            if not all(
+                stems_match(wanted[offset], observed[start + offset])
+                for offset in range(width)
+            ):
+                continue
+            # Keep a small context window around the exact feature span.
+            # If it is explicitly negated ("not compatible with X",
+            # "without two batteries", "X not included"), do not call it
+            # verified; the bounded semantic selector may inspect it.
+            context = (
+                observed[max(0, start - 3):start]
+                + observed[end:min(len(observed), end + 3)]
+            )
+            if any(token in _FEATURE_NEGATION_TOKENS for token in context):
+                continue
+            return True
+        return False
+
+    return has_positive_span(product.title or "") or has_positive_span(
+        product.description or ""
     )
-    # These slots are mandatory requirements, not soft query similarity.
-    # Partial token overlap (e.g. 3 of 4 words) must stay unverified; otherwise
-    # a Gemini timeout could expose a product missing part of a hard requirement.
-    return matched == len(wanted)
 
 
 def partition_required_feature_evidence(
