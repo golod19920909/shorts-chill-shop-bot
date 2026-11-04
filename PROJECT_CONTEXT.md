@@ -1518,3 +1518,9 @@ on head `53dbe86fb370dfdc9999651a0933193fe2381d33`, GitHub Actions run
   unfiltered full-suite pass.
 - Offline only. The live AliExpress/Gemini/Telegram sequence remains to be
   checked with the user's local credentials.
+
+
+### Subordinate-clause feature normalization (2026-11-04)
+- Extended the generic Russian conversational stopword set to remove pronoun/modal scaffolding from feature spans (e.g. «у него должно быть два аккумулятора»).
+- Added offline regression coverage for several natural subordinate-clause variants. They must remain refinements of the active product, not create a new product identity, and must preserve the actual requested feature without retaining filler words.
+- This is a grammar-level normalization, not a product/category exception. Live behavior remains unverified until the updated branch is run with the user's Telegram/Gemini/AliExpress credentials.
