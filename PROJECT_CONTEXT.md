@@ -1281,3 +1281,33 @@ the 20-candidate AI selection / 30-card presentation limits are unchanged.
 This is a latency trade-off, not proof that the model will always finish or
 that the selected products are correct; verify with live telemetry and the
 actual Telegram cards.
+
+### Live multi-turn test: battery-drill refinement failure (2026-11-04)
+
+A real Telegram run confirmed partial dialogue continuity but exposed a blocking
+failure. The initial request «Нужен аккумуляторный шуруповёрт для дома» returned
+seven cards; the budget follow-up «До 2500 грн» was classified as
+`intent=refine` and returned three cards. The next follow-up
+«Хочу, чтобы было два аккумулятора» was also classified as `refine`, but
+retrieval returned 50 candidates and the product-type gate rejected all 50
+(`reason=rejected_by_type_gate`); Gemini candidate selection was not called.
+The user-facing response was therefore an empty-results message. A later
+unrelated request for «Тэн для бойлера» correctly started a new search and
+returned five cards. This proves that refinement/new-search routing works in
+these observed turns, but does NOT prove that the full requirement ledger or
+candidate validation is correct.
+
+The same run recorded two candidate-selection timeouts at the 15-second
+deadline; a later selection completed in 8.59 seconds. AliExpress also returned
+an intermittent `resp_code=405` empty route and a scheduled price-tracking
+`ApiCallLimit` response. These provider events are separate from the
+observed type-gate rejection and are not established as its cause.
+
+The existing `SearchDecision.report` already contains the rejected product
+type and per-candidate rejection reasons, but the compact live action log did
+not expose them. A diagnostic warning was therefore added immediately after
+pool evaluation to log the active product type, active ledger slots, rejected
+count and the first eight type-rejection reasons whenever the type gate rejects
+candidates. This is an observability change only; it does not relax validation
+or claim the conversational failure is fixed. Next live run must capture this
+diagnostic before changing type-validation policy. The PR remains unmerged.
