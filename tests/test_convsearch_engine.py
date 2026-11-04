@@ -746,6 +746,62 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["reason"], "deterministic_fallback")
 
 
+    async def test_selector_window_reserves_space_for_verified_candidates(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="balanced-selector-window")
+        candidates = [
+            product(f"review-{i}", "Набор универсальных инструментов")
+            for i in range(15)
+        ] + [
+            product(f"verified-{i}", "Рыболовная катушка спиннинговая")
+            for i in range(15)
+        ]
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={
+                "semantic_review_ids": [f"review-{i}" for i in range(15)],
+            },
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        observed = {}
+
+        async def select_window(pool, **kwargs):
+            observed["ids"] = [item.product_id for item in pool]
+            return list(observed["ids"])
+
+        selector = AsyncMock(side_effect=select_window)
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(observed["ids"]), AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(
+            sum(pid.startswith("review-") for pid in observed["ids"]), 10
+        )
+        self.assertEqual(
+            sum(pid.startswith("verified-") for pid in observed["ids"]), 10
+        )
+        self.assertEqual(decision.report["ai_review_in_window"], 10)
+        self.assertEqual(decision.report["ai_ordinary_in_window"], 10)
+        # The selector filled its 20-row window, so the remaining ten
+        # already-verified candidates can safely fill the 30-card ceiling.
+        self.assertEqual(len(decision.products), 30)
+        self.assertEqual(
+            sum(pid.startswith("verified-") for pid in [
+                item.product_id for item in decision.products
+            ]),
+            20,
+        )
+
     async def test_empty_search_gets_one_grounded_natural_followup(self):
         from services.convsearch.retrieval import BackendOutcome
 
