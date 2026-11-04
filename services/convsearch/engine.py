@@ -34,6 +34,7 @@ from services.convsearch.contract import Outcome, SearchDecision
 from services.convsearch.state import (
     ConversationEngineState,
     MessageIntent,
+    _is_comparative_followup,
 )
 from services.convsearch.type_validation import validate_product_type
 
