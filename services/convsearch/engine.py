@@ -1186,7 +1186,14 @@ class ConversationSearchEngine:
         report["ranked"] = len(ranked)
         report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
 
-        limit = strategy.result_limit or RESULT_CARD_LIMIT
+        # The presentation contract is an absolute 30-card ceiling.
+        # An explicit user count may lower it, never raise it; otherwise the
+        # no-Gemini / deterministic fallback path could bypass the cap.
+        limit = RESULT_CARD_LIMIT
+        if strategy.result_limit is not None:
+            limit = min(
+                RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
+            )
         final = ranked[:limit]
 
         if final:
