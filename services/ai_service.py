@@ -696,7 +696,7 @@ CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом �
 {message}
 
 Верни только один JSON-объект со строго такими полями:
-{{"action":"new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null,"slot_updates":[]}}
+{{"action":"new_search|refine|correction|alternatives|compare|clarify|respond","confidence":0.0,"product_type":null,"question":null,"response":null,"slot_updates":[]}}
 
 slot_updates — массив структурированных изменений ограничений из ТЕКУЩЕГО сообщения. Каждый элемент имеет поля:
 {{"operation":"add|replace|remove","kind":"use_case|compatibility|feature|exclusion|preference","target":null,"value":"дословная фраза"}}
@@ -715,6 +715,9 @@ slot_updates — массив структурированных изменен�
 - alternatives: просит другие варианты того же товара.
 - compare: спрашивает о ранее показанных товарах или просит их сравнить/объяснить.
 - clarify: товар/цель неясны настолько, что честный поиск невозможен; задай один короткий вопрос на языке пользователя.
+- respond: только приветствие, благодарность, короткая реплика или общий вопрос для консультации, который НЕ требует поиска, сравнения показанных товаров или проверки фактов конкретного товара. Напиши естественный короткий ответ в поле response на языке пользователя. Не используй respond для просьбы найти/подобрать/купить товар, уточнения текущего поиска или вопроса о характеристиках конкретных показанных товаров.
+- Если пользователь спрашивает об общем понятии («что означает люмен?», «чем отличаются ватт и вольт?»), можно ответить через respond. Не утверждай, что конкретный товар обладает характеристикой, если это не подтверждено данными AliExpress.
+- Для respond: product_type и question должны быть null, slot_updates должен быть пустым массивом. response — обычный текст до 1500 символов, без HTML и без выдуманных сведений о конкретных товарах.
 - Перед решением new_search оцени НЕ только наличие названия товара, но и достаточно ли понятно, ЧТО ИМЕННО покупатель хочет делать с ним. Название товара само по себе не означает, что поиск уже готов.
 - Если одно бытовое название может обозначать несколько существенно разных типов товара, конструкций или задач, а сообщение не позволяет выбрать между ними, выбери clarify. Сначала задай ОДИН конкретный вопрос, который разделит эти варианты; не отправляй пользователя в поиск наугад.
 - Уточнение вроде «для машины», «для дома», «для работы» само по себе НЕ всегда раскрывает задачу. Проверь, не остаются ли за ним разные назначения или классы товара. Например, «компрессор для машины» может означать устройство для подкачки шин или компрессор автомобильного кондиционера; спроси, для какой именно задачи он нужен. Аналогично оценивай любые категории товаров, а не только приведённые примеры.
@@ -1725,7 +1728,7 @@ class AIService:
         action = str(payload.get("action") or "").strip().lower()
         allowed = {
             "new_search", "refine", "correction", "alternatives",
-            "compare", "clarify",
+            "compare", "clarify", "respond",
         }
         if action not in allowed:
             return None
@@ -1783,8 +1786,21 @@ class AIService:
         if action == "clarify" and not question:
             return None
 
+        response = payload.get("response")
+        if action == "respond":
+            if (not isinstance(response, str) or not response.strip()
+                    or len(response.strip()) > 1500 or product_type is not None or question):
+                return None
+            response = response.strip()
+        elif response not in (None, ""):
+            return None
+        else:
+            response = None
+
         raw_updates = payload.get("slot_updates", [])
         if not isinstance(raw_updates, list) or len(raw_updates) > 8:
+            return None
+        if action == "respond" and raw_updates:
             return None
         # Slot values must be grounded in this exact user turn. Additions
         # may only use current-turn phrases; replace/remove operations also
@@ -1876,6 +1892,7 @@ class AIService:
             "confidence": confidence,
             "product_type": product_type,
             "question": question or None,
+            "response": response,
             "slot_updates": slot_updates,
         }
 

@@ -47,6 +47,28 @@ class FakeBackend:
 
 
 class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_natural_response_does_not_search_or_mutate_shopping_slots(self):
+        ai = FakeAI({
+            "action": "respond", "confidence": 0.99,
+            "response": "Люмен — единица светового потока.",
+            "product_type": None, "slot_updates": [],
+        })
+        backend = FakeBackend([listing("unused", "Фонарик 1000 лм")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="natural-response")
+
+        decision = await engine.handle_message(
+            "natural-response", "Что означает люмен?", state=state, currency="UAH"
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESPOND)
+        self.assertEqual(decision.reply, "Люмен — единица светового потока.")
+        self.assertEqual(backend.strategies, [])
+        self.assertEqual([turn.text for turn in state.turns], ["Что означает люмен?"])
+        self.assertEqual(state.active(), [])
+
+
     async def test_deterministic_product_type_excludes_request_verbs_and_relation_targets(self):
         self.assertEqual(
             _product_type_of("Ищу шуруповерта для дома"),

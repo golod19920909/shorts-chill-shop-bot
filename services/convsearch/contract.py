@@ -28,6 +28,8 @@ class Outcome(str, Enum):
     CLARIFY = "clarify"
     #: Comparison / explanation over the SHOWN set; no new search needed.
     COMPARE = "compare"
+    #: Natural conversational answer that does not require marketplace data.
+    RESPOND = "respond"
     #: Engine-level input error (retrieval strategy could not be built).
     INSUFFICIENT_INFO = "insufficient_info"
 
@@ -43,6 +45,8 @@ class SearchDecision:
     request: object | None = None
     #: Clarification question for CLARIFY, else None.
     question: str | None = None
+    #: Natural-language response for RESPOND, never product/catalog facts.
+    reply: str | None = None
     #: Whether this turn refined the active conversation.
     refined: bool = False
     #: Full traceability report (log only, never user-facing).

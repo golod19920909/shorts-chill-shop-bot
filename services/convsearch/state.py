@@ -225,6 +225,16 @@ class ConversationEngineState:
     def touch(self) -> None:
         self.updated_at = time.monotonic()
 
+    def record_turn(self, text: str) -> int:
+        """Record a conversational utterance without changing search slots."""
+        message = (text or "").strip()
+        if not message:
+            return len(self.turns)
+        index = len(self.turns) + 1
+        self.turns.append(Turn(index=index, text=message))
+        self.touch()
+        return index
+
     # -- observation -------------------------------------------------------
 
     def _is_about_current(self, message: str) -> bool:
@@ -584,8 +594,7 @@ class ConversationEngineState:
                             slot.superseded_turn = index
                 else:
                     self._supersede_kinds(index, {"use_case", "compatibility"})
-        self.turns.append(Turn(index=index, text=message))
-        self.touch()
+        self.record_turn(message)
         preferences = [
             _PREFERENCE_QUERY_TERMS[token]
             for token in tokens(message)

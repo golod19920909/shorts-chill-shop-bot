@@ -749,6 +749,20 @@ async def _deliver_decision(
 ) -> None:
     """Render ONE ``SearchDecision``. No re-search, no re-filtering."""
 
+    if decision.outcome is ConvOutcome.RESPOND:
+        reply = (decision.reply or "").strip()
+        if reply:
+            await context.bot.send_message(
+                message.chat_id, reply, reply_markup=back_to_menu_keyboard()
+            )
+        else:
+            await context.bot.send_message(
+                message.chat_id,
+                "Давайте продолжим. Что именно вы хотите подобрать?",
+                reply_markup=back_to_menu_keyboard(),
+            )
+        return
+
     if decision.outcome is ConvOutcome.CLARIFY:
         question = (
             decision.question

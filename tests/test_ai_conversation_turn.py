@@ -15,6 +15,29 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         service._generate = AsyncMock(return_value=response)
         return service
 
+    async def test_valid_natural_response_is_returned_without_shopping_slots(self):
+        service = self.make_service(
+            '{"action":"respond","confidence":0.99,"product_type":null,'
+            '"question":null,"response":"Люмен — единица светового потока.",'
+            '"slot_updates":[]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Что означает люмен?", context={"active_slots": [], "recent_turns": []}
+        )
+        self.assertEqual(result["action"], "respond")
+        self.assertEqual(result["response"], "Люмен — единица светового потока.")
+        self.assertEqual(result["slot_updates"], [])
+
+    async def test_natural_response_cannot_carry_product_type_or_slot_changes(self):
+        service = self.make_service(
+            '{"action":"respond","confidence":0.99,"product_type":"ноутбук",'
+            '"question":null,"response":"Вот ноутбук.","slot_updates":[]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Найди ноутбук", context={"active_slots": [], "recent_turns": []}
+        )
+        self.assertIsNone(result)
+
     async def test_valid_new_search_returns_only_validated_fields(self):
         service = self.make_service(
             '{"action":"new_search","confidence":0.94,'

@@ -312,6 +312,21 @@ class ConversationSearchEngine:
                 logger.info("Gemini turn interpretation failed; using deterministic intent")
                 ai_turn = None
 
+        # Natural replies are outside the shopping state machine: record the
+        # utterance, but do not mutate search slots or call the marketplace.
+        explicit_product_type = _explicit_requested_product_type(text)
+        if (isinstance(ai_turn, dict) and ai_turn.get("action") == "respond"
+                and not explicit_product_type
+                and isinstance(ai_turn.get("response"), str)
+                and ai_turn["response"].strip()):
+            state.record_turn(text)
+            state.last_outcome = Outcome.RESPOND.value
+            return SearchDecision(
+                outcome=Outcome.RESPOND,
+                reply=ai_turn["response"].strip(),
+                report={"intent": "respond", "snapshot": state.snapshot()},
+            )
+
         action_to_intent = {
             "new_search": MessageIntent.NEW_SEARCH,
             "refine": MessageIntent.REFINE,
