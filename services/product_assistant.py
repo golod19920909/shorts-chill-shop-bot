@@ -546,7 +546,7 @@ def _lumen_value(title: str | None) -> float | None:
     if not title:
         return None
     match = re.search(
-        r"(?<!\\w)(\\d{2,5}(?:[.,]\\d+)?)\\s*(?:lm|лм|люмен(?:а|ов)?)",
+        r"(?<!\w)(\d{2,5}(?:[.,]\d+)?)\s*(?:lm|лм|люмен(?:а|ов)?)",
         str(title), flags=re.IGNORECASE,
     )
     if match is None:
