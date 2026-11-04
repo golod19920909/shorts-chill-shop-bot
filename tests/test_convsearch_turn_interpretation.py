@@ -68,7 +68,7 @@ class ShownProductContextTests(unittest.TestCase):
 
         self.assertEqual(
             [product.product_id for product in shown],
-            [f"p{i}" for i in range(5, 17)],
+            [f"p{i}" for i in range(6, 18)],
         )
 
 
