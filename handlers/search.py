@@ -86,9 +86,8 @@ WELCOME_SMART_SEARCH = (
 #: belong to the internal log - the user gets a short, honest sentence and
 #: the advice that actually helps: change the query or its parameters.
 EMPTY_RESULT_TEXT = (
-    "Пока не удалось подобрать вариант, который уверенно подходит под ваши "
-    "пожелания. Что для вас важнее всего сохранить, а какое требование можно "
-    "немного ослабить, чтобы расширить поиск?"
+    "Пока не удалось подобрать подходящий вариант — что из ваших пожеланий "
+    "можно немного ослабить, чтобы расширить поиск?"
 )
 
 #: The ONLY text a user ever sees when the search itself could not run: no
