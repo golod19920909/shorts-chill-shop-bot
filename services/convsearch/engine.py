@@ -764,6 +764,19 @@ class ConversationSearchEngine:
         # One INFO line per turn: the intent, the action and the pool fate -
         # counts only, no user text (§7 traceability).
         logger.info(
+            "convsearch pool stages raw=%d type=%d features=%d exclusions=%d "
+            "budget=%d ranked=%d semantic_review=%d ai_selected=%d final=%d",
+            decision.report.get("raw", 0),
+            decision.report.get("after_type", 0),
+            decision.report.get("after_feature", 0),
+            decision.report.get("after_exclusion", 0),
+            decision.report.get("after_budget", 0),
+            decision.report.get("ranked", 0),
+            len(decision.report.get("semantic_review_ids", [])),
+            decision.report.get("ai_selected", 0),
+            len(decision.products),
+        )
+        logger.info(
             "convsearch action=%s intent=%s reason=%s raw=%d kept=%d ai_selection=%s",
             decision.outcome.value,
             getattr(intent, "value", str(intent)),
