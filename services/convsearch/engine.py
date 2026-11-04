@@ -653,6 +653,12 @@ class ConversationSearchEngine:
             )
         wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool), presentation_limit)
 
+        def deterministic_safe_pool() -> list[Product]:
+            return [
+                product for product in original_pool
+                if product.product_id not in semantic_review_ids
+            ]
+
         def finish_fallback(reason: str) -> SearchDecision:
             # The model was available but could not complete semantic review.
             # Showing the unreviewed deterministic pool would turn lexical
@@ -670,8 +676,15 @@ class ConversationSearchEngine:
             return decision
 
         if not callable(selector):
+            # No semantic selector is bound (offline deterministic mode).
+            # Keep only candidates that already passed every deterministic
+            # hard gate; uncertain identity/feature candidates stay excluded.
             if semantic_review_ids:
-                return finish_fallback("semantic_review_unavailable")
+                decision.products = deterministic_safe_pool()[:presentation_limit]
+                decision.report["ai_selection"] = "semantic_review_unavailable"
+                if not decision.products:
+                    decision.outcome = Outcome.NO_ELIGIBLE
+                    decision.report["reason"] = "unverified_product_identity"
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
