@@ -226,14 +226,30 @@ def _explicit_requested_product_type(text: str) -> str | None:
 
 
 def _is_different_product_type(candidate: str, current: str) -> bool:
-    """Compare product identities by stem overlap, not sentence framing."""
+    """Compare the principal nouns, not shared descriptive modifiers.
+
+    A shared adjective must not hide an explicit product switch:
+    «сварочный аппарат» and «сварочный стол» are different items.
+    Trailing/leading adjectives remain harmless because the same head-noun
+    reader is used by product-type validation.
+    """
 
     from services.convsearch.text import tokens
-    from services.convsearch.type_validation import stems_match
+    from services.convsearch.type_validation import _head_noun, stems_match
 
     candidate_tokens = tokens(candidate)
     current_tokens = tokens(current)
-    return bool(candidate_tokens and current_tokens) and not any(
+    if not candidate_tokens or not current_tokens:
+        return False
+
+    candidate_head = _head_noun(candidate_tokens)
+    current_head = _head_noun(current_tokens)
+    if candidate_head and current_head:
+        return not stems_match(candidate_head, current_head)
+
+    # Conservative fallback for unusual token-only phrases without a
+    # recoverable noun head. Do not let one shared modifier imply identity.
+    return not any(
         stems_match(left, right)
         for left in candidate_tokens
         for right in current_tokens
