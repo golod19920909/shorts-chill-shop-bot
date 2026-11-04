@@ -235,6 +235,29 @@ class CrossCategoryValidationTests(unittest.TestCase):
             product("d3", "Насадка для дрели миксер"), DRILL
         ).qualifies)
 
+    def test_cross_language_title_is_deferred_to_semantic_review(self) -> None:
+        # A Russian request may retrieve an English marketplace title.
+        # Different scripts cannot be compared with shared word stems, so
+        # the candidate must reach semantic review rather than be discarded.
+        verdict = validate_product_type(
+            product("english-drill", "Cordless screwdriver drill driver 21V"),
+            "аккумуляторный шуруповёрт",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "cross_language_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_cross_language_accessory_is_still_rejected(self) -> None:
+        verdict = validate_product_type(
+            product("english-bits", "Drill bits set for cordless screwdriver"),
+            "шуруповёрт",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertTrue(any(reason.startswith("accessory_head:") for reason in verdict.reasons))
+
     def test_no_type_requested_passes_everything(self) -> None:
         self.assertTrue(validate_product_type(
             product("n1", "Что угодно вообще"), None
