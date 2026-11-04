@@ -909,7 +909,19 @@ class ConversationSearchEngine:
 
         try:
             async with asyncio.timeout(selection_timeout):
-                selected_ids = await selector(selector_pool, query=query, wanted=wanted)
+                selected_ids = await selector(
+                    selector_pool,
+                    query=query,
+                    wanted=wanted,
+                    required_features=[
+                        *state.active_values("feature"),
+                        *state.active_values("compatibility"),
+                    ],
+                    identity_review_ids=[
+                        product_id for product_id in semantic_review_ids
+                        if product_id
+                    ],
+                )
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
             return finish_fallback("timeout_fallback")
