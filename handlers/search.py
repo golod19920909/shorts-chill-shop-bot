@@ -202,7 +202,7 @@ def _products_actually_shown(
     products: list[Product],
     shown_product_ids: list[str],
     *,
-    limit: int = 12,
+    limit: int = 30,
 ) -> list[Product]:
     """Return only cached products the user has actually opened in Telegram.
 
