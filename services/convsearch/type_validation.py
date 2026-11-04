@@ -94,10 +94,27 @@ def stems_match(a: str, b: str) -> bool:
     b = b.lower().replace("ё", "е")
     if a == b:
         return True
-    stem_len = min(4, len(a), len(b))
-    if stem_len < 4:
-        return False
-    return a[:stem_len] == b[:stem_len]
+    # Russian inflection is handled by the project's established
+    # four-character stem convention. Do NOT apply that prefix rule to
+    # Latin words: unrelated English nouns such as "table" and "tablet"
+    # share four characters but are different product identities.
+    is_cyrillic = lambda value: bool(value) and "\\u0400" <= value[0] <= "\\u052F"
+    if is_cyrillic(a) and is_cyrillic(b):
+        stem_len = min(4, len(a), len(b))
+        return stem_len >= 4 and a[:stem_len] == b[:stem_len]
+
+    # English plural forms only; keep the rule deliberately narrow rather
+    # than treating arbitrary shared prefixes as morphological evidence.
+    def _english_singular(value: str) -> str:
+        if len(value) > 5 and value.endswith("ies"):
+            return value[:-3] + "y"
+        if len(value) > 4 and value.endswith(("ches", "shes", "xes", "zes", "sses")):
+            return value[:-2]
+        if len(value) > 3 and value.endswith("s") and not value.endswith("ss"):
+            return value[:-1]
+        return value
+
+    return _english_singular(a) == _english_singular(b)
 
 
 @dataclass
