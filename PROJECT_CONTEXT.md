@@ -1266,3 +1266,18 @@ English drill-bit accessories. CI on the latest branch head: focused suite
 stale legacy modules **2,088 passed, 678 subtests passed, 1 warning**. This
 remains offline verification only; live model selection and marketplace
 quality still require a Telegram run.
+
+### Conversational candidate-review timeout (2026-11-04)
+
+Live diagnostics showed that Gemini turn interpretation could complete
+successfully while the separate 20-listing candidate review repeatedly hit
+its own 8-second deadline. That meant the model understood the user's
+follow-up, but often did not get enough time to inspect the retrieved
+listings against the accumulated requirements; the engine then used its
+safe deterministic fallback and withheld candidates requiring semantic
+review. The bounded candidate-review window is now 15 seconds. The
+conversation-turn interpretation window remains separately bounded, and
+the 20-candidate AI selection / 30-card presentation limits are unchanged.
+This is a latency trade-off, not proof that the model will always finish or
+that the selected products are correct; verify with live telemetry and the
+actual Telegram cards.
