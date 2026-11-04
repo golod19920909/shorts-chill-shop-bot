@@ -636,7 +636,6 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(decision.products, [])
         self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.outcome, Outcome.RESULTS)
 
     async def test_selector_timeout_fails_closed_even_for_deterministically_validated_candidates(self):
         engine = ConversationSearchEngine()
