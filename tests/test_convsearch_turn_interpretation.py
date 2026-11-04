@@ -1403,7 +1403,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_semantic_selector_removes_wrong_product_from_results(self):
         class SelectingAI(FakeAI):
-            async def select_conversation_candidates(self, candidates, *, query, wanted=20):
+            async def select_conversation_candidates(self, candidates, *, query, wanted=20, required_features=None, identity_review_ids=None):
                 self.selection_input = [item.product_id for item in candidates]
                 self.selection_query = query
                 self.selection_wanted = wanted
