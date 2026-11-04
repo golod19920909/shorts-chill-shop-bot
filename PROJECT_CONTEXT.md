@@ -1413,3 +1413,8 @@ count and the first eight type-rejection reasons whenever the type gate rejects
 candidates. This is an observability change only; it does not relax validation
 or claim the conversational failure is fixed. Next live run must capture this
 diagnostic before changing type-validation policy. The PR remains unmerged.
+
+
+### AliExpress category metadata in semantic review (2026-11-04)
+
+The affiliate product query/detail response documents `first_level_category_name` and `second_level_category_name`, but does not document a product-description or specification field. The normalizer now preserves those two real labels as `Product.category_path` (broad-to-specific) and Gemini candidate selection receives them as weak supporting context. The selector prompt explicitly forbids treating a category label as proof of product identity or using it to override a conflicting title. No category is inferred, no additional API call is made, and missing labels remain an empty list. This improves context for ambiguous/cross-language titles but does not provide missing technical specifications; those still require explicit listing evidence.
