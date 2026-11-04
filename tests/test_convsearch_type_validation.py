@@ -59,6 +59,23 @@ class FishingReelValidationTests(unittest.TestCase):
         self.assertFalse(self._verdict("Шпуля для рыболовной катушки"))
         self.assertFalse(self._verdict("Запасная шпуля лескоукладчик"))
 
+    def test_sparse_title_with_description_subtype_is_deferred_for_review(self) -> None:
+        item = product("x", "Катушка 5000")
+        item.description = "Рыболовная катушка для спиннинга"
+        verdict = validate_product_type(item, REEL)
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "bare_type_with_description_confirmation_requires_review",
+            verdict.reasons,
+        )
+
+    def test_conflicting_title_subtype_is_not_rescued_by_description(self) -> None:
+        item = product("x", "Кассетная катушка для магнитофона")
+        item.description = "Рыболовная катушка, spinning reel"
+        verdict = validate_product_type(item, REEL)
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("ambiguous_bare_noun", verdict.reasons)
+
     def test_bare_ambiguous_noun_is_rejected(self) -> None:
         # "катушка" alone is ambiguous (audio tape reel vs fishing reel):
         # without the context token there is insufficient evidence.
