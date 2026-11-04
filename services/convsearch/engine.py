@@ -765,12 +765,15 @@ class ConversationSearchEngine:
         # counts only, no user text (§7 traceability).
         logger.info(
             "convsearch pool stages raw=%d type=%d features=%d exclusions=%d "
-            "budget=%d ranked=%d semantic_review=%d ai_selected=%d final=%d",
+            "budget=%d dedup=%d rank_rejected=%d ranked=%d "
+            "semantic_review=%d ai_selected=%d final=%d",
             decision.report.get("raw", 0),
             decision.report.get("after_type", 0),
             decision.report.get("after_feature", 0),
             decision.report.get("after_exclusion", 0),
             decision.report.get("after_budget", 0),
+            decision.report.get("after_dedup", 0),
+            decision.report.get("rank_rejected", 0),
             decision.report.get("ranked", 0),
             len(decision.report.get("semantic_review_ids", [])),
             decision.report.get("ai_selected", 0),
@@ -941,12 +944,15 @@ class ConversationSearchEngine:
         # very candidates Gemini just rejected as irrelevant.
         if not selected and selected_ids == []:
             decision.products = []
+            decision.report["ai_selected"] = 0
             decision.outcome = Outcome.NO_ELIGIBLE
             decision.report["ai_selection"] = "semantic_no_match"
             decision.report["reason"] = "semantic_no_match"
             return decision
         if not selected:
             return finish_fallback("empty_fallback")
+
+        decision.report["ai_selected"] = len(selected)
 
         # The model only sees/selects the first 20. Keep its ordering.
         # Append the untouched deterministic tail ONLY when Gemini filled
@@ -1031,8 +1037,11 @@ class ConversationSearchEngine:
             "after_feature": 0,
             "after_exclusion": 0,
             "after_budget": 0,
+            "after_dedup": 0,
             "after_shown": 0,
             "ranked": 0,
+            "rank_rejected": 0,
+            "ai_selected": 0,
             "rejected_type": 0,
             "rejected_feature": 0,
             "rejected_exclusion": 0,
@@ -1107,10 +1116,12 @@ class ConversationSearchEngine:
 
         # 3. Dedup by stable identity, then requirement-aware ranking.
         eligible = retrieval_mod._dedup_by_identity(eligible)
+        report["after_dedup"] = len(eligible)
         ranked, _validations = ranking_mod.rank_candidates(
             eligible, state, product_type, request=strategy.request
         )
         report["ranked"] = len(ranked)
+        report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
 
         limit = strategy.result_limit or RESULT_CARD_LIMIT
         final = ranked[:limit]
