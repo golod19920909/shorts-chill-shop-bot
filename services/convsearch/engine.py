@@ -131,6 +131,20 @@ def _is_modifier_only_phrase(words: list[str]) -> bool:
     return bool(words) and all(_RUSSIAN_ADJECTIVE_ENDING_RE.search(word) for word in words)
 
 
+def _is_modifier_only_request(text: str) -> bool:
+    """True when the requested-item phrase contains modifiers but no noun."""
+    from services.convsearch.text import tokens
+
+    phrase = _EXPLICIT_PRODUCT_CONTEXT_RE.split(text or "", maxsplit=1)[0]
+    words = [
+        token for token in tokens(phrase)
+        if token not in _REQUEST_FILLER
+        and token not in _DISCOURSE_MARKERS
+        and not token.isdigit()
+    ]
+    return _is_modifier_only_phrase(words)
+
+
 def _product_type_of(text: str) -> str | None:
     """The product type a NEW-search message names, or ``None``.
 
@@ -412,6 +426,21 @@ class ConversationSearchEngine:
             observation["model_slot_updates"] = model_slot_updates
         state.record_slots(observation)
         intent = observation["intent"]
+
+        if current_type is None and _is_modifier_only_request(text):
+            question = (
+                "Какой именно товар вам нужен? Напишите его название — "
+                "и я помогу подобрать подходящий вариант."
+            )
+            state.last_outcome = Outcome.CLARIFY.value
+            state.last_question = question
+            return SearchDecision(
+                outcome=Outcome.CLARIFY,
+                question=question,
+                refined=False,
+                report={"intent": intent, "reason": "product_identity_incomplete",
+                        "snapshot": state.snapshot()},
+            )
 
         if isinstance(ai_turn, dict) and ai_turn.get("action") == "clarify":
             # If the message itself clearly introduced a new product, retain
