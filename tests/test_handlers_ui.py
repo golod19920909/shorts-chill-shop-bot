@@ -288,6 +288,20 @@ def run(coro):
     return asyncio.run(coro)
 
 
+class ShownProductContextTests(unittest.TestCase):
+    def test_all_thirty_delivered_products_remain_available_for_comparison(self) -> None:
+        products = [make_product(index) for index in range(1, 31)]
+        shown_ids = [product.product_id for product in products]
+
+        shown = search_handlers._products_actually_shown(products, shown_ids)
+
+        self.assertEqual(len(shown), 30)
+        self.assertEqual(
+            [product.product_id for product in shown],
+            shown_ids,
+        )
+
+
 class SendSearchResultsTests(unittest.TestCase):
     """A feed opens ON a product card: no list, no counters, real actions."""
 
