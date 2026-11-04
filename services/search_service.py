@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 import re
 import time
 from dataclasses import dataclass, field
@@ -593,6 +594,7 @@ class SearchService:
         feed_selection: bool = True,
         raw: bool = False,
         raw_broaden: bool = False,
+        raw_continue: Callable[[list[Product]], bool] | None = None,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -932,7 +934,21 @@ class SearchService:
                         if identity_pair(product) not in exclude
                     ]
                 current_unique = len(current_raw)
-                if current_unique >= pool_target:
+                if raw_continue is not None:
+                    # The conversational engine knows the active product type,
+                    # mandatory features, exclusions and budget. Let that same
+                    # evaluator decide whether this raw pool contains enough
+                    # usable candidates; raw row count alone can be mostly
+                    # accessories or unrelated listings.
+                    if not raw_continue(current_raw):
+                        logger.info(
+                            "RAW conversational pagination stopped: "
+                            "eligible candidate target reached after page %d "
+                            "(raw=%d)",
+                            page_no, current_unique,
+                        )
+                        break
+                elif current_unique >= pool_target:
                     logger.info(
                         "RAW conversational pagination stopped: pool target "
                         "reached (%d/%d) after page %d",
@@ -943,12 +959,27 @@ class SearchService:
                 break
 
         if raw:
+            # A conversational continuation predicate has already bounded
+            # retrieval by the configured page limit. Preserve the complete
+            # bounded page set for the engine's real eligibility pass instead
+            # of cutting it again by raw row count.
+            raw_candidate_cap = pool_target
+            if raw_continue is not None:
+                raw_candidate_cap = max(
+                    pool_target,
+                    sum(
+                        len(result)
+                        for route in raw_route_pairs
+                        for _provider, result in route
+                        if isinstance(result, list)
+                    ),
+                )
             outcome = self._collect_raw(
                 request=request,
                 pairs=pairs,
                 outcome=outcome,
                 exclude=exclude,
-                cap=pool_target,
+                cap=raw_candidate_cap,
             )
             if broaden and len(raw_route_pairs) > 1:
                 # Import lazily: convsearch.retrieval intentionally reuses
@@ -966,7 +997,7 @@ class SearchService:
                         product for product in fused
                         if identity_pair(product) not in exclude
                     ]
-                outcome.products = fused[:pool_target]
+                outcome.products = fused[:raw_candidate_cap]
                 outcome.products_before_filtering = fused_count
                 outcome.comparisons = build_comparison(outcome.products)
                 logger.info(
@@ -980,7 +1011,7 @@ class SearchService:
                     len(raw_route_pairs),
                     pages_scanned,
                     outcome.found_count,
-                    pool_target,
+                    raw_candidate_cap if raw_continue is not None else pool_target,
                 )
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
