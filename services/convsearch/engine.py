@@ -349,16 +349,8 @@ class ConversationSearchEngine:
         # naturally while still protecting a genuinely named product switch.
         explicit_product_type = _explicit_requested_product_type(text)
         current_type = state.active_by_kind("type")
-        model_product_type = (
-            ai_turn.get("product_type")
-            if isinstance(ai_turn, dict)
-            and ai_turn.get("action") == "new_search"
-            and isinstance(ai_turn.get("product_type"), str)
-            else None
-        )
         message_product_type = (
             explicit_product_type
-            or model_product_type
             or (
                 _product_type_of(text)
                 if isinstance(ai_turn, dict)
@@ -385,20 +377,34 @@ class ConversationSearchEngine:
                 # discussed: keep the current shopping thread and refine it.
                 intent_override = MessageIntent.REFINE
             else:
-                # A claimed new search without a grounded product identity
-                # must not silently rerun the previous product's query.
-                question = "Какой именно товар вы хотите найти?"
-                state.record_turn(text)
-                state.last_outcome = Outcome.CLARIFY.value
-                state.last_question = question
-                return SearchDecision(
-                    outcome=Outcome.CLARIFY,
-                    question=question,
-                    refined=False,
-                    report={"intent": MessageIntent.AMBIGUOUS,
-                            "reason": "new_search_without_product_identity",
-                            "snapshot": state.snapshot()},
+                # A modifier/constraint without a new item identity still
+                # belongs to the active request. A bare "find something else"
+                # does not: ask for the missing product instead of repeating
+                # the old search under a misleading new-search label.
+                refinement_signal = (
+                    _is_comparative_followup(text)
+                    or _is_modifier_only_request(text)
+                    or bool(re.search(
+                        r"(?:^|\\s)(?:с|со|из|без|для|под|по|до|with|without|"
+                        r"made\\s+(?:of|from))\\s+",
+                        text, re.IGNORECASE,
+                    ))
                 )
+                if refinement_signal:
+                    intent_override = MessageIntent.REFINE
+                elif not state.last_question:
+                    question = "Какой именно товар вы хотите найти?"
+                    state.record_turn(text)
+                    state.last_outcome = Outcome.CLARIFY.value
+                    state.last_question = question
+                    return SearchDecision(
+                        outcome=Outcome.CLARIFY,
+                        question=question,
+                        refined=False,
+                        report={"intent": MessageIntent.AMBIGUOUS,
+                                "reason": "new_search_without_product_identity",
+                                "snapshot": state.snapshot()},
+                    )
 
         # Fail closed on a modifier-only fragment when there is no active
         # product identity. A timeout or an over-eager model must not turn
