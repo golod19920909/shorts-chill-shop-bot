@@ -341,6 +341,22 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         ))
         self.assertIsNone(result)
 
+    def test_evidence_quote_cannot_join_title_and_description_boundaries(self) -> None:
+        product = self._product().model_copy(update={
+            "title": "Cordless",
+            "description": "screwdriver with 2 batteries",
+        })
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [product],
+            query="cordless screwdriver",
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
     def test_category_path_cannot_substitute_for_listing_evidence(self) -> None:
         product = self._product().model_copy(update={
             "title": "Cordless screwdriver",
