@@ -397,6 +397,17 @@ class ConversationSearchEngine:
             slot_updates=model_slot_updates,
             allow_product_switch=explicit_product_switch,
         )
+        # The empty-ledger first-turn shortcut in the generic state machine
+        # intentionally assumes a new product request. The conversational
+        # engine has stronger product-identity evidence: if the message
+        # contains no noun head, do not let that shortcut promote an adjective
+        # or fragment into a searchable product.
+        if (
+            current_type is None
+            and _product_type_of(text) is None
+            and observation.get("intent") == MessageIntent.NEW_SEARCH
+        ):
+            observation["intent"] = MessageIntent.AMBIGUOUS
         if model_slot_updates:
             observation["model_slot_updates"] = model_slot_updates
         state.record_slots(observation)
