@@ -1683,11 +1683,14 @@ identity_review_ids: {json.dumps(sorted(identity_ids), ensure_ascii=False)}
             normalized_quote = " ".join(quote.split()).strip()
             if not normalized_quote or len(normalized_quote) > 240:
                 return False
-            source = " ".join(
-                part for part in (product.title or "", product.description or "")
+            # A quote must belong to one actual field; joining title and
+            # description first could accidentally validate a quote spanning
+            # the boundary between two unrelated fragments.
+            return any(
+                normalized_quote.casefold() in " ".join(part.split()).casefold()
+                for part in (product.title or "", product.description or "")
                 if part
             )
-            return normalized_quote.casefold() in " ".join(source.split()).casefold()
 
         selected: list[str] = []
         rejected_ungrounded = 0
