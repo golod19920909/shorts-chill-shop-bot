@@ -1041,42 +1041,47 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
         self.assertEqual([p.product_id for p in verified], ["complete-feature"])
         self.assertEqual([p.product_id for p in needs_review], ["partial-feature"])
 
-    async def test_partial_mandatory_feature_stays_hidden_if_gemini_times_out(self) -> None:
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="partial-feature-timeout")
-        state.record_product_type("power bank")
-        state.slots.append(Slot(
-            kind="feature",
-            value="dual battery quick charging",
-            source_turn=1,
-            raw_text="dual battery quick charging",
-        ))
-        candidate = self._product(
-            "partial-feature-timeout",
-            "Dual battery pack with quick power delivery",
-        )
-        strategy = SimpleNamespace(
-            product_type="power bank",
-            request=SimpleNamespace(
-                normalized_query="power bank dual battery quick charging",
-                original_query="",
-            ),
-            result_limit=30,
-        )
-        decision = engine._evaluate_pool(
-            state, [candidate], strategy,
-            refined=True, intent=MessageIntent.REFINE,
-            observation={}, exclude_shown=False,
-        )
-        engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=AsyncMock(side_effect=TimeoutError)
-        ))
+    def test_partial_mandatory_feature_stays_hidden_if_gemini_times_out(self) -> None:
+        import asyncio
 
-        await engine._apply_ai_candidate_selection(decision, strategy, state)
+        async def run() -> None:
+            engine = ConversationSearchEngine()
+            state = ConversationEngineState(user_key="partial-feature-timeout")
+            state.record_product_type("power bank")
+            state.slots.append(Slot(
+                kind="feature",
+                value="dual battery quick charging",
+                source_turn=1,
+                raw_text="dual battery quick charging",
+            ))
+            candidate = self._product(
+                "partial-feature-timeout",
+                "Dual battery pack with quick power delivery",
+            )
+            strategy = SimpleNamespace(
+                product_type="power bank",
+                request=SimpleNamespace(
+                    normalized_query="power bank dual battery quick charging",
+                    original_query="",
+                ),
+                result_limit=30,
+            )
+            decision = engine._evaluate_pool(
+                state, [candidate], strategy,
+                refined=True, intent=MessageIntent.REFINE,
+                observation={}, exclude_shown=False,
+            )
+            engine.bind_ai_service(SimpleNamespace(
+                select_conversation_candidates=AsyncMock(side_effect=TimeoutError)
+            ))
 
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["reason"], "unverified_required_features")
+            await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+            self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+            self.assertEqual(decision.products, [])
+            self.assertEqual(decision.report["reason"], "unverified_required_features")
+
+        asyncio.run(run())
 
 
     def test_required_feature_needs_positive_evidence(self) -> None:
