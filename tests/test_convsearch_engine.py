@@ -1079,7 +1079,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
         )
         complete = self._product(
             "complete-feature",
-            "Dual battery pack with quick charging",
+            "Dual battery quick charging support",
         )
 
         self.assertFalse(_feature_is_evidenced(partial, "dual battery quick charging"))
