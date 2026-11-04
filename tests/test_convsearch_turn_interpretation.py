@@ -168,6 +168,32 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_values("type"), ["устройство"])
         self.assertEqual(backend.strategies[-1].product_type, "устройство")
 
+    async def test_subordinate_feature_clause_cannot_switch_product_even_if_ai_says_new_search(self):
+        ai = FakeAI({
+            "action": "new_search", "confidence": 0.99,
+            "product_type": "два аккумулятора", "question": None,
+        })
+        backend = FakeBackend([
+            listing("driver", "Аккумуляторный шуруповёрт 20V с двумя аккумуляторами")
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="subordinate-feature-switch-guard")
+        state.record_product_type("шуруповёрт")
+
+        decision = await engine.handle_message(
+            "subordinate-feature-switch-guard",
+            "Хочу, чтобы было два аккумулятора",
+            state=state, currency="UAH",
+        )
+
+        self.assertEqual(decision.report["intent"], MessageIntent.REFINE)
+        self.assertEqual(state.active_values("type"), ["шуруповёрт"])
+        self.assertEqual(backend.strategies[-1].product_type, "шуруповёрт")
+        self.assertTrue(
+            any("аккумулятор" in value for value in state.active_values("feature"))
+        )
+
     async def test_untyped_alternatives_request_keeps_the_current_product(self):
         ai = FakeAI({
             "action": "new_search", "confidence": 0.99,
