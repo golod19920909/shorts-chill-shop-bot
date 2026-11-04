@@ -328,6 +328,36 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         ))
         self.assertIsNone(result)
 
+    def test_every_mandatory_feature_needs_its_own_listing_quote(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver",
+            required_features=["двумя аккумуляторами", "быстрой зарядкой"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_category_path_cannot_substitute_for_listing_evidence(self) -> None:
+        product = self._product().model_copy(update={
+            "title": "Cordless screwdriver",
+            "category_path": ["Tools", "Two battery sets"],
+        })
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"Two battery sets"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [product],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
     def test_selection_rejects_identity_quote_not_present_in_listing(self) -> None:
         service = self._service(
             '{"selections":[{"id":"drill-1","identity_evidence":"professional power tool",'
