@@ -154,6 +154,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_modifier_only_fragment_never_starts_a_product_search(self):
         self.assertIsNone(_product_type_of("Нужен автомобильный"))
         self.assertIsNone(_product_type_of("Ищу промышленный"))
+        self.assertIsNone(_product_type_of("сделай его потише"))
+        self.assertIsNone(_product_type_of("Какой из них лучше?"))
         self.assertEqual(
             _product_type_of("Нужен автомобильный компрессор"),
             "автомобильный компрессор",
