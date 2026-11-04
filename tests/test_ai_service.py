@@ -281,6 +281,75 @@ class AIOutputValidationTests(unittest.TestCase):
         self.assertIsNone(asyncio.run(service.rank_candidates([product])))
 
 
+class ConversationSelectionEvidenceTests(unittest.TestCase):
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertEqual(operation, "conversation_selection")
+            self.assertIn('"selections"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def _product(self) -> Product:
+        return Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="drill-1",
+            title="Cordless screwdriver with 2 batteries",
+            product_url="https://example.com/drill-1",
+        )
+
+    def test_selection_requires_exact_listing_quote_for_mandatory_feature(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertEqual(result, ["drill-1"])
+
+    def test_selection_rejects_invented_or_missing_feature_evidence(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"includes two batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_selection_rejects_identity_quote_not_present_in_listing(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"professional power tool",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_empty_selections_is_a_valid_semantic_no_match(self) -> None:
+        service = self._service('{"selections":[]}')
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            required_features=["двумя аккумуляторами"],
+        ))
+        self.assertEqual(result, [])
+
+
 class CandidatePayloadTests(unittest.TestCase):
     def test_rank_payload_carries_real_marketplace_category_context(self) -> None:
         product = Product(
