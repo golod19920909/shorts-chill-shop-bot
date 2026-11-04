@@ -250,6 +250,32 @@ class CrossCategoryValidationTests(unittest.TestCase):
         )
         self.assertLess(verdict.score, 0.5)
 
+    def test_same_language_synonym_without_shared_type_token_is_reviewed(self) -> None:
+        verdict = validate_product_type(
+            product("synonym-drill", "Беспроводная электрическая дрель"),
+            "шуруповёрт",
+        )
+
+        # No shared stem is uncertainty, not proof that the marketplace
+        # listing is unrelated. Gemini must still confirm the identity.
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "type_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_accessory_with_no_shared_type_token_is_still_rejected(self) -> None:
+        verdict = validate_product_type(
+            product("driver-bits", "Набор бит для шуруповёрта"),
+            "шуруповёрт",
+        )
+
+        self.assertFalse(verdict.qualifies)
+        self.assertTrue(
+            any(reason.startswith("accessory_head:") for reason in verdict.reasons)
+        )
+
     def test_cross_language_accessory_is_still_rejected(self) -> None:
         verdict = validate_product_type(
             product("english-bits", "Drill bits set for cordless screwdriver"),
