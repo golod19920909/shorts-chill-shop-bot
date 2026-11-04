@@ -314,7 +314,9 @@ class RetrievalBackend:
             raise RuntimeError("RetrievalBackend has no SearchService bound")
         return self._search_service
 
-    async def retrieve(self, strategy: RetrievalStrategy, *, exclude=None) -> BackendOutcome:
+    async def retrieve(
+        self, strategy: RetrievalStrategy, *, exclude=None, should_continue=None
+    ) -> BackendOutcome:
         service = self._require_service()
         request = strategy.request
         phrase = (request.normalized_query or request.original_query or "").strip()
@@ -322,7 +324,8 @@ class RetrievalBackend:
             return BackendOutcome(ok=False, reason="empty_query", request=request)
         try:
             outcome: SearchOutcome = await service.find_products(
-                request, exclude=exclude, raw=True, broaden=True, raw_broaden=True
+                request, exclude=exclude, raw=True, broaden=True, raw_broaden=True,
+                raw_continue=should_continue,
             )
         except Exception:
             logger.exception("RetrievalBackend: provider call failed")
