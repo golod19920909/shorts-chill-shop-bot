@@ -76,7 +76,7 @@ interpret the message against the last six user turns, active slot ledger,
 shown-result count and last outcome. The response is a validated JSON object
 with a closed action enum, confidence, optional core product type and (only
 for clarification) one question. Non-clarify actions below 0.65 confidence,
-malformed output, timeouts (bounded to 5 seconds), quota/auth errors and
+malformed output, timeouts (bounded to 8 seconds), quota/auth errors and
 missing Gemini all fall back to the deterministic classifier. Gemini never
 returns product cards or bypasses any deterministic validation.
 
@@ -133,6 +133,11 @@ purpose/fitment phrase does not invent a product type; the bot asks again.
 | `contract.py` | `Outcome` enum (RESULTS / NO_ELIGIBLE / NO_CANDIDATES / PROVIDER_ERROR / CLARIFY / COMPARE / INSUFFICIENT_INFO) and the `SearchDecision` the Telegram layer renders. |
 | `state.py` | `ConversationEngineState`: the ONE authoritative conversation ledger. `Turn` (utterance + provenance), `Slot` (type, soft use_case, hard compatibility, required feature, exclusion, budget, preference; each with provenance/status), intent classes, budget/currency parsing, negation→exclusion, reversal detection, pending clarification outcome/question. Per-user instance stored in `context.user_data["_convsearch_state"]`; the Telegram handler checks the 30-minute idle TTL before refreshing it, so expired ledgers are not revived. |
 ### Product-type gate regression safeguard
+
+The requested product head is the rightmost noun-like token, not blindly the
+last token in the user's phrase. Trailing descriptive adjectives (for example,
+«фонарик карманный») must not replace the product identity «фонарик». Protect
+both adjective orders with category-general tests.
 
 The type validator must distinguish a listing that IS the requested product from
 a different item whose title only mentions that product in a genitive phrase.
@@ -276,11 +281,13 @@ descriptions included in the evidence payload. If Gemini returns fewer than
 20 valid candidates, that partial selection is authoritative and must not be
 padded with unseen tail rows. Append up to ten deterministic tail candidates
 only when Gemini fills the full 20-item selection window. Its orchestration
-timeout is 8 seconds rather than 3 seconds. If semantic validation times out or fails
-while a negative constraint is active, the engine returns no candidates
-instead of silently showing products whose compliance with that exclusion
-could not be established. Without active exclusions, the deterministic
-validated ranking remains the fallback.
+timeout is 8 seconds rather than 3 seconds. If semantic selection times out,
+errors or returns an unusable response, the engine falls back only to the
+deterministic subset that has already passed the product-type, required-feature,
+compatibility, exclusion and budget gates. Candidates explicitly quarantined
+for semantic identity/feature review remain hidden. This applies equally when
+negative constraints are active: the selector cannot override them, and the
+fallback never restores candidates rejected by the deterministic exclusion gate.
 
 ### Semantic selector constraint context (2026-10-30)
 
@@ -1170,9 +1177,9 @@ tests did not exercise:
    eight-second cumulative budget. A normal ~4.7-second interpretation left
    too little time for the second model call, so candidate selection often
    timed out. They now have independent bounded windows: interpretation is
-   capped at five seconds in AIService; candidate selection receives its own
+   capped at eight seconds in AIService; candidate selection receives its own
    eight-second window. Worst-case sequential model wait is therefore bounded
-   at roughly thirteen seconds, excluding provider retrieval.
+   at roughly sixteen seconds, excluding provider retrieval.
 
 3. If the semantic selector is actually attempted but times out, errors, or
    returns an unusable answer, the engine no longer presents the unreviewed
