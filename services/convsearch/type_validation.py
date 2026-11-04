@@ -171,6 +171,27 @@ def _raw_tokens(text: str) -> list[str]:
     ]
 
 
+def _dominant_script(text: str) -> str | None:
+    """Return the dominant writing system in a product phrase/title.
+
+    Marketplace listings often use English or Chinese titles for Russian
+    requests. No shared stems across scripts is not evidence of mismatch.
+    """
+    counts = {"cyrillic": 0, "latin": 0, "other": 0}
+    for char in text or "":
+        if not char.isalpha():
+            continue
+        code = ord(char)
+        if 0x0400 <= code <= 0x052F:
+            counts["cyrillic"] += 1
+        elif (0x0041 <= code <= 0x024F) or (0x1E00 <= code <= 0x1EFF):
+            counts["latin"] += 1
+        else:
+            counts["other"] += 1
+    dominant = max(counts, key=counts.get)
+    return dominant if counts[dominant] else None
+
+
 def validate_product_type(product: Product, product_type: str | None) -> TypeVerdict:
     """Whether ``product`` IS the requested ``product_type`` (hard gate).
 
@@ -403,6 +424,17 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             semantic_review_required = True
             score = 0.15
             reasons.append("type_identity_requires_semantic_review")
+        elif (
+            _dominant_script(product_type or "")
+            and _dominant_script(product.title or "")
+            and _dominant_script(product_type or "") != _dominant_script(product.title or "")
+        ):
+            # Different writing systems make token matching impossible.
+            # Defer identity to Gemini's bounded review; never auto-accept.
+            # Explicit accessory/role relations have already been rejected.
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("cross_language_identity_requires_semantic_review")
         elif coverage < 1.0:
             qualifies = False
             reasons.append("type_head_missing")
