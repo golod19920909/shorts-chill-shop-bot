@@ -427,6 +427,39 @@ class ConversationSearchEngine:
         state.record_slots(observation)
         intent = observation["intent"]
 
+        if (
+            pending_clarification
+            and ai_turn is None
+            and not explicit_product_switch
+            and _product_type_of(text) is None
+        ):
+            # When Gemini cannot interpret an answer to a pending question,
+            # do not let the generic state machine promote a short fragment
+            # («автомобильный») into a new product search. If the turn added
+            # no grounded use-case/feature/budget detail, keep the question
+            # open and ask again instead of querying a broad keyword.
+            current_turn_index = len(state.turns)
+            has_grounded_detail = any(
+                slot.status == "active"
+                and slot.source_turn == current_turn_index
+                and slot.kind in {
+                    "use_case", "compatibility", "feature",
+                    "exclusion", "preference", "budget",
+                }
+                for slot in state.slots
+            )
+            if not has_grounded_detail:
+                question = state.last_question or DEFAULT_CLARIFY_QUESTION
+                state.last_outcome = Outcome.CLARIFY.value
+                state.last_question = question
+                return SearchDecision(
+                    outcome=Outcome.CLARIFY,
+                    question=question,
+                    refined=False,
+                    report={"intent": intent, "reason": "clarification_answer_incomplete",
+                            "snapshot": state.snapshot()},
+                )
+
         if current_type is None and _is_modifier_only_request(text):
             question = (
                 "Какой именно товар вам нужен? Напишите его название — "
