@@ -705,7 +705,18 @@ class ConversationSearchEngine:
                 refined=refined, intent=intent, observation=observation,
                 exclude_shown=(intent is MessageIntent.ALTERNATIVES),
             )
-            return int(preview.report.get("safe_ranked", 0)) < candidate_target
+            safe_count = int(preview.report.get("safe_ranked", 0))
+            should_continue = safe_count < candidate_target
+            logger.info(
+                "convsearch page eligibility raw=%d ranked=%d verified=%d "
+                "target=%d continue=%s",
+                len(products),
+                preview.report.get("ranked", 0),
+                safe_count,
+                candidate_target,
+                should_continue,
+            )
+            return should_continue
 
         try:
             backend_outcome = await self._backend.retrieve(
@@ -802,7 +813,7 @@ class ConversationSearchEngine:
         # counts only, no user text (§7 traceability).
         logger.info(
             "convsearch pool stages raw=%d type=%d features=%d exclusions=%d "
-            "budget=%d dedup=%d rank_rejected=%d ranked=%d "
+            "budget=%d dedup=%d rank_rejected=%d ranked=%d verified=%d "
             "semantic_review=%d ai_selected=%d final=%d",
             decision.report.get("raw", 0),
             decision.report.get("after_type", 0),
@@ -812,6 +823,7 @@ class ConversationSearchEngine:
             decision.report.get("after_dedup", 0),
             decision.report.get("rank_rejected", 0),
             decision.report.get("ranked", 0),
+            decision.report.get("safe_ranked", 0),
             len(decision.report.get("semantic_review_ids", [])),
             decision.report.get("ai_selected", 0),
             len(decision.products),
