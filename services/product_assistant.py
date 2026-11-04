@@ -515,10 +515,24 @@ def matching_products_for_question(
     probes = _feature_probe_words(question)
     if not probes or not products:
         return []
+    def title_matches_probe(title: str, probe: str) -> bool:
+        if phrase_in_text(title, probe):
+            return True
+        # Russian adverbs often describe the same feature as an adjective in
+        # a seller title («ярко» -> «яркий», «быстро» -> «быстрый»).
+        # Compare the shortened form only at a title-word boundary.
+        if len(probe) >= 4 and probe.endswith(("о", "е")):
+            stem = probe[:-1]
+            return any(
+                token.lower().startswith(stem)
+                for token in _WORD_RE.findall(title or "")
+            )
+        return False
+
     matched = [
         product
         for product in products
-        if any(phrase_in_text(product.title, word) for word in probes)
+        if any(title_matches_probe(product.title, word) for word in probes)
     ]
     return matched[:MAX_RESULTS_SHOWN]
 
