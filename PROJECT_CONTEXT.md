@@ -1539,3 +1539,8 @@ on head `53dbe86fb370dfdc9999651a0933193fe2381d33`, GitHub Actions run
 ### Explicit product-switch identity correction (2026-11-04)
 
 The turn router previously treated two product names as the same whenever ANY token overlapped. This incorrectly classified an explicit switch such as «сварочный аппарат» → «сварочный стол» as a refinement because the descriptive adjective «сварочный» is shared. Product-switch detection now compares the principal noun using the same head-noun rule as product-type validation. This preserves reordered/adjectival variants of the same item while recognizing a changed product head as a new search. Added direct and end-to-end regressions. GitHub Actions run **41885404974** on the PR merge ref containing branch head `1628d046d5d4e361ed723298c670c07d210536d2` passed: focused conversational regressions **218 passed, 13 subtests passed**; filtered repository suite **2,112 passed, 683 subtests passed, 1 warning**. The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass. Tests were offline; no live provider calls have been made.
+
+
+### Language-aware product token matching (2026-11-04)
+
+The shared token matcher previously used a four-character prefix for both Cyrillic and Latin words. This can falsely merge unrelated English product nouns (for example, "table" and "tablet"). Matching is now language-aware: Cyrillic keeps the existing inflection stem rule; Latin uses exact matches plus conservative English plural normalization only. Added regressions for Russian inflections, English plurals, and unrelated prefix collisions. CI for this change is pending; live provider behavior is not claimed.
