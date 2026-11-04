@@ -343,7 +343,7 @@ class ConversationSearchEngine:
                         "price": product.price,
                         "currency": product.currency,
                     }
-                    for product in (shown_products or [])[:12]
+                    for product in (shown_products or [])[:30]
                 ],
                 "last_outcome": state.last_outcome,
                 "pending_question": state.last_question,
