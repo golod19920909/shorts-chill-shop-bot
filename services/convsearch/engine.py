@@ -107,6 +107,9 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         "его", "нее", "неё", "него", "них", "ней", "ним", "ими",
         "этот", "эта", "это", "эти", "этого", "этой", "этих", "этим",
         "такой", "такая", "такое", "такие", "того", "той",
+        # Subordinate clauses introduce a characteristic of the active item,
+        # not a second product identity ("Хочу, чтобы было два аккумулятора").
+        "чтобы", "чтоб", "было", "были", "будут",
     }
 )
 
@@ -188,7 +191,7 @@ _EXPLICIT_PRODUCT_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 _EXPLICIT_PRODUCT_CONTEXT_RE = re.compile(
-    r"\b(?:для|с|со|из|без|под|на|до|от|в|по|к|у|о|об)\b",
+    r"\b(?:для|с|со|из|без|под|на|до|от|в|по|к|у|о|об|чтобы|чтоб)\b",
     re.IGNORECASE,
 )
 
