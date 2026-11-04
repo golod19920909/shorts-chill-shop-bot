@@ -634,6 +634,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             decision.report["semantic_review_ids"],
             ["description-attachment"],
         )
+        self.assertEqual(decision.report["safe_ranked"], 0)
         selector = AsyncMock(return_value=["description-attachment"])
         engine.bind_ai_service(SimpleNamespace(
             select_conversation_candidates=selector,
