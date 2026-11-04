@@ -56,6 +56,17 @@ class PhraseMatchingTests(unittest.TestCase):
             with self.subTest(title=title, feature=feature):
                 self.assertTrue(phrase_in_text(title, feature))
 
+    def test_latin_words_do_not_match_on_arbitrary_prefixes(self) -> None:
+        self.assertFalse(phrase_in_text("Tablet stand", "table"))
+        self.assertFalse(phrase_in_text("Table cover", "tablet"))
+        self.assertFalse(phrase_in_text("Wired headphones", "wireless"))
+        self.assertFalse(phrase_in_text("Wireless headphones", "wired"))
+
+    def test_english_regular_plurals_still_match(self) -> None:
+        self.assertTrue(phrase_in_text("Batteries included", "battery"))
+        self.assertTrue(phrase_in_text("Battery included", "batteries"))
+        self.assertTrue(phrase_in_text("Headphones with microphones", "headphone microphone"))
+
     def test_case_and_punctuation_do_not_matter(self) -> None:
         self.assertTrue(phrase_in_text("НАУШНИКИ, ПРОВОДНЫЕ!", "проводные"))
         self.assertTrue(phrase_in_text("usb-c кабель", "USB-C"))
