@@ -653,22 +653,20 @@ class ConversationSearchEngine:
             )
         wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool), presentation_limit)
 
-        def deterministic_safe_pool() -> list[Product]:
-            return [
-                product for product in original_pool
-                if product.product_id not in semantic_review_ids
-            ]
-
         def finish_fallback(reason: str) -> SearchDecision:
-            decision.products = deterministic_safe_pool()[:presentation_limit]
+            # The model was available but could not complete semantic review.
+            # Showing the unreviewed deterministic pool would turn lexical
+            # overlap into a false recommendation (e.g. distinct compressor
+            # classes). Prefer an honest no-result response over unrelated
+            # cards; a subsequent user turn can retry or narrow the request.
+            decision.products = []
+            decision.outcome = Outcome.NO_ELIGIBLE
             decision.report["ai_selection"] = reason
-            if not decision.products:
-                decision.outcome = Outcome.NO_ELIGIBLE
-                feature_review_ids = set(decision.report.get("feature_review_ids", []))
-                if feature_review_ids and feature_review_ids.issuperset(semantic_review_ids):
-                    decision.report["reason"] = "unverified_required_features"
-                else:
-                    decision.report["reason"] = "unverified_product_identity"
+            feature_review_ids = set(decision.report.get("feature_review_ids", []))
+            if feature_review_ids:
+                decision.report["reason"] = "unverified_required_features"
+            else:
+                decision.report["reason"] = "semantic_selection_unavailable"
             return decision
 
         if not callable(selector):
