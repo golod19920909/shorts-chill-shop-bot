@@ -41,7 +41,7 @@ class FakeBackend:
         self.products = products
         self.strategies = []
 
-    async def retrieve(self, strategy, *, exclude=None):
+    async def retrieve(self, strategy, *, exclude=None, should_continue=None):
         self.strategies.append(strategy)
         return BackendOutcome(
             ok=True,
@@ -882,7 +882,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 ]
                 self.strategies = []
 
-            async def retrieve(self, strategy, *, exclude=None):
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
                 index = len(self.strategies)
                 self.strategies.append(strategy)
                 products = self.products[index]
@@ -1404,7 +1404,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_provider_failure_preserves_pending_clarification_in_ledger(self):
         class FailingBackend:
-            async def retrieve(self, strategy, *, exclude=None):
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
                 return BackendOutcome(
                     ok=False,
                     reason="provider_error",
