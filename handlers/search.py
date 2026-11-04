@@ -194,6 +194,28 @@ def get_conversation(context: ContextTypes.DEFAULT_TYPE):
         return None
     return state
 
+def _products_actually_shown(
+    products: list[Product],
+    shown_product_ids: list[str],
+    *,
+    limit: int = 12,
+) -> list[Product]:
+    """Return only cached products the user has actually opened in Telegram.
+
+    A result session caches the whole browse pool, but initially only its
+    first card is delivered. The rest become visible one-by-one as the user
+    browses; cached candidates must never be described to Gemini as already
+    shown before that happens.
+    """
+    if limit <= 0 or not shown_product_ids:
+        return []
+    visible_ids = set(shown_product_ids[-limit:])
+    return [
+        product for product in products
+        if product.product_id in visible_ids
+    ]
+
+
 def _last_shown_session(context: ContextTypes.DEFAULT_TYPE) -> str | None:
     """The session id of the result set currently on screen, if any.
 
@@ -692,7 +714,10 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         common.get_cached_outcome(context, shown_session_id)
         if shown_session_id else None
     )
-    shown_products = list(shown_outcome.products) if shown_outcome is not None else []
+    shown_products = _products_actually_shown(
+        list(shown_outcome.products) if shown_outcome is not None else [],
+        conv_state.shown_product_ids,
+    )
 
     try:
         decision = await engine.handle_message(

@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 
 from models.product import Marketplace, Product
+from handlers.search import _products_actually_shown
 from services.convsearch.contract import Outcome
 from services.convsearch.engine import ConversationSearchEngine, _product_type_of
 from services.convsearch.retrieval import BackendOutcome, build_retrieval_strategy
@@ -43,6 +44,31 @@ class FakeBackend:
             reason="ok" if self.products else "no_candidates",
             products=list(self.products),
             request=strategy.request,
+        )
+
+
+class ShownProductContextTests(unittest.TestCase):
+    def test_only_cards_really_opened_in_telegram_are_sent_as_shown_context(self):
+        products = [
+            listing("p1", "Товар первый"),
+            listing("p2", "Товар второй"),
+            listing("p3", "Товар третий"),
+        ]
+
+        shown = _products_actually_shown(products, ["p1"])
+
+        self.assertEqual([product.product_id for product in shown], ["p1"])
+
+    def test_browsed_cards_are_kept_in_original_result_order_and_bounded(self):
+        products = [listing(f"p{i}", f"Товар {i}") for i in range(20)]
+
+        shown = _products_actually_shown(
+            products, [f"p{i}" for i in range(1, 18)], limit=12
+        )
+
+        self.assertEqual(
+            [product.product_id for product in shown],
+            [f"p{i}" for i in range(5, 17)],
         )
 
 
