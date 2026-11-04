@@ -1469,3 +1469,22 @@ GitHub Actions run **41866859694**:
 - The workflow excludes the documented stale legacy modules; this is not an
   unfiltered full-suite pass.
 - Tests are offline. No live Telegram/Gemini/AliExpress calls were made.
+
+
+### Subordinate-clause feature follow-ups (2026-11-04)
+
+A natural request such as «Хочу, чтобы было два аккумулятора» begins with
+the explicit-request verb «хочу». The product-type extractor previously took
+the whole remainder («чтобы было два аккумулятора») as a possible new product
+identity. That could supersede the active item and send the entire catalogue
+pool through the wrong type gate. The generic explicit-item boundary now
+recognizes «чтобы/чтоб» as the start of a subordinate characteristic clause;
+the clause's own verb scaffolding («было/были») is also stripped from feature
+spans. The requested quantity remains an active feature, while the existing
+product type remains unchanged.
+
+Regression coverage asserts that both explicit and fallback product-type
+extractors return no new item identity for this wording, that the turn is
+classified as a refinement, and that the clean «два аккумулятора» feature is
+stored without «хочу/было». This is a general subordinate-clause grammar rule,
+not a product/category-specific exception. CI verification is pending.
