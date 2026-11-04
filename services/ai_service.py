@@ -1594,66 +1594,125 @@ class AIService:
         *,
         query: str,
         wanted: int = TOP_CANDIDATES,
+        required_features: list[str] | None = None,
+        identity_review_ids: list[str] | None = None,
     ) -> list[str] | None:
-        """Select relevant conversation-search candidates using real product rows.
+        """Select grounded candidates; uncertain claims require listing quotes.
 
-        Returns only ids from the supplied pool. None means the model call or
-        response was unusable; an empty list is a valid no-match decision.
+        Gemini returns exact evidence snippets alongside ids. This method
+        verifies every snippet against the supplied title/description before
+        an id can leave the AI boundary. Category labels are deliberately not
+        accepted as evidence for a product feature or identity.
         """
         if not self.is_available or not candidates:
             return None
 
         limit = max(1, min(int(wanted or TOP_CANDIDATES), TOP_CANDIDATES))
+        requirements = [
+            " ".join(str(value).split())[:120]
+            for value in (required_features or [])
+            if isinstance(value, str) and value.strip()
+        ][:12]
+        identity_ids = {
+            str(value) for value in (identity_review_ids or []) if value
+        }
         products_json = json.dumps(
             [self._rank_payload(candidate) for candidate in candidates],
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        requirements_json = json.dumps(requirements, ensure_ascii=False)
         rules = f"""- Сначала определи, является ли позиция ИМЕННО искомым товаром, а не аксессуаром, запчастью, расходником или соседней категорией.
 - Путь категорий AliExpress используй только как вспомогательный контекст. Он не доказывает сам по себе, что конкретная позиция — искомый товар, и не отменяет противоречие в названии.
 - Не принимай товар за подходящий только потому, что в названии совпадает прилагательное или часть названия. Например, сварочная маска не является сварочным аппаратом.
-- Учитывай явно указанные в запросе назначение и класс применения. Бытовой товар не заменяй промышленным оборудованием и наоборот.
-- Проверяй совместимость отдельно: аксессуар должен подходить к указанному устройству/инструменту; совпадение только по общему слову недостаточно.
-- Если искомый тип встречается только после запятой в длинном перечне, а начало заголовка называет другой товар, не выбирай карточку без явного подтверждения в описании, что основной товар — именно искомый.
-- Если заголовок начинается с общего слова «набор» или «комплект», проверь описание и состав: выбирай карточку, только если искомый товар действительно входит в набор как товар/содержимое, а не упомянут лишь как устройство, для которого набор предназначен.
-- Соблюдай каждое явное исключение из запроса. Если название/данные товара прямо противоречат запрету, не выбирай его.
-- Для КАЖДОГО обязательного положительного требования (например, число аккумуляторов, материал, тип крепления) ищи отдельное положительное подтверждение в названии или описании. Если данных недостаточно, НЕ додумывай характеристику и не выбирай товар.
-- Если запрет относится к типу или классу товара (например, «не полуавтомат»), отсутствие запрещённого слова в заголовке НЕ доказывает соответствие. Выбирай только кандидата, для которого из доступных данных положительно понятен другой тип; неизвестный тип пропускай.
+- Учитывай явно указанные назначение, класс применения и совместимость; не подменяй их соседним типом товара.
+- Соблюдай каждое явное исключение. Прямое противоречие в названии/описании означает отказ.
+- Для КАЖДОГО обязательного требования из списка ниже найди отдельное подтверждение в названии или описании. Не додумывай по типичному комплекту, фотографии, цене, рейтингу или категории.
+- Обязательные требования: {requirements_json}
+- Для каждого выбранного товара верни точную короткую цитату из названия или описания, подтверждающую КАЖДОЕ обязательное требование. Ключ в requirement_evidence должен дословно совпадать с требованием из списка. Цитата должна реально присутствовать в полях товара.
+- Для товара, чей id находится в identity_review_ids, дополнительно верни identity_evidence: точную цитату из названия/описания, на основании которой ты определил его как искомый товар. Не используй для этого category_path.
+- Если подтверждения нет, не выбирай товар. Отсутствие данных — неизвестность, а не подтверждение.
 - Жёсткий бюджет обязателен: не выбирай товар без известной цены, с неизвестной валютой, с другой валютой или с ценой выше указанного лимита.
-- Если назначение не указано, не выдумывай его по цене, рейтингу или популярности.
-- Рейтинг и количество заказов помогают упорядочить уже подходящие товары, но не превращают неподходящий товар в подходящий.
-- Не выдумывай характеристики, которых нет в данных.
-- Верни не более {limit} лучших подходящих позиций; если подходящих нет, верни пустой список."""
+- Рейтинг и количество заказов помогают упорядочить только уже подходящие товары.
+- Верни не более {limit} лучших позиций. Если подходящих нет, верни пустой массив selections."""
+        prompt = f"""Ты отбираешь товары AliExpress для текущего диалога.
+Ориентир запроса: {query[:500]}
+identity_review_ids: {json.dumps(sorted(identity_ids), ensure_ascii=False)}
+
+Верни ТОЛЬКО JSON:
+{{
+  "selections": [
+    {{
+      "id": "точный id из списка",
+      "identity_evidence": "точная цитата из title/description или пустая строка",
+      "requirement_evidence": {{
+        "точное обязательное требование": "точная цитата из title/description"
+      }}
+    }}
+  ]
+}}
+
+{rules}
+
+Не добавляй несуществующие цитаты, id, товары, цены, характеристики или ссылки.
+Товары (JSON):
+{products_json}"""
         raw = await self._generate(
-            SELECT_PROMPT.format(
-                goal="отобрать только подходящие товары для текущего диалога",
-                query=query[:500],
-                rules=rules,
-                products_json=products_json,
-            ),
+            prompt,
             models=(self.fast_model,),
             operation="conversation_selection",
         )
         payload = self._extract_json_object(raw) if raw else None
-        if not isinstance(payload, dict) or not isinstance(payload.get("ids"), list):
+        if not isinstance(payload, dict) or not isinstance(payload.get("selections"), list):
             return None
 
         allowed = {
-            str(candidate.product_id)
+            str(candidate.product_id): candidate
             for candidate in candidates
             if candidate.product_id
         }
+
+        def contains_quote(product: Product, quote: object) -> bool:
+            if not isinstance(quote, str):
+                return False
+            normalized_quote = " ".join(quote.split()).strip()
+            if not normalized_quote or len(normalized_quote) > 240:
+                return False
+            source = " ".join(
+                part for part in (product.title or "", product.description or "")
+                if part
+            )
+            return normalized_quote.casefold() in " ".join(source.split()).casefold()
+
         selected: list[str] = []
-        for raw_id in payload["ids"]:
-            if not isinstance(raw_id, str):
+        for item in payload["selections"]:
+            if not isinstance(item, dict):
                 continue
-            product_id = raw_id.strip()
-            if product_id in allowed and product_id not in selected:
+            product_id = item.get("id")
+            if not isinstance(product_id, str) or product_id not in allowed:
+                continue
+            product = allowed[product_id]
+            if product_id in identity_ids and not contains_quote(
+                product, item.get("identity_evidence")
+            ):
+                continue
+            evidence = item.get("requirement_evidence")
+            if not isinstance(evidence, dict):
+                continue
+            if any(
+                not contains_quote(product, evidence.get(requirement))
+                for requirement in requirements
+            ):
+                continue
+            if product_id not in selected:
                 selected.append(product_id)
-        # A genuinely empty list is the model's explicit no-match decision.
-        # A non-empty list containing only unknown ids is an invalid answer,
-        # so the caller must retain its deterministic ranking instead.
-        if payload["ids"] and not selected:
+            if len(selected) >= limit:
+                break
+
+        # An empty selections array is an explicit no-match. A non-empty
+        # response whose ids/evidence cannot be grounded is unusable, so the
+        # caller keeps only its deterministic safe fallback.
+        if payload["selections"] and not selected:
             return None
         return selected[:limit]
 
