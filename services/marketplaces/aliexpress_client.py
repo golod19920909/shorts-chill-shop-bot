@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
+import time
 import hmac
 import logging
 from datetime import datetime, timedelta, timezone
@@ -312,11 +314,18 @@ class AliExpressClient:
         )
         return params
 
-    async def _retry(self, error_class: str, attempt: int) -> None:
+    async def _retry(
+        self,
+        error_class: str,
+        attempt: int,
+        *,
+        delay: float | None = None,
+    ) -> None:
         """Spend one bounded retry on a documented transient failure.
 
         Increments ``retries_spent`` (surfaced in /admin) and waits the
-        configured backoff before the next attempt. Never raises.
+        configured backoff or a server-reported short rate-limit cooldown.
+        Never raises.
         """
 
         self.retries_spent += 1
@@ -326,8 +335,41 @@ class AliExpressClient:
             attempt + 1,
             self.max_retries - attempt,
         )
-        if self.retry_backoff:
-            await asyncio.sleep(self.retry_backoff)
+        wait = max(self.retry_backoff, delay or 0.0)
+        if wait:
+            await asyncio.sleep(wait)
+
+    @staticmethod
+    def _short_api_call_limit_wait(error: dict[str, Any]) -> float | None:
+        """Return a bounded wait only for an explicitly short ApiCallLimit.
+
+        Permanent quota/permission/business errors remain non-retryable.
+        The affiliate gateway sometimes reports a temporary ban duration in
+        its ApiCallLimit message; retry only when that duration is explicit
+        and no longer than five seconds.
+        """
+
+        codes = {
+            str(error.get("code") or "").casefold(),
+            str(error.get("sub_code") or "").casefold(),
+        }
+        if "apicalllimit" not in codes:
+            return None
+        message = " ".join(
+            str(error.get(key) or "")
+            for key in ("sub_msg", "msg", "message")
+        )
+        match = re.search(
+            r"ban\\s+will\\s+last\\s+(\\d+(?:\\.\\d+)?)\\s+seconds?",
+            message,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        seconds = float(match.group(1))
+        if not 0 < seconds <= 5:
+            return None
+        return seconds
 
     async def call(self, method: str, business: dict[str, Any] | None = None) -> dict:
         """Perform one documented API call and return its business payload.
@@ -410,6 +452,10 @@ class AliExpressClient:
             # keeps its class visible in /admin.
             error = payload["error_response"]
             code = error.get("code")
+            wait = self._short_api_call_limit_wait(error)
+            if wait is not None and attempt < self.max_retries:
+                await self._retry("ApiCallLimit", attempt, delay=wait)
+                continue
             self.calls_err += 1
             self.last_error_class = f"error_response code={code}"
             raise AliExpressApiError(
