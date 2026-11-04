@@ -1182,6 +1182,14 @@ tests did not exercise:
 4. A standalone inflected modifier (for example, «автомобильный») is not
    accepted as a product identity. The engine asks for the missing product
    name instead of searching AliExpress for an adjective.
+5. If a clarification is pending and Gemini cannot interpret a short
+   answer, the engine does not let deterministic intent guess that the user
+   switched products. When the answer adds no grounded use-case, feature,
+   compatibility, exclusion, preference or budget detail, the same question
+   stays open and no provider search runs.
+6. Telegram distinguishes a semantic-selection failure from a genuine
+   catalogue no-match. When the selector fails, the bot explains that it
+   withheld unverified cards rather than claiming that no products exist.
 
 This is a first systemic correction, not proof of production readiness. It
 does not change the Option C authority split, provider retrieval, deterministic
