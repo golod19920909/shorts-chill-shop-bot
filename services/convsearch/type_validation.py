@@ -98,7 +98,7 @@ def stems_match(a: str, b: str) -> bool:
     # four-character stem convention. Do NOT apply that prefix rule to
     # Latin words: unrelated English nouns such as "table" and "tablet"
     # share four characters but are different product identities.
-    is_cyrillic = lambda value: bool(value) and "\\u0400" <= value[0] <= "\\u052F"
+    is_cyrillic = lambda value: bool(value) and 0x0400 <= ord(value[0]) <= 0x052F
     if is_cyrillic(a) and is_cyrillic(b):
         stem_len = min(4, len(a), len(b))
         return stem_len >= 4 and a[:stem_len] == b[:stem_len]
