@@ -1132,9 +1132,12 @@ well as ordinary `RESPOND` replies. The Telegram delivery layer prefers it
 for no-result outcomes and otherwise uses the safe fallback.
 
 The engine also logs one aggregate pool-stage line per turn:
-raw → type → required-feature → exclusion → budget → ranked → semantic-review
-→ AI-selected → final. This makes it possible to identify exactly where a
-live pool shrinks (for example, 39 retrieved rows to a smaller eligible set)
+raw → type → required-feature → exclusion → budget → dedup → rank-rejected
+→ ranked → semantic-review → AI-selected → final. The report now records
+the deduplicated count, candidates rejected by the final ranking validator,
+and the actual number selected by Gemini (including an explicit zero for a
+semantic no-match). This makes it possible to identify exactly where a live
+pool shrinks (for example, 39 retrieved rows to a smaller eligible set)
 without logging product titles or user text.
 
 
