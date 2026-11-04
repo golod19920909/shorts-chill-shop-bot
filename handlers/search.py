@@ -537,8 +537,14 @@ async def _answer_over_shown(
     """
 
     assistant = context.application.bot_data.get("product_assistant")
-    products = common.get_cached_products(context, session_id)
+    cached_products = common.get_cached_products(context, session_id)
     source_outcome = common.get_cached_outcome(context, session_id)
+    conversation_state = conversation_state or context.user_data.get("_convsearch_state")
+    shown_ids = (
+        conversation_state.shown_product_ids
+        if isinstance(conversation_state, ConversationEngineState) else []
+    )
+    products = _products_actually_shown(cached_products, shown_ids)
     if assistant is None or not products or source_outcome is None:
         return False
 
