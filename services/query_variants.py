@@ -150,53 +150,42 @@ def _has_product_word(text: str | None) -> bool:
 
     return bool(_content_words(text))
 
-def _excluded_stems(request: SearchRequest) -> frozenset[str]:
-    """Prefix-stems of the product types the user EXCLUDED (В«Р±РµР· XВ»).
+def _excluded_tokens(request: SearchRequest) -> frozenset[str]:
+    """Normalized product words the user explicitly excluded.
 
-    Shared by the noun-phrase guard (Stage 16 A-3) and the short/one-noun
-    guard (Stage 25) so both drop the SAME excluded stems and can never
-    disagree about what the excluded product type is. Empty when the
-    request excludes nothing, which is the common case.
+    Keep complete tokens here. Prefix folding is appropriate for Russian
+    inflections, but it can collapse unrelated Latin words such as
+    "wireless" and "wired" and remove a valid retrieval route.
     """
 
-    # Both the legacy intent parser and the conversational ledger can
-    # carry exclusions. Option C stores active turn exclusions in
-    # SearchRequest.excluded_features; checking only
-    # intent_excluded_product_types lets a derived variant reintroduce the
-    # forbidden word from original_query (e.g. «Только не полуавтомат»).
     excluded_phrases = [
         *request.intent_excluded_product_types,
         *request.excluded_features,
     ]
     return frozenset(
-        token.casefold()[:PREFIX_MATCH_LENGTH]
+        token.casefold()
         for phrase in excluded_phrases
         for token in tokenize(phrase)
         if len(token) >= MIN_TERM_LENGTH
     )
 
+
 def _reintroduces_excluded(
-    phrase: str, excluded_stems: frozenset[str]
+    phrase: str, excluded_tokens: frozenset[str]
 ) -> bool:
-    """Whether a DERIVED phrase names an excluded type positively.
+    """Whether a DERIVED phrase positively names an excluded product word."""
 
-    The primary (parser) phrase carries В«Р±РµР·В» and is never passed here. A
-    derived variant is built from the user's own CONTENT words only, which
-    never include the function word В«Р±РµР·В» - so an excluded stem appearing
-    in a derived phrase is, by construction, the exact opposite of the
-    request (В«РїС‹Р»РµСЃРѕСЃ Р±РµР· РјРµС€РєР° BoschВ» в†’ В«РїС‹Р»РµСЃРѕСЃ РјРµС€РєР°В»). This is the
-    short/one-noun counterpart of the Stage 16 A-3 noun guard: it only
-    fires when an exclusion exists, and never drops a variant that keeps
-    the excluded type out.
-    """
-
-    if not excluded_stems:
+    if not excluded_tokens:
         return False
+    from services.convsearch.type_validation import stems_match
+
     return any(
-        word.casefold()[:PREFIX_MATCH_LENGTH] in excluded_stems
+        stems_match(word.casefold(), excluded)
         for word in tokenize(phrase)
         if len(word) >= MIN_TERM_LENGTH
+        for excluded in excluded_tokens
     )
+
 
 def product_query_variants(request: SearchRequest) -> list[str]:
     """Retrieval phrases for ``request``, most specific first.
@@ -239,13 +228,13 @@ def product_query_variants(request: SearchRequest) -> list[str]:
     # does not replace it with an invented opposite, and it does not change
     # downstream filtering (intent_excluded_product_types keeps its meaning).
     if request.intent_excluded_product_types or request.excluded_features:
-        excluded_stems = _excluded_stems(request)
+        excluded_tokens = _excluded_tokens(request)
         nouns = [
             word for word in nouns
-            if word.casefold()[:PREFIX_MATCH_LENGTH] not in excluded_stems
+            if not _reintroduces_excluded(word, excluded_tokens)
         ]
     else:
-        excluded_stems = frozenset()
+        excluded_tokens = frozenset()
     if len(nouns) >= MIN_NOUNS_FOR_VARIANT:
         for phrase in _noun_phrases(nouns):
             if len(variants) >= MAX_PRODUCT_QUERY_VARIANTS:
@@ -275,7 +264,7 @@ def product_query_variants(request: SearchRequest) -> list[str]:
         if (
             homogeneous
             and not _already_present(homogeneous, variants)
-            and not _reintroduces_excluded(homogeneous, excluded_stems)
+            and not _reintroduces_excluded(homogeneous, excluded_tokens)
         ):
             variants.append(homogeneous)
 
@@ -288,7 +277,7 @@ def product_query_variants(request: SearchRequest) -> list[str]:
             and not _already_present(own, variants)
             and _is_broader_than(own, primary)
             and _adds_a_different_question(own, primary)
-            and not _reintroduces_excluded(own, excluded_stems)
+            and not _reintroduces_excluded(own, excluded_tokens)
         ):
             variants.append(own)
 
@@ -372,14 +361,11 @@ def _is_broader_than(own: str, primary: str) -> bool:
     return len(_searchable_words(own)) <= len(_searchable_words(primary))
 
 def _adds_a_different_question(own: str, primary: str) -> bool:
-    """Whether asking ``own`` can answer something ``primary`` did not.
+    """Whether asking own can answer something the primary phrase did not.
 
-    Words are compared by their first
-    :data:`~services.relevance.PREFIX_MATCH_LENGTH` characters - the same
-    tolerant prefix rule the relevance gate uses for Russian endings - so
-    «термос чая» and «термос чай» count as ONE question (the parser's phrase
-    already carries it), while a translated or inflated phrase counts as a
-    different one and is worth one bounded call.
+    Compare complete words with the shared language-aware morphology rule:
+    Russian inflections remain tolerant, while unrelated Latin prefixes such
+    as "table"/"tablet" and "wireless"/"wired" stay distinct.
     """
 
     own_words = _comparable_words(own)
@@ -387,13 +373,25 @@ def _adds_a_different_question(own: str, primary: str) -> bool:
     if not own_words or not primary_words:
         return False
 
-    shared = len(own_words & primary_words) / len(own_words)
-    return shared < _OWN_PHRASE_COVERAGE
+    from services.convsearch.type_validation import stems_match
+
+    shared_count = sum(
+        1
+        for own_word in own_words
+        if any(stems_match(own_word, primary_word) for primary_word in primary_words)
+    )
+    shared = shared_count / len(own_words)
+    # At exactly half overlap, one of two core words has changed; keep the
+    # extra route rather than treating two different product questions as
+    # equivalent.
+    return shared <= _OWN_PHRASE_COVERAGE
+
 
 def _comparable_words(phrase: str) -> frozenset[str]:
-    """Prefix-folded word set of a retrieval phrase (morphology tolerant)."""
+    """Normalized complete words; morphology is compared by stems_match."""
 
-    return frozenset(word[:PREFIX_MATCH_LENGTH] for word in tokenize(phrase))
+    return frozenset(tokenize(phrase))
+
 
 def _noun_phrases(nouns: Sequence[str]) -> list[str]:
     """The user's own nouns as retrieval phrases, the CORE pair first.
