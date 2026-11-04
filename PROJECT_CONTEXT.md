@@ -1445,3 +1445,27 @@ unreviewed semantic-review candidates remain quarantined. Added an offline
 regression with 15 review and 15 verified candidates. This is a candidate
 allocation fix, not evidence of improved live marketplace recall or Gemini
 latency.
+
+
+### Balanced semantic-review / verified-candidate window (2026-11-04)
+
+A large semantic-review group could previously occupy all 20 Gemini selector
+places because it was concatenated before deterministic-safe candidates.
+The selector window now reserves up to 10 places for each group when both
+groups are present, then reallocates unused places to the group with remaining
+candidates. When Gemini fills its window, deterministic-safe candidates outside
+the window may fill remaining presentation slots; unreviewed candidates stay
+quarantined. The 20-candidate AI cap and 30-card presentation cap are unchanged.
+
+Regression: 15 semantic-review + 15 deterministic-safe candidates produce a
+20-row selector window containing 10 from each group; five additional
+deterministic-safe rows may fill the final list, while five unreviewed rows
+remain hidden.
+
+Verification on branch head `31821424eeded25b8007e665b535678d4dc56656`,
+GitHub Actions run **41866859694**:
+- Focused conversational regressions: **213 passed, 8 subtests passed**.
+- Filtered repository suite: **2,107 passed, 678 subtests passed, 1 warning**.
+- The workflow excludes the documented stale legacy modules; this is not an
+  unfiltered full-suite pass.
+- Tests are offline. No live Telegram/Gemini/AliExpress calls were made.
