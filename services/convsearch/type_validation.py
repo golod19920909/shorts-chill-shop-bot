@@ -318,6 +318,11 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         head_positions = [
             i for i, token in enumerate(own_tokens)
             if stems_match(token, head)
+            or (
+                head in ACCESSORY_HEAD_WORDS
+                and len(token) >= 4
+                and token[:3] == head[:3]
+            )
         ]
         if head_positions:
             head_pos = head_positions[0]
