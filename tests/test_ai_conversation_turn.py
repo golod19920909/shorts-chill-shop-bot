@@ -368,7 +368,11 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_conversation_selector_returns_only_ids_from_candidate_pool(self):
         service = self.make_service(
-            '{"ids":["real-2","invented-id","real-1","real-2"]}'
+            '{"selections":['
+            '{"id":"real-2","requirement_evidence":{}},'
+            '{"id":"invented-id","requirement_evidence":{}},'
+            '{"id":"real-1","requirement_evidence":{}},'
+            '{"id":"real-2","requirement_evidence":{}}]}'
         )
         candidates = [
             Product(
@@ -393,7 +397,9 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         service._generate.assert_awaited_once()
 
     async def test_conversation_selector_receives_relevant_later_description_text(self):
-        service = self.make_service('{"ids":["described-item"]}')
+        service = self.make_service(
+            '{"selections":[{"id":"described-item","requirement_evidence":{}}]}'
+        )
         description = (
             "Описание товара. " * 50
             + "Основное содержимое: насадка для дрели по дереву."
@@ -415,7 +421,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Основное содержимое: насадка для дрели по дереву", prompt)
 
     async def test_conversation_selector_prompt_enforces_exclusions_and_budget(self):
-        service = self.make_service('{"ids":[]}')
+        service = self.make_service('{"selections":[]}')
         candidates = [
             Product(
                 marketplace=Marketplace.ALIEXPRESS, product_id="welder-1",
@@ -461,7 +467,9 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, [])
 
     async def test_conversation_selector_rejects_only_unknown_ids_as_unusable(self):
-        service = self.make_service('{"ids":["not-in-pool"]}')
+        service = self.make_service(
+            '{"selections":[{"id":"not-in-pool","requirement_evidence":{}}]}'
+        )
         candidates = [
             Product(
                 marketplace=Marketplace.ALIEXPRESS, product_id="real-1",
