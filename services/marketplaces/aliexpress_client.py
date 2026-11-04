@@ -31,7 +31,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-import time
 import hmac
 import logging
 from datetime import datetime, timedelta, timezone
