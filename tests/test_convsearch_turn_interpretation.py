@@ -51,6 +51,40 @@ class FakeBackend:
         )
 
 
+class MarketplacePhraseRoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_new_search_passes_bounded_alternate_phrase_into_real_strategy(self):
+        ai = FakeAI({
+            "action": "new_search",
+            "confidence": 0.99,
+            "product_type": "шуруповерт",
+            "marketplace_terms": ["cordless drill"],
+            "question": None,
+            "response": None,
+            "slot_updates": [],
+        })
+        backend = FakeBackend([listing("drill-1", "Cordless drill 12V")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="marketplace-phrase-route")
+
+        await engine.handle_message(
+            "marketplace-phrase-route",
+            "Нужен аккумуляторный шуруповерт",
+            state=state,
+            currency="UAH",
+        )
+
+        self.assertEqual(len(backend.strategies), 1)
+        self.assertEqual(
+            backend.strategies[0].request.intent_marketplace_terms,
+            ["cordless drill"],
+        )
+        self.assertEqual(
+            backend.strategies[0].request.normalized_query,
+            "шуруповерт",
+        )
+
+
 class ShownProductContextTests(unittest.TestCase):
     def test_only_cards_really_opened_in_telegram_are_sent_as_shown_context(self):
         products = [
