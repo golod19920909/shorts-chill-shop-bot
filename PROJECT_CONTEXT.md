@@ -1780,3 +1780,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Code/test commits: `502a3a8`, `203d427`. CI run `41972357712` is in progress.
 - The preceding fresh-search feature fallback passed CI run `41972045632`: focused **254 passed / 43 subtests**; filtered repository suite **2,160 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
+
+### Primary-route API error recovery (2026-11-05)
+
+- The raw conversational retrieval loop previously stopped immediately when every provider failed on the first query variant. With AliExpress as the only configured provider, a query-specific error on the primary phrase could prevent the different-script seller phrase from being tried at all.
+- Raw conversational retrieval now still attempts the remaining bounded page-one variants after a primary-route error. It retains any successful alternate-route products, then stops deeper pagination of the failed primary phrase instead of repeating it. Non-raw legacy search behavior is unchanged.
+- Added an offline regression where the primary route returns an AliExpress API error and the alternate seller phrase returns a real candidate; the alternate candidate must survive and the route failure remains recorded.
+- Code/test commits: `8f6a5b5`, `96c6e59`. CI run `41972799610` is in progress.
+- The semantic-review hard-requirement cap passed workflow `41972357712`: focused **255 passed / 43 subtests**; filtered repository suite **2,161 passed / 721 subtests / 1 warning**. The documentation head also passed workflow `41972415498` with the same counts. Both are offline filtered-suite runs, not unfiltered full-suite passes.
+- Offline only; no live Gemini, AliExpress or Telegram calls were made.
