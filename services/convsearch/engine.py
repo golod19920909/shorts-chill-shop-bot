@@ -967,14 +967,25 @@ class ConversationSearchEngine:
         # Split the window evenly when both groups are present, then use any
         # unused places for the group that still has candidates. Ranking order
         # is preserved inside each group.
-        # Review substantially more than the 20 results we intend to keep.
-        # Reserve up to ten deterministic-safe rows outside the model window
-        # for the 30-card presentation tail, but never shrink a small pool
-        # below the candidates actually available.
+        presentation_limit = RESULT_CARD_LIMIT
+        if strategy.result_limit is not None:
+            presentation_limit = min(
+                RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
+            )
+        wanted = min(
+            AI_CONVERSATION_SELECTION_LIMIT,
+            len(original_pool),
+            presentation_limit,
+        )
+        # Review enough candidates to find the requested top set. Keep only
+        # the spare presentation capacity outside the model window (normally
+        # ten cards for a 30-card page); if the user asks for fewer than 20,
+        # spend the whole bounded review pool on finding those best results.
+        tail_capacity = max(0, presentation_limit - wanted)
         selector_window_limit = min(
             len(original_pool),
             AI_CONVERSATION_REVIEW_POOL_LIMIT,
-            max(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool) - 10),
+            max(wanted, len(original_pool) - tail_capacity),
         )
         review_quota = min(
             len(review_pool), (selector_window_limit + 1) // 2
@@ -1004,13 +1015,6 @@ class ConversationSearchEngine:
         decision.report["ai_review_window_limit"] = selector_window_limit
         decision.report["ai_review_in_window"] = review_quota
         decision.report["ai_ordinary_in_window"] = ordinary_quota
-        presentation_limit = RESULT_CARD_LIMIT
-        if strategy.result_limit is not None:
-            presentation_limit = min(
-                RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
-            )
-        wanted = min(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool), presentation_limit)
-
         def deterministic_safe_pool() -> list[Product]:
             return [
                 product for product in original_pool
