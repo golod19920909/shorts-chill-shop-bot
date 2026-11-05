@@ -430,7 +430,7 @@ class QuestionTests(unittest.TestCase):
             make_product("b", "Мощный карманный фонарь", 25.0, "UAH"),
         ]
         advice = run(assistant.answer("Какой светит ярче?", products))
-        self.assertIn("В данных AliExpress этого нет", advice.text)
+        self.assertIn("не могу надёжно это подтвердить", advice.text)
 
 
     def test_missing_information_is_reported_honestly(self) -> None:
@@ -440,7 +440,7 @@ class QuestionTests(unittest.TestCase):
         advice = run(assistant.answer("А он подходит для ноутбука?", products))
 
         self.assertFalse(advice.used_ai)
-        self.assertIn("В данных AliExpress этого нет", advice.text)
+        self.assertIn("не могу надёжно это подтвердить", advice.text)
 
     def test_feature_question_selects_matching_existing_products(self) -> None:
         products = [
