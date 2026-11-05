@@ -75,6 +75,11 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
         "band", "belt", "filter", "hose", "nozzle", "remote",
         "cartridge", "refill", "protector", "film", "glass", "module",
         "sensor", "motor", "earpads", "pad", "pads",
+        # Generic add-ons often appended directly to a host product name
+        # ("faucet aerator", "faucet splash mat"). These remain valid
+        # standalone product types when the user asks for the add-on itself;
+        # the relation rule rejects them only after a different host type.
+        "аэратор", "коврик", "aerator", "mat", "mats",
     }
 )
 
