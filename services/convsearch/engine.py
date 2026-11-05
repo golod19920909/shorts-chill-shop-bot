@@ -769,12 +769,20 @@ class ConversationSearchEngine:
                 await on_search_start()
             except Exception:  # noqa: BLE001 - UI status must not block a search
                 logger.debug("Could not send search-start status", exc_info=True)
-        # Reuse the exact production evaluator after each marketplace page.
-        # Pagination ends only when the current pool can already support the
-        # requested number of deliverable cards, or when the configured page
-        # limit / provider end-of-results signal is reached.
-        candidate_target = RESULT_CARD_LIMIT
-        if strategy.result_limit is not None:
+        # Retrieval must collect a genuinely broad pool BEFORE the AI selector
+        # can choose the best 20. Stopping at the 30-card display count would
+        # make the later 80-candidate internal cap mostly cosmetic.
+        selector = getattr(self._ai_service, "select_conversation_candidates", None)
+        ai_selection_available = (
+            callable(selector)
+            and bool(getattr(self._ai_service, "is_available", True))
+        )
+        candidate_target = (
+            AI_CONVERSATION_CANDIDATE_POOL_LIMIT
+            if ai_selection_available
+            else RESULT_CARD_LIMIT
+        )
+        if not ai_selection_available and strategy.result_limit is not None:
             candidate_target = min(
                 RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
             )
@@ -824,9 +832,9 @@ class ConversationSearchEngine:
                         "snapshot": state.snapshot()},
             )
 
-        selector = getattr(self._ai_service, "select_conversation_candidates", None)
         candidate_pool_limit = (
-            AI_CONVERSATION_CANDIDATE_POOL_LIMIT if callable(selector) else None
+            AI_CONVERSATION_CANDIDATE_POOL_LIMIT
+            if ai_selection_available else None
         )
         decision = self._evaluate_pool(
             state, backend_outcome.products, strategy,
