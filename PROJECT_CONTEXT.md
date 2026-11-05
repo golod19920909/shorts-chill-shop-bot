@@ -1928,3 +1928,18 @@ depend solely on PR event timing to receive CI coverage.
 CI results for the new deadline and regression test must be read from the
 workflow run on the commit containing both; earlier successful runs predate
 this change and do not validate it.
+
+
+### Product-question coverage across the full displayed page (2026-11-05)
+
+A comparison-path audit found a mismatch: the Telegram handler passed every
+actually browsed product to the product assistant, but AIService silently
+truncated the factual prompt to the first eight products. Questions about later
+cards could therefore be answered without considering them.
+
+Raised the grounded product-question context cap to 30, matching the maximum
+presentation page. Only product_facts fields are sent; URLs and unreported
+attributes remain excluded. Added an offline regression that supplies 30
+products and verifies that both the first and last product IDs reach the
+question prompt. This change affects factual question/comparison prompts only;
+candidate selection remains capped at 20 and presentation at 30.
