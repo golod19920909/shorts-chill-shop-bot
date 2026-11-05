@@ -2195,3 +2195,8 @@ GitHub Actions PR workflow **42030839337** completed successfully on head **9bd7
 ### Live smoke script syntax verification (2026-11-05)
 
 The two manual live diagnostics are intentionally not executed by CI because they require the user's private AliExpress/Gemini credentials and make real API calls. The conversational-regression workflow now compiles both `smoke_aliexpress.py` and `smoke_conversational_search.py` on every run, catching syntax/import-independent compilation errors without loading `.env` or spending API quota. This verifies only that the scripts compile; it does not claim the live API smoke has run.
+
+
+### Manual live smoke readiness — comparison assertion aligned to supported evidence (2026-11-05)
+
+Before handing the live smoke scripts to the user, aligned the shown-product comparison check with a criterion that the current ProductAssistant can answer deterministically from returned marketplace fields (price). The prior smoke used a rating question even though rating is not yet an accepted evidence field for the grounded Gemini recommendation path; that could falsely fail the diagnostic despite correct search. The script now asks which shown product is cheaper, which is answered only from known prices and within the same currency. PR #7 remains draft and unmerged. Latest verified CI before this adjustment: 280 focused tests + 45 subtests; filtered suite 2,204 passed + 723 subtests, 1 warning. CI must pass again on the updated head before asking for live checks.
