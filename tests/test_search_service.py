@@ -156,6 +156,12 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             19.0,
             title="Cordless drill driver",
         )
+        alternate_page_two = make_product(
+            Marketplace.ALIEXPRESS,
+            "alternate-after-primary-error-page-two",
+            18.0,
+            title="Cordless drill driver 20V",
+        )
         provider = self.ali_express([])
         calls: list[tuple[int, str]] = []
 
@@ -166,7 +172,7 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
                 return AliExpressSearchResults(
                     provider_error="AliExpressApiError:405"
                 )
-            return [alternate]
+            return [alternate] if request.page_no == 1 else [alternate_page_two]
 
         provider.search_products = search_variant
         service = SearchService([provider], max_search_pages=3)
@@ -191,11 +197,15 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             [
                 (1, "cordless screwdriver"),
                 (1, "cordless drill driver"),
+                (2, "cordless drill driver"),
             ],
         )
         self.assertEqual(
             [item.product_id for item in outcome.products],
-            ["alternate-after-primary-error"],
+            [
+                "alternate-after-primary-error",
+                "alternate-after-primary-error-page-two",
+            ],
         )
         self.assertEqual(outcome.failed_marketplaces, ["AliExpress"])
         self.assertEqual(outcome.searched_marketplaces, ["AliExpress"])
