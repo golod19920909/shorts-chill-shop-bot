@@ -40,6 +40,7 @@ def make_product(**overrides) -> Product:
         "marketplace": Marketplace.ALIEXPRESS,
         "product_id": "p-1",
         "title": "Беспроводные наушники TWS",
+        "description": "Wireless earbuds with touch controls",
         "product_url": "https://www.aliexpress.com/item/1.html",
         "affiliate_url": "https://s.click.aliexpress.com/e1x",
         "price": 19.99,
@@ -208,68 +209,61 @@ class CandidateSelectionValidationTests(unittest.TestCase):
 
 
 class QuestionValidationTests(unittest.TestCase):
-    def test_an_answer_over_real_data_is_returned(self) -> None:
-        service = StubbedAIService("У этого товара цена 19.99 USD.")
-
-        answer = run(
-            service.answer_product_question("Сколько стоит?", [make_product()])
+    def test_an_answer_is_built_from_a_verified_listing_quote(self) -> None:
+        service = StubbedAIService(
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Wireless earbuds with touch controls"}]}'
         )
 
-        self.assertIn("19.99", answer)
+        answer = run(
+            service.answer_product_question("Что указано о наушниках?", [make_product()])
+        )
 
-    def test_an_invented_number_is_rejected(self) -> None:
-        service = StubbedAIService("Цена этого товара 2.99 USD.")
+        self.assertIn("Wireless earbuds with touch controls", answer)
+        self.assertIn("Беспроводные наушники TWS", answer)
+
+    def test_an_invented_quote_is_rejected(self) -> None:
+        service = StubbedAIService(
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Active noise cancellation"}]}'
+        )
 
         self.assertIsNone(
-            run(
-                service.answer_product_question(
-                    "Сколько стоит?", [make_product()]
-                )
-            )
+            run(service.answer_product_question("Есть ли шумоподавление?", [make_product()]))
         )
 
-    def test_one_bad_number_no_longer_discards_a_correct_answer(self) -> None:
-        # Observed live: a single stray figure made the whole answer vanish,
-        # so the feature was effectively dead. Unsupported SENTENCES are
-        # dropped; the verified ones are still shown.
+    def test_model_cannot_add_unsupported_delivery_claim(self) -> None:
         service = StubbedAIService(
-            "Цена товара 19.99 USD. Обычно доставка занимает 30 дней."
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Wireless earbuds with touch controls"}],'
+            '"answer":"Доставка займёт 30 дней."}'
         )
 
         answer = run(
-            service.answer_product_question("Сколько стоит и как долго едет?", [make_product()])
+            service.answer_product_question("Что известно о товаре и доставке?", [make_product()])
         )
 
-        self.assertIsNotNone(answer)
-        self.assertIn("19.99", answer)
+        self.assertIn("Wireless earbuds with touch controls", answer)
         self.assertNotIn("30 дней", answer)
 
-    def test_every_sentence_invented_yields_no_answer_at_all(self) -> None:
+    def test_every_invented_quote_yields_no_answer(self) -> None:
         service = StubbedAIService(
-            "Доставка 30 дней. Рейтинг 4.9 из 5. Вес 500 грамм."
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Waterproof, 500 grams"}]}'
         )
 
         self.assertIsNone(
-            run(
-                service.answer_product_question("Какая доставка?", [make_product()])
-            )
+            run(service.answer_product_question("Он водонепроницаемый?", [make_product()]))
         )
 
-    def test_the_documented_no_data_answer_becomes_none(self) -> None:
-        service = StubbedAIService("нет данных")
+    def test_empty_evidence_list_becomes_no_answer(self) -> None:
+        service = StubbedAIService('{"claims":[]}')
 
         self.assertIsNone(
-            run(
-                service.answer_product_question(
-                    "А он подходит для ноутбука?", [make_product()]
-                )
-            )
+            run(service.answer_product_question("А он подходит для ноутбука?", [make_product()]))
         )
 
     def test_a_claim_the_data_cannot_answer_is_left_to_the_caller(self) -> None:
-        # A claim without numbers cannot be caught by the numeric gate, so the
-        # deterministic layer answers first whenever the fields can answer,
-        # and its honest "no such data" wins over a guess.
         from services.product_assistant import deterministic_answer
 
         self.assertIsNone(
