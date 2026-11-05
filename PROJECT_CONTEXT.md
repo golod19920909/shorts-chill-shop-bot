@@ -2059,3 +2059,14 @@ boundary and the alternatives-with-use-case case.
 
 The initial CI attempt exposed these false positives and a misplaced prompt
 assertion in the test file; both were corrected before the current CI run.
+
+
+### Alternatives require an existing task context (2026-11-05)
+
+A final intent-boundary review found that the alternatives grammar could
+classify «Покажи другие варианты» as a continuation after a non-shopping
+turn, because it checked only the alternation wording and absence of new
+product terms. Alternatives now require an active task slot or delivered
+shown products. Added a regression proving that a greeting followed by an
+alternatives phrase does not create a phantom shopping continuation. Existing
+same-task alternatives, including use-case context, remain covered.
