@@ -631,3 +631,150 @@ class CandidatePayloadTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+class GroundedProductComparisonTests(unittest.TestCase):
+    def _products(self) -> list[Product]:
+        return [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="keyboard-1",
+                title="Keyboard for ThinkPad T490s/T495, US layout",
+                description="Backlit replacement keyboard",
+                product_url="https://example.com/keyboard-1",
+                price=1519.41,
+                currency="UAH",
+            ),
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="keyboard-2",
+                title="Keyboard for ThinkPad X280/X390, FR/ES/US layout",
+                description="Backlit replacement keyboard",
+                product_url="https://example.com/keyboard-2",
+                price=1068.55,
+                currency="UAH",
+            ),
+        ]
+
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertIn('"differences"', contents)
+            self.assertIn('"id": "keyboard-1"', contents)
+            self.assertIn('"id": "keyboard-2"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def test_comparison_returns_only_exact_paired_quotes_from_both_cards(self) -> None:
+        response = json.dumps({
+            "differences": [{
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        result = asyncio.run(
+            service.compare_products("Сравни эти два варианта", self._products())
+        )
+
+        self.assertEqual(
+            result,
+            [("ThinkPad T490s/T495", "ThinkPad X280/X390")],
+        )
+
+    def test_comparison_rejects_invented_or_misassigned_quotes(self) -> None:
+        cases = (
+            {
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad T14s",
+                },
+            },
+            {
+                "first": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+                "second": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+            },
+        )
+        for difference in cases:
+            with self.subTest(difference=difference):
+                service = self._service(json.dumps({"differences": [difference]}))
+                self.assertIsNone(asyncio.run(
+                    service.compare_products("Сравни эти варианты", self._products())
+                ))
+
+    def test_comparison_rejects_full_title_and_nonexistent_text(self) -> None:
+        first_title = self._products()[0].title
+        response = json.dumps({
+            "differences": [{
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": first_title,
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "the keyboard is much better",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        self.assertIsNone(asyncio.run(
+            service.compare_products("Сравни эти варианты", self._products())
+        ))
+
+    def test_comparison_with_one_product_does_not_call_gemini(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        calls = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            calls.append(contents)
+            return '{"differences":[]}'
+
+        service._generate = fake_generate
+        self.assertIsNone(asyncio.run(
+            service.compare_products("Сравни", self._products()[:1])
+        ))
+        self.assertEqual(calls, [])
+
+    def test_slow_comparison_returns_to_deterministic_fallback(self) -> None:
+        service = AIService(api_key=None, timeout_seconds=0.01)
+        service._client = object()
+
+        async def slow_generate(contents, *, models=None, operation="generate"):
+            await asyncio.sleep(0.1)
+            return '{"differences":[]}'
+
+        service._generate = slow_generate
+        self.assertIsNone(asyncio.run(
+            service.compare_products("Сравни эти варианты", self._products())
+        ))
+
