@@ -64,7 +64,7 @@ class StubbedAIService(AIService):
         self.prompts: list[object] = []
         self.models: list[tuple[str, ...]] = []
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.prompts.append(contents)
         self.models.append(tuple(models or ()))
         return self._response
