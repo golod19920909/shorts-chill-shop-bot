@@ -1712,3 +1712,9 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - The phrase must not add a product, model, accessory, brand, unrequested feature, budget or exclusion. Compare/clarify/respond turns cannot attach it. The primary query remains first; the alternate phrase remains secondary and passes through the same candidate validation.
 - Increased the bounded phrase cap from 80 characters / 6 words to 120 characters / 10 words to allow a short product-plus-feature phrase. Same-script phrases remain suppressed by query_variants.
 - Added tests for parser acceptance/rejection and for an active two-battery refinement reaching the retrieval strategy. Latest GitHub Actions run 41967175369 passed: focused suite 243 passed / 37 subtests; filtered repository suite 2,149 passed / 715 subtests / 1 warning. Stale legacy modules remain excluded.
+
+
+### Seller-language context reaches semantic candidate review (2026-11-05)
+- The cross-language retrieval phrase was already reaching AliExpress and the type validator already routes different-script titles to semantic identity review rather than auto-accepting them. However, the final Gemini selector received only the original-language query and the listing, not the interpreter's bounded seller-language phrase.
+- Passed the single bounded `intent_marketplace_terms` phrase through the engine to `AIService.select_conversation_candidates`. Gemini is explicitly told this is a language/terminology hint only, never product evidence; selected products still require exact quotes from their own title/description for identity and each mandatory feature.
+- Added a prompt regression for an English seller phrase attached to a Russian request. This checks context propagation and preserves the evidence gate; it does not claim that Gemini's semantic decision or live AliExpress results have been validated.
