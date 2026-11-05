@@ -515,8 +515,11 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         score = 0.5 * coverage
         reasons.append("partial_type_coverage")
 
-    if qualifies and head_ok and not semantic_review_required:
-        score = 1.0 + 0.5 * (coverage - 1.0) if coverage < 1.0 else 1.0
+    if qualifies and head_ok and not semantic_review_required and coverage >= 1.0:
+        # A matching head noun does not erase missing requested qualifiers.
+        # Keep partial title coverage below an exact type match so pagination
+        # and ranking do not treat a weaker identity signal as fully verified.
+        score = 1.0
         reasons.append("type_head")
 
     return TypeVerdict(
