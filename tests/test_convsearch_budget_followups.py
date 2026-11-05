@@ -31,6 +31,19 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertIn("двумя аккумуляторами", strategy.request.normalized_query)
         self.assertIn("двумя аккумуляторами", strategy.request.required_features)
 
+    def test_initial_search_keeps_explicit_battery_requirements(self):
+        for phrase in ("с двумя аккумуляторами", "с двумя батареями"):
+            state = ConversationEngineState(user_key=f"initial-{phrase}")
+            first = f"Нужен шуруповёрт {phrase}"
+
+            observation = state.observe(first)
+            state.record_slots(observation)
+
+            self.assertEqual(
+                state.active_values("feature"),
+                [phrase.removeprefix("с ")],
+            )
+
     def test_initial_search_does_not_turn_request_scaffolding_into_features(self):
         state = ConversationEngineState(user_key="initial-no-scaffolding")
         first = "Нужен шуруповёрт, покажи 5 вариантов"
