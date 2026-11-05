@@ -271,7 +271,10 @@ def filter_by_required_features(
     live in separate preference slots and are deliberately not filtered here.
     """
 
-    required = state.active_values("feature")
+    required = [
+        *state.active_values("feature"),
+        *state.active_values("compatibility"),
+    ]
     if not required:
         return list(products), []
     survivors, rejected = [], []
