@@ -502,6 +502,141 @@ def _price_lines(products: dict[str, Product]) -> list[str]:
     ]
 
 
+_COMPARISON_REQUEST_MARKERS = (
+    "сравни", "сравнить", "сравнение", "сопостав", "отличаются",
+    "различия", "compare", "comparison",
+)
+
+
+def is_explicit_comparison_request(question: str) -> bool:
+    """Recognize an explicit request to compare already-shown products."""
+
+    lowered = (question or "").casefold().replace("ё", "е")
+    return any(marker in lowered for marker in _COMPARISON_REQUEST_MARKERS)
+
+
+def deterministic_comparison(
+    question: str, products: list[Product]
+) -> str | None:
+    """Compare the two highest-ranked shown products using only real fields.
+
+    The search/semantic-selection pipeline has already ordered the products.
+    This renderer compares its first two distinct listings and never asks a
+    language model to invent a winner or product attributes.
+    """
+
+    if not is_explicit_comparison_request(question):
+        return None
+
+    pair: list[Product] = []
+    seen_ids: set[str] = set()
+    for product in products:
+        product_id = str(product.product_id)
+        if product_id in seen_ids:
+            continue
+        seen_ids.add(product_id)
+        pair.append(product)
+        if len(pair) == 2:
+            break
+
+    if len(pair) < 2:
+        return (
+            "Для сравнения нужны минимум два товара из показанных результатов. "
+            "Сейчас доступен только один подходящий вариант."
+        )
+
+    first, second = pair
+    lines = [
+        "Сравнил два наиболее релевантных варианта из показанных результатов.",
+        "",
+    ]
+
+    for number, product in enumerate(pair, start=1):
+        title = html.escape(str(product.title or "Товар")[:240])
+        lines.append(f"<b>Вариант {number}</b>")
+        lines.append(title)
+        if product.price is not None:
+            lines.append(f"• Цена: {format_price(product.price, product.currency)}")
+        if product.rating is not None:
+            lines.append(f"• Рейтинг: {product.rating:g} из 5")
+        if product.positive_rate is not None:
+            lines.append(f"• Положительных отзывов: {product.positive_rate:g}%")
+        if product.orders_count is not None:
+            lines.append(f"• Заказов: {product.orders_count}")
+        if product.delivery_estimate:
+            lines.append(f"• Доставка: {html.escape(str(product.delivery_estimate)[:100])}")
+        if product.shipping_cost is not None:
+            lines.append(
+                "• Стоимость доставки: "
+                f"{format_price(product.shipping_cost, product.currency)}"
+            )
+        lines.append("")
+
+    differences: list[str] = []
+    if first.price is not None and second.price is not None:
+        first_currency = (first.currency or "").upper()
+        second_currency = (second.currency or "").upper()
+        if first_currency and first_currency == second_currency:
+            delta = abs(first.price - second.price)
+            if delta > 0:
+                cheaper_number = 1 if first.price < second.price else 2
+                differences.append(
+                    f"Вариант {cheaper_number} дешевле на "
+                    f"{format_price(delta, first.currency)}."
+                )
+            else:
+                differences.append("Цены одинаковые.")
+        elif first_currency != second_currency:
+            differences.append(
+                "Цены указаны в разных валютах, поэтому напрямую их не сравниваю."
+            )
+
+    if first.rating is not None and second.rating is not None:
+        if first.rating != second.rating:
+            higher = 1 if first.rating > second.rating else 2
+            differences.append(
+                f"У варианта {higher} выше рейтинг: "
+                f"{max(first.rating, second.rating):g} против "
+                f"{min(first.rating, second.rating):g} из 5."
+            )
+        else:
+            differences.append(f"Рейтинг одинаковый: {first.rating:g} из 5.")
+
+    if first.positive_rate is not None and second.positive_rate is not None:
+        if first.positive_rate != second.positive_rate:
+            higher = 1 if first.positive_rate > second.positive_rate else 2
+            differences.append(
+                f"У варианта {higher} выше доля положительных отзывов: "
+                f"{max(first.positive_rate, second.positive_rate):g}% против "
+                f"{min(first.positive_rate, second.positive_rate):g}%."
+            )
+
+    if first.orders_count is not None and second.orders_count is not None:
+        if first.orders_count != second.orders_count:
+            more = 1 if first.orders_count > second.orders_count else 2
+            differences.append(
+                f"У варианта {more} больше накопленных заказов: "
+                f"{max(first.orders_count, second.orders_count)} против "
+                f"{min(first.orders_count, second.orders_count)}."
+            )
+
+    lines.append("<b>Главные отличия по данным карточек</b>")
+    if differences:
+        lines.extend(f"• {item}" for item in differences)
+    else:
+        lines.append(
+            "В карточках недостаточно общих числовых данных, чтобы объективно "
+            "назвать один вариант лучше другого. Сопоставьте модели и "
+            "характеристики, указанные в названиях выше."
+        )
+    lines.extend([
+        "",
+        "Я сравниваю только сведения, которые AliExpress передал в этих карточках; "
+        "неуказанные характеристики и совместимость не додумываю.",
+    ])
+    return "\n".join(lines)
+
+
 def _feature_probe_words(question: str) -> list[str]:
     return [
         word.lower()
@@ -856,6 +991,10 @@ class ProductAssistant:
 
     async def answer(self, question: str, products: list[Product]) -> ProductAdvice:
         """«💬 Задать свой вопрос» - exact answers first, language second."""
+
+        comparison = deterministic_comparison(question, products)
+        if comparison:
+            return ProductAdvice(comparison, False)
 
         deterministic = deterministic_answer(question, products)
         if deterministic:
