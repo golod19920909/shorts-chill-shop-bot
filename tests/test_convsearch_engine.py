@@ -748,6 +748,38 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             original_ids[70:80],
         )
 
+    async def test_small_requested_count_reviews_entire_bounded_pool(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="small-count-full-review")
+        candidates = [product(f"small-{i}", "Рыболовная катушка") for i in range(80)]
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        observed = {}
+
+        async def select_small_count(pool, **kwargs):
+            observed["count"] = len(pool)
+            return [item.product_id for item in pool[:kwargs["wanted"]]]
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=AsyncMock(side_effect=select_small_count),
+        ))
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=5,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(observed["count"], AI_CONVERSATION_REVIEW_POOL_LIMIT)
+        self.assertEqual(len(decision.products), 5)
+        self.assertEqual(decision.report["ai_selected"], 5)
+
     async def test_no_selector_still_enforces_thirty_card_presentation_cap(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="no-selector-presentation-cap")
