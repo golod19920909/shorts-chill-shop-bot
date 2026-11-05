@@ -267,12 +267,21 @@ class ConversationEngineState:
         words = re.findall(r"[^\W\d_]+", lowered)
         if not any(word in _QUESTION_WORDS for word in words):
             return False
+        # Deictic references («из этого») and a use-case target («для дома»)
+        # do not name a new product. They can accompany a question asking us
+        # to choose among the already shown candidates.
+        use_case_tokens = {
+            token
+            for match in _USE_CASE_INTRO_RE.finditer(message)
+            for token in tokens(match.group(1))
+        }
         content = [
             token for token in tokens(message)
             if token not in _CHARACTERISTIC_NOUNS
             and token not in _QUALIFIER_WORDS
             and token not in _BUDGET_FRAMING_WORDS
             and token not in _QUESTION_WORDS
+            and token not in use_case_tokens
             and not is_colour_word(token)
             and not token.isdigit()
         ]
