@@ -763,7 +763,7 @@ CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом �
 {message}
 
 Верни только один JSON-объект со строго такими полями:
-{{"action":"new_search|refine|correction|alternatives|compare|clarify|respond","confidence":0.0,"product_type":null,"question":null,"response":null,"slot_updates":[]}}
+{{"action":"new_search|refine|correction|alternatives|compare|clarify|respond","confidence":0.0,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}}
 
 slot_updates — массив структурированных изменений ограничений из ТЕКУЩЕГО сообщения. Каждый элемент имеет поля:
 {{"operation":"add|replace|remove","kind":"use_case|compatibility|feature|exclusion|preference","target":null,"value":"дословная фраза"}}
@@ -796,6 +796,7 @@ slot_updates — массив структурированных изменен�
 - Не выдумывай характеристики и не меняй продукт при обычном уточнении.
 - confidence — твоя уверенность от 0 до 1. Если уверенность ниже 0.65, выбери clarify и объясни одним вопросом.
 - product_type — null для refine, correction, alternatives, compare и clarify.
+- marketplace_terms — только для new_search: массив максимум из одной короткой альтернативной фразы на другом языке/письме, как продавцы AliExpress обычно называют ТОТ ЖЕ самый товар. Обычно английское название для русского/украинского запроса. Не добавляй другую модель, аксессуар, устройство, назначение, бренд или характеристики. Не переводи/не расширяй запрос догадками. Для остальных action всегда []. Это только дополнительный поисковый запрос; исходный запрос остаётся первым, все проверки товаров применяются без изменений.
 - Это решение только о диалоге. Не выбирай товары и не выдумывай цены/ссылки.
 """
 
@@ -2108,10 +2109,36 @@ identity_review_ids: {json.dumps(sorted(identity_ids), ensure_ascii=False)}
                 })
                 seen_updates.add(key)
 
+        # One bounded cross-language seller phrase may improve recall for
+        # marketplace listings written in another script. It is retrieval-only:
+        # the conversation engine still validates every returned product.
+        marketplace_terms: list[str] = []
+        raw_marketplace_terms = payload.get("marketplace_terms", [])
+        if action == "new_search" and isinstance(raw_marketplace_terms, list):
+            for raw_term in raw_marketplace_terms[:2]:
+                if not isinstance(raw_term, str):
+                    continue
+                term = " ".join(raw_term.split()).strip()
+                if not term or len(term) > 80 or len(term.split()) > 6:
+                    continue
+                if term.casefold() == (user_text or "").strip().casefold():
+                    continue
+                has_cyrillic = bool(re.search(r"[А-Яа-яЁёІіЇїЄєҐґ]", term))
+                has_latin = bool(re.search(r"[A-Za-z]", term))
+                source_cyrillic = bool(re.search(r"[А-Яа-яЁёІіЇїЄєҐґ]", user_text or ""))
+                source_latin = bool(re.search(r"[A-Za-z]", user_text or ""))
+                if (has_cyrillic and source_cyrillic) or (has_latin and source_latin):
+                    continue
+                if not any(ch.isalpha() for ch in term):
+                    continue
+                marketplace_terms.append(term)
+                break
+
         return {
             "action": action,
             "confidence": confidence,
             "product_type": product_type,
+            "marketplace_terms": marketplace_terms,
             "question": question or None,
             "response": response,
             "slot_updates": slot_updates,
