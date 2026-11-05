@@ -376,7 +376,10 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             for token in primary_tokens_for_role[head_pos + 1:]:
                 if token in relation_words:
                     break
-                if _is_accessory_head_token(token):
+                # Russian accessory stems such as "провод" also match
+                # descriptive adjectives like "проводные". An adjective is
+                # not an accessory role; continue until an actual noun marker.
+                if not _is_adjective(token) and _is_accessory_head_token(token):
                     accessory_follows_requested_type = True
                     break
 
