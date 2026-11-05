@@ -351,6 +351,60 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
         context.bot.send_message.assert_awaited_once()
 
 
+    async def test_comparison_criterion_answer_reuses_shown_products_without_search(self):
+        from models.product import Marketplace, Product
+        from handlers.search import search_message
+
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="item-1",
+            title="Wireless device",
+            product_url="https://www.aliexpress.com/item/item-1.html",
+        )
+        state = ConversationEngineState(user_key="comparison-followup")
+        state.record_product_type("устройство")
+        state.record_shown(["item-1"])
+        assistant = SimpleNamespace(
+            matching_products=lambda question, candidates: [],
+            answer=AsyncMock(return_value=SimpleNamespace(
+                text="По данным карточек AliExpress: автономность указана в описании.",
+                used_ai=True,
+            )),
+        )
+        context = SimpleNamespace(
+            user_data={"_convsearch_state": state},
+            application=SimpleNamespace(bot_data={"product_assistant": assistant}),
+            bot=SimpleNamespace(send_message=AsyncMock()),
+        )
+        set_pending_product_question(context, "Какой вариант лучше?", "active-session")
+        message = SimpleNamespace(
+            text="автономность",
+            chat_id=123,
+            reply_text=AsyncMock(),
+        )
+        update = SimpleNamespace(
+            effective_message=message,
+            effective_user=SimpleNamespace(id=123),
+        )
+        source = SimpleNamespace(request=SimpleNamespace(original_query="device"))
+
+        with (
+            patch("handlers.search.common.get_cached_products", return_value=[product]),
+            patch("handlers.search.common.get_cached_outcome", return_value=source),
+            patch("handlers.search.get_conversation_engine") as get_engine,
+        ):
+            await search_message(update, context)
+
+        get_engine.assert_not_called()
+        assistant.answer.assert_awaited_once()
+        combined_question = assistant.answer.await_args.args[0]
+        self.assertIn("Какой вариант лучше?", combined_question)
+        self.assertIn("автономность", combined_question)
+        self.assertIsNone(get_pending_product_question(context))
+        self.assertEqual(state.dialogue_history[-2]["role"], "user")
+        self.assertEqual(state.dialogue_history[-1]["role"], "assistant")
+        context.bot.send_message.assert_awaited_once()
+
     async def test_ai_comparison_question_is_saved_for_the_users_next_turn(self):
         from models.product import Marketplace, Product
 
