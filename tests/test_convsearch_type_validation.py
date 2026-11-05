@@ -246,6 +246,44 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 msg=title,
             )
 
+    def test_cross_category_host_first_component_titles_are_rejected(self) -> None:
+        # The same role rule must work across unrelated product families;
+        # these are generic component nouns, not per-category search patches.
+        cases = (
+            ("Smartphone screen protector", "smartphone"),
+            ("Laptop keyboard replacement", "laptop"),
+            ("Camera battery pack", "camera"),
+            ("Vacuum cleaner HEPA filter", "vacuum cleaner"),
+            ("Smartwatch replacement strap", "smartwatch"),
+            ("Garden hose nozzle", "garden hose"),
+            ("Wireless headphones ear pads", "wireless headphones"),
+            ("Электрический инструмент аккумулятор", "электрический инструмент"),
+            ("Пылесос фильтр HEPA", "пылесос"),
+            ("Часы ремешок силиконовый", "часы"),
+        )
+        for title, requested_type in cases:
+            verdict = validate_product_type(
+                product("cross-category-component", title), requested_type
+            )
+            self.assertFalse(verdict.qualifies, msg=f"{requested_type!r}: {title!r}")
+            self.assertIn(
+                "requested_type_is_host_for_accessory", verdict.reasons,
+                msg=f"{requested_type!r}: {title!r}",
+            )
+
+    def test_requested_component_itself_remains_a_valid_product(self) -> None:
+        for title, requested_type in (
+            ("Replacement laptop keyboard", "keyboard"),
+            ("HEPA filter for vacuum cleaner", "filter"),
+            ("Silicone smartwatch strap", "watch strap"),
+            ("Camera battery replacement", "camera battery"),
+            ("Защитное стекло для смартфона", "защитное стекло"),
+        ):
+            verdict = validate_product_type(
+                product("requested-component", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=f"{requested_type!r}: {title!r}")
+
     def test_descriptive_adjective_is_not_misread_as_accessory(self) -> None:
         for title, requested_type in (
             ("Наушники проводные", "наушники"),
