@@ -686,7 +686,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
         service = self._service(response)
 
         result = asyncio.run(
-            service.compare_products("Сравни эти два варианта", self._products())
+            service.extract_paired_listing_evidence("Сравни эти два варианта", self._products())
         )
 
         self.assertEqual(
@@ -725,7 +725,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
             with self.subTest(difference=difference):
                 service = self._service(json.dumps({"differences": [difference]}))
                 self.assertIsNone(asyncio.run(
-                    service.compare_products("Сравни эти варианты", self._products())
+                    service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
                 ))
 
     def test_comparison_rejects_full_title_and_nonexistent_text(self) -> None:
@@ -747,7 +747,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
         service = self._service(response)
 
         self.assertIsNone(asyncio.run(
-            service.compare_products("Сравни эти варианты", self._products())
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
         ))
 
     def test_comparison_with_one_product_does_not_call_gemini(self) -> None:
@@ -761,7 +761,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
 
         service._generate = fake_generate
         self.assertIsNone(asyncio.run(
-            service.compare_products("Сравни", self._products()[:1])
+            service.extract_paired_listing_evidence("Сравни", self._products()[:1])
         ))
         self.assertEqual(calls, [])
 
@@ -775,6 +775,6 @@ class GroundedProductComparisonTests(unittest.TestCase):
 
         service._generate = slow_generate
         self.assertIsNone(asyncio.run(
-            service.compare_products("Сравни эти варианты", self._products())
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
         ))
 
