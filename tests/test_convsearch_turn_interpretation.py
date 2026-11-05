@@ -906,7 +906,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
             },
         )
         backend = FakeBackend([
-            listing("screwdriver-1", "Шуруповёрт аккумуляторный"),
+            listing("screwdriver-1", "Шуруповёрт аккумуляторный с двумя аккумуляторами"),
             listing("vacuum-1", "Пылесос бытовой"),
         ])
         engine = ConversationSearchEngine(retrieval_backend=backend)
