@@ -639,7 +639,7 @@ async def _answer_over_shown(
         return False
     if isinstance(conversation_state, ConversationEngineState) and record_user_text:
         conversation_state.record_turn(record_user_text)
-    if advice.used_ai and _is_plain_product_clarification(advice.text):
+    if getattr(advice, "used_ai", False) and _is_plain_product_clarification(advice.text):
         set_pending_product_question(context, question, session_id)
     else:
         clear_pending_product_question(context)
