@@ -329,6 +329,7 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         (
             token for token in own_tokens[:2]
             if _is_accessory_head_token(token)
+            and not _is_adjective(token)
             and token not in accessory_role_modifiers
         ),
         None,
