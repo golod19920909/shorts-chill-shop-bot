@@ -1678,6 +1678,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Offline only; no live AliExpress, Gemini or Telegram calls were made.
 
 
+### Conversational retrieval wiring correction (2026-11-05)
+- The earlier alternate-query work was present in the legacy structured-intent route, but the active conversational engine explicitly builds its own SearchRequest and does not call that legacy intent parser. Therefore the alternate phrase was not reaching the real Telegram search path.
+- The conversation-turn interpreter now returns at most one bounded marketplace_terms phrase for a fresh search. The AI service rejects same-script phrases and caps length/word count; the engine copies the accepted phrase into SearchRequest.intent_marketplace_terms.
+- services.query_variants then adds it as a secondary query only when its script differs from the user's original wording. The primary phrase remains first. Refinements and other conversation actions do not inject a new alternate phrase.
+- Added an offline engine integration regression proving the phrase reaches the actual retrieval strategy without replacing the primary query. This is a wiring fix, not proof of live AliExpress recall; validate the marketplace's actual response and downstream candidate-loss counts separately.
+
 ### Cross-language marketplace query route (2026-11-05)
 - Structured query intent now supports at most one concise alternate seller-catalogue phrase for the same requested product, usually English when the user writes in Russian/Ukrainian (or vice versa).
 - The existing Gemini intent call proposes the phrase; schema normalization limits it to two candidate strings, each at most 80 characters / 6 words. Only the first is stored on a fresh search.
