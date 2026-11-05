@@ -393,7 +393,7 @@ class AISuccessTests(unittest.TestCase):
         self.assertIsNotNone(meta.latency_ms)
         self.assertEqual(intent.product_type, "зарядка")
         self.assertEqual(intent.compatibility, ["iPhone 15 Pro"])
-        self.assertEqual(intent.marketplace_terms, ["wireless charging station"])
+        self.assertEqual(intent.marketplace_terms, ["wireless charger"])
         self.assertEqual(intent.budget.max, 2000)
         self.assertEqual(intent.budget.currency, "UAH")
         self.assertEqual(intent.marketplace_terms, ["wireless charger"])
