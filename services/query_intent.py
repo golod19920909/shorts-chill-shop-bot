@@ -443,7 +443,7 @@ def normalize_intent(raw: Any) -> StructuredQueryIntent:
 
         marketplace_terms = []
         for term in _as_list(raw.get("marketplace_terms"))[:2]:
-            term = re.sub(r"\\s+", " ", term).strip()
+            term = re.sub(r"\s+", " ", term).strip()
             if 2 <= len(term) <= 80 and len(term.split()) <= 6:
                 if term.casefold() not in {x.casefold() for x in marketplace_terms}:
                     marketplace_terms.append(term)
