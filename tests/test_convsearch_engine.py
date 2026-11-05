@@ -731,6 +731,25 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(obs2["intent"], MessageIntent.NEW_SEARCH)
         self.assertIsNone(state.active_by_kind("type"))
 
+    def test_product_before_purpose_connector_switches_across_item_families(self) -> None:
+        cases = (
+            ("коврик", "Клавиатура для ноутбука"),
+            ("пылесос", "Нужен фильтр для пылесоса"),
+            ("дрель", "Нужна насадка на дрель"),
+            ("телефон", "Нужен чехол для телефона"),
+        )
+        for previous_type, new_request in cases:
+            with self.subTest(previous_type=previous_type, new_request=new_request):
+                state = ConversationEngineState(user_key=f"switch-{previous_type}")
+                state.record_product_type(previous_type)
+                state.record_shown(["previous-card"])
+
+                observation = state.observe(new_request)
+
+                self.assertEqual(observation["intent"], MessageIntent.NEW_SEARCH)
+                self.assertEqual(state.active_values("type"), [])
+                self.assertEqual(state.shown_product_ids, [])
+
     def test_correction_replaces_previous_requirement(self) -> None:
         state = ConversationEngineState(user_key="u-f")
         obs1 = state.observe("Нужна недорогая рыболовная катушка.")
