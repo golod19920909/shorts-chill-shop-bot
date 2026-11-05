@@ -550,6 +550,9 @@ ALLOWED_SORT_PREFERENCES = {preference.value for preference in SortPreference}
 #: prompt contains only observed product fields and remains capped at 30.
 MAX_PRODUCTS_IN_PROMPT = 30
 
+#: Hard wall-clock cap for a factual answer about the products already shown.
+PRODUCT_QUESTION_TIMEOUT_SECONDS = 8.0
+
 
 #: Human-readable description of the AI menu goals, used inside prompts so
 #: the model never has to guess what "cheaper"/"better" should mean.
@@ -1917,13 +1920,24 @@ seller_terms: {seller_terms_json}
         payloads = [
             product_facts(product) for product in products[:MAX_PRODUCTS_IN_PROMPT]
         ]
-        raw = await self._generate(
-            QUESTION_PROMPT.format(
-                question=question.strip()[:300],
-                products_json=json.dumps(payloads, ensure_ascii=False, indent=2),
-            ),
-            models=(self.smart_model,),
-        )
+        try:
+            # A product question happens after the search cards are already
+            # on screen. It must not make the user wait through the full
+            # per-model timeout (and a possible fallback-model attempt).
+            async with asyncio.timeout(
+                min(self.timeout_seconds, PRODUCT_QUESTION_TIMEOUT_SECONDS)
+            ):
+                raw = await self._generate(
+                    QUESTION_PROMPT.format(
+                        question=question.strip()[:300],
+                        products_json=json.dumps(payloads, ensure_ascii=False, indent=2),
+                    ),
+                    models=(self.smart_model,),
+                    operation="product_question",
+                )
+        except TimeoutError:
+            logger.info("Gemini product-question answer timed out; using safe fallback")
+            return None
         payload = self._extract_json_object(raw) if raw else None
         claims = payload.get("claims") if isinstance(payload, dict) else None
         if not isinstance(claims, list):
