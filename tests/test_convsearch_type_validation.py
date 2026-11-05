@@ -294,6 +294,18 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 )
                 self.assertLess(verdict.score, 0.5)
 
+    def test_accessory_adjective_does_not_turn_a_host_product_into_a_component_request(self) -> None:
+        verdict = validate_product_type(
+            product("case-for-drill", "Case for cordless drill"),
+            "аккумуляторный шуруповёрт",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("accessory_head:case", verdict.reasons)
+        self.assertNotIn(
+            "requested_component_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+
     def test_requested_component_itself_remains_a_valid_product(self) -> None:
         for title, requested_type in (
             ("Replacement laptop keyboard", "keyboard"),
