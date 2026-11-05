@@ -320,8 +320,17 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
             for marker in ACCESSORY_HEAD_WORDS
         )
 
+    # "replacement" / "spare" are often modifiers of the requested
+    # component itself ("replacement keyboard", "spare battery"), not the
+    # component role. They still introduce an accessory when followed by
+    # another component noun ("phone replacement battery").
+    accessory_role_modifiers = {"replacement", "replace", "spare"}
     accessory_head = next(
-        (token for token in own_tokens[:2] if _is_accessory_head_token(token)),
+        (
+            token for token in own_tokens[:2]
+            if _is_accessory_head_token(token)
+            and token not in accessory_role_modifiers
+        ),
         None,
     )
     accessory_composite = (
@@ -389,6 +398,8 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
                 # Russian accessory stems such as "провод" also match
                 # descriptive adjectives like "проводные". An adjective is
                 # not an accessory role; continue until an actual noun marker.
+                if token in accessory_role_modifiers:
+                    continue
                 if not _is_adjective(token) and _is_accessory_head_token(token):
                     accessory_follows_requested_type = True
                     break
