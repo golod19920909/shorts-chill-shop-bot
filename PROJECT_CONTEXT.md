@@ -1943,3 +1943,16 @@ attributes remain excluded. Added an offline regression that supplies 30
 products and verifies that both the first and last product IDs reach the
 question prompt. This change affects factual question/comparison prompts only;
 candidate selection remains capped at 20 and presentation at 30.
+
+### Grounded product-question answers (2026-11-05)
+
+Product-question answers previously accepted free-form Gemini prose after
+checking only whether its numbers appeared somewhere in the supplied facts.
+That did not verify qualitative claims (for example, materials or included
+accessories). Replaced that path with structured evidence: Gemini must return
+the exact product ID, source field, and a contiguous quote from the listing.
+The application verifies the quote against the actual title/description and
+constructs the user-facing answer itself; model-authored factual prose is not
+sent to Telegram. Missing descriptions remain absent, not inferred. Added
+offline tests for valid evidence, invented quotes, and unknown product IDs.
+
