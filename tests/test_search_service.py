@@ -303,6 +303,68 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             ["broader-route-hit", "broader-route-page-two"],
         )
 
+    def test_raw_rrf_preserves_page_order_within_each_query_phrase(self) -> None:
+        page_one = [
+            make_product(
+                Marketplace.ALIEXPRESS, f"page-one-{index:02d}", 20.0 + index,
+                title=f"Wireless headphones model {index:02d}",
+            )
+            for index in range(1, 51)
+        ]
+        page_two = make_product(
+            Marketplace.ALIEXPRESS, "page-two-first", 19.0,
+            title="Wireless headphones model 51",
+        )
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            if phrase == "wireless headphones" and request.page_no == 1:
+                return page_one
+            if phrase == "wireless headphones" and request.page_no == 2:
+                return [page_two]
+            return []
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_results=60, max_search_pages=2)
+        request = SearchRequest(
+            original_query="wireless headphones",
+            normalized_query="wireless headphones",
+        )
+        continuation_checks = 0
+
+        def continue_after_first_page(_products):
+            nonlocal continuation_checks
+            continuation_checks += 1
+            return continuation_checks == 1
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones", "bluetooth headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True,
+                    raw_continue=continue_after_first_page,
+                )
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                (1, "wireless headphones"),
+                (1, "bluetooth headphones"),
+                (2, "wireless headphones"),
+            ],
+        )
+        product_ids = [item.product_id for item in outcome.products]
+        self.assertLess(
+            product_ids.index("page-one-50"),
+            product_ids.index("page-two-first"),
+        )
+
     def test_raw_conversation_fuses_all_routes_even_when_first_pool_is_full(self) -> None:
         a = make_product(Marketplace.ALIEXPRESS, "route-a", 19.0)
         b = make_product(Marketplace.ALIEXPRESS, "route-b", 18.0)
