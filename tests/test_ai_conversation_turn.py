@@ -26,6 +26,12 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         )
         context = {
             "recent_turns": [f"старое сообщение {i} " + ("текст " * 40) for i in range(10)],
+            "recent_dialogue": [
+                {"role": "user", "text": f"вопрос {i} " + ("деталь " * 30)}
+                if i % 2 == 0 else
+                {"role": "assistant", "text": f"ответ {i} " + ("объяснение " * 30)}
+                for i in range(16)
+            ],
             "active_slots": [
                 {"kind": "feature", "value": f"ограничение {i} " + ("деталь " * 20),
                  "source_turn": i, "status": "active"}
@@ -52,6 +58,9 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(parsed["pending_question"], "Для какой задачи нужен товар?")
         self.assertIn("active_slots", parsed)
         self.assertIn("shown_products", parsed)
+        self.assertIn("recent_dialogue", parsed)
+        self.assertTrue(all(item["role"] in {"user", "assistant"} for item in parsed["recent_dialogue"]))
+        self.assertLessEqual(len(parsed["recent_dialogue"]), 12)
 
     async def test_thirty_shown_cards_fit_in_bounded_conversation_context(self):
         service = self.make_service(
@@ -60,6 +69,10 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         )
         context = {
             "recent_turns": [f"turn {i}" for i in range(6)],
+            "recent_dialogue": [
+                {"role": "user", "text": "Нужен фонарь"},
+                {"role": "assistant", "text": "Для какой задачи он нужен?"},
+            ],
             "active_slots": [
                 {"kind": "feature", "value": f"required feature {i}",
                  "source_turn": i, "status": "active"}
