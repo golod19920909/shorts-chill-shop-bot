@@ -502,6 +502,17 @@ def _price_lines(products: dict[str, Product]) -> list[str]:
     ]
 
 
+_COMPARISON_ASPECT_LABELS = {
+    "compatibility": "Совместимость / модели",
+    "layout": "Язык / раскладка",
+    "material": "Материал",
+    "size": "Размер",
+    "package": "Комплектация",
+    "power": "Питание / мощность",
+    "other": "Другой параметр",
+}
+
+
 _COMPARISON_REQUEST_MARKERS = (
     "сравни", "сравнить", "сравнение", "сопостав", "отличаются",
     "различия", "compare", "comparison",
@@ -519,7 +530,7 @@ def deterministic_comparison(
     question: str,
     products: list[Product],
     *,
-    evidence_differences: list[tuple[str, str]] | None = None,
+    evidence_differences: list[tuple[str, str, str]] | None = None,
 ) -> str | None:
     """Compare the two highest-ranked shown products using only real fields.
 
@@ -626,25 +637,31 @@ def deterministic_comparison(
                 f"{min(first.orders_count, second.orders_count)}."
             )
 
-    verified_differences = [
-        (first_quote, second_quote)
-        for first_quote, second_quote in (evidence_differences or [])[:4]
-        if isinstance(first_quote, str)
-        and isinstance(second_quote, str)
-        and first_quote.strip()
-        and second_quote.strip()
-    ]
+    verified_differences: list[tuple[str, str, str]] = []
+    for item in (evidence_differences or [])[:4]:
+        if not isinstance(item, (tuple, list)) or len(item) != 3:
+            continue
+        aspect, first_quote, second_quote = item
+        if (
+            aspect not in _COMPARISON_ASPECT_LABELS
+            or not isinstance(first_quote, str)
+            or not isinstance(second_quote, str)
+            or not first_quote.strip()
+            or not second_quote.strip()
+        ):
+            continue
+        verified_differences.append(
+            (_COMPARISON_ASPECT_LABELS[aspect], first_quote, second_quote)
+        )
+
     lines.append("<b>Главные отличия по данным карточек</b>")
     if differences:
         lines.extend(f"• {item}" for item in differences)
     if verified_differences:
         lines.extend(
-            "• Вариант 1: «"
-            + html.escape(first_quote)
-            + "»; вариант 2: «"
-            + html.escape(second_quote)
-            + "»."
-            for first_quote, second_quote in verified_differences
+            f"• {html.escape(label)}: вариант 1 — «{html.escape(first_quote)}»; "
+            f"вариант 2 — «{html.escape(second_quote)}»."
+            for label, first_quote, second_quote in verified_differences
         )
     if not differences and not verified_differences:
         lines.append(
