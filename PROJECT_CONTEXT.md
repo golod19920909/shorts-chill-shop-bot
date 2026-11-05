@@ -1874,3 +1874,26 @@ selection.
 Regression coverage added for an 80-candidate pool, a 70-candidate Gemini
 review window, 20 AI-selected results, a ten-card tail, and the no-selector
 30-card cap. Live Gemini/AliExpress/Telegram behavior remains unverified.
+
+
+
+### Retrieval target aligned with broad AI review (2026-11-05)
+
+A second audit found that the engine's pagination callback still stopped as
+soon as it had 30 deterministically safe candidates, even though the later
+selector now supports an internal pool of up to 80. This made the expanded
+candidate-pool limit ineffective for many ordinary searches.
+
+Fixed in `services/convsearch/engine.py`:
+- When the conversational selector is callable and reports available, the
+  retrieval continuation target is now 80 safe/ranked candidates, not the
+  30-card presentation count.
+- If Gemini is unavailable, retrieval keeps the smaller requested display
+  target and does not spend extra AliExpress calls collecting an unused AI pool.
+- The final AI-selection stage uses the same availability decision when
+  applying the internal 80-candidate cap.
+
+Added offline integration regressions proving that retrieval continues at 30
+and stops at 80 when AI selection is available, while an unavailable selector
+with a five-card request stops at five. This validates the engine callback
+contract; the fake backend does not validate real AliExpress pagination.
