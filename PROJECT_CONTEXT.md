@@ -1974,6 +1974,13 @@ This fixes a prompt-contract defect; it does not by itself establish live
 catalogue relevance or explain every short result set. No live provider calls
 were made for this change.
 
+### Disambiguate price questions from recommendation wording (2026-11-05)
+
+- A ProductAssistant audit found that the substring `стоит` was treated as a price marker. This misclassified ordinary recommendation questions such as «Что из этого стоит выбрать?» as price comparisons and could return the cheapest item instead of answering the actual question.
+- Price intent now requires explicit price/cost wording (including «сколько стоит», «во сколько», «стоимость», and common English price phrases). The ambiguous verb «стоит» alone no longer triggers numeric price comparison.
+- Added offline regressions for both the ambiguous recommendation wording and an explicit «сколько стоит» question.
+- This is a question-routing correction; it does not infer product quality or add product-specific rules.
+
 ### Missing-price listings when no budget is specified (2026-11-05)
 
 A follow-up audit found a second contradiction in the candidate-selection
