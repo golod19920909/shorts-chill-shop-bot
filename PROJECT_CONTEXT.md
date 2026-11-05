@@ -2568,3 +2568,45 @@ the product-switch matrix. It remains offline-only; no live Telegram retest
 has yet confirmed the resulting natural-language experience with actual
 AliExpress descriptions. The separate ordinary product-page extraction
 decision remains PAUSED.
+
+
+### Same-product model/specification refinements (2026-11-05)
+
+A review of the new leading-product detector found a possible false switch
+when a buyer restates the current product before a purpose connector and adds
+a brand/model code, e.g. «Ноутбук Lenovo ThinkPad T14s для работы». The
+detector now checks whether the active product head appears anywhere in the
+leading phrase, rather than comparing only the final token. Alphanumeric
+model/specification codes are not treated as product nouns. This also guards
+attribute phrases such as «защита IP67 для телефона».
+
+Changed services/convsearch/state.py:
+- Retains the new-product transition when the leading item noun is genuinely
+  different from the active product head.
+- Keeps same-product phrases with brand/model tokens or numeric spec codes
+  as refinements when the active product noun is still present.
+- Does not add product-specific model or category lists.
+
+Added state regressions in tests/test_convsearch_engine.py for:
+- switching across the four unrelated item families documented above;
+- keeping «Ноутбук Lenovo ThinkPad T14s для работы» attached to the active
+  laptop search;
+- keeping «Нужна защита IP67 для телефона» attached to the active phone search.
+
+Commits:
+- Model/spec-aware product-head logic: 2e724039b222807189a695ffc5e11ab19842e9bf.
+- Numeric model-code regex correction: 8d26e006ff4e020206d3c201f427b590a88837de.
+- Regression tests: 83a629b35c0ee45f1f2c5819b59caeee88ee8398.
+
+Latest successful GitHub Actions run
+[42083275395](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42083275395)
+on code/test head 83a629b35c0ee45f1f2c5819b59caeee88ee8398:
+- Focused conversational regressions: **285 passed, 58 subtests passed**.
+- Filtered repository suite: **2,221 passed, 738 subtests passed, 1 warning**.
+- Manual live smoke scripts compiled successfully.
+- The 17 documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
+
+Offline verification only. Live Telegram retest is still required to confirm
+that the fresh-product and same-product refinement boundaries behave
+naturally with the actual conversation ledger and provider results.
