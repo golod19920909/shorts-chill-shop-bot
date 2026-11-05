@@ -2363,3 +2363,39 @@ Repository status at this handoff:
 - Ordinary AliExpress product-page extraction remains PAUSED under the prerequisite recorded above.
 
 Next main-TЗ work should continue with broad, category-neutral search and conversational reliability. In particular, re-check live Gemini candidate-selection latency/fallback after the 6.5-second per-model timeout and low-thinking JSON configuration; the earlier live run predates those changes. Continue investigating relevance using actual multi-category evidence, without weakening identity/evidence gates or adding product-specific exceptions. No new live run is implied by this CI result.
+
+### Generic host-plus-addon identity correction (2026-11-05)
+
+The earlier live «Кухонный кран» search included listings whose title named
+the requested host product together with an add-on (notably aerator/mat-style
+items). The category-neutral product-role validator already rejected many
+host/accessory compounds, but its generic accessory-role vocabulary omitted
+these two add-on nouns. A title could therefore pass the host-product gate
+even though the actual listing was the add-on.
+
+Updated `services/convsearch/type_validation.py`:
+- Added generic Russian/English role nouns for aerator and mat.
+- The existing host-followed-by-accessory relation check now rejects these
+  compounds when the user requested the host product.
+- These words remain valid requested product identities when the user asks
+  for the add-on itself; no product category or brand exception was added.
+
+Added `tests/test_convsearch_type_validation.py` coverage for:
+- Russian and English host-plus-aerator/mat titles being rejected;
+- standalone aerator and mat products remaining valid requested products.
+
+Commits:
+- Implementation: `3046df1abbbaff587915ecf0f749a1989cf523fd`.
+- Regression coverage: `322b4783bb07aeec6e67d414665fc8c47020f15e`.
+
+GitHub Actions run [42064073102](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42064073102) passed on the test commit:
+- Focused conversational regressions: **282 passed, 52 subtests passed**.
+- Filtered repository suite: **2,210 passed, 730 subtests passed, 1 warning**.
+- The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+
+This is a narrow expansion of generic product-role vocabulary, not a live
+catalogue-quality proof. The prior Telegram result predates this correction.
+A new live multi-category Telegram run is still required to verify that
+aerator/mat accessories are removed from host-product searches while direct
+searches for those add-on products still work. Do not claim the kitchen-faucet
+issue is fully resolved until that check is completed.
