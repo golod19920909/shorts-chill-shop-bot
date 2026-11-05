@@ -379,7 +379,6 @@ class AISuccessTests(unittest.TestCase):
         payload = {
             "product_type": "зарядка",
             "compatibility": ["iPhone 15 Pro"],
-            "marketplace_terms": ["wireless charging station"],
             "brand": None,
             "budget": {"max": 2000, "currency": "грн"},
             "unknown_extra": "drop me",
