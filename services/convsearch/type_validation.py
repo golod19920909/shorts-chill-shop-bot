@@ -153,7 +153,13 @@ def is_accessory_product_type(product_type: str | None) -> bool:
     return any(
         stems_match(token, accessory)
         for token in type_tokens
-        if not any(stems_match(token, generic) for generic in non_fitment_set_words)
+        # Descriptive adjectives are not component identities. In
+        # particular, «аккумуляторный шуруповёрт» must not be classified as
+        # an accessory merely because «аккумуляторный» shares the stem of
+        # the noun «аккумулятор». Otherwise a later «на 12 В» phrase is
+        # misread as hard host-device compatibility.
+        if not _is_adjective(token)
+        and not any(stems_match(token, generic) for generic in non_fitment_set_words)
         for accessory in ACCESSORY_HEAD_WORDS
     )
 
