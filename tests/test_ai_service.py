@@ -671,6 +671,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
     def test_comparison_returns_only_exact_paired_quotes_from_both_cards(self) -> None:
         response = json.dumps({
             "differences": [{
+                "aspect": "compatibility",
                 "first": {
                     "product_id": "keyboard-1",
                     "field": "title",
@@ -691,7 +692,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            [("ThinkPad T490s/T495", "ThinkPad X280/X390")],
+            [("compatibility", "ThinkPad T490s/T495", "ThinkPad X280/X390")],
         )
 
     def test_comparison_rejects_invented_or_misassigned_quotes(self) -> None:
@@ -727,6 +728,28 @@ class GroundedProductComparisonTests(unittest.TestCase):
                 self.assertIsNone(asyncio.run(
                     service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
                 ))
+
+    def test_comparison_rejects_unknown_aspect_label(self) -> None:
+        response = json.dumps({
+            "differences": [{
+                "aspect": "best_value",
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        self.assertIsNone(asyncio.run(
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
+        ))
 
     def test_comparison_rejects_full_title_and_nonexistent_text(self) -> None:
         first_title = self._products()[0].title
