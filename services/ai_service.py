@@ -643,13 +643,14 @@ SEARCH_PLAN_PROMPT = """Сформулируй короткий поисковы
 QUESTION_PROMPT = """Найди в карточках только прямые текстовые подтверждения, относящиеся к вопросу покупателя.
 
 Верни ТОЛЬКО JSON такого вида:
-{{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}],"recommendation":{{"product_id":"точный id или null","evidence":[{{"field":"title или description","quote":"точная непрерывная цитата"}}]}}}}
+{{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}],"recommendation":{{"product_id":"точный id или null","evidence":[{{"field":"title или description","quote":"точная непрерывная цитата"}}]}},"clarification":"один короткий уточняющий вопрос или null"}}
 
 Правила:
 - quote должен дословно присутствовать в указанном поле товара; не исправляй и не пересказывай цитату.
 - Выбирай только цитаты, которые прямо относятся к вопросу. Не делай выводов по типичному комплекту, категории, цене, рейтингу или фотографии.
 - Если пользователь явно просит выбрать лучший вариант или сравнить применительно к названной задаче, можешь указать recommendation только тогда, когда текст карточки одного из товаров прямо подтверждает соответствие этой задаче. В evidence обязательно приведи минимум одну точную цитату именно этого товара.
 - Не выбирай победителя по догадке, общим знаниям о категории или неподтверждённым характеристикам. Если карточки не дают достаточных оснований или пользователь не назвал критерий выбора, product_id должен быть null, evidence — [].
+- Если покупатель просит выбрать/сравнить, но не назвал критерий, recommendation должен быть пустым, а clarification — одним коротким вопросом о самом важном критерии (например, задаче или приоритете). Не задавай вопрос, если пользователь уже указал критерий.
 - Не утверждай ничего от себя: итоговый ответ будет построен программно только из проверенных цитат.
 - Не используй другие поля и не выдумывай id.
 - Если подходящих подтверждений нет, верни {{ "claims": [], "recommendation": {{"product_id": null, "evidence": []}} }}.
@@ -2024,9 +2025,21 @@ seller_terms: {seller_terms_json}
             )
             if len(rendered) >= 8:
                 break
-        if not rendered:
-            return None
-        return "По данным карточек AliExpress: " + " ".join(rendered)
+        if rendered:
+            return "По данным карточек AliExpress: " + " ".join(rendered)
+
+        # If the buyer asks for a winner without saying what matters, ask
+        # one short follow-up instead of pretending the catalogue lacks data.
+        clarification = payload.get("clarification")
+        if isinstance(clarification, str):
+            clarification = " ".join(clarification.split()).strip()
+            if (
+                15 <= len(clarification) <= 240
+                and clarification.count("?") == 1
+                and not re.search(r"https?://|www\\.|<[^>]+>|\\{", clarification, re.IGNORECASE)
+            ):
+                return clarification
+        return None
 
     def _validated_sentences(
         self, text: str | None, facts: object
