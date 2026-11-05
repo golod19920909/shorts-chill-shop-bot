@@ -760,6 +760,7 @@ class SearchService:
             page_rows = 0
             primary_route_failed = False
             successful_page_variants: list[str] = []
+            successful_page_variant_rows: dict[str, int] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
@@ -839,6 +840,10 @@ class SearchService:
                         all_failed = True
                 elif raw:
                     successful_page_variants.append(variant)
+                    successful_page_variant_rows[variant] = sum(
+                        len(result) for result in results
+                        if isinstance(result, list)
+                    )
                 if expansion:
                     raw_rows_by_phrase[variant] = sum(
                         len(result)
@@ -915,28 +920,39 @@ class SearchService:
                     break
             if all_failed:
                 break
-            if raw and primary_route_failed:
-                fallback_phrase = next(
-                    (
-                        phrase for phrase in successful_page_variants
-                        if phrase != deep_page_phrase
-                    ),
-                    None,
+            if raw:
+                # If the primary route returned no rows (even without an API
+                # error), do not spend deeper pages repeating an empty phrase
+                # while a grounded seller-language route already found items.
+                # Keep the primary route when it returned anything; raw row
+                # counts are used only to detect a genuinely empty route, not
+                # to rank or approve products.
+                primary_route_empty = (
+                    successful_page_variant_rows.get(deep_page_phrase, 0) == 0
                 )
-                if fallback_phrase:
-                    logger.info(
-                        "RAW conversational pagination switched to successful "
-                        "alternate route after primary failure on page %d",
-                        page_no,
+                if primary_route_failed or primary_route_empty:
+                    fallback_phrase = next(
+                        (
+                            phrase for phrase in successful_page_variants
+                            if phrase != deep_page_phrase
+                            and successful_page_variant_rows.get(phrase, 0) > 0
+                        ),
+                        None,
                     )
-                    deep_page_phrase = fallback_phrase
-                else:
-                    logger.info(
-                        "RAW conversational pagination stopped: active route "
-                        "failed on page %d; retaining any successful page-one routes",
-                        page_no,
-                    )
-                    break
+                    if fallback_phrase:
+                        logger.info(
+                            "RAW conversational pagination switched to a "
+                            "non-empty alternate route on page %d",
+                            page_no,
+                        )
+                        deep_page_phrase = fallback_phrase
+                    elif primary_route_failed:
+                        logger.info(
+                            "RAW conversational pagination stopped: primary "
+                            "route failed and no alternate returned rows on page %d",
+                            page_no,
+                        )
+                        break
             if raw:
                 # An empty deeper page is the marketplace's end-of-results
                 # signal for this phrase; do not spend another request on a
