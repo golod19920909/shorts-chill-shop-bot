@@ -281,6 +281,41 @@ class AIOutputValidationTests(unittest.TestCase):
         self.assertIsNone(asyncio.run(service.rank_candidates([product])))
 
 
+class ProductQuestionContextCoverageTests(unittest.TestCase):
+    """A question about shown cards must not silently ignore cards 9–30."""
+
+    def test_question_prompt_includes_all_products_on_a_default_page(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        captured: list[str] = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            captured.append(contents)
+            return "нет данных"
+
+        service._generate = fake_generate
+        products = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id=f"page-{index}",
+                title=f"Product number {index}",
+                product_url=f"https://example.com/{index}",
+                price=float(index + 1),
+                currency="USD",
+            )
+            for index in range(30)
+        ]
+
+        result = asyncio.run(
+            service.answer_product_question("Compare all shown products", products)
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual(len(captured), 1)
+        self.assertIn('"id": "page-0"', captured[0])
+        self.assertIn('"id": "page-29"', captured[0])
+
+
 class ConversationSelectionEvidenceTests(unittest.TestCase):
     def _service(self, response: str) -> AIService:
         service = AIService(api_key=None)
