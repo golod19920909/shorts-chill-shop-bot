@@ -2164,3 +2164,13 @@ Offline regressions cover pending-state round trip, expiry, malformed state, can
 - Focused conversational regressions: **277 passed, 45 subtests passed**.
 - Filtered repository suite: **2,201 passed, 723 subtests passed, 1 warning**.
 - The 17 documented stale pre-Option-C modules remain excluded; this is not an unfiltered full-suite pass. Offline only; live Telegram, Gemini and AliExpress behavior is still not proven by CI.
+
+
+### Comparison follow-up delivery integration — CI verified (2026-11-05)
+
+Added handler-level regressions proving that a delivered AI clarification is retained for the next user turn, that the next criterion answer is combined with the original comparison and answered against the same already-shown product session without invoking the search engine, and that a failed Telegram send does not create a pending question. The /new reset path also clears pending comparison state. This closes the compare → ask criterion → receive criterion → compare loop at the handler boundary, not just in isolated helper tests.
+
+GitHub Actions PR workflow **42029653913** completed successfully on head **75ec450a7cdf72527c2f5a221a833a710227b6b3**:
+- Focused conversational regressions: **279 passed, 45 subtests passed**.
+- Filtered repository suite: **2,203 passed, 723 subtests passed, 1 warning**.
+- 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. Offline tests only; live AliExpress/Gemini/Telegram catalog quality and latency are not verified by this workflow.
