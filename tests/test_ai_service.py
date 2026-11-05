@@ -373,8 +373,10 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
     def _service(self, response: str) -> AIService:
         service = AIService(api_key=None)
         service._client = object()
+        service.captured_prompts = []
 
         async def fake_generate(contents, *, models=None, operation="generate"):
+            service.captured_prompts.append(contents)
             self.assertEqual(operation, "conversation_selection")
             self.assertIn('"selections"', contents)
             return response
@@ -482,6 +484,32 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             required_features=["двумя аккумуляторами"],
         ))
         self.assertEqual(result, [])
+
+    def test_no_budget_does_not_create_an_implicit_price_ceiling(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="шуруповёрт"
+        ))
+        self.assertEqual(result, ["drill-1"])
+        prompt = service.captured_prompts[-1]
+        self.assertIn("Пользователь НЕ задавал бюджет", prompt)
+        self.assertIn("не придумывай верхний предел", prompt)
+
+    def test_explicit_budget_is_a_hard_selection_constraint(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            budget_constraint="до 2500 грн",
+        ))
+        self.assertEqual(result, ["drill-1"])
+        prompt = service.captured_prompts[-1]
+        self.assertIn("Пользователь задал жёсткий бюджет: до 2500 грн", prompt)
+        self.assertIn("цена не должна превышать указанную границу", prompt)
 
 
 class CandidatePayloadTests(unittest.TestCase):
