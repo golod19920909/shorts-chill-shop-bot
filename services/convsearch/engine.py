@@ -75,13 +75,13 @@ def is_alternatives_request(text: str) -> bool:
 # natural answer; a card reference ("А он водонепроницаемый?") must go through
 # the grounded compare/product-answer path instead of free-form RESPOND.
 _SHOWN_PRODUCT_REFERENCE_RE = re.compile(
-    r"(?:^|\\W)(?:он|она|оно|они|его|нее|неё|него|них|ней|ним|"
+    r"(?:^|\W)(?:он|она|оно|они|его|нее|неё|него|них|ней|ним|"
     r"этот|эта|это|эти|этого|этой|этих|этим|"
     r"первый|первого|первая|второй|второго|вторая|третий|третьего|"
-    r"последний|последнего|из\\s+них|среди\\s+них|"
+    r"последний|последнего|из\s+них|среди\s+них|"
     r"this|that|these|those|it|its|they|them|their|"
-    r"first|second|third|last|among\\s+them|which\\s+one)"
-    r"(?:$|\\W)",
+    r"first|second|third|last|among\s+them|which\s+one)"
+    r"(?:$|\W)",
     re.IGNORECASE,
 )
 
