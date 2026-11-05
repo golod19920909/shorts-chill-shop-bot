@@ -2036,7 +2036,7 @@ seller_terms: {seller_terms_json}
             if (
                 15 <= len(clarification) <= 240
                 and clarification.count("?") == 1
-                and not re.search(r"https?://|www\\.|<[^>]+>|\\{", clarification, re.IGNORECASE)
+                and not re.search(r"https?://|www\.|<[^>]+>|\{", clarification, re.IGNORECASE)
             ):
                 return clarification
         return None
