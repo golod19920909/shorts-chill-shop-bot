@@ -2507,11 +2507,17 @@ caught an over-broad interpretation of «Оставь варианты из не
 as a new product. The request-framing vocabulary was corrected to include
 common selection/editing imperatives; no regression was deleted or weakened.
 
+Added a category-neutral state regression matrix in
+tests/test_convsearch_engine.py for new products named before purpose/fitment
+connectors across four unrelated item families (keyboard, vacuum filter,
+drill attachment and phone case). This checks that the rule is not tied to
+the single keyboard incident.
+
 Latest successful GitHub Actions run
-[42081663298](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42081663298)
-on code head 110020b74ac89822443e66ec16606a634a7d3011:
-- Focused conversational regressions: **283 passed, 52 subtests passed**.
-- Filtered repository suite: **2,213 passed, 730 subtests passed, 1 warning**.
+[42082829929](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42082829929)
+on code/test head 66bfb3fd1c331891295a828584b8b5822e2d4928:
+- Focused conversational regressions: **284 passed, 56 subtests passed**.
+- Filtered repository suite: **2,220 passed, 736 subtests passed, 1 warning**.
 - Manual live smoke scripts compiled successfully.
 - The 17 documented stale legacy modules remain excluded; this is not an
   unfiltered full-suite pass.
@@ -2520,3 +2526,45 @@ This is offline verification only. The reported keyboard-after-sink-mat
 transition still needs a live Telegram retest with Gemini deliberately
 unavailable or timed out. The 17 excluded legacy modules remain outside this
 workflow. PR #7 remains draft/open/unmerged; main is untouched.
+
+
+### Exact-evidence product comparison extension (2026-11-05)
+
+The deterministic side-by-side renderer now has an optional grounded-evidence
+step. ProductAssistant still chooses the first two distinct items from the
+already AI-ranked, user-shown results and renders all factual fields itself.
+AIService exposes only an evidence-extraction method
+(extract_paired_listing_evidence): Gemini receives those two listings and may
+return paired text spans showing a useful difference. Each quote is checked
+against the correct product ID and exact title/description before display;
+full-title repetition, invented text, misassigned quotes and malformed output
+are rejected. The application does not display model-written prose or a
+model-selected winner. If Gemini is unavailable, times out or returns no
+valid pairs, the deterministic price/rating/order comparison remains.
+
+This preserves the removed comparison-service API contract: an earlier broad
+CI run [42082556083](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42082556083)
+caught the test that explicitly forbids an AIService method named
+compare_products. The evidence method was renamed to
+extract_paired_listing_evidence; the contract test remains unchanged.
+
+Files:
+- services/ai_service.py — paired-evidence prompt, bounded call and exact quote validation.
+- services/product_assistant.py — combines verified paired evidence with deterministic product facts.
+- tests/test_ai_service.py — exact quotes, invented/misassigned quote rejection, one-product and timeout fallback.
+- tests/test_product_assistant.py — buyer-facing comparison rendering with verified paired distinctions.
+
+Relevant commits:
+- AI evidence implementation: cf4f1733116d45727f92818f824d23b9fcd20d11.
+- AI evidence API name preserving the removed-method contract: d54957c6af168e6c1de8c4b80826cd6cae0e9f93.
+- ProductAssistant integration: cb1080d6d634168b1cc7fe403972dacf7ea77eb8.
+- ProductAssistant API rename: 03233de72ef71ab76fcda54769b7920f9913887c.
+- AI validation tests: 7e175271a5b1e1fb5331ca74c8244292e982d005 and rename commit 3089bbb1ba809aed69fac8d1454e9bcb55126a5a.
+- User-facing evidence test: 5e27810f6f371db0f0651c457e5ca347906e9ae9 and rename commit 66bfb3fd1c331891295a828584b8b5822e2d4928.
+- Four-family product-switch matrix: 27b149879861bb7a91a9c34c8c3a09a3de210277.
+
+The successful CI run 42082829929 above covers this comparison extension and
+the product-switch matrix. It remains offline-only; no live Telegram retest
+has yet confirmed the resulting natural-language experience with actual
+AliExpress descriptions. The separate ordinary product-page extraction
+decision remains PAUSED.
