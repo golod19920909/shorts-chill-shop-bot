@@ -226,6 +226,44 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.last_question, "Для какой задачи нужен товар?")
         self.assertEqual(backend.strategies, [])
 
+    async def test_new_product_before_purpose_connector_resets_stale_context_without_gemini(self):
+        ai = FakeAI(None)  # Simulate a Gemini timeout/unavailable turn interpreter.
+        backend = FakeBackend([
+            listing("keyboard-1", "Клавиатура для ноутбука", 900.0),
+        ])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="connector-product-switch")
+
+        first = state.observe("Коврик для раковины")
+        state.record_slots(first)
+        state.record_product_type("коврик")
+        state._add_slot(Slot(
+            kind="budget", value="500.0 UAH", source_turn=1, raw_text=""
+        ))
+        state._add_slot(Slot(
+            kind="feature", value="силиконовый", source_turn=1, raw_text=""
+        ))
+        state.record_shown(["old-mat"])
+
+        decision = await engine.handle_message(
+            "connector-product-switch",
+            "Клавиатура для ноутбука",
+            state=state,
+            currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(decision.report["intent"], MessageIntent.NEW_SEARCH)
+        self.assertEqual(state.active_values("type"), ["клавиатура"])
+        self.assertEqual(state.active_values("use_case"), ["ноутбука"])
+        self.assertEqual(state.active_values("budget"), [])
+        self.assertEqual(state.active_values("feature"), [])
+        self.assertEqual(state.shown_product_ids, [])
+        self.assertEqual(backend.strategies[-1].product_type, "клавиатура")
+        self.assertNotIn("раковины", backend.strategies[-1].request.normalized_query)
+        self.assertNotIn("силиконовый", backend.strategies[-1].request.normalized_query)
+
     async def test_same_grounded_product_type_cannot_reset_active_search(self):
         ai = FakeAI({
             "action": "new_search", "confidence": 0.99,
