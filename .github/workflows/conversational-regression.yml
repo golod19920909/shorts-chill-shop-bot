@@ -5,6 +5,7 @@ on:
     branches:
       - fix/conversational-budget-state
       - fix/option-c-state-integrity
+      - work/consultant-reliability
   pull_request:
     branches:
       - main
