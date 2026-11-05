@@ -750,9 +750,10 @@ class SearchService:
         deep_page_phrase = primary
 
         for page_no in pages:
-            # Page 1 asks every grounded phrase; a deeper page asks the PRIMARY
-            # phrase again - the words the user actually asked with - so depth
-            # never multiplies the variant list.
+            # Page 1 asks every grounded phrase. Deeper pages repeat the
+            # primary phrase, except when it failed: then they continue on
+            # the first successful alternate route instead of abandoning
+            # an otherwise useful catalogue search.
             page_variants = variants if page_no == pages[0] else [deep_page_phrase]
             pages_used = page_no
             pages_scanned += 1
@@ -954,9 +955,9 @@ class SearchService:
                     )
                     break
                 # Finish every grounded route on page 1 first (RRF must see
-                # the complete route set), then request only the primary
-                # phrase on deeper pages. Stop when the fused unique pool
-                # reaches its target.
+                # the complete route set), then request only the primary (or
+                # its successful fallback phrase) on deeper pages. Stop when
+                # the fused unique pool reaches its target.
                 from services.convsearch.retrieval import merge_route_results
 
                 route_rankings = [
