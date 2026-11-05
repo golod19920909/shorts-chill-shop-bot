@@ -469,6 +469,30 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, ["real-2", "real-1"])
         service._generate.assert_awaited_once()
 
+    async def test_conversation_selector_uses_seller_phrase_only_as_cross_language_context(self):
+        service = self.make_service('{"selections":[]}')
+        candidate = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="english-drill",
+            title="Cordless drill with 2 batteries",
+            product_url="https://www.aliexpress.com/item/english-drill.html",
+        )
+
+        await service.select_conversation_candidates(
+            [candidate],
+            query="аккумуляторный шуруповёрт | двумя аккумуляторами",
+            wanted=20,
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["english-drill"],
+            marketplace_terms=["cordless drill two batteries"],
+        )
+
+        prompt = service._generate.await_args.args[0]
+        self.assertIn('seller_terms: ["cordless drill two batteries"]', prompt)
+        self.assertIn("подсказка для сопоставления языков", prompt)
+        self.assertIn("не является доказательством", prompt)
+        self.assertIn("точную короткую цитату", prompt)
+
     async def test_conversation_selector_receives_relevant_later_description_text(self):
         service = self.make_service(
             '{"selections":[{"id":"described-item","requirement_evidence":{}}]}'
