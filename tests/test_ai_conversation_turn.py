@@ -493,6 +493,30 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("не является доказательством", prompt)
         self.assertIn("точную короткую цитату", prompt)
 
+    async def test_english_listing_quotes_can_ground_russian_mandatory_feature(self):
+        service = self.make_service(
+            '{"selections":[{"id":"english-drill",'
+            '"identity_evidence":"Cordless drill",'
+            '"requirement_evidence":{"двумя аккумуляторами":"2 batteries"}}]}'
+        )
+        candidate = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="english-drill",
+            title="Cordless drill with 2 batteries",
+            product_url="https://www.aliexpress.com/item/english-drill.html",
+        )
+
+        selected = await service.select_conversation_candidates(
+            [candidate],
+            query="аккумуляторный шуруповёрт | двумя аккумуляторами",
+            wanted=1,
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["english-drill"],
+            marketplace_terms=["cordless drill two batteries"],
+        )
+
+        self.assertEqual(selected, ["english-drill"])
+
     async def test_conversation_selector_receives_relevant_later_description_text(self):
         service = self.make_service(
             '{"selections":[{"id":"described-item","requirement_evidence":{}}]}'
