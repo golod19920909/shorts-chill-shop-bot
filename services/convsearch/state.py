@@ -1137,7 +1137,7 @@ _PRODUCT_REQUEST_FRAMING_WORDS = frozenset(
     }
 )
 _PRODUCT_CONTEXT_CONNECTOR_RE = re.compile(
-    r"(?:^|\\s)(?:для|по|на|под|с|со|из|без|for|on|under|with|without)\\b",
+    r"(?:^|\s)(?:для|по|на|под|с|со|из|без|for|on|under|with|without)\b",
     re.IGNORECASE,
 )
 _PRODUCT_ACTIVITY_WORDS = frozenset(
