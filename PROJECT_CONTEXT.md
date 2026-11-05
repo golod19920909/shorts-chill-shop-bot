@@ -1841,3 +1841,12 @@ even while a product set is active. Offline regressions cover both branches.
 - Updated the regression so the primary phrase returns an empty page, the alternate phrase returns a candidate on page 1 and another on page 2, and page 2 must use the alternate phrase.
 - Code/test commits: `36a1af0`, `85c4333`. Latest successful workflow [41983871056](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/41983871056) on code head `85c4333690f3d84623ba5be6d57a1ea55d0b4a0e`: focused **259 passed / 43 subtests**; filtered repository suite **2,165 passed / 721 subtests / 1 warning**. The workflow excludes 17 documented stale legacy modules; this is not an unfiltered full-suite pass.
 - Offline only. No live AliExpress, Gemini or Telegram calls were made; live catalogue recall and latency remain unverified.
+
+
+### Preserve AliExpress page order during multi-query RRF fusion (2026-11-05)
+
+- A retrieval-ranking audit found that page 1 and page 2 of the same AliExpress phrase were being fused as independent RRF routes. This could let page 2's first result outrank page 1's 50th result, even though the marketplace had already ordered those rows within one query.
+- Raw retrieval now groups provider rows by the exact grounded query phrase and appends deeper pages to that same ordered route. RRF still combines distinct user-language/seller-language phrases, but page order within each phrase is preserved. The same grouped ranking is used by the pagination eligibility callback and final fused pool.
+- Added a regression with 50 page-one results, an empty alternate phrase and one page-two result; page-one rank 50 must remain ahead of page-two rank 1 from the same phrase.
+- Code/test commits: `96722f0`, `2fe07f4`, `984aeab`. Successful workflow [41984178716](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/41984178716) on code head `984aeab62313dec014344f1fbf57a57bb11e8e3a`: focused **260 passed / 43 subtests**; filtered repository suite **2,166 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules are excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live AliExpress/Gemini/Telegram calls were made.
