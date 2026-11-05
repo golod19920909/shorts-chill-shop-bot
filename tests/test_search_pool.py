@@ -122,10 +122,10 @@ class GroundedVariantTests(unittest.TestCase):
     def test_ai_marketplace_term_adds_cross_language_retrieval_route(self) -> None:
         variants = self.variants(
             original_query="Нужен беспроводной зарядный блок",
-            normalized_query="беспроводной зарядный блок",
+            normalized_query="wireless charger",
             intent_marketplace_terms=["wireless charging station"],
         )
-        self.assertEqual(variants[0], "беспроводной зарядный блок")
+        self.assertEqual(variants[0], "wireless charger")
         self.assertIn("wireless charging station", variants)
         self.assertLessEqual(len(variants), query_variants.MAX_PRODUCT_QUERY_VARIANTS)
 
