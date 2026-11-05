@@ -636,14 +636,19 @@ SEARCH_PLAN_PROMPT = """Сформулируй короткий поисковы
 """
 
 
-QUESTION_PROMPT = """Ответь на вопрос покупателя о товарах, используя ТОЛЬКО переданные данные.
+QUESTION_PROMPT = """Найди в карточках только прямые текстовые подтверждения, относящиеся к вопросу покупателя.
 
+
+Верни ТОЛЬКО JSON такого вида:
+{"claims":[{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}]}
 
 Правила:
-- опирайся только на поля из JSON;
-- если в данных нет ответа — верни ровно: нет данных
-- не выдумывай характеристики, качество, материалы, доставку или ссылки;
-- ответ 1–3 предложения, по-русски, без markdown.
+- quote должен дословно присутствовать в указанном поле товара; не исправляй и не пересказывай цитату.
+- Выбирай только цитаты, которые прямо относятся к вопросу. Не делай выводов по типичному комплекту, категории, цене, рейтингу или фотографии.
+- Не утверждай ничего от себя: итоговый ответ будет построен программно только из проверенных цитат.
+- Не используй другие поля и не выдумывай id.
+- Если подходящих прямых подтверждений нет, верни {"claims":[]}.
+- Не более 8 подтверждений.
 
 
 Вопрос: {question}
@@ -1902,12 +1907,55 @@ seller_terms: {seller_terms_json}
             ),
             models=(self.smart_model,),
         )
-        text = self._validated_sentences(raw, payloads)
-        if not text:
+        payload = self._extract_json_object(raw) if raw else None
+        claims = payload.get("claims") if isinstance(payload, dict) else None
+        if not isinstance(claims, list):
             return None
-        if text.strip().strip(".").lower() == "нет данных":
+
+        by_id = {
+            str(item.get("id")): item
+            for item in payloads
+            if isinstance(item, dict) and item.get("id")
+        }
+        rendered: list[str] = []
+        seen: set[tuple[str, str, str]] = set()
+        for claim in claims:
+            if not isinstance(claim, dict):
+                continue
+            product_id = claim.get("product_id")
+            field = claim.get("field")
+            quote = claim.get("quote")
+            if (
+                not isinstance(product_id, str)
+                or field not in {"title", "description"}
+                or not isinstance(quote, str)
+            ):
+                continue
+            source = by_id.get(product_id)
+            source_text = source.get(field) if source else None
+            normalized_quote = " ".join(quote.split()).strip()
+            normalized_source = " ".join(str(source_text or "").split())
+            if (
+                not normalized_quote
+                or len(normalized_quote) > 180
+                or normalized_quote.casefold() not in normalized_source.casefold()
+            ):
+                continue
+            key = (product_id, field, normalized_quote.casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            title = str(source.get("title") or product_id)
+            field_label = "названии" if field == "title" else "описании"
+            rendered.append(
+                f"• <b>{html.escape(title[:100])}</b>: "
+                f"в {field_label} указано «{html.escape(normalized_quote)}»."
+            )
+            if len(rendered) >= 8:
+                break
+        if not rendered:
             return None
-        return text
+        return "По данным карточек AliExpress:\\n" + "\\n".join(rendered)
 
     def _validated_sentences(
         self, text: str | None, facts: object
