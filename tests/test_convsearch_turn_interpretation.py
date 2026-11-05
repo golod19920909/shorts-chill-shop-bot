@@ -85,6 +85,46 @@ class MarketplacePhraseRoutingTests(unittest.IsolatedAsyncioTestCase):
         )
 
 
+    async def test_refinement_passes_alternate_phrase_with_active_feature_into_search(self):
+        ai = FakeAI({
+            "action": "refine",
+            "confidence": 0.99,
+            "product_type": None,
+            "marketplace_terms": ["cordless drill with two batteries"],
+            "question": None,
+            "response": None,
+            "slot_updates": [],
+        })
+        backend = FakeBackend([listing("drill-2", "Cordless drill with 2 batteries")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="marketplace-refinement-route")
+        state.record_product_type("аккумуляторный шуруповерт")
+        state.slots.append(Slot(
+            kind="feature",
+            value="двумя аккумуляторами",
+            source_turn=1,
+            raw_text="с двумя аккумуляторами",
+        ))
+
+        await engine.handle_message(
+            "marketplace-refinement-route",
+            "Поищи именно с двумя аккумуляторами",
+            state=state,
+            currency="UAH",
+        )
+
+        self.assertEqual(len(backend.strategies), 1)
+        self.assertEqual(
+            backend.strategies[0].request.intent_marketplace_terms,
+            ["cordless drill with two batteries"],
+        )
+        self.assertIn(
+            "двумя аккумуляторами",
+            backend.strategies[0].request.normalized_query,
+        )
+
+
 class ShownProductContextTests(unittest.TestCase):
     def test_only_cards_really_opened_in_telegram_are_sent_as_shown_context(self):
         products = [
