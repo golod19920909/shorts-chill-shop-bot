@@ -380,6 +380,22 @@ class EngineScenarioTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = ConversationSearchEngine()
 
+    def test_question_about_shown_options_with_use_case_is_compare(self) -> None:
+        for index, message in enumerate((
+            "А что из этого лучше для дома?",
+            "Какой из них лучше для дома?",
+        )):
+            with self.subTest(message=message):
+                state = ConversationEngineState(user_key=f"shown-use-case-{index}")
+                state.record_product_type("шуруповёрт")
+
+                observation = state.observe(message)
+
+                self.assertEqual(observation["intent"], MessageIntent.COMPARE)
+                self.assertEqual(
+                    state.active_by_kind("type").value, "шуруповёрт"
+                )
+
     def test_targeted_slot_replace_preserves_unrelated_features_and_exclusions(self) -> None:
         state = ConversationEngineState(user_key="targeted-replace")
         state.slots.extend([
