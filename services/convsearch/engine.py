@@ -1112,6 +1112,7 @@ class ConversationSearchEngine:
             "marketplace_terms": getattr(
                 strategy.request, "intent_marketplace_terms", []
             ),
+            "budget_constraint": budget.value if budget is not None else None,
         }
         # Keep injected selectors / older adapters that implement the
         # established contract working. The production AIService accepts the
@@ -1127,8 +1128,11 @@ class ConversationSearchEngine:
                 parameter.name
                 for parameter in inspect.signature(selector).parameters.values()
             }
-            if not accepts_extra and "marketplace_terms" not in parameter_names:
-                selector_kwargs.pop("marketplace_terms")
+            if not accepts_extra:
+                if "marketplace_terms" not in parameter_names:
+                    selector_kwargs.pop("marketplace_terms")
+                if "budget_constraint" not in parameter_names:
+                    selector_kwargs.pop("budget_constraint")
         except (TypeError, ValueError):
             selector_kwargs.pop("marketplace_terms", None)
 
