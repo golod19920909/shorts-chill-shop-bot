@@ -735,10 +735,10 @@ class SearchService:
         )
 
         pairs: list[tuple[MarketplaceProvider, object]] = []
-        # Keep each grounded phrase/page's provider rows separate until RAW
-        # collection so conversational retrieval can fuse independent route
-        # rankings instead of inheriting phrase execution order.
-        raw_route_pairs: list[list[tuple[MarketplaceProvider, object]]] = []
+        # Keep one ordered provider-row stream per grounded phrase. Pages of
+        # the same phrase are one marketplace ranking, not independent routes:
+        # page 2 rank 1 must follow page 1 rank 50 during RRF fusion.
+        raw_route_pairs: dict[str, list[tuple[MarketplaceProvider, object]]] = {}
         outcome = SearchOutcome(
             request=request, unavailable_marketplaces=list(unavailable)
         )
@@ -815,7 +815,7 @@ class SearchService:
                     )
                 pairs.extend(route_pairs)
                 if raw:
-                    raw_route_pairs.append(route_pairs)
+                    raw_route_pairs.setdefault(variant, []).extend(route_pairs)
                 route_failed = all(
                     isinstance(result, BaseException)
                     or bool(getattr(result, "provider_error", None))
@@ -978,7 +978,7 @@ class SearchService:
 
                 route_rankings = [
                     self._deduplicate(route_pairs)
-                    for route_pairs in raw_route_pairs
+                    for route_pairs in raw_route_pairs.values()
                 ]
                 current_raw = merge_route_results(*route_rankings)
                 if exclude:
@@ -1022,7 +1022,7 @@ class SearchService:
                     pool_target,
                     sum(
                         len(result)
-                        for route in raw_route_pairs
+                        for route in raw_route_pairs.values()
                         for _provider, result in route
                         if isinstance(result, list)
                     ),
