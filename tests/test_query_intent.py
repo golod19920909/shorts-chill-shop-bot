@@ -379,6 +379,7 @@ class AISuccessTests(unittest.TestCase):
         payload = {
             "product_type": "зарядка",
             "compatibility": ["iPhone 15 Pro"],
+            "marketplace_terms": ["wireless charging station"],
             "brand": None,
             "budget": {"max": 2000, "currency": "грн"},
             "unknown_extra": "drop me",
@@ -392,6 +393,7 @@ class AISuccessTests(unittest.TestCase):
         self.assertIsNotNone(meta.latency_ms)
         self.assertEqual(intent.product_type, "зарядка")
         self.assertEqual(intent.compatibility, ["iPhone 15 Pro"])
+        self.assertEqual(intent.marketplace_terms, ["wireless charging station"])
         self.assertEqual(intent.budget.max, 2000)
         self.assertEqual(intent.budget.currency, "UAH")
         self.assertEqual(intent.marketplace_terms, ["wireless charger"])
