@@ -441,6 +441,15 @@ class GroundedProductQuestionTests(unittest.TestCase):
         self.assertIn("Cordless drill", answer)
         self.assertNotIn("имеет две батареи", answer)
 
+    def test_malformed_claim_field_is_ignored_safely(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":["description"],'
+            '"quote":"Includes two batteries"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("У какого товара два аккумулятора?", self._products())
+        ))
+
     def test_invented_quote_is_rejected(self) -> None:
         service = self._service(
             '{"claims":[{"product_id":"item-1","field":"description",'
