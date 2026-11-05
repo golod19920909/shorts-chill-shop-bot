@@ -1980,6 +1980,7 @@ were made for this change.
 - Price intent now requires explicit price/cost wording (including «сколько стоит», «во сколько», «стоимость», and common English price phrases). The ambiguous verb «стоит» alone no longer triggers numeric price comparison.
 - Added offline regressions for both the ambiguous recommendation wording and an explicit «сколько стоит» question.
 - This is a question-routing correction; it does not infer product quality or add product-specific rules.
+- Successful GitHub Actions run **42007330810** on code head `3ab66744c9108f1878ef3d37c0a7e2a0ecaac1d3`: focused regressions **268 passed / 43 subtests**; filtered repository suite **2,183 passed / 721 subtests / 1 warning**. The workflow excludes 17 documented stale legacy modules; this is not an unfiltered full-suite pass. Offline only.
 
 ### Missing-price listings when no budget is specified (2026-11-05)
 
