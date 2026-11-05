@@ -127,6 +127,40 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["confidence"], 0.94)
         service._generate.assert_awaited_once()
 
+    async def test_refinement_accepts_bounded_cross_language_phrase_for_active_constraints(self):
+        service = self.make_service(
+            '{"action":"refine","confidence":0.96,"product_type":null,'
+            '"marketplace_terms":["cordless drill with two batteries"],'
+            '"question":null,"slot_updates":[]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Поищи именно с двумя аккумуляторами",
+            context={
+                "active_slots": [
+                    {"kind": "type", "value": "аккумуляторный шуруповерт"},
+                    {"kind": "feature", "value": "двумя аккумуляторами"},
+                ],
+                "recent_turns": [],
+            },
+        )
+        self.assertEqual(result["action"], "refine")
+        self.assertEqual(
+            result["marketplace_terms"],
+            ["cordless drill with two batteries"],
+        )
+
+    async def test_non_search_actions_cannot_attach_marketplace_phrases(self):
+        service = self.make_service(
+            '{"action":"compare","confidence":0.99,"product_type":null,'
+            '"marketplace_terms":["cordless drill"],"question":null,"slot_updates":[]}'
+        )
+        result = await service.decide_conversation_turn(
+            "Какой из них лучше?",
+            context={"active_slots": [], "recent_turns": []},
+        )
+        self.assertEqual(result["action"], "compare")
+        self.assertEqual(result["marketplace_terms"], [])
+
     async def test_model_cannot_invent_a_product_head_not_in_user_message(self):
         service = self.make_service(
             '{"action":"new_search","confidence":0.99,'
