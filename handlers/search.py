@@ -851,6 +851,7 @@ async def _deliver_decision(
             message.chat_id, STALE_RESULTS_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(STALE_RESULTS_TEXT)
         return
 
     if decision.outcome is ConvOutcome.PROVIDER_ERROR:
@@ -865,6 +866,7 @@ async def _deliver_decision(
             message.chat_id, SEARCH_UNAVAILABLE_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
         return
 
     if decision.outcome in (ConvOutcome.NO_CANDIDATES, ConvOutcome.NO_ELIGIBLE):
@@ -879,10 +881,12 @@ async def _deliver_decision(
             telegram_id=telegram_id,
             metadata={"source": "text", "reason": reason},
         )
+        no_match_reply = _no_eligible_user_message(decision)
         await context.bot.send_message(
-            message.chat_id, _no_eligible_user_message(decision),
+            message.chat_id, no_match_reply,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(no_match_reply)
         return
 
     if decision.outcome is not ConvOutcome.RESULTS or not decision.products:
@@ -890,6 +894,7 @@ async def _deliver_decision(
             message.chat_id, EMPTY_RESULT_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
         return
 
     # RESULTS: the engine already validated, filtered, deduped and ranked
@@ -1168,10 +1173,14 @@ async def send_search_results(
                 SEARCH_UNAVAILABLE_TEXT,
                 reply_markup=back_to_menu_keyboard(),
             )
+            if conversation_state is not None:
+                conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
             return None
         await context.bot.send_message(
             chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
         )
+        if conversation_state is not None:
+            conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
         return None
 
     session_id = common.remember_outcome(
@@ -1222,6 +1231,8 @@ async def send_search_results(
                 await context.bot.send_message(
                     chat_id, hint, reply_markup=back_to_menu_keyboard()
                 )
+                if conversation_state is not None:
+                    conversation_state.record_assistant_turn(hint)
             except Exception:
                 # The product card is already delivered and the session is
                 # valid. A failed optional hint must not hide its session id
