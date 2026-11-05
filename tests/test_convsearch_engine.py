@@ -1622,6 +1622,35 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
         self.assertEqual([p.product_id for p in survivors], ["home"])
         self.assertEqual([p.product_id for p in rejected], ["industrial"])
 
+    def test_compatibility_is_enforced_by_deterministic_required_feature_filter(self) -> None:
+        from services.convsearch.retrieval import filter_by_required_features
+        from services.convsearch.state import Slot
+
+        state = ConversationEngineState(user_key="compatibility-filter")
+        state.slots.append(Slot(
+            kind="compatibility",
+            value="iPhone 15",
+            source_turn=1,
+            raw_text="под iPhone 15",
+        ))
+        products = [
+            self._product("iphone-case", "Phone case").model_copy(update={
+                "description": "Compatible with iPhone 15",
+            }),
+            self._product("samsung-case", "Phone case").model_copy(update={
+                "description": "Compatible with Samsung Galaxy",
+            }),
+            self._product("unknown-case", "Universal phone case"),
+        ]
+
+        survivors, rejected = filter_by_required_features(products, state)
+
+        self.assertEqual([p.product_id for p in survivors], ["iphone-case"])
+        self.assertEqual(
+            {p.product_id for p in rejected},
+            {"samsung-case", "unknown-case"},
+        )
+
     def test_route_merge_uses_reciprocal_rank_fusion(self) -> None:
         from services.convsearch.retrieval import merge_route_results
 
