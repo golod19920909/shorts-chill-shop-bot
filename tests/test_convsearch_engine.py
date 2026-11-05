@@ -150,6 +150,39 @@ class CrossCategoryEngineEvaluationTests(unittest.TestCase):
                 self.assertEqual(decision.report["rejected_type"], 1)
 
 
+class CrossLanguageRequestedAccessoryTests(unittest.TestCase):
+    def test_requested_accessory_titles_reach_semantic_identity_review(self):
+        cases = (
+            ("чехол для телефона", "Phone case for iPhone 15"),
+            ("ремешок для часов", "Watch band for Apple Watch"),
+            ("фильтр для воды", "Water filter cartridge"),
+        )
+        engine = ConversationSearchEngine()
+        for index, (requested_type, title) in enumerate(cases):
+            with self.subTest(requested_type=requested_type):
+                state = ConversationEngineState(
+                    user_key=f"cross-language-accessory-{index}"
+                )
+                state.record_product_type(requested_type)
+                candidate = product(f"accessory-{index}", title)
+                strategy = SimpleNamespace(
+                    product_type=requested_type,
+                    request=SimpleNamespace(
+                        normalized_query=requested_type,
+                        original_query=requested_type,
+                    ),
+                    result_limit=30,
+                )
+                decision = engine._evaluate_pool(
+                    state, [candidate], strategy,
+                    refined=False, intent=MessageIntent.NEW_SEARCH,
+                    observation={}, exclude_shown=False,
+                )
+                self.assertIs(decision.outcome, Outcome.RESULTS)
+                self.assertIn(candidate.product_id, decision.report["semantic_review_ids"])
+                self.assertEqual(decision.report["safe_ranked"], 0)
+
+
 class CrossCategoryFeatureReviewTests(unittest.IsolatedAsyncioTestCase):
     """Unlisted feature wording must reach the same semantic review path
     across unrelated product families, not be auto-accepted or dropped."""
