@@ -235,8 +235,8 @@ class ConversationEngineState:
             return len(self.turns)
         index = len(self.turns) + 1
         self.turns.append(Turn(index=index, text=message))
-        self.dialogue_history.append({"role": "user", "text": message[:1500]})
-        del self.dialogue_history[:-16]
+        self.dialogue_history.append({"role": "user", "text": message[:1000]})
+        del self.dialogue_history[:-12]
         self.touch()
         return index
 
@@ -245,8 +245,8 @@ class ConversationEngineState:
         message = (text or "").strip()
         if not message:
             return
-        self.dialogue_history.append({"role": "assistant", "text": message[:1500]})
-        del self.dialogue_history[:-16]
+        self.dialogue_history.append({"role": "assistant", "text": message[:1000]})
+        del self.dialogue_history[:-12]
         self.touch()
 
     # -- observation -------------------------------------------------------
