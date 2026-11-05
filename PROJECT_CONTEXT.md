@@ -2440,8 +2440,12 @@ Commits:
 - Currency/missing-price clarification: 2c1a169711d1cd5261b2598e517d7b5e165d421a.
 
 GitHub Actions run [42080812552](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42080812552)
-was in progress on the code/test head when this section was written. Record
-the final focused and filtered-suite counts only after inspecting that run.
+completed successfully on the code/test head:
+- Focused conversational regressions: **282 passed, 52 subtests passed**.
+- Filtered repository suite: **2,212 passed, 730 subtests passed, 1 warning**.
+- Manual live smoke scripts compiled successfully.
+- The 17 documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
 No live Telegram retest has been performed for this change.
 
 ### Live conversational issues to re-check (2026-11-05)
