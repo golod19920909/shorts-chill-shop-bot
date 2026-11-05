@@ -49,7 +49,7 @@ from services.search_service import AI_FEED_RESULTS, SearchOutcome, SearchServic
 from utils.formatting import CAPTION_LIMIT
 
 from services.convsearch.contract import Outcome as ConvOutcome
-from services.convsearch.engine import ConversationSearchEngine, _explicit_requested_product_type
+from services.convsearch.engine import ConversationSearchEngine, _explicit_requested_product_type, _product_type_of
 from services.convsearch.state import ConversationEngineState, MessageIntent, _is_alternatives_request
 
 logger = logging.getLogger(__name__)
@@ -364,7 +364,7 @@ def clear_pending_product_question(context) -> None:
 
 
 def should_resume_product_question(text: str, state: ConversationEngineState | None) -> bool:
-    if _explicit_requested_product_type(text):
+    if _explicit_requested_product_type(text) or _product_type_of(text):
         return False
     if isinstance(state, ConversationEngineState) and _is_alternatives_request(text, state):
         return False
