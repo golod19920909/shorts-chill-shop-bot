@@ -26,6 +26,7 @@ from __future__ import annotations
 
 
 import asyncio
+import html
 import time
 import json
 import logging
@@ -640,14 +641,14 @@ QUESTION_PROMPT = """Найди в карточках только прямые 
 
 
 Верни ТОЛЬКО JSON такого вида:
-{"claims":[{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}]}
+{{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}]}}
 
 Правила:
 - quote должен дословно присутствовать в указанном поле товара; не исправляй и не пересказывай цитату.
 - Выбирай только цитаты, которые прямо относятся к вопросу. Не делай выводов по типичному комплекту, категории, цене, рейтингу или фотографии.
 - Не утверждай ничего от себя: итоговый ответ будет построен программно только из проверенных цитат.
 - Не используй другие поля и не выдумывай id.
-- Если подходящих прямых подтверждений нет, верни {"claims":[]}.
+- Если подходящих прямых подтверждений нет, верни {{"claims":[]}}.
 - Не более 8 подтверждений.
 
 
@@ -1887,11 +1888,10 @@ seller_terms: {seller_terms_json}
     async def answer_product_question(
         self, question: str, products: list[Product]
     ) -> str | None:
-        """A validated answer about real products, or ``None``.
+        """Build an answer only from exact quotes verified against listings.
 
-        The model may only mention numbers that exist in the supplied
-        product data; the documented "нет данных" answer becomes ``None``,
-        so the caller shows its own honest message instead.
+        Gemini selects relevant evidence; the application, not the model,
+        constructs the factual text delivered to Telegram.
         """
 
         if not self.is_available or not products or not (question or "").strip():
