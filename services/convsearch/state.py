@@ -210,6 +210,9 @@ class ConversationEngineState:
 
     user_key: str
     turns: list[Turn] = field(default_factory=list)
+    # Role-labelled dialogue memory is separate from retrieval turns so
+    # assistant messages never change slot provenance or turn numbering.
+    dialogue_history: list[dict[str, str]] = field(default_factory=list)
     slots: list[Slot] = field(default_factory=list)
     shown_product_ids: list[str] = field(default_factory=list)
     #: The last meaningful search outcome, honestly recorded.
@@ -232,8 +235,19 @@ class ConversationEngineState:
             return len(self.turns)
         index = len(self.turns) + 1
         self.turns.append(Turn(index=index, text=message))
+        self.dialogue_history.append({"role": "user", "text": message[:1500]})
+        del self.dialogue_history[:-16]
         self.touch()
         return index
+
+    def record_assistant_turn(self, text: str) -> None:
+        """Remember the assistant's actual delivered words for follow-up understanding."""
+        message = (text or "").strip()
+        if not message:
+            return
+        self.dialogue_history.append({"role": "assistant", "text": message[:1500]})
+        del self.dialogue_history[:-16]
+        self.touch()
 
     # -- observation -------------------------------------------------------
 
