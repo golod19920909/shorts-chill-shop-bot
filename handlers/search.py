@@ -585,6 +585,8 @@ async def _answer_over_shown(
     await context.bot.send_message(
         chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
     )
+    if isinstance(conversation_state, ConversationEngineState):
+        conversation_state.record_assistant_turn(advice.text)
     return True
 
 def _apply_user_result_count(
@@ -808,12 +810,15 @@ async def _deliver_decision(
             await context.bot.send_message(
                 message.chat_id, reply, reply_markup=back_to_menu_keyboard()
             )
+            conversation_state.record_assistant_turn(reply)
         else:
+            fallback_reply = "Давайте продолжим. Что именно вы хотите подобрать?"
             await context.bot.send_message(
                 message.chat_id,
-                "Давайте продолжим. Что именно вы хотите подобрать?",
+                fallback_reply,
                 reply_markup=back_to_menu_keyboard(),
             )
+            conversation_state.record_assistant_turn(fallback_reply)
         return
 
     if decision.outcome is ConvOutcome.CLARIFY:
@@ -825,6 +830,7 @@ async def _deliver_decision(
         await context.bot.send_message(
             message.chat_id, question, reply_markup=back_to_menu_keyboard()
         )
+        conversation_state.record_assistant_turn(question)
         return
 
     if decision.outcome is ConvOutcome.COMPARE:
