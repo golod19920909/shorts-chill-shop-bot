@@ -2252,3 +2252,26 @@ GitHub Actions run **42056187765** on head **a9f855bbcc5b37025badf5897b7017bb79d
 - Focused conversational regressions: **280 passed, 45 subtests passed**.
 - Filtered repository suite: **2,208 passed, 723 subtests passed, 1 warning**.
 - The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. CI is offline and does not verify live Gemini latency, AliExpress recall or Telegram delivery.
+
+
+### AliExpress product-evidence source audit (2026-11-05)
+
+A source-level audit was completed before changing product validation. The current provider is correctly wired to the AliExpress Portals Affiliate API:
+- `aliexpress.affiliate.product.query` is documented as an unauthenticated affiliate-product search method. Its documented product response exposes title, category labels, product URL/ID, images/video, prices/currencies, sales volume, evaluation rate, shop identifiers/URL, shipping estimate and promotion link. It does **not** document a long description, structured specifications, SKU attribute table, or review text.
+- `aliexpress.affiliate.productdetail.get` is already implemented as `AliExpressProvider.get_product()`, but it is still the Affiliate product-detail method; its documented response is still affiliate product metadata, not the DS product specification payload. Calling it for every search result would add API latency/quota without supplying the missing specification evidence.
+- The `Product` model's `description` is optional and the Affiliate provider currently leaves it unset because the documented response does not supply it. This is intentional honest-data behavior, not a missed mapping.
+
+Official documentation reviewed:
+- Affiliate product query method and its documented response fields: https://developer.alibaba.com/docs/api.htm?apiId=45803 (request/response fields; response example).
+- Affiliate product-detail method: https://developer.alibaba.com/docs/api.htm?apiId=48595.
+- The separate `aliexpress.ds.product.get` method belongs to the AliExpress Dropshipping API, is marked as requiring authorization, and its current official documentation category is explicitly labelled **Dropshipping (deprecated)**: https://developer.alibaba.com/docs/doc.htm?articleId=60452&docType=2&treeId=762.
+- The historical DS onboarding documentation describes a separate Drop Shipping app, OAuth/session authorization and Dropshipping Center participation; this is not the Portals affiliate credential flow: https://developer.alibaba.com/docs/doc.htm?articleId=120418&docType=1&treeId=762.
+
+Architecture decision:
+1. Keep the Portals Affiliate API as the production search/price/affiliate-link source. Do not assume its app key can call DS methods.
+2. Do not integrate the deprecated DS API as a production dependency based only on old examples or third-party SDKs. It would require a separately approved app/authorization and a live permission/response check; none is established for this project.
+3. Do not scrape product pages or infer missing specifications from category, price, rating, images, or generic product conventions as a shortcut.
+4. Continue to represent unavailable product attributes as UNKNOWN. Keep candidates with unverified mandatory requirements quarantined; do not describe them as confirmed matches. If no supported source can verify a hard requirement, the consultant must disclose that limitation and ask for a product link/details or a relaxed criterion rather than inventing an answer.
+5. A future data-source integration must first pass a small isolated feasibility spike: documented current API status, app permission, real response schema, latency/quota, and a safe mapping into Product evidence. Only then should the product-validation pipeline consume it.
+
+This is an evidence-based architectural finding, not a claim that the product-data limitation has been solved. No runtime behavior was changed in this audit.
