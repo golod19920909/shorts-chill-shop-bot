@@ -1823,3 +1823,11 @@ even while a product set is active. Offline regressions cover both branches.
 - This is an offline architecture change only; no live Telegram/Gemini/AliExpress test has been performed.
 
 - Extended delivery integration after the initial change: successfully delivered no-result/outage messages and the post-card result-count hint are also recorded as assistant turns. This keeps the role-labelled history aligned with what the user actually saw, not merely what the engine intended to send.
+
+### Dialogue-memory CI correction (2026-11-05)
+
+- First CI run after the role-labelled memory integration exposed that `_bounded_conversation_context()` did not whitelist the new `recent_dialogue` field. Two context-contract tests failed with JSON parsing errors because the test extracted the prompt section after the newly inserted explanatory text; the production payload itself remained valid JSON, but the context serialization contract was not updated.
+- Corrected the bounded context builder to include only validated `user` / `assistant` events, retain at most 12 entries and 1,000 characters per event, and discard the oldest transcript events first when compacting. This preserves the latest exchange while keeping the prompt under its existing 6,000-character cap.
+- Expanded context tests to cover role-labelled transcript compaction and the 30-card context boundary.
+- The failed run was workflow `41982000866`: **257 passed, 2 failed, 43 subtests passed** in the focused suite; the repository suite was skipped. Do not count it as a pass.
+- The follow-up commits are present on the PR branch, but no workflow run has yet been observed for the corrected latest head. Verification is pending.
