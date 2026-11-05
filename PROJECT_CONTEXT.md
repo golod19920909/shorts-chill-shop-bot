@@ -2275,3 +2275,10 @@ Architecture decision:
 5. A future data-source integration must first pass a small isolated feasibility spike: documented current API status, app permission, real response schema, latency/quota, and a safe mapping into Product evidence. Only then should the product-validation pipeline consume it.
 
 This is an evidence-based architectural finding, not a claim that the product-data limitation has been solved. No runtime behavior was changed in this audit.
+
+ 
+### Neutral wording for unverified product attributes (2026-11-05)
+
+The product-question fallback previously said that AliExpress had not supplied the requested information whenever deterministic extraction and the AI answer both returned no result. That statement was too strong: a missing answer can also be caused by a Gemini timeout/unavailability or by evidence that the current answer path cannot interpret. Changed the fallback to say that the bot cannot reliably confirm the attribute from the available cards and will not guess. Updated the two product-assistant regressions that assert the user-facing fallback wording.
+
+This does not change selection, evidence validation, provider calls or the product data schema. It is a truthfulness correction: absence of a verified answer is not automatically proof that the marketplace omitted the field. Pending CI on the updated branch head.
