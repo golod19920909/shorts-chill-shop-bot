@@ -2070,3 +2070,22 @@ product terms. Alternatives now require an active task slot or delivered
 shown products. Added a regression proving that a greeting followed by an
 alternatives phrase does not create a phantom shopping continuation. Existing
 same-task alternatives, including use-case context, remain covered.
+
+
+### Alternatives-context regression — CI verified (2026-11-05)
+
+The alternatives classifier now refuses to infer a continuation when there
+is no active task slot and no delivered product context. This closes the case
+where a greeting followed by «Покажи другие варианты» could be misrouted as
+an alternatives search. The existing household/use-case alternatives
+regression remains intact.
+
+GitHub Actions PR workflow **42020885457** completed successfully on the
+current PR head **274c24cf68d41cfc171025522e6d8d29a8bba064**:
+- Focused conversational regressions: **270 passed, 45 subtests passed**.
+- Filtered repository suite: **2,185 passed, 723 subtests passed, 1 warning**.
+- The repository workflow excludes 17 documented stale legacy modules; this
+  is not an unfiltered full-suite pass. The warning is a dependency
+  deprecation warning. Tests are offline; no live Telegram, Gemini or
+  AliExpress request was made.
+- PR #7 remains open, draft and unmerged; the base branch remains unchanged.
