@@ -46,8 +46,9 @@ logger = logging.getLogger(__name__)
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
 # SearchService gathers a bounded deep pool before the conversational selector.
-# Gemini reviews up to 70 candidates and returns at most 20 best; the remaining
-# ten rows can form a deterministic, already-gated presentation tail.
+# For the default 30-card view Gemini reviews up to 70 candidates and returns
+# at most 20 best; up to ten already-gated rows remain for the display tail.
+# A smaller requested count lets Gemini review the full 80-candidate pool.
 AI_CONVERSATION_CANDIDATE_POOL_LIMIT = 80
 AI_CONVERSATION_REVIEW_POOL_LIMIT = 80
 # A 20-listing semantic review is materially heavier than turn routing.
