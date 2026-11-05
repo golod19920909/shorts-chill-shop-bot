@@ -370,6 +370,57 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active(), [])
 
 
+    async def test_shown_product_question_cannot_take_free_form_respond_path(self):
+        ai = FakeAI({
+            "action": "respond", "confidence": 0.99,
+            "response": "Да, он водонепроницаемый.",
+            "product_type": None, "slot_updates": [],
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="shown-product-respond-guard")
+        state.record_product_type("налобный фонарь")
+        state.record_shown(["headlamp-1"])
+
+        decision = await engine.handle_message(
+            "shown-product-respond-guard",
+            "А он водонепроницаемый?",
+            state=state,
+            shown_products=[listing("headlamp-1", "LED headlamp IPX7")],
+            currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.COMPARE)
+        self.assertEqual(backend.strategies, [])
+        self.assertEqual(decision.report["intent"], MessageIntent.COMPARE)
+
+    async def test_general_concept_question_stays_natural_with_shown_products(self):
+        ai = FakeAI({
+            "action": "respond", "confidence": 0.99,
+            "response": "IPX7 означает защиту от временного погружения в воду.",
+            "product_type": None, "slot_updates": [],
+        })
+        backend = FakeBackend([])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="shown-product-concept")
+        state.record_product_type("налобный фонарь")
+        state.record_shown(["headlamp-1"])
+
+        decision = await engine.handle_message(
+            "shown-product-concept",
+            "Что означает IPX7?",
+            state=state,
+            shown_products=[listing("headlamp-1", "LED headlamp IPX7")],
+            currency="UAH",
+        )
+
+        self.assertIs(decision.outcome, Outcome.RESPOND)
+        self.assertEqual(decision.reply, "IPX7 означает защиту от временного погружения в воду.")
+        self.assertEqual(backend.strategies, [])
+
+
     async def test_deterministic_product_type_excludes_request_verbs_and_relation_targets(self):
         self.assertEqual(
             _product_type_of("Ищу шуруповерта для дома"),
