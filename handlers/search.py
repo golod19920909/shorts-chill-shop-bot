@@ -363,6 +363,26 @@ def clear_pending_product_question(context) -> None:
     context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
 
 
+_PRODUCT_QUESTION_SOCIAL_ASIDES = frozenset(
+    {
+        "спасибо", "большое спасибо", "благодарю", "спасибо большое",
+        "пожалуйста", "привет", "здравствуйте", "добрый день",
+        "добрый вечер", "понятно", "ясно", "хорошо", "ладно", "ок", "окей",
+        "дякую", "дуже дякую", "привіт", "добрий день", "зрозуміло",
+        "thanks", "thank you", "thanks a lot", "hello", "hi", "good morning",
+        "good afternoon", "got it", "understood", "okay", "ok", "all right",
+    }
+)
+
+
+def is_product_question_social_aside(text: str) -> bool:
+    """Recognize a short courtesy/acknowledgement, not a selection criterion."""
+
+    value = " ".join((text or "").casefold().replace("ё", "е").split()).strip()
+    value = re.sub(r"[.!?,…]+$", "", value).strip()
+    return value in _PRODUCT_QUESTION_SOCIAL_ASIDES
+
+
 def should_resume_product_question(text: str, state: ConversationEngineState | None) -> bool:
     if _explicit_requested_product_type(text):
         return False
@@ -721,7 +741,12 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             _turn_done("product-question-cancelled")
             return
         state = context.user_data.get("_convsearch_state")
-        if should_resume_product_question(text, state):
+        if is_product_question_social_aside(text):
+            # A courtesy/acknowledgement is not the requested criterion. Keep
+            # the pending comparison alive while the normal conversation
+            # engine handles the aside without a marketplace search.
+            pass
+        elif should_resume_product_question(text, state):
             combined_question = (
                 f"{pending_product_question['question']}\n"
                 f"Критерий выбора покупателя: {text}"
