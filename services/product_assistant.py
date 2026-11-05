@@ -616,7 +616,7 @@ def deterministic_answer(question: str, products: list[Product]) -> str | None:
 
     text = (question or "").lower()
 
-    if any(marker in text for marker in _PRICE_MARKERS):
+    if _is_price_question(text):
         cheapest = _extreme_per_currency(products, cheapest=True)
         if not cheapest:
             return None
