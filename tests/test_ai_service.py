@@ -339,6 +339,15 @@ class GroundedProductQuestionTests(unittest.TestCase):
             service.answer_product_question("Какой лучше?", self._products())
         ))
 
+    def test_malformed_recommendation_field_is_ignored_safely(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":["description"],"quote":"Includes two batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
     def test_recommendation_with_unknown_product_id_is_not_accepted(self) -> None:
         service = self._service(
             '{"claims":[],"recommendation":{"product_id":"invented","evidence":['
