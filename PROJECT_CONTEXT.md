@@ -1956,3 +1956,20 @@ constructs the user-facing answer itself; model-authored factual prose is not
 sent to Telegram. Missing descriptions remain absent, not inferred. Added
 offline tests for valid evidence, invented quotes, and unknown product IDs.
 
+### Conditional budget rules for conversational AI selection (2026-11-05)
+
+A prompt audit found that the Gemini candidate selector was told to enforce a
+hard price ceiling even when the user had not supplied any budget. The engine
+only added a budget phrase to the selector query when an active budget slot
+existed, so the prompt contained a contradictory, unconditional budget rule.
+
+The selector now receives the active budget explicitly. With a budget, the
+prompt treats its stated amount/currency as a hard constraint. Without a
+budget, it explicitly forbids inventing an upper price limit; known positive
+price and currency are still required for an honest product card. Compatibility
+with injected selectors that implement the older signature is preserved.
+Offline prompt regressions cover both the no-budget and explicit-budget paths.
+
+This fixes a prompt-contract defect; it does not by itself establish live
+catalogue relevance or explain every short result set. No live provider calls
+were made for this change.
