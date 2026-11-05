@@ -13,6 +13,33 @@ from services.convsearch.state import ConversationEngineState, MessageIntent, Sl
 
 
 class BudgetFollowUpTests(unittest.TestCase):
+    def test_initial_search_keeps_explicit_connector_feature_without_gemini(self):
+        state = ConversationEngineState(user_key="initial-explicit-feature")
+        first = "Нужен аккумуляторный шуруповёрт с двумя аккумуляторами"
+
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type("аккумуляторный шуруповёрт")
+
+        strategy = build_retrieval_strategy(state, first)
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(
+            state.active_values("feature"),
+            ["двумя аккумуляторами"],
+        )
+        self.assertIn("двумя аккумуляторами", strategy.request.normalized_query)
+        self.assertIn("двумя аккумуляторами", strategy.request.required_features)
+
+    def test_initial_search_does_not_turn_request_scaffolding_into_features(self):
+        state = ConversationEngineState(user_key="initial-no-scaffolding")
+        first = "Нужен шуруповёрт, покажи 5 вариантов"
+
+        observation = state.observe(first)
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_values("feature"), [])
+
     def test_thousands_budget_refines_current_product_and_keeps_type(self):
         state = ConversationEngineState(user_key="budget-follow-up")
         first = "Сварочный аппарат"
