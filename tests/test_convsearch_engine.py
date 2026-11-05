@@ -670,6 +670,16 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertTrue(any("ёмкость" in value or "емкость" in value for value in features))
         self.assertTrue(any("зарядка" in value for value in features))
 
+    def test_alternatives_need_an_existing_task_context(self) -> None:
+        state = ConversationEngineState(user_key="alternatives-without-task")
+        greeting = state.observe("Привет!")
+        state.record_slots(greeting)
+
+        followup = state.observe("Покажи другие варианты.")
+
+        self.assertNotEqual(followup["intent"], MessageIntent.ALTERNATIVES)
+        self.assertEqual(state.active(), [])
+
     def test_scenario_d_household_alternatives(self) -> None:
         state = ConversationEngineState(user_key="u-d")
         obs1 = state.observe("Найди что-нибудь полезное для дома.")
