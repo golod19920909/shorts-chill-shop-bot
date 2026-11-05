@@ -2174,3 +2174,8 @@ GitHub Actions PR workflow **42029653913** completed successfully on head **75ec
 - Focused conversational regressions: **279 passed, 45 subtests passed**.
 - Filtered repository suite: **2,203 passed, 723 subtests passed, 1 warning**.
 - 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. Offline tests only; live AliExpress/Gemini/Telegram catalog quality and latency are not verified by this workflow.
+
+
+### Preserve pending product comparison through courtesy replies (2026-11-05)
+
+A handler-path review found that a courtesy reply such as «спасибо» could be mistaken for a selection criterion and consume a pending comparison question. Short, exact acknowledgements/greetings in Russian, Ukrainian and English are now treated as conversational asides: the pending question stays alive while the normal conversation engine handles the aside. Explicit new-product and alternatives requests still clear the pending comparison; meaningful criterion replies still resume it. Added offline coverage for courtesy phrases versus actual criteria.
