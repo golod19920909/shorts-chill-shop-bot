@@ -690,6 +690,10 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(obs3["intent"], MessageIntent.ALTERNATIVES)
         self.assertIsNotNone(state.active_by_kind("budget"))
 
+        obs4 = state.observe("А покажи ещё варианты для дома.")
+        state.record_slots(obs4)
+        self.assertEqual(obs4["intent"], MessageIntent.ALTERNATIVES)
+
     def test_explain_request_naming_another_product_is_a_new_search(self) -> None:
         state = ConversationEngineState(user_key="explain-new-product")
         first = state.observe("Нужен аккумуляторный шуруповёрт.")
