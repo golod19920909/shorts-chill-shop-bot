@@ -936,18 +936,19 @@ class ConversationSearchEngine:
         self, decision: SearchDecision, strategy, state: ConversationEngineState,
         *, timeout_seconds: float | None = None,
     ) -> SearchDecision:
-        """Use Gemini to rank a bounded slice of already validated listings.
+        """Review a broad validated pool, select up to 20, then show up to 30.
 
-        Deterministic product-type, exclusion, budget and verified-feature
-        checks run before this method. Gemini ranks the first 20 candidates.
+        Deterministic product-type, exclusion, budget and evidenced-feature
+        checks run before this method. For the default 30-card view, Gemini
+        reviews up to 70 candidates and returns at most 20; up to ten candidates
+        outside that review window may fill the display tail only when Gemini
+        returns the full 20. A shorter valid selection is never padded with
+        unseen listings.
+
         A valid empty selection is an explicit semantic no-match. On timeout
         or malformed/unavailable output, deterministic candidates may remain,
         but every candidate requiring semantic identity/feature review stays
         quarantined unless Gemini explicitly confirms it.
-
-        The AI selection window (20) is separate from the presentation cap
-        (30). After the AI-ranked window, up to ten additional deterministic
-        candidates may fill the remaining presentation slots.
         """
         if decision.outcome is not Outcome.RESULTS or not decision.products:
             return decision
