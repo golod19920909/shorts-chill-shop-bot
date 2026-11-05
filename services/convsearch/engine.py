@@ -1026,6 +1026,9 @@ class ConversationSearchEngine:
                         product_id for product_id in semantic_review_ids
                         if product_id
                     ],
+                    marketplace_terms=getattr(
+                        strategy.request, "intent_marketplace_terms", []
+                    ),
                 )
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
