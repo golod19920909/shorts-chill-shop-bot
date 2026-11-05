@@ -230,6 +230,38 @@ class CrossCategoryValidationTests(unittest.TestCase):
         )
         self.assertLess(verdict.score, 0.5)
 
+    def test_host_first_compound_accessory_titles_are_not_the_requested_host(self) -> None:
+        for title, requested_type in (
+            ("Phone case for iPhone 15", "phone"),
+            ("Camera lens 50mm", "camera"),
+            ("Cordless drill bits set", "drill"),
+            ("Battery charger USB-C", "battery"),
+        ):
+            verdict = validate_product_type(
+                product("host-accessory-compound", title), requested_type
+            )
+            self.assertFalse(verdict.qualifies, msg=title)
+            self.assertIn(
+                "requested_type_is_host_for_accessory", verdict.reasons,
+                msg=title,
+            )
+
+    def test_host_with_accessory_relation_remains_a_host_product(self) -> None:
+        for title, requested_type in (
+            ("Phone with protective case", "phone"),
+            ("Camera with lens cover", "camera"),
+        ):
+            verdict = validate_product_type(
+                product("host-with-accessory", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=title)
+
+    def test_later_cross_sell_fragment_does_not_reject_primary_host(self) -> None:
+        verdict = validate_product_type(
+            product("host-cross-sell", "Phone 15, case included"), "phone"
+        )
+        self.assertTrue(verdict.qualifies)
+
     def test_host_product_with_requested_accessory_is_not_the_accessory(self) -> None:
         for title, requested_type in (
             ("Дрель аккумуляторная с насадкой", "насадка"),
