@@ -252,10 +252,14 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         )
         self.assertEqual([item.product_id for item in outcome.products], ["ali-1"])
 
-    def test_empty_primary_first_page_does_not_skip_other_grounded_variants(self) -> None:
+    def test_empty_primary_first_page_paginates_nonempty_grounded_alternate(self) -> None:
         found = make_product(
             Marketplace.ALIEXPRESS, "broader-route-hit", 19.0,
             title="Беспроводные наушники для спорта",
+        )
+        found_page_two = make_product(
+            Marketplace.ALIEXPRESS, "broader-route-page-two", 18.0,
+            title="Bluetooth sport headphones with microphone",
         )
         provider = self.ali_express([])
         calls: list[tuple[int, str]] = []
@@ -265,10 +269,8 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             calls.append((request.page_no, phrase))
             if request.page_no == 1 and phrase == "wireless headphones":
                 return []
-            if request.page_no == 1 and phrase == "bluetooth sport headphones":
-                return [found]
-            # The deeper page repeats only the primary phrase. An empty
-            # deeper page is the valid end-of-results signal.
+            if phrase == "bluetooth sport headphones":
+                return [found] if request.page_no == 1 else [found_page_two]
             return []
 
         provider.search_products = search_variant
@@ -293,12 +295,12 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             [
                 (1, "wireless headphones"),
                 (1, "bluetooth sport headphones"),
-                (2, "wireless headphones"),
+                (2, "bluetooth sport headphones"),
             ],
         )
         self.assertEqual(
             [item.product_id for item in outcome.products],
-            ["broader-route-hit"],
+            ["broader-route-hit", "broader-route-page-two"],
         )
 
     def test_raw_conversation_fuses_all_routes_even_when_first_pool_is_full(self) -> None:
