@@ -252,6 +252,78 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         )
         self.assertEqual([item.product_id for item in outcome.products], ["ali-1"])
 
+    def test_raw_conversation_paginates_every_nonempty_grounded_route(self) -> None:
+        primary_page_one = make_product(
+            Marketplace.ALIEXPRESS, "primary-page-one", 19.0,
+            title="Wireless running headphones",
+        )
+        primary_page_two = make_product(
+            Marketplace.ALIEXPRESS, "primary-page-two", 18.0,
+            title="Wireless sport headphones",
+        )
+        alternate_page_one = make_product(
+            Marketplace.ALIEXPRESS, "alternate-page-one", 17.0,
+            title="Bluetooth headphones for jogging",
+        )
+        alternate_page_two = make_product(
+            Marketplace.ALIEXPRESS, "alternate-page-two", 16.0,
+            title="Bluetooth running headset",
+        )
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            rows = {
+                (1, "wireless headphones"): [primary_page_one],
+                (2, "wireless headphones"): [primary_page_two],
+                (1, "bluetooth sport headphones"): [alternate_page_one],
+                (2, "bluetooth sport headphones"): [alternate_page_two],
+            }
+            return rows.get((request.page_no, phrase), [])
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_search_pages=2)
+        request = SearchRequest(
+            original_query="wireless headphones for running",
+            normalized_query="wireless headphones",
+        )
+        continuation_checks: list[int] = []
+
+        def continue_until_page_limit(products):
+            continuation_checks.append(len(products))
+            return True
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["wireless headphones", "bluetooth sport headphones"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True,
+                    raw_continue=continue_until_page_limit,
+                )
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                (1, "wireless headphones"),
+                (1, "bluetooth sport headphones"),
+                (2, "wireless headphones"),
+                (2, "bluetooth sport headphones"),
+            ],
+        )
+        self.assertEqual(len(continuation_checks), 2)
+        self.assertEqual(
+            {item.product_id for item in outcome.products},
+            {
+                "primary-page-one", "primary-page-two",
+                "alternate-page-one", "alternate-page-two",
+            },
+        )
+
     def test_empty_primary_first_page_paginates_nonempty_grounded_alternate(self) -> None:
         found = make_product(
             Marketplace.ALIEXPRESS, "broader-route-hit", 19.0,
