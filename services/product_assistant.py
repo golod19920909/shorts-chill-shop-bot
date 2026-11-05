@@ -516,13 +516,17 @@ def is_explicit_comparison_request(question: str) -> bool:
 
 
 def deterministic_comparison(
-    question: str, products: list[Product]
+    question: str,
+    products: list[Product],
+    *,
+    evidence_differences: list[tuple[str, str]] | None = None,
 ) -> str | None:
     """Compare the two highest-ranked shown products using only real fields.
 
     The search/semantic-selection pipeline has already ordered the products.
-    This renderer compares its first two distinct listings and never asks a
-    language model to invent a winner or product attributes.
+    This renderer compares its first two distinct listings. Optional Gemini
+    evidence is accepted only after exact-quote validation in AIService; all
+    numeric facts and the final wording are assembled locally.
     """
 
     if not is_explicit_comparison_request(question):
@@ -622,14 +626,31 @@ def deterministic_comparison(
                 f"{min(first.orders_count, second.orders_count)}."
             )
 
+    verified_differences = [
+        (first_quote, second_quote)
+        for first_quote, second_quote in (evidence_differences or [])[:4]
+        if isinstance(first_quote, str)
+        and isinstance(second_quote, str)
+        and first_quote.strip()
+        and second_quote.strip()
+    ]
     lines.append("<b>Главные отличия по данным карточек</b>")
     if differences:
         lines.extend(f"• {item}" for item in differences)
-    else:
+    if verified_differences:
+        lines.extend(
+            "• Вариант 1: «"
+            + html.escape(first_quote)
+            + "»; вариант 2: «"
+            + html.escape(second_quote)
+            + "»."
+            for first_quote, second_quote in verified_differences
+        )
+    if not differences and not verified_differences:
         lines.append(
-            "В карточках недостаточно общих числовых данных, чтобы объективно "
-            "назвать один вариант лучше другого. Сопоставьте модели и "
-            "характеристики, указанные в названиях выше."
+            "В карточках недостаточно общих характеристик, чтобы объективно "
+            "назвать один вариант лучше другого. Сопоставьте сведения, "
+            "указанные в названиях выше."
         )
     lines.extend([
         "",
@@ -994,9 +1015,18 @@ class ProductAssistant:
     async def answer(self, question: str, products: list[Product]) -> ProductAdvice:
         """«💬 Задать свой вопрос» - exact answers first, language second."""
 
-        comparison = deterministic_comparison(question, products)
-        if comparison:
-            return ProductAdvice(comparison, False)
+        if is_explicit_comparison_request(question):
+            evidence_differences = None
+            compare = getattr(self.ai, "compare_products", None)
+            if self.ai_available and callable(compare):
+                evidence_differences = await compare(question, products)
+            comparison = deterministic_comparison(
+                question,
+                products,
+                evidence_differences=evidence_differences,
+            )
+            if comparison:
+                return ProductAdvice(comparison, bool(evidence_differences))
 
         deterministic = deterministic_answer(question, products)
         if deterministic:
