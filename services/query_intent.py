@@ -82,6 +82,7 @@ class StructuredQueryIntent(BaseModel):
     compatibility: list[str] = Field(default_factory=list)
     budget: IntentBudget = Field(default_factory=IntentBudget)
     excluded_product_types: list[str] = Field(default_factory=list)
+    marketplace_terms: list[str] = Field(default_factory=list)
 
 
 class IntentParseMeta(BaseModel):
@@ -372,7 +373,7 @@ def normalize_currency(value: Any) -> str | None:
 _INTENT_KEYS = (
     "product_type", "brand", "model", "generation",
     "required_attributes", "optional_attributes", "compatibility",
-    "budget", "excluded_product_types",
+    "budget", "excluded_product_types", "marketplace_terms",
 )
 
 
@@ -440,6 +441,13 @@ def normalize_intent(raw: Any) -> StructuredQueryIntent:
             # A negation with no usable noun («без») is dropped, not kept as a
             # positive attribute and not added as an empty exclusion.
 
+        marketplace_terms = []
+        for term in _as_list(raw.get("marketplace_terms"))[:2]:
+            term = re.sub(r"\\s+", " ", term).strip()
+            if 2 <= len(term) <= 80 and len(term.split()) <= 6:
+                if term.casefold() not in {x.casefold() for x in marketplace_terms}:
+                    marketplace_terms.append(term)
+
         return StructuredQueryIntent(
             product_type=_s(raw.get("product_type")),
             brand=_s(raw.get("brand")),
@@ -449,6 +457,7 @@ def normalize_intent(raw: Any) -> StructuredQueryIntent:
             optional_attributes=_as_list(raw.get("optional_attributes")),
             compatibility=_as_list(raw.get("compatibility")),
             excluded_product_types=excluded_types,
+            marketplace_terms=marketplace_terms,
             budget=IntentBudget(min=bmin, max=bmax, currency=bcur),
         )
     except Exception:  # pragma: no cover - defensive: never raise
@@ -950,6 +959,13 @@ Rules:
       "без провода" -> ["беспроводные"]. Only when the meaning is unambiguous
       AND a real positive product attribute exists; otherwise do NOT invent.
 - optional_attributes: nice-to-have only.
+- marketplace_terms: at most ONE concise alternate marketplace phrase for THE
+  SAME requested product, preferably the common English seller-catalogue name
+  when the user wrote in Russian/Ukrainian (or vice versa when appropriate).
+  Do not add a new product, accessory, host device, brand, model, feature,
+  compatibility target or guess. Do not repeat the original wording. If no
+  reliable alternate wording exists, return []. This is retrieval-only; the
+  existing relevance and product-type checks remain authoritative.
 - excluded_product_types: things the user explicitly does NOT want. Put the
   NAMED thing (its noun), never a made-up word:
   (a) a genuine feature/accessory to avoid ("без шумоподавления" /
@@ -980,7 +996,7 @@ Return ONLY minified JSON matching:
 "generation":string|null,"required_attributes":string[],
 "optional_attributes":string[],"compatibility":string[],
 "budget":{"min":number|null,"max":number|null,"currency":string|null},
-"excluded_product_types":string[]}
+"excluded_product_types":string[],"marketplace_terms":string[]}
 """
 
 
@@ -1381,6 +1397,8 @@ def apply_intent(
         request.intent_compatibility, intent.compatibility)
     update["intent_excluded_product_types"] = _merge_intent_list(
         request.intent_excluded_product_types, intent.excluded_product_types)
+    if not refined and intent.marketplace_terms:
+        update["intent_marketplace_terms"] = intent.marketplace_terms[:1]
 
     return request.model_copy(update=update)
 
