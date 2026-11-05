@@ -2012,3 +2012,18 @@ regressions only. It does not test live Telegram delivery, current AliExpress
 catalogue recall/quota, or Gemini latency and semantic decisions.
 
 PR #7 remains open, draft and unmerged. The base branch `main` is unchanged.
+
+### Category-neutral candidate identity prompt — 2026-11-05
+
+A prompt review found one illustrative welding-specific example inside the
+otherwise category-general Gemini candidate-selection rules. It was not a
+runtime filter, but it unnecessarily anchored the model's identity guidance
+to one product family. Replaced it with a category-neutral instruction to
+compare the listing's main item, its role, and explicitly evidenced
+characteristics. Added a prompt regression asserting that the general rule is
+present and the category-specific example is absent.
+
+This is a prompt-generalization change only; deterministic identity gates,
+listing-evidence validation, retrieval and the 20/30 limits are unchanged.
+The change still requires the new branch CI run before it is considered
+verified.
