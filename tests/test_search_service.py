@@ -484,7 +484,12 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         first_b = make_product(Marketplace.ALIEXPRESS, "variant-b", 18.0)
         second_a = make_product(Marketplace.ALIEXPRESS, "variant-c", 17.0)
         second_b = make_product(Marketplace.ALIEXPRESS, "variant-d", 16.0)
-        deeper = make_product(Marketplace.ALIEXPRESS, "deeper-primary", 15.0)
+        deeper_primary = make_product(
+            Marketplace.ALIEXPRESS, "deeper-primary", 15.0
+        )
+        deeper_alternate = make_product(
+            Marketplace.ALIEXPRESS, "deeper-alternate", 14.0
+        )
         provider = self.ali_express([])
         calls: list[tuple[int, str]] = []
 
@@ -492,7 +497,11 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             phrase = request.normalized_query or request.original_query
             calls.append((request.page_no, phrase))
             if request.page_no == 2:
-                return [deeper]
+                return (
+                    [deeper_primary]
+                    if phrase == "wireless headphones"
+                    else [deeper_alternate]
+                )
             return (
                 [first_a, first_b]
                 if phrase == "wireless headphones"
@@ -528,12 +537,16 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
                 (1, "wireless headphones"),
                 (1, "bluetooth sport headphones"),
                 (2, "wireless headphones"),
+                (2, "bluetooth sport headphones"),
             ],
         )
-        self.assertEqual(continuation_checks, [4, 5])
+        self.assertEqual(continuation_checks, [4, 6])
         self.assertEqual(
             {item.product_id for item in outcome.products},
-            {"variant-a", "variant-b", "variant-c", "variant-d", "deeper-primary"},
+            {
+                "variant-a", "variant-b", "variant-c", "variant-d",
+                "deeper-primary", "deeper-alternate",
+            },
         )
 
     def test_raw_conversation_walks_deeper_pages_until_pool_target(self) -> None:
