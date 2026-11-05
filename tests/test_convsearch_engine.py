@@ -257,6 +257,88 @@ class CrossCategoryFeatureReviewTests(unittest.IsolatedAsyncioTestCase):
                 )
 
 
+
+
+class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pagination_continues_to_ai_pool_target_not_display_count(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        pool = [
+            product(f"broad-retrieval-{i}", "Рыболовная катушка спиннинговая")
+            for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
+        ]
+        observed = []
+
+        class PagingBackend:
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
+                observed.append(should_continue(pool[:30]))
+                observed.append(should_continue(pool))
+                return BackendOutcome(
+                    ok=True,
+                    reason="ok",
+                    products=pool,
+                    request=strategy.request,
+                )
+
+        selector = AsyncMock(
+            side_effect=lambda candidates, **kwargs: [
+                item.product_id for item in candidates[:kwargs["wanted"]]
+            ]
+        )
+        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
+        engine.bind_ai_service(SimpleNamespace(
+            is_available=True,
+            select_conversation_candidates=selector,
+        ))
+
+        decision = await engine.handle_message(
+            "broad-retrieval-target",
+            "Найди рыболовную катушку",
+        )
+
+        self.assertEqual(observed, [True, False])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_REVIEW_POOL_LIMIT - 10)
+        self.assertEqual(selector.await_args.kwargs["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(len(decision.products), 30)
+        self.assertEqual(decision.report["ai_selected"], 20)
+
+    async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        pool = [
+            product(f"no-ai-retrieval-{i}", "Рыболовная катушка спиннинговая")
+            for i in range(30)
+        ]
+        observed = []
+
+        class PagingBackend:
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
+                observed.append(should_continue(pool))
+                return BackendOutcome(
+                    ok=True,
+                    reason="ok",
+                    products=pool,
+                    request=strategy.request,
+                )
+
+        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
+        engine.bind_ai_service(SimpleNamespace(
+            is_available=False,
+            select_conversation_candidates=AsyncMock(),
+        ))
+
+        decision = await engine.handle_message(
+            "no-ai-retrieval-target",
+            "Найди рыболовную катушку",
+            result_limit=5,
+        )
+
+        self.assertEqual(observed, [False])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(len(decision.products), 5)
+
+
 class EngineScenarioTests(unittest.TestCase):
     """The four mandatory regression scenarios, plus the state tests."""
 
