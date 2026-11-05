@@ -606,10 +606,24 @@ class ConversationEngineState:
             for token in tokens(message)
             if token in _PREFERENCE_QUERY_TERMS
         ]
+        # Preserve connector-led requirements on the initial product
+        # request as well as on follow-ups. The general span parser is
+        # intentionally not trusted to turn every phrase in a new-search
+        # sentence into a mandatory feature, but an explicit construction
+        # such as «с двумя аккумуляторами» is a real user constraint.
+        context_spans = [*use_case_spans, *compatibility_spans]
+        explicit_feature_spans = [
+            value for value in dict.fromkeys(introduced_features)
+            if not any(
+                set(tokens(value)) == set(tokens(context))
+                for context in context_spans
+            )
+        ]
         return {
             "intent": intent,
             "negations": negations,
             "spans": message_spans,
+            "explicit_features": explicit_feature_spans,
             "budget": _budget(message),
             "preferences": list(dict.fromkeys(preferences)),
             "use_cases": list(dict.fromkeys(use_case_spans)),
@@ -725,11 +739,17 @@ class ConversationEngineState:
             for update in model_updates
             if update.get("kind") in {"use_case", "compatibility"} and isinstance(update.get("value"), str)
         ]
+        feature_spans = result.get("spans") or []
+        if result.get("intent") is MessageIntent.NEW_SEARCH:
+            # On a fresh search, retain only explicitly connector-led
+            # requirements. Do not reinterpret arbitrary title/request
+            # scaffolding («5 вариантов шуруповёрта») as product features.
+            feature_spans = result.get("explicit_features") or []
         if result.get("intent") not in (
-            MessageIntent.NEW_SEARCH, MessageIntent.AMBIGUOUS,
-            MessageIntent.COMPARE, MessageIntent.ALTERNATIVES,
+            MessageIntent.AMBIGUOUS, MessageIntent.COMPARE,
+            MessageIntent.ALTERNATIVES,
         ):
-            for span in result.get("spans") or []:
+            for span in feature_spans:
                 # If Gemini has identified a grounded application-context
                 # phrase inside a larger grammatical span («буду работать
                 # на стройке»), do not misrecord the whole sentence as a
