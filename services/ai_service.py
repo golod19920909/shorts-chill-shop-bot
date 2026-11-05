@@ -91,6 +91,10 @@ DEFAULT_FALLBACK_MODEL = "gemini-3.1-flash-lite"
 #: with invented or repeated items.
 TOP_CANDIDATES = 20
 
+#: Per-model budget inside the 15-second conversational selector deadline.
+#: Leaves room for the configured fallback model after a slow primary attempt.
+CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS = 6.5;
+
 
 #: The rules every selection prompt shares (the assistant's candidate picker and
 #: the feed's selector judge by exactly the same criteria, so one screen can
@@ -2406,8 +2410,13 @@ seller_terms: {seller_terms_json}
             # failure). Model names and durations only - never prompts,
             # request contents or credentials.
             attempt_started = time.perf_counter()
+            attempt_timeout = self.timeout_seconds
+            if operation == "conversation_selection":
+                attempt_timeout = min(
+                    attempt_timeout, CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS
+                )
             try:
-                async with asyncio.timeout(self.timeout_seconds):
+                async with asyncio.timeout(attempt_timeout):
                     request_kwargs = {"model": model, "contents": contents}
                     if operation == "conversation_selection":
                         # Candidate review is a bounded classification/ranking
@@ -2427,7 +2436,7 @@ seller_terms: {seller_terms_json}
                     "Gemini attempt failed: model=%s dur_ms=%.0f limit_s=%.1f",
                     model,
                     attempt_ms,
-                    self.timeout_seconds,
+                    attempt_timeout,
                 )
                 # Measurement only: per-attempt record + turn aggregate.
                 record_attempt(
@@ -2442,7 +2451,10 @@ seller_terms: {seller_terms_json}
                     error=True,
                 )
                 kind = _classify_gemini_error(exc)
-                will_fallback = kind == "model" and index + 1 < len(chain)
+                will_fallback = index + 1 < len(chain) and (
+                    kind == "model"
+                    or (kind == "timeout" and operation == "conversation_selection")
+                )
                 detail = _format_gemini_error(
                     exc,
                     model=model,
@@ -2460,7 +2472,7 @@ seller_terms: {seller_terms_json}
                     return None
                 if will_fallback:
                     logger.warning(
-                        "Gemini model %s is unavailable; trying %s (%s)",
+                        "Gemini model %s failed; trying fallback model %s (%s)",
                         model,
                         chain[index + 1],
                         detail,
