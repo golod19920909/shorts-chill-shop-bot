@@ -12,7 +12,7 @@ invents products, prices, links, or AI results.
 ## Stack
 
 - Python 3.14 venv at `.venv\Scripts\python.exe` (Windows, PowerShell)
-- `python-telegram-bot[job-queue]` 22.8, pydantic 2.13.5, httpx 0.28.1, `aiosqlite` 0.22.1
+- `python-telegram-bot[job-queue,rate-limiter]` 22.8, pydantic 2.13.5, httpx 0.28.1, `aiosqlite` 0.22.1
 - `google-genai` 2.24.0 (Gemini; all calls in `services/ai_service.py`)
 - Tests: pytest over unittest-style suites, fully offline (fakes, no network)
 
@@ -359,7 +359,7 @@ validated roles:
 Gemini never creates products, prices, ratings, affiliate links or
 attributes. The deterministic ledger, provider retrieval, hard filters,
 budget enforcement and Telegram delivery remain authoritative. Candidate
-selection is bounded by `AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 8.0` and cannot block the turn indefinitely.
+selection is bounded by `AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0` and cannot block the turn indefinitely.
 When a product name spans materially different use classes, the turn
 prompt instructs Gemini to ask one high-value use-case question rather
 than silently choosing a class (for example, household/garage vs
@@ -1036,12 +1036,13 @@ latency bounds and call patterns. These are code-level limits, not measured
 production timings:
 
 - Gemini turn interpretation is wrapped in an outer timeout of
-  `min(AIService.timeout_seconds, 5s)`; its fallback path is deterministic.
-- Turn interpretation and candidate selection now share an **8-second
-  cumulative Gemini model-time budget**. Candidate selection gets only the
-  remaining time after interpretation, rather than starting another full
-  timeout after a slow first call. Deterministic validated fallback remains
-  in force when the budget is exhausted.
+  `min(AIService.timeout_seconds, 8s)`; its fallback path is deterministic.
+- Candidate selection has an independent **15-second** deadline
+  (`AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0`). There is no shared
+  cumulative Gemini budget in the current code. The model calls are sequential,
+  so the code-level worst-case model wait is approximately 23 seconds,
+  excluding AliExpress retrieval and any separately bounded no-results reply.
+  These are configured limits, not measured production timings.
 - Candidate selection runs after deterministic candidate validation/ranking
   when the outcome contains results and a selector is available. The selector
   is capped at 20 candidates; the separate presentation cap remains 30.
@@ -1292,8 +1293,8 @@ tests did not exercise:
    too little time for the second model call, so candidate selection often
    timed out. They now have independent bounded windows: interpretation is
    capped at eight seconds in AIService; candidate selection receives its own
-   eight-second window. Worst-case sequential model wait is therefore bounded
-   at roughly sixteen seconds, excluding provider retrieval.
+   fifteen-second window. Worst-case sequential model wait is therefore
+   bounded at roughly twenty-three seconds, excluding provider retrieval.
 
 3. If the semantic selector is actually attempted but times out, errors, or
    returns an unusable answer, the engine no longer presents the unreviewed
@@ -2179,3 +2180,13 @@ GitHub Actions PR workflow **42029653913** completed successfully on head **75ec
 ### Preserve pending product comparison through courtesy replies (2026-11-05)
 
 A handler-path review found that a courtesy reply such as «спасибо» could be mistaken for a selection criterion and consume a pending comparison question. Short, exact acknowledgements/greetings in Russian, Ukrainian and English are now treated as conversational asides: the pending question stays alive while the normal conversation engine handles the aside. Explicit new-product and alternatives requests still clear the pending comparison; meaningful criterion replies still resume it. Added offline coverage for courtesy phrases versus actual criteria.
+
+
+### Product-comparison courtesy handling — CI verified (2026-11-05)
+
+A short courtesy/acknowledgement (e.g. thanks, hello, got it) is no longer consumed as the buyer's missing comparison criterion. The pending product question remains alive while the normal conversation engine handles the aside. Explicit new product requests and alternatives still switch away; a meaningful criterion still resumes comparison over the same shown session.
+
+GitHub Actions PR workflow **42030839337** completed successfully on head **9bd7a2bb3ed0ad2d008bc56d3a97036bdbf7e907**:
+- Focused conversational regressions: **280 passed, 45 subtests passed**.
+- Filtered repository suite: **2,204 passed, 723 subtests passed, 1 warning**.
+- The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. Offline tests only; live Telegram, Gemini and AliExpress behavior remains to be checked with the user's credentials.
