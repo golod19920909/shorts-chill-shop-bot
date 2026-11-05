@@ -72,6 +72,84 @@ def household_pool() -> list[Product]:
     ]
 
 
+class CrossCategoryEngineEvaluationTests(unittest.TestCase):
+    """The real conversational pool evaluator must preserve product identity
+    across unrelated categories, not only in the standalone type helper."""
+
+    def test_host_products_survive_and_their_components_do_not(self) -> None:
+        cases = (
+            (
+                "smartphone",
+                "Smartphone 128GB unlocked",
+                "Smartphone screen protector tempered glass",
+            ),
+            (
+                "laptop",
+                "Laptop 16GB RAM 512GB SSD",
+                "Laptop keyboard replacement",
+            ),
+            (
+                "camera",
+                "Digital camera 4K autofocus",
+                "Camera lens 50mm",
+            ),
+            (
+                "vacuum cleaner",
+                "Vacuum cleaner 2000W",
+                "Vacuum cleaner HEPA filter",
+            ),
+            (
+                "garden hose",
+                "Garden hose 20m reinforced",
+                "Garden hose nozzle adjustable",
+            ),
+            (
+                "wireless headphones",
+                "Wireless headphones Bluetooth ANC",
+                "Wireless headphones ear pads",
+            ),
+            (
+                "electric drill",
+                "Electric drill cordless 21V",
+                "Electric drill bits set",
+            ),
+            (
+                "smartwatch",
+                "Smartwatch AMOLED GPS",
+                "Smartwatch replacement strap",
+            ),
+        )
+        engine = ConversationSearchEngine()
+        for index, (requested_type, host_title, component_title) in enumerate(cases):
+            with self.subTest(category=requested_type):
+                state = ConversationEngineState(user_key=f"cross-category-{index}")
+                state.record_product_type(requested_type)
+                strategy = SimpleNamespace(
+                    product_type=requested_type,
+                    request=None,
+                    result_limit=30,
+                )
+                decision = engine._evaluate_pool(
+                    state,
+                    [
+                        product(f"host-{index}", host_title),
+                        product(f"component-{index}", component_title, orders=5000),
+                    ],
+                    strategy,
+                    refined=False,
+                    intent=MessageIntent.NEW_SEARCH,
+                    observation={},
+                    exclude_shown=False,
+                )
+                self.assertIs(decision.outcome, Outcome.RESULTS)
+                self.assertEqual(
+                    [item.product_id for item in decision.products],
+                    [f"host-{index}"],
+                    msg=f"requested type: {requested_type}",
+                )
+                self.assertEqual(decision.report["rejected_type"], 1)
+
+
 class EngineScenarioTests(unittest.TestCase):
     """The four mandatory regression scenarios, plus the state tests."""
 
