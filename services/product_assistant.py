@@ -431,7 +431,7 @@ def similar_candidates(original: Product, candidates: list[Product]) -> list[Pro
 #: reviews" in a product question. Checked in this order, because a
 #: question can contain several ("какой из этих вариантов дешевле").
 _PRICE_MARKERS = (
-    "дешев", "дорог", "цен", "стоимост", "price", "cheap", "expensive",
+    "дешев", "дорог", "стоимост", "price", "cheap", "expensive",
     "how much", "cost",
 )
 
@@ -443,6 +443,7 @@ def _is_price_question(question: str) -> bool:
         return True
     return bool(
         re.search(
+            r"\bцен(?:а|ы|у|е|ой|ник)\w*\b|"
             r"\bсколько\s+(?:это\s+)?стоит\b|"
             r"\bво\s+сколько\b|"
             r"\bпо\s+какой\s+цене\b|"
