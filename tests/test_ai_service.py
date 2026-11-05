@@ -724,7 +724,9 @@ class GroundedProductComparisonTests(unittest.TestCase):
         )
         for difference in cases:
             with self.subTest(difference=difference):
-                service = self._service(json.dumps({"differences": [difference]}))
+                service = self._service(json.dumps({
+                    "differences": [{**difference, "aspect": "compatibility"}]
+                }))
                 self.assertIsNone(asyncio.run(
                     service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
                 ))
@@ -755,6 +757,7 @@ class GroundedProductComparisonTests(unittest.TestCase):
         first_title = self._products()[0].title
         response = json.dumps({
             "differences": [{
+                "aspect": "compatibility",
                 "first": {
                     "product_id": "keyboard-1",
                     "field": "title",
