@@ -9,7 +9,7 @@ import unittest
 
 from services.convsearch.engine import _product_type_of
 from services.convsearch.retrieval import build_retrieval_strategy
-from services.convsearch.state import ConversationEngineState, MessageIntent, _budget
+from services.convsearch.state import ConversationEngineState, MessageIntent, Slot, _budget
 
 
 class BudgetFollowUpTests(unittest.TestCase):
@@ -99,6 +99,48 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(variants[0], "сварочный аппарат")
         for variant in variants[1:]:
             self.assertNotIn("полуавтомат", variant.casefold())
+
+    def test_mandatory_feature_keeps_shared_type_noun_in_retrieval_phrase(self):
+        state = ConversationEngineState(user_key="feature-shared-type-noun")
+        state.record_product_type("аккумуляторный шуруповерт")
+        state.slots.append(Slot(
+            kind="feature",
+            value="двумя аккумуляторами",
+            source_turn=2,
+            raw_text="с двумя аккумуляторами",
+        ))
+
+        strategy = build_retrieval_strategy(state, "с двумя аккумуляторами")
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(
+            strategy.request.normalized_query,
+            "аккумуляторный шуруповерт двумя аккумуляторами",
+        )
+        self.assertEqual(
+            strategy.request.required_features,
+            ["двумя аккумуляторами"],
+        )
+
+    def test_compatibility_phrase_keeps_shared_type_noun_in_retrieval_phrase(self):
+        state = ConversationEngineState(user_key="compatibility-shared-type-noun")
+        state.record_product_type("фильтр для воды")
+        state.slots.append(Slot(
+            kind="compatibility",
+            value="фильтр для воды в системе обратного осмоса",
+            source_turn=2,
+            raw_text="для системы обратного осмоса",
+        ))
+
+        strategy = build_retrieval_strategy(state, "для системы обратного осмоса")
+
+        self.assertIsNotNone(strategy)
+        self.assertIn("фильтр", strategy.request.normalized_query)
+        self.assertIn("обратного осмоса", strategy.request.normalized_query)
+        self.assertEqual(
+            strategy.request.required_features,
+            ["фильтр для воды в системе обратного осмоса"],
+        )
 
     def test_budget_only_first_message_has_no_fake_product_type(self):
         text = "До 2000 тысяч гривен"
