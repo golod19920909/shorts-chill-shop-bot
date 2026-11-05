@@ -1597,6 +1597,7 @@ class AIService:
         wanted: int = TOP_CANDIDATES,
         required_features: list[str] | None = None,
         identity_review_ids: list[str] | None = None,
+        marketplace_terms: list[str] | None = None,
     ) -> list[str] | None:
         """Select grounded candidates; uncertain claims require listing quotes.
 
@@ -1617,12 +1618,19 @@ class AIService:
         identity_ids = {
             str(value) for value in (identity_review_ids or []) if value
         }
+        seller_terms = [
+            " ".join(str(value).split())[:120]
+            for value in (marketplace_terms or [])[:1]
+            if isinstance(value, str) and value.strip()
+            and len(value.split()) <= 10
+        ]
         products_json = json.dumps(
             [self._rank_payload(candidate) for candidate in candidates],
             ensure_ascii=False,
             separators=(",", ":"),
         )
         requirements_json = json.dumps(requirements, ensure_ascii=False)
+        seller_terms_json = json.dumps(seller_terms, ensure_ascii=False)
         rules = f"""- Сначала определи, является ли позиция ИМЕННО искомым товаром, а не аксессуаром, запчастью, расходником или соседней категорией.
 - Путь категорий AliExpress используй только как вспомогательный контекст. Он не доказывает сам по себе, что конкретная позиция — искомый товар, и не отменяет противоречие в названии.
 - Категория товара сама по себе НЕ доказывает соответствие ни типу товара, ни обязательной характеристике.
@@ -1636,6 +1644,7 @@ class AIService:
 - Обязательные требования: {requirements_json}
 - Для каждого выбранного товара верни точную короткую цитату из названия или описания, подтверждающую КАЖДОЕ обязательное требование. Ключ в requirement_evidence должен дословно совпадать с требованием из списка. Цитата должна реально присутствовать в полях товара.
 - Для товара, чей id находится в identity_review_ids, дополнительно верни identity_evidence: точную цитату из названия/описания, на основании которой ты определил его как искомый товар. Не используй для этого category_path.
+- Дополнительная формулировка продавца (seller_terms) дана только как подсказка для сопоставления языков и терминов. Она не является доказательством и не разрешает выбирать товар без подтверждения в самой карточке.
 - Если подтверждения нет, не выбирай товар. Отсутствие данных — неизвестность, а не подтверждение.
 - Жёсткий бюджет обязателен: не выбирай товар без известной цены, с неизвестной валютой, с другой валютой или с ценой выше указанного лимита.
 - Рейтинг и количество заказов помогают упорядочить только уже подходящие товары.
@@ -1643,6 +1652,7 @@ class AIService:
         prompt = f"""Ты отбираешь товары AliExpress для текущего диалога.
 Ориентир запроса: {query[:500]}
 identity_review_ids: {json.dumps(sorted(identity_ids), ensure_ascii=False)}
+seller_terms: {seller_terms_json}
 
 Верни ТОЛЬКО JSON:
 {{
