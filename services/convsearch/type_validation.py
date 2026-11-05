@@ -472,7 +472,11 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         # rejected merely because "case" is in the generic accessory-role set.
         # Without a shared writing system, defer identity to the bounded
         # semantic review; never auto-accept it from the accessory noun alone.
-        if is_accessory_product_type(product_type):
+        requested_type_is_component = any(
+            _is_accessory_head_token(token) and not _is_adjective(token)
+            for token in type_tokens
+        )
+        if requested_type_is_component:
             semantic_review_required = True
             score = 0.15
             reasons.append("requested_component_identity_requires_semantic_review")
