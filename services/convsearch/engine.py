@@ -58,6 +58,17 @@ AI_CONVERSATION_REVIEW_POOL_LIMIT = 80
 # a realistic window for the selector to inspect real listing evidence.
 AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0
 
+# Every validator verdict that is explicitly marked uncertain must be
+# quarantined until Gemini confirms it. Keep this list shared by the active
+# engine and the deterministic compatibility shim.
+_SEMANTIC_REVIEW_REASONS = frozenset({
+    "type_identity_requires_semantic_review",
+    "requested_component_identity_requires_semantic_review",
+    "bare_type_with_description_confirmation_requires_review",
+    "type_mentioned_only_after_listing_separator",
+    "cross_language_identity_requires_semantic_review",
+})
+
 DEFAULT_CLARIFY_QUESTION = (
     "Чтобы подобрать точнее: какой товар вас интересует и для какой задачи?"
 )
@@ -1307,14 +1318,7 @@ class ConversationSearchEngine:
             verdict = validate_product_type(product, product_type)
             if verdict.qualifies:
                 eligible.append(product)
-                if any(
-                    reason in verdict.reasons
-                    for reason in (
-                        "type_identity_requires_semantic_review",
-                        "requested_component_identity_requires_semantic_review",
-                        "type_mentioned_only_after_listing_separator",
-                    )
-                ):
+                if any(reason in _SEMANTIC_REVIEW_REASONS for reason in verdict.reasons):
                     report["semantic_review_ids"].append(product.product_id)
             else:
                 rejected_type.append(product)
@@ -1433,7 +1437,9 @@ class ConversationSearchEngine:
         rejected_type = 0
         for product in products:
             verdict = validate_product_type(product, product_type)
-            if verdict.qualifies and "type_identity_requires_semantic_review" not in verdict.reasons:
+            if verdict.qualifies and not any(
+                reason in _SEMANTIC_REVIEW_REASONS for reason in verdict.reasons
+            ):
                 eligible.append(product)
             else:
                 rejected_type += 1
