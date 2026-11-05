@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from models.product import Marketplace, Product
 from services.ai_service import (
@@ -467,3 +469,39 @@ class StrictSelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
+    async def test_conversation_selection_uses_low_thinking_and_json_output(self):
+        generate = AsyncMock(return_value=SimpleNamespace(text='{"selections": []}'))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "candidate selection prompt",
+            models=(service.fast_model,),
+            operation="conversation_selection",
+        )
+
+        self.assertEqual(result, '{"selections": []}')
+        config = generate.await_args.kwargs["config"]
+        self.assertEqual(config["response_mime_type"], "application/json")
+        self.assertEqual(config["thinking_config"]["thinking_level"], "low")
+
+    async def test_other_gemini_operations_keep_the_default_generation_config(self):
+        generate = AsyncMock(return_value=SimpleNamespace(text="ok"))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(result, "ok")
+        self.assertNotIn("config", generate.await_args.kwargs)
