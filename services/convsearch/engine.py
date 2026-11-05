@@ -45,6 +45,11 @@ logger = logging.getLogger(__name__)
 #: reach it, and never exceeds it.
 RESULT_CARD_LIMIT = 30
 AI_CONVERSATION_SELECTION_LIMIT = 20
+# SearchService gathers a bounded deep pool before the conversational selector.
+# Gemini reviews up to 70 candidates and returns at most 20 best; the remaining
+# ten rows can form a deterministic, already-gated presentation tail.
+AI_CONVERSATION_CANDIDATE_POOL_LIMIT = 80
+AI_CONVERSATION_REVIEW_POOL_LIMIT = 70
 # A 20-listing semantic review is materially heavier than turn routing.
 # Live telemetry showed the 8-second window repeatedly expired after the
 # interpreter had already succeeded, silently replacing Gemini's whole-pool
@@ -818,10 +823,15 @@ class ConversationSearchEngine:
                         "snapshot": state.snapshot()},
             )
 
+        selector = getattr(self._ai_service, "select_conversation_candidates", None)
+        candidate_pool_limit = (
+            AI_CONVERSATION_CANDIDATE_POOL_LIMIT if callable(selector) else None
+        )
         decision = self._evaluate_pool(
             state, backend_outcome.products, strategy,
             refined=refined, intent=intent, observation=observation,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
+            candidate_pool_limit=candidate_pool_limit,
         )
         # Turn interpretation and post-retrieval candidate selection are
         # separate decisions with separate bounded windows. The interpreter
@@ -957,14 +967,23 @@ class ConversationSearchEngine:
         # Split the window evenly when both groups are present, then use any
         # unused places for the group that still has candidates. Ranking order
         # is preserved inside each group.
+        # Review substantially more than the 20 results we intend to keep.
+        # Reserve up to ten deterministic-safe rows outside the model window
+        # for the 30-card presentation tail, but never shrink a small pool
+        # below the candidates actually available.
+        selector_window_limit = min(
+            len(original_pool),
+            AI_CONVERSATION_REVIEW_POOL_LIMIT,
+            max(AI_CONVERSATION_SELECTION_LIMIT, len(original_pool) - 10),
+        )
         review_quota = min(
-            len(review_pool), (AI_CONVERSATION_SELECTION_LIMIT + 1) // 2
+            len(review_pool), (selector_window_limit + 1) // 2
         )
         ordinary_quota = min(
-            len(ordinary_pool), AI_CONVERSATION_SELECTION_LIMIT - review_quota
+            len(ordinary_pool), selector_window_limit - review_quota
         )
         remaining_quota = (
-            AI_CONVERSATION_SELECTION_LIMIT - review_quota - ordinary_quota
+            selector_window_limit - review_quota - ordinary_quota
         )
         extra_review = min(
             remaining_quota, max(0, len(review_pool) - review_quota)
@@ -982,6 +1001,7 @@ class ConversationSearchEngine:
         }
         decision.report["ai_review_pool"] = len(review_pool)
         decision.report["ai_ordinary_pool"] = len(ordinary_pool)
+        decision.report["ai_review_window_limit"] = selector_window_limit
         decision.report["ai_review_in_window"] = review_quota
         decision.report["ai_ordinary_in_window"] = ordinary_quota
         presentation_limit = RESULT_CARD_LIMIT
@@ -1024,6 +1044,8 @@ class ConversationSearchEngine:
             # No semantic selector is bound (offline deterministic mode).
             # Keep only candidates that already passed every deterministic
             # hard gate; uncertain identity/feature candidates stay excluded.
+            # The internal candidate pool can be wider than the UI, so this
+            # path must still enforce the presentation contract.
             if semantic_review_ids:
                 decision.products = deterministic_safe_pool()[:presentation_limit]
                 decision.report["ai_selection"] = "semantic_review_unavailable"
@@ -1037,6 +1059,8 @@ class ConversationSearchEngine:
                         decision.report["reason"] = "unverified_required_features"
                     else:
                         decision.report["reason"] = "unverified_product_identity"
+            else:
+                decision.products = original_pool[:presentation_limit]
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
@@ -1206,6 +1230,7 @@ class ConversationSearchEngine:
         intent,
         observation: dict,
         exclude_shown: bool,
+        candidate_pool_limit: int | None = None,
     ) -> SearchDecision:
         """Validate → filter → dedup → rank one provider pool.
 
@@ -1318,15 +1343,24 @@ class ConversationSearchEngine:
             if product.product_id not in review_ids
         )
 
-        # The presentation contract is an absolute 30-card ceiling.
-        # An explicit user count may lower it, never raise it; otherwise the
-        # no-Gemini / deterministic fallback path could bypass the cap.
+        # The ordinary presentation contract is an absolute 30-card ceiling.
+        # When a conversational selector is bound, retain a separate bounded
+        # internal pool so Gemini can compare a broad set BEFORE the UI cap.
+        # An explicit count lowers the final presentation later; it must not
+        # prevent the model from finding the best candidates in the pool.
         limit = RESULT_CARD_LIMIT
         if strategy.result_limit is not None:
             limit = min(
                 RESULT_CARD_LIMIT, max(1, int(strategy.result_limit))
             )
+        if candidate_pool_limit is not None:
+            limit = max(1, min(
+                AI_CONVERSATION_CANDIDATE_POOL_LIMIT,
+                int(candidate_pool_limit),
+            ))
         final = ranked[:limit]
+        report["candidate_pool"] = len(final)
+        report["candidate_pool_limit"] = limit
 
         if final:
             report["reason"] = "results"
