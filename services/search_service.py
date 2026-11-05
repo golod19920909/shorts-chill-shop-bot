@@ -754,6 +754,7 @@ class SearchService:
             pages_used = page_no
             pages_scanned += 1
             page_rows = 0
+            primary_route_failed = False
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
@@ -809,21 +810,30 @@ class SearchService:
                 pairs.extend(route_pairs)
                 if raw:
                     raw_route_pairs.append(route_pairs)
-                if all(
+                route_failed = all(
                     isinstance(result, BaseException)
                     or bool(getattr(result, "provider_error", None))
                     for result in results
-                ):
-                    # Every provider raised on this round: nothing was
-                    # retrieved and nothing can be - deeper pages or further
-                    # variants would only repeat the same failing calls.
-                    logger.warning(
-                        "All providers failed for %r on page %d; stopping this "
-                        "search instead of retrying identical calls",
-                        request.original_query,
-                        page_no,
-                    )
-                    all_failed = True
+                )
+                if route_failed:
+                    if raw:
+                        # A failed primary phrase must not prevent page-one
+                        # alternate seller phrases from being tried. Keep any
+                        # successful alternate-route products, but do not ask
+                        # a deeper page of the same failed primary phrase.
+                        if variant_index == 1:
+                            primary_route_failed = True
+                        logger.warning(
+                            "All providers failed for %r on page %d variant %d/%d",
+                            request.original_query,
+                            page_no,
+                            variant_index,
+                            len(page_variants),
+                        )
+                    else:
+                        # Legacy non-raw searches retain their prior stop
+                        # behavior after a failed provider round.
+                        all_failed = True
                 if expansion:
                     raw_rows_by_phrase[variant] = sum(
                         len(result)
@@ -899,6 +909,13 @@ class SearchService:
                 if all_failed:
                     break
             if all_failed:
+                break
+            if raw and primary_route_failed:
+                logger.info(
+                    "RAW conversational pagination stopped: primary route "
+                    "failed on page %d; retaining any successful alternate routes",
+                    page_no,
+                )
                 break
             if raw:
                 # An empty deeper page is the marketplace's end-of-results
