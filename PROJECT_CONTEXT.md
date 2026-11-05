@@ -2399,3 +2399,70 @@ A new live multi-category Telegram run is still required to verify that
 aerator/mat accessories are removed from host-product searches while direct
 searches for those add-on products still work. Do not claim the kitchen-faucet
 issue is fully resolved until that check is completed.
+
+
+### Buyer-friendly comparison of shown products (2026-11-05)
+
+A live Telegram turn reached the correct comparison route (engine-compare)
+and completed the product_question Gemini call, but the user-facing answer
+only repeated each product's full title as a quoted claim. The underlying
+issue was the generic evidence-answer renderer: it emitted verified quotes
+before considering the prompt's clarification field, and it had no dedicated
+side-by-side comparison layout. This was an output-quality failure, not a
+search or routing failure.
+
+Changed services/product_assistant.py:
+- Explicit compare requests are now rendered deterministically from the two
+  highest-ranked distinct products already shown to the user. No new
+  AliExpress search is made.
+- Each option is separated and shows its real title and only the marketplace
+  fields actually present (price, rating, positive-review rate, orders and
+  delivery data).
+- The comparison section computes price differences only when both prices
+  and the same currency are available. Rating/order differences are shown
+  only when both values exist. Different or missing currencies are never
+  numerically compared.
+- If fewer than two products are available, the bot says so instead of
+  fabricating a pair. Missing attributes remain unknown.
+- This is category-neutral: it uses the existing ranked result order and
+  generic Product fields; no Lenovo/keyboard-specific rules were introduced.
+
+Regression coverage added in tests/test_product_assistant.py for:
+- two distinct options with actual titles/prices/ratings/orders;
+- correct same-currency price delta;
+- no duplicated “title quoted as evidence” wording;
+- one-product comparison without inventing a second option;
+- deterministic behavior without spending a Gemini call.
+
+Commits:
+- Comparison renderer: 4cd61d8f3abe183e0fde482b24ac29e6c69f63fe.
+- Regression tests: 69d030b6dd223974beea2ce9ff7257488b068659.
+- Currency/missing-price clarification: 2c1a169711d1cd5261b2598e517d7b5e165d421a.
+
+GitHub Actions run [42080812552](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42080812552)
+was in progress on the code/test head when this section was written. Record
+the final focused and filtered-suite counts only after inspecting that run.
+No live Telegram retest has been performed for this change.
+
+### Live conversational issues to re-check (2026-11-05)
+
+- In the supplied Telegram log, a fresh «Клавиатура для ноутбука» request
+  appeared alongside active slot diagnostics from the previous sink-mat
+  search. This may indicate stale context crossing a product switch, but the
+  log alone does not prove whether those slots affected the final candidate
+  pool. Reproduce with an unrelated consecutive search and inspect the
+  intent, slot provenance, retrieval query and per-stage candidate counts.
+- A later «Для Lenovo ThinkPad» refinement retrieved some ThinkPad models
+  outside the exact T490s/T495/T14s group named earlier. The compatibility
+  gate must continue to distinguish a family-level mention from a confirmed
+  exact model match; do not claim exact compatibility unless listing evidence
+  contains it.
+- The user-facing comparison issue above has an offline implementation now,
+  but it remains unverified in a live Telegram session. The user's manual
+  live test is still required to confirm that the answer is understandable and
+  useful with real AliExpress card data.
+
+These are current quality checks under the main TЗ, not reasons to add
+product-specific exceptions. Continue broad category-neutral search and
+dialogue verification; ordinary AliExpress product-page extraction remains
+PAUSED under the separate authorization decision above.
