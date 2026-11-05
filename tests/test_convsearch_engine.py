@@ -1718,3 +1718,68 @@ class SellerLanguageReviewContextTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UncertainTypeVerdictQuarantineTests(unittest.TestCase):
+    """Every validator review verdict must stay hidden without Gemini."""
+
+    def test_bare_description_and_cross_language_identity_are_quarantined(self):
+        cases = (
+            (
+                "рыболовная катушка",
+                product("bare-reel", "Катушка 5000").model_copy(update={
+                    "description": "Рыболовная катушка для спиннинга",
+                }),
+                "bare_type_with_description_confirmation_requires_review",
+            ),
+            (
+                "шуруповёрт",
+                product("english-screwdriver", "Cordless screwdriver with 2 batteries"),
+                "cross_language_identity_requires_semantic_review",
+            ),
+        )
+
+        for index, (requested_type, candidate, expected_reason) in enumerate(cases):
+            with self.subTest(requested_type=requested_type):
+                from services.convsearch.type_validation import validate_product_type
+
+                verdict = validate_product_type(candidate, requested_type)
+                self.assertTrue(verdict.qualifies)
+                self.assertIn(expected_reason, verdict.reasons)
+
+                engine = ConversationSearchEngine()
+                state = ConversationEngineState(user_key=f"uncertain-type-{index}")
+                state.record_product_type(requested_type)
+                strategy = SimpleNamespace(
+                    product_type=requested_type,
+                    request=SimpleNamespace(
+                        normalized_query=requested_type,
+                        original_query=requested_type,
+                    ),
+                    result_limit=30,
+                )
+
+                decision = engine._evaluate_pool(
+                    state, [candidate], strategy,
+                    refined=False, intent=MessageIntent.NEW_SEARCH,
+                    observation={}, exclude_shown=False,
+                )
+                self.assertEqual(
+                    decision.report["semantic_review_ids"],
+                    [candidate.product_id],
+                )
+                self.assertEqual(decision.report["safe_ranked"], 0)
+
+                # With no semantic selector, the uncertain listing must not
+                # escape through the deterministic fallback or old shim.
+                import asyncio
+                asyncio.run(engine._apply_ai_candidate_selection(
+                    decision, strategy, state,
+                ))
+                self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
+                self.assertEqual(decision.products, [])
+
+                shaped, _report = engine.shape_pool(
+                    state, [candidate], requested_type,
+                )
+                self.assertEqual(shaped, [])
