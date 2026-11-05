@@ -24,6 +24,7 @@ The engine NEVER fabricates a product, price, rating or link.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import re
 
@@ -1012,24 +1013,43 @@ class ConversationSearchEngine:
         if selection_timeout <= 0:
             return finish_fallback("turn_budget_exhausted")
 
+        selector_kwargs = {
+            "query": query,
+            "wanted": wanted,
+            "required_features": [
+                *state.active_values("feature"),
+                *state.active_values("compatibility"),
+            ],
+            "identity_review_ids": [
+                product_id for product_id in semantic_review_ids
+                if product_id
+            ],
+            "marketplace_terms": getattr(
+                strategy.request, "intent_marketplace_terms", []
+            ),
+        }
+        # Keep injected selectors / older adapters that implement the
+        # established contract working. The production AIService accepts the
+        # optional seller-language hint; test doubles and external adapters
+        # that do not declare it continue receiving the original arguments.
+        try:
+            parameters = inspect.signature(selector).parameters.values()
+            accepts_extra = any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters
+            )
+            parameter_names = {
+                parameter.name
+                for parameter in inspect.signature(selector).parameters.values()
+            }
+            if not accepts_extra and "marketplace_terms" not in parameter_names:
+                selector_kwargs.pop("marketplace_terms")
+        except (TypeError, ValueError):
+            selector_kwargs.pop("marketplace_terms", None)
+
         try:
             async with asyncio.timeout(selection_timeout):
-                selected_ids = await selector(
-                    selector_pool,
-                    query=query,
-                    wanted=wanted,
-                    required_features=[
-                        *state.active_values("feature"),
-                        *state.active_values("compatibility"),
-                    ],
-                    identity_review_ids=[
-                        product_id for product_id in semantic_review_ids
-                        if product_id
-                    ],
-                    marketplace_terms=getattr(
-                        strategy.request, "intent_marketplace_terms", []
-                    ),
-                )
+                selected_ids = await selector(selector_pool, **selector_kwargs)
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
             return finish_fallback("timeout_fallback")
