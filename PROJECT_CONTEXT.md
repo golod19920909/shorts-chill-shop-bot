@@ -2654,3 +2654,37 @@ assigns the right comparison dimension to real AliExpress listing text.
 The comparison aspect is an allow-listed model classification, while every
 displayed quote remains checked against its source listing. PR #7 remains
 draft/open/unmerged; main is untouched.
+
+### Broaden the manual conversational smoke across eight product families (2026-11-05)
+
+The manual Option C live smoke previously covered four broad product families.
+It now covers eight Russian-language queries: cordless drill, portable power,
+under-sink water filter, outdoor security camera, wireless headphones,
+bagless vacuum, garden hose and headlamp. It still uses one provider page per
+grounded phrase to keep the manual run bounded and prints only a few real
+titles plus bounded diagnostics; it does not print credentials or affiliate URLs.
+
+Gemini candidate-selection fallback is now reported as a degradation warning
+rather than an automatic smoke failure when the deterministic safety path
+still returns valid cards. A true empty/failed search, duplicate IDs, missing
+affiliate links, a cap violation, or a failed shown-product comparison still
+fails the smoke. The shown-product follow-up now explicitly requests a
+side-by-side comparison so the newly labelled comparison path is exercised.
+
+Changed file: smoke_conversational_search.py.
+Commit: d625ffe24dbb4413e022995a301ff1b916810142 (includes the eight-query
+scope wording correction; initial expansion commit 4c63e5c82dcacedd5324ec63b91136386929ad3c).
+
+GitHub Actions run
+[42086111895](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42086111895)
+completed successfully on the updated branch head:
+- Focused conversational regressions: **285 passed, 58 subtests passed**.
+- Filtered repository suite: **2,222 passed, 738 subtests passed, 1 warning**.
+- Both live smoke scripts compiled successfully; they were NOT executed against
+  AliExpress or Gemini by CI.
+- The 17 documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
+
+Next live verification must run the expanded script locally with the user's
+authorized credentials. Its output is diagnostic and not a benchmark or proof
+of whole-catalogue coverage. PR #7 remains draft/open/unmerged; main is untouched.
