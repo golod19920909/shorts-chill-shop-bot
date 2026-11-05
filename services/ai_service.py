@@ -544,8 +544,10 @@ ALLOWED_SORT_PREFERENCES = {preference.value for preference in SortPreference}
 
 
 #: How many products a single AI question may include. Keeps the prompt
-#: (and quota cost) bounded while still letting AI compare a real page.
-MAX_PRODUCTS_IN_PROMPT = 8
+#: Product questions may refer to any card the user has browsed. Keep the
+#: full default presentation page available to grounded comparison; the
+#: prompt contains only observed product fields and remains capped at 30.
+MAX_PRODUCTS_IN_PROMPT = 30
 
 
 #: Human-readable description of the AI menu goals, used inside prompts so
