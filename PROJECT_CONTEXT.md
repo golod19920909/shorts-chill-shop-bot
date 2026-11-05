@@ -1897,3 +1897,34 @@ Added offline integration regressions proving that retrieval continues at 30
 and stops at 80 when AI selection is available, while an unavailable selector
 with a five-card request stops at five. This validates the engine callback
 contract; the fake backend does not validate real AliExpress pagination.
+
+
+### Conversational retrieval breadth and wall-clock budget (2026-11-05)
+
+The conversational RAW retrieval path now paginates every grounded query
+variant independently. A phrase continues to the next configured AliExpress
+page only when it returned rows on the preceding page; empty and failed
+routes are retired without preventing other routes from continuing. Pages
+within each phrase retain marketplace order, and distinct phrase rankings are
+fused with RRF. The legacy non-RAW search path keeps its primary-only deeper
+pagination.
+
+The conversational retrieval path also has a 30-second total wall-clock
+budget. It stops requesting additional routes/pages when the budget expires,
+but preserves completed route results and passes them through the normal
+eligibility, hard-constraint, ranking and AI-selection stages. This budget
+does not apply to unrelated search/feed/photo flows. The per-request AliExpress
+timeout and its one transient retry remain unchanged.
+
+Regression coverage:
+- multiple grounded phrases are each paginated and fused;
+- a slow later route cannot erase an already completed route;
+- the configured page limit and earlier page-order regressions remain covered.
+
+The conversational regression workflow now also runs on pushes to
+`work/consultant-reliability`, so commits on the active working branch do not
+depend solely on PR event timing to receive CI coverage.
+
+CI results for the new deadline and regression test must be read from the
+workflow run on the commit containing both; earlier successful runs predate
+this change and do not validate it.
