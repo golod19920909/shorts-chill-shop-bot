@@ -2144,3 +2144,13 @@ GitHub Actions push workflow **42027370747** completed successfully on head **ba
 ### Clarify missing product-selection criteria (2026-11-05)
 
 A follow-up audit of the shown-product comparison path found that an underspecified «which is better?» question with no listing evidence fell straight to a generic missing-data statement. The structured question response now supports one bounded clarification question when the buyer asks for a choice but has not supplied a criterion. The question is accepted only as short plain text with exactly one question mark and no links/markup; evidence-backed recommendations and verified factual claims retain precedence. Added offline tests for a valid clarification and rejection of multi-question/link output. This avoids inventing a winner while keeping the dialogue moving.
+
+
+### Comparison clarification and structured-output hardening — CI verified (2026-11-05)
+
+When a buyer asks which shown product is better without giving a selection criterion, Gemini may now return one short clarification question instead of the generic missing-data response. The question is accepted only as bounded plain text with exactly one question mark and no links or markup. If there is a criterion, a recommendation still requires a valid shown-product ID and exact supporting listing quote. Both recommendation evidence and ordinary factual claims now validate the field type before membership checks, so malformed JSON values cannot crash the answer path. Regression coverage includes valid clarification, multiple questions, links, invented quotes, unknown IDs and malformed evidence fields.
+
+GitHub Actions PR workflow **42027857348** completed successfully on head **06f87a874202802468cd493269dacef267086594**:
+- Focused conversational regressions: **270 passed, 45 subtests passed**.
+- Filtered repository suite: **2,194 passed, 723 subtests passed, 1 warning**.
+- 17 stale legacy modules remain excluded because they import removed pre-Option-C files; this is not an unfiltered full-suite pass. Offline tests only; no live Telegram, Gemini or AliExpress calls.
