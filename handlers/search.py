@@ -377,7 +377,7 @@ def _is_plain_product_clarification(text: str) -> bool:
         15 <= len(value) <= 240
         and value.endswith("?")
         and value.count("?") == 1
-        and not re.search(r"https?://|www\\.|<[^>]+>|\\{", value, re.IGNORECASE)
+        and not re.search(r"https?://|www\.|<[^>]+>|\{", value, re.IGNORECASE)
     )
 
 # --- narrowing the SHOWN results («оставь 5 из этих 30») -------------------
