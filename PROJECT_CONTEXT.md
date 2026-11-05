@@ -1665,3 +1665,14 @@ Latest successful GitHub Actions run **41964699548** on head `0fe74c69b3316a5176
 - Filtered repository suite: **2,138 passed, 691 subtests passed, 1 warning**.
 - Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
 - Offline only; no live AliExpress, Gemini or Telegram calls were made.
+
+
+### End-to-end cross-category pool-evaluator regression (2026-11-05)
+
+Added a second, higher-level regression matrix through the actual `ConversationSearchEngine._evaluate_pool()` used by production, not only the standalone type validator. For eight unrelated product families (smartphones, laptops, cameras, vacuum cleaners, garden hoses, headphones, electric drills and smartwatches), each pool contains a valid host product and a more popular host-first component listing. The evaluator must retain the actual product and reject the component even when the component has substantially higher sales. This checks the full type-gate → filter → dedup → rank path and guards against popularity outranking product identity.
+
+Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da545a4c7925b4071200c9fb553276f`:
+- Focused conversational regressions: **236 passed, 29 subtests passed**.
+- Filtered repository suite: **2,139 passed, 699 subtests passed, 1 warning**.
+- Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live AliExpress, Gemini or Telegram calls were made.
