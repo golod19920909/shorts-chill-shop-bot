@@ -16,6 +16,7 @@ from handlers.search import (
     get_pending_product_question,
     set_pending_product_question,
     should_resume_product_question,
+    reset_conversation,
     consume_pending_clarify,
     get_pending_clarify,
     set_pending_clarify,
@@ -72,6 +73,23 @@ class PendingProductQuestionLifecycleTests(unittest.TestCase):
         # explicit new-search phrase above is how the user switches tasks.
         self.assertTrue(should_resume_product_question("дрель", state))
         self.assertFalse(should_resume_product_question("Покажи ещё варианты", state))
+
+    def test_new_conversation_clears_pending_comparison_question(self):
+        context = SimpleNamespace(user_data={
+            "_convsearch_state": ConversationEngineState(user_key="reset"),
+            PENDING_PRODUCT_QUESTION_KEY: {
+                "question": "Какой вариант лучше?",
+                "session_id": "session-1",
+                "asked_at": time.monotonic(),
+            },
+            "last_shown_session": "session-1",
+        })
+
+        reset_conversation(context)
+
+        self.assertNotIn(PENDING_PRODUCT_QUESTION_KEY, context.user_data)
+        self.assertNotIn("_convsearch_state", context.user_data)
+        self.assertNotIn("last_shown_session", context.user_data)
 
     def test_clear_pending_product_question_removes_only_its_key(self):
         context = SimpleNamespace(user_data={
