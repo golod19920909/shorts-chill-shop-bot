@@ -485,14 +485,19 @@ class ConversationEngineState:
             # target; it must not force the phrase into the previous product's
             # refinement. The helper reads only the leading item head and
             # rejects request framing, generic feature nouns and activity verbs.
-            leading_head = _leading_product_head(message)
+            leading_words = _leading_product_words(message)
+            leading_head = _product_head(" ".join(leading_words)) if leading_words else None
             current_head = _product_head(type_slot.value) if type_slot else None
             leading_product_switch = False
             if leading_head and current_head:
                 from services.convsearch.type_validation import stems_match
 
-                leading_product_switch = not stems_match(
-                    leading_head, current_head
+                # A user may restate the current product together with a
+                # brand/model before the connector («ноутбук ThinkPad T14s
+                # для работы»). The current product head anywhere in that
+                # leading phrase means this is not a product switch.
+                leading_product_switch = not any(
+                    stems_match(current_head, word) for word in leading_words
                 )
             names_other_product = bool(
                 leading_product_switch
@@ -1170,12 +1175,12 @@ def _product_head(value: str) -> str | None:
     return noun_like[-1] if noun_like else (words[-1] if words else None)
 
 
-def _leading_product_head(message: str) -> str | None:
-    """Read a product head before a purpose/fitment connector, if present."""
+def _leading_product_words(message: str) -> list[str]:
+    """Read meaningful item words before a purpose/fitment connector."""
 
     connector = _PRODUCT_CONTEXT_CONNECTOR_RE.search(message or "")
     if connector is None:
-        return None
+        return []
     phrase = (message or "")[:connector.start()]
     words = [
         word for word in tokens(phrase)
@@ -1185,15 +1190,23 @@ def _leading_product_head(message: str) -> str | None:
         and word not in _COUNT_WORDS
         and word not in _BUDGET_FRAMING_WORDS
         and not word.isdigit()
+        and not re.search(r"\\d", word)
         and not is_colour_word(word)
         and not word.endswith(_COMPARATIVE_SUFFIXES)
     ]
     if not words:
-        return None
+        return []
     head = _product_head(" ".join(words))
     if not head or head in _PRODUCT_ACTIVITY_WORDS:
-        return None
-    return head
+        return []
+    return words
+
+
+def _leading_product_head(message: str) -> str | None:
+    """Return the noun-like head before a purpose/fitment connector."""
+
+    words = _leading_product_words(message)
+    return _product_head(" ".join(words)) if words else None
 
 
 def _is_alternatives_request(message: str, state: "ConversationEngineState") -> bool:
