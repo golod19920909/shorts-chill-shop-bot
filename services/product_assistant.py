@@ -1017,7 +1017,7 @@ class ProductAssistant:
 
         if is_explicit_comparison_request(question):
             evidence_differences = None
-            compare = getattr(self.ai, "compare_products", None)
+            compare = getattr(self.ai, "extract_paired_listing_evidence", None)
             if self.ai_available and callable(compare):
                 evidence_differences = await compare(question, products)
             comparison = deterministic_comparison(
