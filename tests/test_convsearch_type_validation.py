@@ -246,6 +246,16 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 msg=title,
             )
 
+    def test_descriptive_adjective_is_not_misread_as_accessory(self) -> None:
+        for title, requested_type in (
+            ("Наушники проводные", "наушники"),
+            ("Повербанк проводной зарядки", "повербанк"),
+        ):
+            verdict = validate_product_type(
+                product("descriptive-adjective", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=title)
+
     def test_host_with_accessory_relation_remains_a_host_product(self) -> None:
         for title, requested_type in (
             ("Phone with protective case", "phone"),
