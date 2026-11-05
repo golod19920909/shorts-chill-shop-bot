@@ -557,6 +557,8 @@ def deterministic_comparison(
         lines.append(title)
         if product.price is not None:
             lines.append(f"• Цена: {format_price(product.price, product.currency)}")
+        else:
+            lines.append("• Цена: нет данных в карточке")
         if product.rating is not None:
             lines.append(f"• Рейтинг: {product.rating:g} из 5")
         if product.positive_rate is not None:
@@ -586,9 +588,9 @@ def deterministic_comparison(
                 )
             else:
                 differences.append("Цены одинаковые.")
-        elif first_currency != second_currency:
+        else:
             differences.append(
-                "Цены указаны в разных валютах, поэтому напрямую их не сравниваю."
+                "Не хватает одинаковых данных о валюте, поэтому цены напрямую не сравниваю."
             )
 
     if first.rating is not None and second.rating is not None:
