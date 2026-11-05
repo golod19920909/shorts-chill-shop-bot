@@ -669,6 +669,28 @@ QUESTION_PROMPT = """Найди в карточках только прямые 
 
 
 
+COMPARISON_PROMPT = """Ты сравниваешь РОВНО ДВЕ реальные карточки AliExpress, уже отобранные поиском.
+
+Верни ТОЛЬКО JSON:
+{{"differences":[{{"first":{{"product_id":"точный id первого товара","field":"title или description","quote":"точная цитата"}},"second":{{"product_id":"точный id второго товара","field":"title или description","quote":"точная цитата"}}}}]}}
+
+Правила:
+- Сравнивай только эти две карточки и только по сведениям, прямо указанным в их title или description.
+- Найди до 4 действительно полезных различий для вопроса покупателя: например, заявленная совместимость, модель, размер, материал, комплектация, мощность или другой явно указанный параметр. Используй только то, что реально присутствует в тексте.
+- Каждая quote должна быть дословной непрерывной частью соответствующего поля, длиной от 5 до 120 символов. Не копируй название целиком.
+- В каждой паре первая цитата относится к первому товару, вторая — ко второму. Они должны показывать один и тот же аспект сравнения, а не случайные несвязанные фразы.
+- Не делай выводов по типичным свойствам категории, фотографиям, цене, рейтингу или общим знаниям.
+- Не называй победителя и не утверждай совместимость, если карточки этого прямо не подтверждают.
+- Если карточки не содержат подтверждённых различий, верни {{ "differences": [] }}.
+- Не выдумывай id, поля, цитаты или характеристики.
+
+Вопрос покупателя: {question}
+
+Две карточки (JSON):
+{products_json}
+"""
+
+
 MERGE_PROMPT = """Пользователь УТОЧНЯЕТ ранее выполненный поиск товаров.
 
 
@@ -1916,6 +1938,107 @@ seller_terms: {seller_terms_json}
             logger.warning("AI search wording rejected; using the deterministic intent")
             return None
         return planned
+
+    async def compare_products(
+        self, question: str, products: list[Product]
+    ) -> list[tuple[str, str]] | None:
+        """Extract exact, paired evidence for a comparison of the top two listings.
+
+        The application chooses the pair from the already-ranked results and
+        renders the comparison. Gemini may only point to exact text spans in
+        those two listings; its prose, IDs and inferred facts are never shown.
+        """
+
+        if not self.is_available or not (question or "").strip():
+            return None
+
+        pair: list[Product] = []
+        seen_ids: set[str] = set()
+        for product in products:
+            product_id = str(product.product_id)
+            if product_id in seen_ids:
+                continue
+            seen_ids.add(product_id)
+            pair.append(product)
+            if len(pair) == 2:
+                break
+        if len(pair) < 2:
+            return None
+
+        payloads = [product_facts(product) for product in pair]
+        try:
+            async with asyncio.timeout(
+                min(self.timeout_seconds, PRODUCT_QUESTION_TIMEOUT_SECONDS)
+            ):
+                raw = await self._generate(
+                    COMPARISON_PROMPT.format(
+                        question=question.strip()[:300],
+                        products_json=json.dumps(
+                            payloads, ensure_ascii=False, indent=2
+                        ),
+                    ),
+                    models=(self.smart_model,),
+                    operation="product_question",
+                )
+        except TimeoutError:
+            logger.info("Gemini product-comparison evidence timed out; using factual fallback")
+            return None
+
+        payload = self._extract_json_object(raw) if raw else None
+        differences = payload.get("differences") if isinstance(payload, dict) else None
+        if not isinstance(differences, list):
+            return None
+
+        sources = {
+            str(item.get("id")): item
+            for item in payloads
+            if isinstance(item, dict) and item.get("id")
+        }
+        first_id = str(payloads[0].get("id") or "")
+        second_id = str(payloads[1].get("id") or "")
+        if not first_id or not second_id or first_id == second_id:
+            return None
+
+        def verified_quote(item: object, expected_id: str) -> str | None:
+            if not isinstance(item, dict):
+                return None
+            if item.get("product_id") != expected_id:
+                return None
+            field = item.get("field")
+            quote = item.get("quote")
+            if (
+                not isinstance(field, str)
+                or field not in {"title", "description"}
+                or not isinstance(quote, str)
+            ):
+                return None
+            source = sources.get(expected_id)
+            source_text = source.get(field) if source else None
+            normalized_quote = " ".join(quote.split()).strip()
+            normalized_source = " ".join(str(source_text or "").split())
+            if (
+                not 5 <= len(normalized_quote) <= 120
+                or normalized_quote.casefold() == normalized_source.casefold()
+                or normalized_quote.casefold() not in normalized_source.casefold()
+            ):
+                return None
+            return normalized_quote
+
+        verified: list[tuple[str, str]] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for difference in differences[:4]:
+            if not isinstance(difference, dict):
+                continue
+            first_quote = verified_quote(difference.get("first"), first_id)
+            second_quote = verified_quote(difference.get("second"), second_id)
+            if not first_quote or not second_quote:
+                continue
+            key = (first_quote.casefold(), second_quote.casefold())
+            if key in seen_pairs:
+                continue
+            seen_pairs.add(key)
+            verified.append((first_quote, second_quote))
+        return verified or None
 
     async def answer_product_question(
         self, question: str, products: list[Product]
