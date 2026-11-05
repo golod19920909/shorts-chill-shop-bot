@@ -2089,3 +2089,15 @@ current PR head **274c24cf68d41cfc171025522e6d8d29a8bba064**:
   deprecation warning. Tests are offline; no live Telegram, Gemini or
   AliExpress request was made.
 - PR #7 remains open, draft and unmerged; the base branch remains unchanged.
+
+
+### Bounded latency for shown-product questions (2026-11-05)
+
+A latency audit found that factual questions about already-shown products
+called Gemini without a whole-operation deadline. The underlying model call
+could consume its full per-model timeout and then try a fallback model, so a
+simple follow-up question could wait substantially longer than the main turn
+interpreter. The product-question operation now has an eight-second hard cap
+(or the lower configured AI timeout). On timeout it returns no AI answer and
+the existing honest no-data fallback is used; it does not fabricate a reply.
+Added an offline regression with a deliberately slow model stub.
