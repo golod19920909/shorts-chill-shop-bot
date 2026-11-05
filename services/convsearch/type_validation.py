@@ -472,32 +472,31 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         # rejected merely because "case" is in the generic accessory-role set.
         # Without a shared writing system, defer identity to the bounded
         # semantic review; never auto-accept it from the accessory noun alone.
+        is_generic_bundle = any(
+            stems_match(accessory_head, bundle_head)
+            for bundle_head in _GENERIC_BUNDLE_HEADS
+        )
         requested_type_is_component = any(
             _is_accessory_head_token(token) and not _is_adjective(token)
             for token in type_tokens
         )
-        if requested_type_is_component:
+        if (
+            is_generic_bundle
+            and (description_has_type or any_type_in_own)
+            and not head_after_role
+        ):
+            # A bundle title can be broad while its description identifies
+            # the actual contents. It is not an automatic match; defer it.
+            semantic_review_required = True
+            score = 0.15
+            reasons.append("type_identity_requires_semantic_review")
+        elif requested_type_is_component:
             semantic_review_required = True
             score = 0.15
             reasons.append("requested_component_identity_requires_semantic_review")
         else:
-            is_generic_bundle = any(
-                stems_match(accessory_head, bundle_head)
-                for bundle_head in _GENERIC_BUNDLE_HEADS
-            )
-            if (
-                is_generic_bundle
-                and (description_has_type or any_type_in_own)
-                and not head_after_role
-            ):
-                # A bundle title can be broad while its description identifies
-                # the actual contents. It is not an automatic match; defer it.
-                semantic_review_required = True
-                score = 0.15
-                reasons.append("type_identity_requires_semantic_review")
-            else:
-                qualifies = False
-                reasons.append(f"accessory_head:{accessory_head}")
+            qualifies = False
+            reasons.append(f"accessory_head:{accessory_head}")
     if bare_noun_only:
         # Sparse marketplace titles sometimes contain only the product head
         # ("Reel 5000"), while the description supplies the missing subtype.
