@@ -2688,3 +2688,46 @@ completed successfully on the updated branch head:
 Next live verification must run the expanded script locally with the user's
 authorized credentials. Its output is diagnostic and not a benchmark or proof
 of whole-catalogue coverage. PR #7 remains draft/open/unmerged; main is untouched.
+
+
+### Keep compatibility constraints consistent in deterministic fallback helpers (2026-11-05)
+
+A focused audit found that the main _evaluate_pool path already treated both
+mandatory feature and compatibility slots as hard evidence requirements
+through partition_required_feature_evidence. However, the separate
+filter_by_required_features helper used by the compatibility shape_pool
+path checked only feature slots. That left two deterministic filtering
+paths with different interpretations of the same hard compatibility rule.
+
+Changed:
+- services/convsearch/retrieval.py — the deterministic required-evidence
+  filter now checks both active feature and compatibility slots. Missing
+  evidence remains rejected by this helper; use-case and preference slots
+  remain soft and are not added.
+- tests/test_convsearch_engine.py — added a regression with an iPhone case
+  whose description explicitly confirms iPhone 15 compatibility, a Samsung
+  case, and a listing with no compatibility evidence. Only the confirmed
+  listing survives.
+- PROJECT_CONTEXT.md — records the audit finding and the exact verification
+  status.
+
+Commits:
+- Implementation: c256068af20ab4bec35b8304290da810267556ab.
+- Regression: 6d55ed2c1782560174e0eae03c77fbdba4dbf5c7.
+- Contract/docstring clarification: 09f96e236fd6ebedb5c42f8def68edcb8385dad2.
+
+Verification:
+- The commit diffs were fetched from GitHub and checked against the intended
+  source/test changes.
+- GitHub combined status currently reports no status entries for these
+  commits, and the available commit-workflow lookup returned no PR-triggered
+  runs. Therefore CI for this change is NOT YET VERIFIED; no test pass is
+  claimed here.
+- The regression is offline and does not call AliExpress, Gemini or Telegram.
+
+Remaining: confirm the focused engine test and filtered conversational
+workflow on this branch. The active _evaluate_pool path was already
+enforcing compatibility evidence; this change aligns the secondary
+deterministic helper and its compatibility shim, rather than claiming a
+change to live search behavior. PR #7 remains draft/open/unmerged; main is
+untouched.
