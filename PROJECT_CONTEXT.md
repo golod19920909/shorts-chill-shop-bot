@@ -2282,3 +2282,27 @@ This is an evidence-based architectural finding, not a claim that the product-da
 The product-question fallback previously said that AliExpress had not supplied the requested information whenever deterministic extraction and the AI answer both returned no result. That statement was too strong: a missing answer can also be caused by a Gemini timeout/unavailability or by evidence that the current answer path cannot interpret. Changed the fallback to say that the bot cannot reliably confirm the attribute from the available cards and will not guess. Updated the two product-assistant regressions that assert the user-facing fallback wording.
 
 This does not change selection, evidence validation, provider calls or the product data schema. It is a truthfulness correction: absence of a verified answer is not automatically proof that the marketplace omitted the field. Pending CI on the updated branch head.
+
+
+### Ordinary AliExpress product-page enrichment feasibility audit (2026-11-05)
+
+The proposal to automatically open ordinary AliExpress product pages and extract descriptions/specifications was evaluated separately from the existing Portals API integration.
+
+**Technical finding**
+- Third-party scraping vendors advertise extraction of product-page attributes/specifications, SKU variants, stock, shipping and seller data. Their published workflows use JavaScript rendering and, in some cases, proxy/CAPTCHA infrastructure. This demonstrates that richer page data can sometimes be extracted technically; it does not establish permission, stable coverage, or a suitable production SLA.
+- Coverage is not guaranteed: page layouts, regional variants, selected SKU, dynamic content and anti-bot responses can change. Written review text is not necessarily available.
+- The current official Affiliate `aliexpress.affiliate.productdetail.get` method is already implemented by `AliExpressProvider.get_product()`. Its documented response example remains affiliate metadata (title, category, price, rating/evaluation rate, volume, images/video, shop and promotion link); it does not document long description, structured product specifications, or SKU attribute tables. The provider's `_normalize()` maps only documented fields and deliberately leaves `Product.description` unset. Repeated calls to this method do not solve the missing-evidence problem.
+
+**Terms / authorization finding**
+- AliExpress.com Terms of Use, Part A, updated 2026-08-26 and effective 2026-09-26, clause 3.2(a), prohibits copying/downloading/reproducing Site Content and prohibits systematic retrieval to create or compile a collection, compilation, database or directory by robots, spiders, automatic devices or manual processes without written permission from AliExpress.com. The stated DSA research exception is limited to qualifying Article 40(12) research and is not a general commercial product-consultant exception.
+- The AliExpress Affiliate Program Service Agreement (effective 2025-04-01) defines permitted “AliExpress Content” as product text/artworks/copies made available through the participant's Portals account or authorized designated Portals APIs for advertising on media controlled by the participant. It does not itself grant permission to scrape ordinary product pages.
+- A robots.txt allowance, a page being public, or a third-party scraper's ability to fetch it is not written permission under these terms.
+
+**Decision for this project**
+1. Do NOT add automatic HTML/browser scraping of ordinary AliExpress product pages to the production bot without written AliExpress permission covering this use.
+2. Do NOT add proxy rotation, CAPTCHA solving, fingerprint evasion, or a scraping SaaS as a workaround for access restrictions.
+3. Keep the Portals Affiliate API as the authorized source for product cards, prices and affiliate links. Keep unsupported attributes UNKNOWN; never infer them from photos, categories, price or seller wording not actually received through an authorized source.
+4. The next legitimate feasibility step is to request written clarification/permission from AliExpress Portals support for automated retrieval of product descriptions/specifications for an affiliate shopping assistant, and ask whether a designated API or partner feed exposes those fields.
+5. Only if permission or an authorized source is confirmed, run a bounded cross-category spike (5–10 products) measuring field coverage, SKU/region correctness, latency, failures, caching and evidence provenance before considering production integration.
+
+This is a completed source/terms feasibility audit, not a live scraping test and not a runtime implementation. No production code or credentials were changed.
