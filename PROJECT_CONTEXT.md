@@ -2101,3 +2101,8 @@ interpreter. The product-question operation now has an eight-second hard cap
 (or the lower configured AI timeout). On timeout it returns no AI answer and
 the existing honest no-data fallback is used; it does not fabricate a reply.
 Added an offline regression with a deliberately slow model stub.
+
+
+### Product-question timeout test compatibility correction (2026-11-05)
+
+The first CI run after adding the eight-second product-question deadline reported five failures in the legacy AI-operation test stub: its overridden _generate method did not accept the optional operation keyword. The production call contract is unchanged; the stub now accepts the optional telemetry argument like the base method. This is a test-double compatibility fix, not a production behavior change. The corrected head must pass CI before this latency change is considered verified.
