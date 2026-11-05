@@ -684,8 +684,8 @@ class ConversationSearchEngine:
             )
 
         # The interpreter may provide one alternate seller-catalogue phrase
-        # for a fresh product search. It is a retrieval-only hint: it never
-        # changes the active product identity or any hard requirement. The
+        # for any search-producing turn. It is retrieval-only: it never
+        # changes the active product identity or hard requirements. The
         # query-variant layer independently checks that it is cross-script.
         if intent in {
             MessageIntent.NEW_SEARCH,
