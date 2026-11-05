@@ -2200,3 +2200,26 @@ The two manual live diagnostics are intentionally not executed by CI because the
 ### Manual live smoke readiness — comparison assertion aligned to supported evidence (2026-11-05)
 
 Before handing the live smoke scripts to the user, aligned the shown-product comparison check with a criterion that the current ProductAssistant can answer deterministically from returned marketplace fields (price). The prior smoke used a rating question even though rating is not yet an accepted evidence field for the grounded Gemini recommendation path; that could falsely fail the diagnostic despite correct search. The script now asks which shown product is cheaper, which is answered only from known prices and within the same currency. PR #7 remains draft and unmerged. Latest verified CI before this adjustment: 280 focused tests + 45 subtests; filtered suite 2,204 passed + 723 subtests, 1 warning. CI must pass again on the updated head before asking for live checks.
+
+### Candidate-selector latency refinement (2026-11-05)
+
+Live Telegram logs on the current branch show that Gemini turn interpretation
+and product-question calls sometimes complete, but the post-retrieval
+candidate selector repeatedly reaches its independent 15-second deadline.
+The selector is a bounded classification/ranking step over real listings
+after deterministic identity, feature, exclusion and budget checks; it does
+not need the default automatic reasoning depth used for open-ended tasks.
+
+The conversation_selection Gemini operation now explicitly requests low
+thinking effort and JSON response MIME. Other Gemini operations retain their
+existing generation defaults. This is a latency-focused model-call
+configuration, not a relaxation of candidate identity/evidence validation or
+the 20-item selection / 30-card presentation limits. Added an offline
+transport-contract regression for the operation-specific config and a
+regression that unrelated Gemini operations receive no new config.
+
+The selector also logs candidate count, active mandatory-feature count,
+identity-review count and prompt character count (never prompt text or user
+content) so the next live run can correlate selector latency with request
+size. This change is pending CI and live Telegram verification; it is not yet
+evidence that selector timeouts are resolved.
