@@ -603,6 +603,8 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("проверь описание и состав", prompt)
 
     async def test_conversation_selector_preserves_explicit_empty_selection(self):
+        self.assertIn("основной предмет", prompt)
+        self.assertNotIn("сварочная маска", prompt)
         service = self.make_service('{"selections":[]}')
         candidates = [
             Product(
