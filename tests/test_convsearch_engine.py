@@ -260,6 +260,41 @@ class CrossCategoryFeatureReviewTests(unittest.IsolatedAsyncioTestCase):
 
 
 class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
+    async def test_active_budget_is_forwarded_to_semantic_selector(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-budget-forwarding")
+        state.slots.append(Slot(
+            kind="budget",
+            value="до 2500 грн",
+            source_turn=1,
+            raw_text="до 2500 грн",
+        ))
+        candidate = product("budget-forwarded", "Рыболовная катушка")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[candidate],
+            report={},
+        )
+        selector = AsyncMock(return_value=[candidate.product_id])
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+                intent_marketplace_terms=[],
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(
+            selector.await_args.kwargs["budget_constraint"],
+            "до 2500 грн",
+        )
+
     async def test_pagination_continues_to_ai_pool_target_not_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
 
