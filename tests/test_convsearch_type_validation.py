@@ -487,3 +487,42 @@ class CrossCategoryValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class GenericAddOnRoleTests(unittest.TestCase):
+    """Host-plus-addon titles must not masquerade as the requested host.
+
+    The role words are generic, not product-category exceptions. The same
+    words must still be searchable when the user asks for the add-on itself.
+    """
+
+    def test_addons_appended_to_host_titles_are_rejected(self) -> None:
+        cases = (
+            ("Kitchen faucet aerator 360 degree", "kitchen faucet"),
+            ("Кухонный кран-аэратор 360 градусов", "кухонный кран"),
+            ("Kitchen faucet silicone mat", "kitchen faucet"),
+            ("Кухонный кран силиконовый коврик", "кухонный кран"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("host-addon", title), requested_type
+                )
+                self.assertFalse(verdict.qualifies, msg=title)
+                self.assertIn(
+                    "requested_type_is_host_for_accessory",
+                    verdict.reasons,
+                    msg=title,
+                )
+
+    def test_addons_remain_valid_when_the_addon_is_the_requested_product(self) -> None:
+        cases = (
+            ("Faucet aerator 360 degree", "aerator"),
+            ("Silicone sink mat", "sink mat"),
+            ("Коврик для раковины силиконовый", "коврик"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("requested-addon", title), requested_type
+                )
+                self.assertTrue(verdict.qualifies, msg=title)
