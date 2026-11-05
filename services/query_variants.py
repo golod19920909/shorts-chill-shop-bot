@@ -209,13 +209,13 @@ def _reintroduces_excluded(
 def product_query_variants(request: SearchRequest) -> list[str]:
     """Retrieval phrases for ``request``, most specific first.
 
-    The first element is the parser's own phrase. Additional elements are
-    built from the user's own words only: either the product-noun phrases
-    (:func:`_noun_phrases`, a request that names at least
-    :data:`MIN_NOUNS_FOR_VARIANT` products) or - for a short/one-noun request -
-    the user's own wording when the parser's phrase does not already carry it
-    (:func:`_own_phrase`). A request that says the same thing in both phrases
-    keeps its single query, so the common case costs no extra API call.
+    The first element is the parser's own phrase. One bounded alternate
+    seller-catalogue phrase may follow when the conversation interpreter
+    supplied a different-script name for the same product. Other derived
+    variants come only from the user's own words: product-noun phrases
+    (:func:`_noun_phrases`) or, for a short/one-noun request, the user's own
+    wording when the parser's phrase does not already carry it
+    (:func:`_own_phrase`). Duplicate or unsafe variants are omitted.
 
     Only :attr:`~models.search_request.SearchMode.SEARCH` is broadened: a
     category or a feed is not one product query (their breadth comes from
