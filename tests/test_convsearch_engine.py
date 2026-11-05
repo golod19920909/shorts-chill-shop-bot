@@ -13,7 +13,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from models.product import Marketplace, Product
-from services.convsearch.engine import ConversationSearchEngine, AI_CONVERSATION_SELECTION_LIMIT
+from services.convsearch.engine import (
+    ConversationSearchEngine,
+    AI_CONVERSATION_SELECTION_LIMIT,
+    AI_CONVERSATION_CANDIDATE_POOL_LIMIT,
+    AI_CONVERSATION_REVIEW_POOL_LIMIT,
+)
 from services.convsearch.contract import Outcome, SearchDecision
 from services.convsearch.state import Slot
 from services.convsearch.state import ConversationEngineState, MessageIntent
