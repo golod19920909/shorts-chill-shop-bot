@@ -430,7 +430,26 @@ def similar_candidates(original: Product, candidates: list[Product]) -> list[Pro
 #: Phrases that mean "compare prices" / "compare popularity" / "compare
 #: reviews" in a product question. Checked in this order, because a
 #: question can contain several ("какой из этих вариантов дешевле").
-_PRICE_MARKERS = ("дешев", "дорог", "цена", "стоит", "price", "cheap", "expensive")
+_PRICE_MARKERS = (
+    "дешев", "дорог", "цен", "стоимост", "price", "cheap", "expensive",
+    "how much", "cost",
+)
+
+
+def _is_price_question(question: str) -> bool:
+    """Recognize explicit price intent without confusing 'worth choosing' with cost."""
+    text = (question or "").lower().replace("ё", "е")
+    if _is_price_question(text):
+        return True
+    return bool(
+        re.search(
+            r"\\bсколько\\s+(?:это\\s+)?стоит\\b|"
+            r"\\bво\\s+сколько\\b|"
+            r"\\bпо\\s+какой\\s+цене\\b|"
+            r"\\bhow\\s+much\\s+(?:does\\s+it\\s+)?cost\\b",
+            text,
+        )
+    )
 _ORDERS_MARKERS = ("заказ", "продаж", "популяр", "orders", "sales")
 _REVIEW_MARKERS = ("рейтинг", "отзыв", "оценк", "rating", "reviews")
 
