@@ -1648,5 +1648,45 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(backend.strategies[0].product_type, "сварочный аппарат")
 
 
+    async def test_interpreter_receives_both_user_and_assistant_dialogue_turns(self):
+        ai = FakeAI({
+            "action": "refine",
+            "confidence": 0.99,
+            "product_type": None,
+            "marketplace_terms": [],
+            "question": None,
+            "response": None,
+            "slot_updates": [],
+        })
+        backend = FakeBackend([listing("headlamp-hike", "LED headlamp for camping")])
+        engine = ConversationSearchEngine(retrieval_backend=backend)
+        engine.bind_ai_service(ai)
+        state = ConversationEngineState(user_key="role-labelled-context")
+        state.record_product_type("налобный фонарь")
+        state.record_turn("Нужен налобный фонарь")
+        state.record_assistant_turn("Для чего он вам нужен?")
+        
+        await engine.handle_message(
+            "role-labelled-context",
+            "Для походов",
+            state=state,
+            currency="UAH",
+        )
+
+        dialogue = ai.contexts[0][1]["recent_dialogue"]
+        self.assertEqual(
+            dialogue[-3:],
+            [
+                {"role": "user", "text": "Нужен налобный фонарь"},
+                {"role": "assistant", "text": "Для чего он вам нужен?"},
+                {"role": "user", "text": "Для походов"},
+            ],
+        )
+        self.assertEqual(
+            [turn["role"] for turn in dialogue[-3:]],
+            ["user", "assistant", "user"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
