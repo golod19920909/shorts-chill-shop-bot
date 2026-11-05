@@ -639,13 +639,15 @@ async def _answer_over_shown(
         return False
     if isinstance(conversation_state, ConversationEngineState) and record_user_text:
         conversation_state.record_turn(record_user_text)
+    await context.bot.send_message(
+        chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
+    )
+    # Persist the pending question only after Telegram confirms delivery; an
+    # undelivered prompt must not consume the user's next ordinary message.
     if getattr(advice, "used_ai", False) and _is_plain_product_clarification(advice.text):
         set_pending_product_question(context, question, session_id)
     else:
         clear_pending_product_question(context)
-    await context.bot.send_message(
-        chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
-    )
     if isinstance(conversation_state, ConversationEngineState):
         conversation_state.record_assistant_turn(advice.text)
     return True
