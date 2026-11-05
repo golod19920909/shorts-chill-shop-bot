@@ -1636,3 +1636,8 @@ GitHub Actions run **41895844850** on head `beb11166a803d4a061f621f8d6b95803ec2c
 - Filtered repository suite: **2,131 passed, 691 subtests passed, 1 warning**.
 - Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
 - Offline only; no live provider calls were made.
+
+
+### Partial product-type evidence scoring correction (2026-11-05)
+
+A validator audit found that partial product-type coverage was assigned a lower score, but a later head_ok branch overwrote it with the exact-match score whenever the principal noun was present. This made a listing that matched the head noun and only some requested qualifiers rank as fully exact. The final exact-score branch now runs only when all requested type tokens are covered; partial matches retain the lower coverage score and the partial_type_coverage reason. Added a regression using a three-token product identity where the title contains the head noun and one qualifier but omits another. This changes ranking confidence only: it does not turn partial matches into hard rejects or bypass semantic review. CI for the new commits is pending; no live provider calls were made.
