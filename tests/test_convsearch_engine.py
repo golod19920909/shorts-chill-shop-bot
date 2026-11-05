@@ -150,6 +150,75 @@ class CrossCategoryEngineEvaluationTests(unittest.TestCase):
                 self.assertEqual(decision.report["rejected_type"], 1)
 
 
+class CrossCategoryFeatureReviewTests(unittest.IsolatedAsyncioTestCase):
+    """Unlisted feature wording must reach the same semantic review path
+    across unrelated product families, not be auto-accepted or dropped."""
+
+    async def test_cross_language_features_are_quarantined_and_routed_across_categories(self):
+        cases = (
+            ("шуруповёрт", "Cordless drill with 2 batteries", "двумя аккумуляторами"),
+            ("налобный фонарь", "LED head torch IPX6", "защитой IPX6"),
+            ("беспроводные наушники", "Bluetooth headset active noise cancelling", "шумоподавлением"),
+            ("пылесос без мешка", "Bagless vacuum cleaner with HEPA filter", "HEPA фильтром"),
+            ("садовый шланг", "Reinforced watering hose 30 m", "длиной 30 метров"),
+            ("фильтр для воды", "5-stage water purifier filter", "пятью ступенями очистки"),
+            ("ремешок для часов", "Silicone smartwatch band", "силиконовым материалом"),
+            ("камера наблюдения", "CCTV camera infrared night vision", "ночным видением"),
+        )
+
+        for index, (requested_type, title, feature) in enumerate(cases):
+            with self.subTest(category=requested_type):
+                engine = ConversationSearchEngine()
+                state = ConversationEngineState(user_key=f"cross-category-feature-{index}")
+                state.record_product_type(requested_type)
+                state.slots.append(Slot(
+                    kind="feature",
+                    value=feature,
+                    source_turn=2,
+                    raw_text=feature,
+                ))
+                candidate = product(f"cross-feature-{index}", title)
+                strategy = SimpleNamespace(
+                    product_type=requested_type,
+                    request=SimpleNamespace(
+                        normalized_query=requested_type,
+                        original_query=requested_type,
+                    ),
+                    result_limit=30,
+                )
+
+                decision = engine._evaluate_pool(
+                    state,
+                    [candidate],
+                    strategy,
+                    refined=True,
+                    intent=MessageIntent.REFINE,
+                    observation={},
+                    exclude_shown=False,
+                )
+
+                self.assertIs(decision.outcome, Outcome.RESULTS)
+                self.assertEqual(decision.report["feature_review_ids"], [candidate.product_id])
+                self.assertIn(candidate.product_id, decision.report["semantic_review_ids"])
+                self.assertEqual(decision.report["safe_ranked"], 0)
+
+                selector = AsyncMock(return_value=[candidate.product_id])
+                engine.bind_ai_service(SimpleNamespace(
+                    select_conversation_candidates=selector,
+                ))
+                await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+                self.assertEqual(
+                    [item.product_id for item in decision.products],
+                    [candidate.product_id],
+                )
+                self.assertEqual(selector.await_args.kwargs["required_features"], [feature])
+                self.assertEqual(
+                    selector.await_args.kwargs["identity_review_ids"],
+                    [candidate.product_id],
+                )
+
+
 class EngineScenarioTests(unittest.TestCase):
     """The four mandatory regression scenarios, plus the state tests."""
 
