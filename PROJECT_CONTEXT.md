@@ -2470,3 +2470,53 @@ These are current quality checks under the main TЗ, not reasons to add
 product-specific exceptions. Continue broad category-neutral search and
 dialogue verification; ordinary AliExpress product-page extraction remains
 PAUSED under the separate authorization decision above.
+
+
+### Product switch before purpose/fitment connector (2026-11-05)
+
+A live Telegram log showed a fresh «Клавиатура для ноутбука» request after
+a sink-mat search while Gemini turn interpretation timed out. The active
+ledger still contained the previous sink-related slots, and the new target
+«ноутбука» appeared as context. Source inspection identified the fallback
+classifier defect: it treated any «для» connector as proof of refinement,
+even when the user had already named a different product before that
+connector. This could mix the old product type, budget, features, use case
+and shown IDs into the new search.
+
+Changed services/convsearch/state.py:
+- Added a category-neutral leading-product-head check before purpose/fitment
+  connectors such as «для», «на», «по», «под», «for» and «with».
+- When the leading product head differs from the active product head, the
+  deterministic fallback classifies the turn as NEW_SEARCH even if Gemini
+  is unavailable or proposes a contradictory refinement.
+- Request scaffolding, generic feature nouns, comparative framing and common
+  action words are excluded so a material refinement such as
+  «Оставь варианты из нержавеющей стали» remains attached to its active item.
+- The existing NEW_SEARCH lifecycle then supersedes the previous slots and
+  clears shown-result IDs before the new retrieval. No product/category/
+  brand-specific exception was added.
+
+Added an engine integration regression in
+tests/test_convsearch_turn_interpretation.py. It simulates unavailable Gemini,
+starts with a sink-mat request plus old budget/feature/shown IDs, then sends
+«Клавиатура для ноутбука». It asserts that the new type and notebook context
+are used and that the previous budget, feature and shown IDs do not leak.
+
+The first CI attempt [42081512813](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42081512813)
+caught an over-broad interpretation of «Оставь варианты из нержавеющей стали»
+as a new product. The request-framing vocabulary was corrected to include
+common selection/editing imperatives; no regression was deleted or weakened.
+
+Latest successful GitHub Actions run
+[42081663298](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42081663298)
+on code head 110020b74ac89822443e66ec16606a634a7d3011:
+- Focused conversational regressions: **283 passed, 52 subtests passed**.
+- Filtered repository suite: **2,213 passed, 730 subtests passed, 1 warning**.
+- Manual live smoke scripts compiled successfully.
+- The 17 documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
+
+This is offline verification only. The reported keyboard-after-sink-mat
+transition still needs a live Telegram retest with Gemini deliberately
+unavailable or timed out. The 17 excluded legacy modules remain outside this
+workflow. PR #7 remains draft/open/unmerged; main is untouched.
