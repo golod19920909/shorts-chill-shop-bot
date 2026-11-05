@@ -2111,3 +2111,16 @@ The first CI run after adding the eight-second product-question deadline reporte
 ### Telegram client-side rate limiting dependency (2026-11-05)
 
 A startup-log audit found the bot's own wiring intentionally enables PTB's AIORateLimiter when installed, but requirements.txt installed only the job-queue extra. Consequently normal installs emitted a warning and ran without client-side Telegram throttling. Added the rate-limiter extra to the pinned python-telegram-bot dependency and an offline startup regression asserting the limiter is available. This protects message/card navigation delivery from avoidable Telegram flood-limit bursts; it does not change AliExpress API throttling.
+
+
+### Product-question timeout and Telegram rate limiter — CI verified (2026-11-05)
+
+The product-question path now has an eight-second whole-operation deadline (or the lower configured AI timeout), so an already-shown product question cannot wait through a full primary-model timeout plus a fallback-model timeout. Timeout returns to the existing honest no-data response. The first CI attempt caught a test-double signature mismatch for the optional operation telemetry keyword; the stub was corrected, and the production behavior then passed.
+
+The pinned python-telegram-bot dependency now installs both the existing job-queue extra and the rate-limiter extra. This activates the AIORateLimiter already configured by bot startup; previously the dependency was absent and startup logs showed that Telegram client-side throttling was disabled. Added a startup regression asserting the limiter is importable and constructed.
+
+GitHub Actions PR workflow **42027079330** completed successfully on head **1dd2f37c32fb562ebe446658b64e31a9624c3d23**:
+- Focused conversational regressions: **270 passed, 45 subtests passed**.
+- Filtered repository suite: **2,187 passed, 723 subtests passed, 1 warning**.
+- The filtered command still excludes the 17 documented stale legacy modules that import removed pre-Option-C files. This is not an unfiltered full-suite pass. Tests are offline; no live Telegram, Gemini or AliExpress requests were made.
+- PR #7 remains open, draft and unmerged; main is unchanged.
