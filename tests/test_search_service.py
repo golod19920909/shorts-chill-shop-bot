@@ -147,6 +147,59 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         self.assertEqual(outcome.failed_marketplaces, ["AliExpress"])
         self.assertEqual(outcome.searched_marketplaces, [])
 
+    def test_primary_api_error_does_not_block_page_one_alternate_route(self) -> None:
+        from services.marketplaces.aliexpress import AliExpressSearchResults
+
+        alternate = make_product(
+            Marketplace.ALIEXPRESS,
+            "alternate-after-primary-error",
+            19.0,
+            title="Cordless drill driver",
+        )
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            if phrase == "cordless screwdriver":
+                return AliExpressSearchResults(
+                    provider_error="AliExpressApiError:405"
+                )
+            return [alternate]
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_search_pages=3)
+        request = SearchRequest(
+            original_query="аккумуляторный шуруповёрт",
+            normalized_query="cordless screwdriver",
+        )
+
+        with patch(
+            "services.query_variants.product_query_variants",
+            return_value=["cordless screwdriver", "cordless drill driver"],
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True,
+                    raw_continue=lambda products: True,
+                )
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                (1, "cordless screwdriver"),
+                (1, "cordless drill driver"),
+            ],
+        )
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["alternate-after-primary-error"],
+        )
+        self.assertEqual(outcome.failed_marketplaces, ["AliExpress"])
+        self.assertEqual(outcome.searched_marketplaces, ["AliExpress"])
+
     def test_raw_conversation_can_use_bounded_grounded_variants(self) -> None:
         products = [make_product(Marketplace.ALIEXPRESS, "ali-1", 19.99)]
         provider = self.ali_express(products)
