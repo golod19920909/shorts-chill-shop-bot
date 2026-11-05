@@ -49,8 +49,8 @@ from services.search_service import AI_FEED_RESULTS, SearchOutcome, SearchServic
 from utils.formatting import CAPTION_LIMIT
 
 from services.convsearch.contract import Outcome as ConvOutcome
-from services.convsearch.engine import ConversationSearchEngine
-from services.convsearch.state import ConversationEngineState, MessageIntent
+from services.convsearch.engine import ConversationSearchEngine, _explicit_requested_product_type
+from services.convsearch.state import ConversationEngineState, MessageIntent, _is_alternatives_request
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,7 @@ CONVERSATION_KEY = "search_conversation"
 #: search completes - a failed search keeps the thread so the clarification
 #: is not silently lost. Per-user, in memory - no database change.
 PENDING_CLARIFY_KEY = "pending_clarify"
+PENDING_PRODUCT_QUESTION_KEY = "pending_product_question"
 
 #: Discovery screen headline. The pipeline only reorders/drops REAL
 #: marketplace listings, and the text does not claim "popular"/"best".
@@ -268,12 +269,13 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     # The conversational-search ledger is dropped; the shown-session cache
     # and the pending clarification follow.
     context.user_data.pop("_convsearch_state", None)
-    for key in (CONVERSATION_KEY, PENDING_CLARIFY_KEY, "last_shown_session"):
+    for key in (CONVERSATION_KEY, PENDING_CLARIFY_KEY, PENDING_PRODUCT_QUESTION_KEY, "last_shown_session"):
         context.user_data.pop(key, None)
 
 #: How long a pending clarifying question stays answerable (mirrors the
 #: conversation TTL: half an hour).
 CLARIFY_TTL_SECONDS = 30 * 60
+PRODUCT_QUESTION_TTL_SECONDS = 30 * 60
 
 def _clear_ledger_pending_question(context: ContextTypes.DEFAULT_TYPE) -> None:
     state = context.user_data.get("_convsearch_state")
@@ -326,6 +328,57 @@ def set_pending_clarify(context: ContextTypes.DEFAULT_TYPE, question: str, origi
         "original": original,
         "asked_at": time.monotonic(),
     }
+
+
+def set_pending_product_question(context, question: str, session_id: str) -> None:
+    context.user_data[PENDING_PRODUCT_QUESTION_KEY] = {
+        "question": (question or "").strip()[:500],
+        "session_id": str(session_id),
+        "asked_at": time.monotonic(),
+    }
+
+
+def get_pending_product_question(context) -> dict | None:
+    pending = context.user_data.get(PENDING_PRODUCT_QUESTION_KEY)
+    if not isinstance(pending, dict):
+        return None
+    asked_at = pending.get("asked_at")
+    if (
+        not isinstance(asked_at, (int, float))
+        or not isinstance(pending.get("question"), str)
+        or not pending.get("question", "").strip()
+        or not isinstance(pending.get("session_id"), str)
+        or not pending.get("session_id", "").strip()
+    ):
+        context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+        return None
+    if time.monotonic() - asked_at > PRODUCT_QUESTION_TTL_SECONDS:
+        context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+        logger.info("Pending product-comparison question expired and was dropped")
+        return None
+    return pending
+
+
+def clear_pending_product_question(context) -> None:
+    context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+
+
+def should_resume_product_question(text: str, state: ConversationEngineState | None) -> bool:
+    if _explicit_requested_product_type(text):
+        return False
+    if isinstance(state, ConversationEngineState) and _is_alternatives_request(text, state):
+        return False
+    return True
+
+
+def _is_plain_product_clarification(text: str) -> bool:
+    value = " ".join((text or "").split()).strip()
+    return bool(
+        15 <= len(value) <= 240
+        and value.endswith("?")
+        and value.count("?") == 1
+        and not re.search(r"https?://|www\\.|<[^>]+>|\\{", value, re.IGNORECASE)
+    )
 
 # --- narrowing the SHOWN results («оставь 5 из этих 30») -------------------
 
@@ -531,6 +584,8 @@ async def _answer_over_shown(
     user_id: int | None = None,
     telegram_id: int | None = None,
     conversation_state: ConversationEngineState | None = None,
+    force_answer: bool = False,
+    record_user_text: str | None = None,
 ) -> bool:
     """Answer or re-render a COMPARE/EXPLAIN question over the SHOWN products.
 
@@ -558,7 +613,7 @@ async def _answer_over_shown(
         return False
 
     selector = getattr(assistant, "matching_products", None)
-    selected = selector(question, products) if callable(selector) else []
+    selected = selector(question, products) if callable(selector) and not force_answer else []
     if selected:
         narrowed = SearchOutcome(
             request=source_outcome.request,
@@ -582,6 +637,12 @@ async def _answer_over_shown(
     advice = await assistant.answer(question, products)
     if advice is None or not getattr(advice, "text", "").strip():
         return False
+    if isinstance(conversation_state, ConversationEngineState) and record_user_text:
+        conversation_state.record_turn(record_user_text)
+    if advice.used_ai and _is_plain_product_clarification(advice.text):
+        set_pending_product_question(context, question, session_id)
+    else:
+        clear_pending_product_question(context)
     await context.bot.send_message(
         chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
     )
@@ -646,6 +707,39 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # fresh request that supersedes earlier constraints. Keep a combined
     # phrase only for the human-facing search-history record.
     pending = get_pending_clarify(context)
+    pending_product_question = get_pending_product_question(context) if pending is None else None
+    if pending_product_question is not None:
+        lowered = text.lower()
+        if lowered in {"отмена", "отменить", "cancel", "забудь", "не надо"}:
+            clear_pending_product_question(context)
+            await message.reply_text(
+                "Хорошо, остановим сравнение. Если захотите, можем продолжить подбор.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+            _turn_done("product-question-cancelled")
+            return
+        state = context.user_data.get("_convsearch_state")
+        if should_resume_product_question(text, state):
+            combined_question = (
+                f"{pending_product_question['question']}\n"
+                f"Критерий выбора покупателя: {text}"
+            )
+            answered = await _answer_over_shown(
+                context,
+                message.chat_id,
+                combined_question,
+                pending_product_question["session_id"],
+                telegram_id=update.effective_user.id if update.effective_user else None,
+                conversation_state=state if isinstance(state, ConversationEngineState) else None,
+                force_answer=True,
+                record_user_text=text,
+            )
+            if answered:
+                _turn_done("product-question-followup")
+                return
+            clear_pending_product_question(context)
+        else:
+            clear_pending_product_question(context)
     if pending is not None:
         lowered = text.lower()
         if lowered in {"отмена", "отменить", "cancel", "забудь", "не надо"}:
