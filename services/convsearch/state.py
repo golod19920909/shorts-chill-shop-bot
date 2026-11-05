@@ -414,13 +414,19 @@ class ConversationEngineState:
         names_other_product = False
         comparative_followup = _is_comparative_followup(message)
         explicit_compare = bool(_COMPARE_RE.search(message))
-        if (
+        alternatives_request = (
+            index > 1 and _is_alternatives_request(message, self)
+        )
+        if alternatives_request:
+            # An explicit request for more/different results takes precedence
+            # over the broad grammar that recognizes questions about shown
+            # products; «какие ещё варианты для дома?» is not a comparison.
+            intent = MessageIntent.ALTERNATIVES
+        elif (
             (self._is_about_current(message) and not comparative_followup)
             or (explicit_compare and not comparative_followup)
         ):
             intent = MessageIntent.COMPARE
-        elif index > 1 and _is_alternatives_request(message, self):
-            intent = MessageIntent.ALTERNATIVES
         elif reversal:
             intent = MessageIntent.CORRECTION
         elif index == 1 and not self.active():
@@ -1108,11 +1114,17 @@ def _is_alternatives_request(message: str, state: "ConversationEngineState") -> 
     lowered = (message or "").lower().replace("ё", "е")
     if not any(marker in lowered for marker in _ALTERNATION_MARKERS):
         return False
+    use_case_tokens = {
+        token
+        for match in _USE_CASE_INTRO_RE.finditer(message)
+        for token in tokens(match.group(1))
+    }
     content = [
         token for token in tokens(message)
         if token not in _CHARACTERISTIC_NOUNS
         and token not in _QUALIFIER_WORDS
         and token not in _BUDGET_FRAMING_WORDS
+        and token not in use_case_tokens
         and not any(token.startswith(marker) for marker in _ALTERNATION_MARKERS)
         and not is_colour_word(token)
         and not token.isdigit()
