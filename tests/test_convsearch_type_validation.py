@@ -101,6 +101,32 @@ class FishingReelValidationTests(unittest.TestCase):
 class CrossCategoryValidationTests(unittest.TestCase):
     """The same rules must generalize (power bank, drill, appliance)."""
 
+    def test_descriptive_component_adjectives_are_not_accessory_identities(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        for requested_type in (
+            "аккумуляторный шуруповёрт",
+            "проводной инструмент",
+            "беспроводные наушники",
+        ):
+            self.assertFalse(
+                is_accessory_product_type(requested_type),
+                msg=requested_type,
+            )
+
+    def test_component_nouns_still_identify_accessory_products(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        for requested_type in (
+            "аккумулятор для камеры",
+            "ремешок для часов",
+            "насадка на дрель",
+        ):
+            self.assertTrue(
+                is_accessory_product_type(requested_type),
+                msg=requested_type,
+            )
+
     def test_power_bank_qualifies(self) -> None:
         self.assertTrue(validate_product_type(
             product("p1", "Повербанк 20000 мАч быстрая зарядка"), BANK
