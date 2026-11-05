@@ -135,6 +135,12 @@ DEFAULT_PAGE_SIZE = 5
 #: ``query_variants``).
 MAX_SEARCH_PAGES = 3
 
+#: Hard wall-clock budget for a conversational retrieval pass. The engine
+#: evaluates partial rows after this deadline and can still answer with
+#: already collected listings; one slow page must not multiply the per-call
+#: AliExpress timeout across every query variant and page.
+RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS = 30.0
+
 #: Stems of MOOD adjectives ("прикольное", "необычные", "полезные") and
 #: filler pronouns/adverbs. Stems, not full words, so inflections are
 #: covered without a morphology dependency.
@@ -749,6 +755,12 @@ class SearchService:
         # eligible for the next documented page. Empty or failed routes are
         # retired independently; one weak phrase cannot starve the others.
         deep_page_variants = list(variants)
+        raw_deadline = (
+            time.perf_counter() + RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS
+            if raw and raw_continue is not None
+            else None
+        )
+        raw_deadline_exhausted = False
 
         for page_no in pages:
             # Page 1 asks every grounded phrase. Later pages continue every
@@ -767,6 +779,13 @@ class SearchService:
             successful_page_variant_rows: dict[str, int] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
+                if raw_deadline is not None:
+                    remaining = raw_deadline - time.perf_counter()
+                    if remaining <= 0:
+                        raw_deadline_exhausted = True
+                        break
+                else:
+                    remaining = None
                 # The primary query on the request's own page keeps the
                 # parser's request object; a further variant (or a deeper
                 # page) only ever replaces the marketplace phrase / the page
@@ -779,15 +798,37 @@ class SearchService:
                         update={"normalized_query": variant, "page_no": page_no}
                     )
                 route_started = time.perf_counter()
-                results = await asyncio.gather(
-                    *(
-                        self._timed_provider_call(
-                            provider, provider.search_products(variant_request)
+                try:
+                    if remaining is None:
+                        results = await asyncio.gather(
+                            *(
+                                self._timed_provider_call(
+                                    provider, provider.search_products(variant_request)
+                                )
+                                for provider in active
+                            ),
+                            return_exceptions=True,
                         )
-                        for provider in active
-                    ),
-                    return_exceptions=True,
-                )
+                    else:
+                        async with asyncio.timeout(remaining):
+                            results = await asyncio.gather(
+                                *(
+                                    self._timed_provider_call(
+                                        provider, provider.search_products(variant_request)
+                                    )
+                                    for provider in active
+                                ),
+                                return_exceptions=True,
+                            )
+                except TimeoutError:
+                    # asyncio.timeout cancels only the in-flight provider round.
+                    # Previously completed routes remain in raw_route_pairs and
+                    # are fused below; the caller can still evaluate partial rows.
+                    raw_deadline_exhausted = True
+                    results = [
+                        TimeoutError("conversational retrieval deadline")
+                        for _provider in active
+                    ]
                 route_pairs = list(zip(active, results, strict=True))
                 if raw:
                     # Per-route timing makes the conversational retrieval
@@ -917,7 +958,7 @@ class SearchService:
                 # RAW conversational retrieval evaluates every bounded
                 # grounded route before fusion. Stopping as soon as the first
                 # route fills the pool would make RRF depend on route order.
-                if all_failed:
+                if all_failed or raw_deadline_exhausted:
                     break
             if all_failed:
                 break
@@ -980,6 +1021,14 @@ class SearchService:
                         "RAW conversational pagination stopped: pool target "
                         "reached (%d/%d) after page %d",
                         current_unique, pool_target, page_no,
+                    )
+                    break
+                if raw_deadline_exhausted:
+                    logger.warning(
+                        "RAW conversational retrieval reached its %.0fs time budget; "
+                        "continuing with %d collected route(s)",
+                        RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS,
+                        len(raw_route_pairs),
                     )
                     break
             elif len(outcome.products) >= pool_target:
