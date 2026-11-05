@@ -1117,6 +1117,12 @@ def _is_alternatives_request(message: str, state: "ConversationEngineState") -> 
     search, not an alternatives turn.
     """
 
+    # An alternation request only makes sense inside an existing task.
+    # A greeting or other non-shopping turn must not make «покажи другие
+    # варианты» look like a continuation when there is no search to continue.
+    if not state.active() and not state.shown_product_ids:
+        return False
+
     lowered = (message or "").lower().replace("ё", "е")
     if not any(marker in lowered for marker in _ALTERNATION_MARKERS):
         return False
