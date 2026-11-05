@@ -8,6 +8,7 @@ Gemini output. Nothing here touches the network.
 from __future__ import annotations
 
 import asyncio
+import json
 import unittest
 
 from models.product import Marketplace, Product
@@ -333,10 +334,14 @@ class GroundedProductQuestionTests(unittest.TestCase):
             "Что важнее? Цена или автономность?",
             "Что важнее? https://example.com",
         ):
-            service = self._service(
-                '{"claims":[],"recommendation":{"product_id":null,"evidence":[]},'
-                f'"clarification":{__import__("json").dumps(question)}}'
+            response = json.dumps(
+                {
+                    "claims": [],
+                    "recommendation": {"product_id": None, "evidence": []},
+                    "clarification": question,
+                }
             )
+            service = self._service(response)
             self.assertIsNone(asyncio.run(
                 service.answer_product_question("Какой лучше?", self._products())
             ))
