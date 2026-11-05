@@ -318,6 +318,29 @@ class ProductQuestionContextCoverageTests(unittest.TestCase):
 
 
 class GroundedProductQuestionTests(unittest.TestCase):
+    def test_missing_selection_criteria_produces_one_clarifying_question(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":null,"evidence":[]},'
+            '"clarification":"Что для вас важнее — цена или автономность?"}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("Какой из них лучше?", self._products())
+        )
+        self.assertEqual(answer, "Что для вас важнее — цена или автономность?")
+
+    def test_clarification_with_multiple_questions_or_links_is_rejected(self) -> None:
+        for question in (
+            "Что важнее? Цена или автономность?",
+            "Что важнее? https://example.com",
+        ):
+            service = self._service(
+                '{"claims":[],"recommendation":{"product_id":null,"evidence":[]},'
+                f'"clarification":{__import__("json").dumps(question)}}'
+            )
+            self.assertIsNone(asyncio.run(
+                service.answer_product_question("Какой лучше?", self._products())
+            ))
+
     def test_recommendation_requires_an_exact_quote_from_the_selected_product(self) -> None:
         service = self._service(
             '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
