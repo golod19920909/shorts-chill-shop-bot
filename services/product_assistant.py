@@ -439,14 +439,14 @@ _PRICE_MARKERS = (
 def _is_price_question(question: str) -> bool:
     """Recognize explicit price intent without confusing 'worth choosing' with cost."""
     text = (question or "").lower().replace("ё", "е")
-    if _is_price_question(text):
+    if any(marker in text for marker in _PRICE_MARKERS):
         return True
     return bool(
         re.search(
-            r"\\bсколько\\s+(?:это\\s+)?стоит\\b|"
-            r"\\bво\\s+сколько\\b|"
-            r"\\bпо\\s+какой\\s+цене\\b|"
-            r"\\bhow\\s+much\\s+(?:does\\s+it\\s+)?cost\\b",
+            r"\bсколько\s+(?:это\s+)?стоит\b|"
+            r"\bво\s+сколько\b|"
+            r"\bпо\s+какой\s+цене\b|"
+            r"\bhow\s+much\s+(?:does\s+it\s+)?cost\b",
             text,
         )
     )
