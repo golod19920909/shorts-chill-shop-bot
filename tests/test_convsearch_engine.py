@@ -696,6 +696,76 @@ class RankingRequestPropagationTests(unittest.TestCase):
 
 
 class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
+
+    async def test_ai_reviews_broad_pool_before_thirty_card_presentation_cut(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="broad-ai-review-pool")
+        state.record_product_type("рыболовная катушка")
+        candidates = [
+            product(f"broad-{i}", "Рыболовная катушка спиннинговая")
+            for i in range(80)
+        ]
+        strategy = SimpleNamespace(
+            product_type="рыболовная катушка",
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="рыболовная катушка",
+            ),
+            result_limit=30,
+        )
+        decision = engine._evaluate_pool(
+            state, candidates, strategy,
+            refined=False, intent=MessageIntent.NEW_SEARCH,
+            observation={}, exclude_shown=False,
+            candidate_pool_limit=AI_CONVERSATION_CANDIDATE_POOL_LIMIT,
+        )
+        self.assertEqual(len(decision.products), 80)
+        original_ids = [item.product_id for item in decision.products]
+        observed = {}
+
+        async def select_broad_window(pool, **kwargs):
+            observed["ids"] = [item.product_id for item in pool]
+            observed["wanted"] = kwargs["wanted"]
+            return observed["ids"][:kwargs["wanted"]]
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=AsyncMock(side_effect=select_broad_window),
+        ))
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(observed["ids"]), AI_CONVERSATION_REVIEW_POOL_LIMIT)
+        self.assertEqual(observed["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(len(decision.products), 30)
+        self.assertEqual(decision.report["ai_selected"], 20)
+        self.assertEqual(decision.report["ai_tail_added"], 10)
+        self.assertEqual(
+            [item.product_id for item in decision.products[-10:]],
+            original_ids[70:80],
+        )
+
+    async def test_no_selector_still_enforces_thirty_card_presentation_cap(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="no-selector-presentation-cap")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[
+                product(f"no-ai-{i}", "Рыболовная катушка")
+                for i in range(45)
+            ],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(decision.products), 30)
+
     async def test_selector_underselection_is_not_padded_by_unseen_tail(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(return_value=["p0"])
