@@ -254,6 +254,20 @@ def product_query_variants(request: SearchRequest) -> list[str]:
         ]
     else:
         excluded_tokens = frozenset()
+    # One AI-grounded seller-catalogue name can recover listings whose title
+    # uses another language. It is a retrieval route only: the unchanged type,
+    # feature, exclusion and relevance gates still judge every returned item.
+    primary_script = dominant_script(primary)
+    for alternate in request.intent_marketplace_terms[:1]:
+        alternate_script = dominant_script(alternate)
+        if (alternate and alternate_script is not None
+                and primary_script is not None
+                and alternate_script != primary_script
+                and not _already_present(alternate, variants)
+                and not _reintroduces_excluded(alternate, excluded_tokens)
+                and len(variants) < MAX_PRODUCT_QUERY_VARIANTS):
+            variants.append(alternate)
+
     if len(nouns) >= MIN_NOUNS_FOR_VARIANT:
         for phrase in _noun_phrases(nouns):
             if len(variants) >= MAX_PRODUCT_QUERY_VARIANTS:
