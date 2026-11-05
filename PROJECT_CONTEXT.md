@@ -1821,3 +1821,5 @@ even while a product set is active. Offline regressions cover both branches.
 - Code commits: `ac34581`, `80b924f`, `c97fc3a`, `f73b26f`; regression test commits: `a3334cb`, `9bbc837`.
 - CI for head `9bbc837c15df1c3742a2c0c8153d691a2f0b1c28` has not yet been observed. Do not count this change as verified until the workflow completes.
 - This is an offline architecture change only; no live Telegram/Gemini/AliExpress test has been performed.
+
+- Extended delivery integration after the initial change: successfully delivered no-result/outage messages and the post-card result-count hint are also recorded as assistant turns. This keeps the role-labelled history aligned with what the user actually saw, not merely what the engine intended to send.
