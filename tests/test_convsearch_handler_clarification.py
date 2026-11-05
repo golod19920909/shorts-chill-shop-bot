@@ -9,7 +9,13 @@ from unittest.mock import AsyncMock, patch
 
 from handlers.search import (
     CLARIFY_TTL_SECONDS,
+    PRODUCT_QUESTION_TTL_SECONDS,
     PENDING_CLARIFY_KEY,
+    PENDING_PRODUCT_QUESTION_KEY,
+    clear_pending_product_question,
+    get_pending_product_question,
+    set_pending_product_question,
+    should_resume_product_question,
     consume_pending_clarify,
     get_pending_clarify,
     set_pending_clarify,
@@ -25,6 +31,53 @@ from handlers.search import (
 )
 from services.convsearch.contract import Outcome
 from services.convsearch.state import ConversationEngineState
+
+
+class PendingProductQuestionLifecycleTests(unittest.TestCase):
+    def test_pending_question_round_trips_with_session_context(self):
+        context = SimpleNamespace(user_data={})
+        set_pending_product_question(context, "Какой вариант лучше?", "session-1")
+        pending = get_pending_product_question(context)
+        self.assertEqual(pending["question"], "Какой вариант лучше?")
+        self.assertEqual(pending["session_id"], "session-1")
+
+    def test_expired_pending_product_question_is_cleared(self):
+        context = SimpleNamespace(user_data={
+            PENDING_PRODUCT_QUESTION_KEY: {
+                "question": "Какой вариант лучше?",
+                "session_id": "session-1",
+                "asked_at": time.monotonic() - PRODUCT_QUESTION_TTL_SECONDS - 1,
+            }
+        })
+        self.assertIsNone(get_pending_product_question(context))
+        self.assertNotIn(PENDING_PRODUCT_QUESTION_KEY, context.user_data)
+
+    def test_invalid_pending_product_question_is_cleared(self):
+        context = SimpleNamespace(user_data={
+            PENDING_PRODUCT_QUESTION_KEY: {
+                "question": "Какой вариант лучше?",
+                "session_id": None,
+                "asked_at": time.monotonic(),
+            }
+        })
+        self.assertIsNone(get_pending_product_question(context))
+        self.assertNotIn(PENDING_PRODUCT_QUESTION_KEY, context.user_data)
+
+    def test_criterion_answer_resumes_comparison_but_new_task_does_not(self):
+        state = ConversationEngineState(user_key="pending-product-question")
+        state.record_product_type("наушники")
+        self.assertTrue(should_resume_product_question("автономность", state))
+        self.assertFalse(should_resume_product_question("Найди дрель", state))
+        self.assertFalse(should_resume_product_question("Покажи ещё варианты", state))
+
+    def test_clear_pending_product_question_removes_only_its_key(self):
+        context = SimpleNamespace(user_data={
+            PENDING_PRODUCT_QUESTION_KEY: {"question": "Q", "session_id": "s", "asked_at": time.monotonic()},
+            PENDING_CLARIFY_KEY: {"question": "Other", "original": "request", "asked_at": time.monotonic()},
+        })
+        clear_pending_product_question(context)
+        self.assertNotIn(PENDING_PRODUCT_QUESTION_KEY, context.user_data)
+        self.assertIn(PENDING_CLARIFY_KEY, context.user_data)
 
 
 class PendingClarificationLifecycleTests(unittest.TestCase):
