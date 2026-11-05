@@ -1939,7 +1939,7 @@ seller_terms: {seller_terms_json}
             return None
         return planned
 
-    async def compare_products(
+    async def extract_paired_listing_evidence(
         self, question: str, products: list[Product]
     ) -> list[tuple[str, str]] | None:
         """Extract exact, paired evidence for a comparison of the top two listings.
