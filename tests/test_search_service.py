@@ -181,6 +181,12 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             normalized_query="cordless screwdriver",
         )
 
+        continuation_checks: list[int] = []
+
+        def continue_until_two(products):
+            continuation_checks.append(len(products))
+            return len(continuation_checks) == 1
+
         with patch(
             "services.query_variants.product_query_variants",
             return_value=["cordless screwdriver", "cordless drill driver"],
@@ -188,10 +194,11 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             outcome = self.run_async(
                 service.find_products(
                     request, raw=True, broaden=True, raw_broaden=True,
-                    raw_continue=lambda products: True,
+                    raw_continue=continue_until_two,
                 )
             )
 
+        self.assertEqual(continuation_checks, [1, 2])
         self.assertEqual(
             calls,
             [
