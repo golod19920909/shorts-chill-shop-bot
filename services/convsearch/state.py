@@ -745,6 +745,11 @@ class ConversationEngineState:
             # requirements. Do not reinterpret arbitrary title/request
             # scaffolding («5 вариантов шуруповёрта») as product features.
             feature_spans = result.get("explicit_features") or []
+        explicit_feature_values = {
+            " ".join(str(value).split()).casefold()
+            for value in (result.get("explicit_features") or [])
+            if isinstance(value, str) and value.strip()
+        }
         if result.get("intent") not in (
             MessageIntent.AMBIGUOUS, MessageIntent.COMPARE,
             MessageIntent.ALTERNATIVES,
@@ -774,13 +779,17 @@ class ConversationEngineState:
                 # everything. Real feature nouns («с чехлом в комплекте»,
                 # «быстрая зарядка») stay requirements.
                 span_tokens = tokens(span)
-                if span_tokens and all(
-                    token in _QUALIFIER_WORDS
-                    or is_colour_word(token)
-                    or token in _BUDGET_FRAMING_WORDS
-                    or token in _COUNT_WORDS
-                    or token.isdigit()
-                    for token in span_tokens
+                if (
+                    span.casefold() not in explicit_feature_values
+                    and span_tokens
+                    and all(
+                        token in _QUALIFIER_WORDS
+                        or is_colour_word(token)
+                        or token in _BUDGET_FRAMING_WORDS
+                        or token in _COUNT_WORDS
+                        or token.isdigit()
+                        for token in span_tokens
+                    )
                 ):
                     continue
                 self._add_slot(Slot(kind="feature", value=span, source_turn=index, raw_text=""))
