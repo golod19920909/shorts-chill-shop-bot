@@ -2731,3 +2731,50 @@ enforcing compatibility evidence; this change aligns the secondary
 deterministic helper and its compatibility shim, rather than claiming a
 change to live search behavior. PR #7 remains draft/open/unmerged; main is
 untouched.
+
+
+### Quarantine all uncertain product-identity verdicts (2026-11-05)
+
+A deeper audit found a safety gap in the bridge between the product-type
+validator and the conversation engine. The validator can explicitly mark a
+candidate as uncertain and require semantic review for several reasons.
+However, the active engine copied only three of those reasons into its
+semantic-review quarantine list. Two important verdicts were omitted:
+- bare product nouns whose subtype is confirmed only by description;
+- cross-language titles that cannot be matched deterministically.
+
+Those candidates could therefore be treated as ordinary deterministic-safe
+results and shown when Gemini was unavailable, despite the validator having
+explicitly requested review. The old shape_pool compatibility helper had an
+even narrower check and could also pass some uncertain identities.
+
+Changed:
+- services/convsearch/engine.py — introduced one shared allow-list of all
+  semantic-review verdict reasons. The active evaluator now quarantines every
+  such verdict; the no-Gemini fallback keeps it hidden. The compatibility
+  shape_pool path uses the same list and also fails closed.
+- tests/test_convsearch_engine.py — added regressions for a bare «катушка»
+  title whose description supplies the fishing subtype and an English
+  «Cordless screwdriver» title for a Russian «шуруповёрт» request. Both must
+  be marked for semantic review, remain hidden without Gemini, and stay out
+  of shape_pool's deterministic results.
+- The preceding compatibility-filter correction remains in place: the
+  deterministic helper checks both feature and compatibility slots.
+
+Commits:
+- Shared identity-review quarantine: b8e5ed5fa040c04e9dedd0671aa73dafa679df12.
+- Regressions: 7c4994bd1e7cafa751f5330420bf2c1810d59b33.
+- PROJECT_CONTEXT update: pending.
+
+Verification:
+- The code and regression commits were fetched from GitHub; the diffs and
+  expected review-reason paths were inspected.
+- GitHub combined status has not reported test checks for the new commits.
+  No local test runner is available in this remote editing session, so the
+  new regressions are NOT YET EXECUTED and no CI pass is claimed.
+- Tests are offline and use fixed Product objects; they do not call Gemini,
+  AliExpress or Telegram.
+
+This is a correction to a real deterministic-fallback safety gap, not a
+relaxation of product matching. The candidate remains hidden until semantic
+review confirms it. PR #7 remains draft/open/unmerged; main is untouched.
