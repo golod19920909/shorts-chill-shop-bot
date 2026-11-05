@@ -316,6 +316,59 @@ class ProductQuestionContextCoverageTests(unittest.TestCase):
         self.assertIn('"id": "page-29"', captured[0])
 
 
+
+class GroundedProductQuestionTests(unittest.TestCase):
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertIn('"claims"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def _products(self) -> list[Product]:
+        return [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="item-1",
+                title="Cordless drill",
+                description="Includes two batteries and a charger",
+                product_url="https://example.com/item-1",
+            )
+        ]
+
+    def test_answer_is_built_from_exact_listing_quote(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":"description",'
+            '"quote":"Includes two batteries"}]}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("У какого товара два аккумулятора?", self._products())
+        )
+        self.assertIn("Includes two batteries", answer)
+        self.assertIn("Cordless drill", answer)
+        self.assertNotIn("имеет две батареи", answer)
+
+    def test_invented_quote_is_rejected(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":"description",'
+            '"quote":"Includes three batteries"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("У какого товара три аккумулятора?", self._products())
+        ))
+
+    def test_unknown_product_id_is_rejected(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"invented","field":"title","quote":"Cordless drill"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Что за товар?", self._products())
+        ))
+
 class ConversationSelectionEvidenceTests(unittest.TestCase):
     def _service(self, response: str) -> AIService:
         service = AIService(api_key=None)
