@@ -1610,11 +1610,23 @@ class AIService:
             return None
 
         limit = max(1, min(int(wanted or TOP_CANDIDATES), TOP_CANDIDATES))
-        requirements = [
+        requirements = list(dict.fromkeys(
             " ".join(str(value).split())[:120]
             for value in (required_features or [])
             if isinstance(value, str) and value.strip()
-        ][:12]
+        ))
+        # Never silently drop active hard requirements to fit the prompt.
+        # If the conversation has accumulated more than the bounded review
+        # contract can safely represent, skip semantic approval entirely;
+        # the engine will retain only deterministic-safe candidates and keep
+        # every uncertain candidate quarantined.
+        if len(requirements) > 12:
+            logger.warning(
+                "Conversation candidate review skipped: %d active requirements "
+                "exceed the safe prompt limit",
+                len(requirements),
+            )
+            return None
         identity_ids = {
             str(value) for value in (identity_review_ids or []) if value
         }
