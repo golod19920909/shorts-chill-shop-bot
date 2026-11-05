@@ -357,6 +357,53 @@ class QuestionTests(unittest.TestCase):
         self.assertIn("12.00 USD", advice.text)
         self.assertEqual(ai.calls, [])
 
+    def test_explicit_comparison_renders_two_products_and_real_differences(self) -> None:
+        first = make_product(
+            "keyboard-1",
+            "Клавиатура с подсветкой для Lenovo ThinkPad T490s/T495/T14s — раскладка US",
+            1519.41,
+            "UAH",
+            rating=4.7,
+            orders_count=120,
+        )
+        second = make_product(
+            "keyboard-2",
+            "Клавиатура для Lenovo ThinkPad X280/X390/L13 Gen1 — раскладки FR/ES/US",
+            1068.55,
+            "UAH",
+            rating=4.6,
+            orders_count=80,
+        )
+        ai = StubAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Отбери два варианта и сравни их", [first, second])
+        )
+
+        self.assertFalse(advice.used_ai)
+        self.assertIn("<b>Вариант 1</b>", advice.text)
+        self.assertIn("<b>Вариант 2</b>", advice.text)
+        self.assertIn("T490s/T495/T14s", advice.text)
+        self.assertIn("X280/X390/L13 Gen1", advice.text)
+        self.assertIn("1519.41 UAH", advice.text)
+        self.assertIn("1068.55 UAH", advice.text)
+        self.assertIn("Вариант 2 дешевле на 450.86 UAH", advice.text)
+        self.assertNotIn("в названии указано", advice.text)
+        self.assertEqual(ai.calls, [])
+
+    def test_explicit_comparison_with_one_product_does_not_invent_a_pair(self) -> None:
+        ai = StubAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Сравни два варианта", [ORIGINAL])
+        )
+
+        self.assertFalse(advice.used_ai)
+        self.assertIn("нужны минимум два товара", advice.text)
+        self.assertEqual(ai.calls, [])
+
     def test_worth_choosing_is_not_misclassified_as_a_price_question(self) -> None:
         ai = StubAI(answer="Сравните рейтинг и отзывы перед выбором.")
         assistant = ProductAssistant(ai_service=ai)
