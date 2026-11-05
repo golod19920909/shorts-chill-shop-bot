@@ -368,6 +368,17 @@ class QuestionTests(unittest.TestCase):
         self.assertIn("Сравните рейтинг", advice.text)
         self.assertEqual(ai.calls, ["question"])
 
+    def test_value_question_is_not_misclassified_as_a_price_question(self) -> None:
+        ai = StubAI(answer="Ценность варианта зависит от ваших приоритетов.")
+        assistant = ProductAssistant(ai_service=ai)
+        products = [make_product("a", "Наушники", 20.0)]
+
+        advice = run(assistant.answer("В чем ценность этого варианта?", products))
+
+        self.assertTrue(advice.used_ai)
+        self.assertIn("Ценность", advice.text)
+        self.assertEqual(ai.calls, ["question"])
+
     def test_explicit_how_much_does_it_cost_is_a_price_question(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI())
         products = [make_product("a", "Наушники", 20.0)]
