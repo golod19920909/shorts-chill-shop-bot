@@ -70,6 +70,28 @@ def is_alternatives_request(text: str) -> bool:
     return bool(_ALTERNATIVES_RE.search(text or ""))
 
 
+# Pronouns and deictic references whose meaning depends on already-shown cards.
+# A general concept question ("Что означает IP67?") is still eligible for a
+# natural answer; a card reference ("А он водонепроницаемый?") must go through
+# the grounded compare/product-answer path instead of free-form RESPOND.
+_SHOWN_PRODUCT_REFERENCE_RE = re.compile(
+    r"(?:^|\\W)(?:он|она|оно|они|его|нее|неё|него|них|ней|ним|"
+    r"этот|эта|это|эти|этого|этой|этих|этим|"
+    r"первый|первого|первая|второй|второго|вторая|третий|третьего|"
+    r"последний|последнего|из\\s+них|среди\\s+них|"
+    r"this|that|these|those|it|its|they|them|their|"
+    r"first|second|third|last|among\\s+them|which\\s+one)"
+    r"(?:$|\\W)",
+    re.IGNORECASE,
+)
+
+
+def _references_shown_products(text: str) -> bool:
+    """Whether this turn uses a deictic/anaphoric reference to shown cards."""
+
+    return bool(_SHOWN_PRODUCT_REFERENCE_RE.search(text or ""))
+
+
 #: Request-scaffolding and generic-count words that never name a product.
 _REQUEST_FILLER: frozenset[str] = frozenset(
     {
@@ -358,6 +380,28 @@ class ConversationSearchEngine:
         # Natural replies are outside the shopping state machine: record the
         # utterance, but do not mutate search slots or call the marketplace.
         explicit_product_type = _explicit_requested_product_type(text)
+        # A free-form natural response must never answer a question about
+        # a previously shown product from model guesswork. When the message
+        # refers to a shown card ("is it waterproof?", "which of these?"),
+        # route it through the grounded compare/product-answer path. General
+        # concept questions ("what does IP67 mean?") remain RESPOND even while
+        # a shopping conversation is active.
+        if (
+            isinstance(ai_turn, dict)
+            and ai_turn.get("action") == "respond"
+            and shown_products
+            and _references_shown_products(text)
+        ):
+            ai_turn = {
+                "action": "compare",
+                "confidence": ai_turn.get("confidence", 0.0),
+                "product_type": None,
+                "marketplace_terms": [],
+                "question": None,
+                "response": None,
+                "slot_updates": [],
+            }
+
         if (isinstance(ai_turn, dict) and ai_turn.get("action") == "respond"
                 and not explicit_product_type
                 and isinstance(ai_turn.get("response"), str)
