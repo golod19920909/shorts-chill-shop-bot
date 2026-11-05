@@ -1810,3 +1810,14 @@ existing `COMPARE` / grounded product-answer path. This prevents a free-form
 LLM response from asserting an unverified product attribute. Standalone
 concept questions such as «Что означает IPX7?» remain eligible for `RESPOND`,
 even while a product set is active. Offline regressions cover both branches.
+
+### Role-labelled dialogue memory (2026-11-05)
+
+- A central conversation audit found that Gemini received only the last six USER messages (`recent_turns`), active shopping slots, the latest pending question and shown products. The engine did not preserve the assistant's previously delivered words as dialogue context. This weakened follow-up understanding when a user referred to an earlier assistant question or explanation.
+- Added a separate bounded `dialogue_history` (last 16 role-labelled user/assistant messages). It is deliberately separate from retrieval `turns`, so assistant messages do not alter slot provenance or turn numbering.
+- The engine now passes `recent_dialogue` alongside the backward-compatible `recent_turns`. The interpreter prompt explicitly instructs Gemini to use both roles and the order of prior turns.
+- The Telegram delivery layer records successfully delivered natural replies, clarification questions and grounded product explanations into the same per-user conversation ledger.
+- Added an offline engine regression asserting that the interpreter receives the prior user message and the assistant's actual clarification question before interpreting the user's answer.
+- Code commits: `ac34581`, `80b924f`, `c97fc3a`, `f73b26f`; regression test commits: `a3334cb`, `9bbc837`.
+- CI for head `9bbc837c15df1c3742a2c0c8153d691a2f0b1c28` has not yet been observed. Do not count this change as verified until the workflow completes.
+- This is an offline architecture change only; no live Telegram/Gemini/AliExpress test has been performed.
