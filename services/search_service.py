@@ -1041,7 +1041,7 @@ class SearchService:
 
                 route_rankings = [
                     self._deduplicate(route_pairs)
-                    for route_pairs in raw_route_pairs
+                    for route_pairs in raw_route_pairs.values()
                 ]
                 fused = merge_route_results(*route_rankings)
                 fused_count = len(fused)
