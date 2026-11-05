@@ -2041,3 +2041,21 @@ unknown content and is not converted into a shown-product comparison.
 Added regressions for «что из этого лучше для дома?» and «какой из них лучше
 для дома?». These tests exercise deterministic intent classification; they
 do not simulate Gemini or live Telegram.
+
+### Follow-up safeguards for shown-product question classification — 2026-11-05
+
+The first regression run for use-case-aware comparisons exposed an important
+boundary: without an active product type or delivered shown cards, a first
+request such as «Найди что-нибудь полезное для дома» must remain a new search,
+not be interpreted as a comparison. The shown-set question detector now
+requires an existing product context.
+
+A second interaction boundary is preserved: an explicit request for more or
+different results takes precedence over the broad comparison grammar. The
+alternatives detector now treats a grammatical use-case target («для дома»)
+as context rather than a newly named product, so «А покажи ещё варианты для
+дома» remains an alternatives request. Added regressions for the first-search
+boundary and the alternatives-with-use-case case.
+
+The initial CI attempt exposed these false positives and a misplaced prompt
+assertion in the test file; both were corrected before the current CI run.
