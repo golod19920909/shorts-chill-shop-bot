@@ -81,7 +81,7 @@ class MarketplacePhraseRoutingTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             backend.strategies[0].request.normalized_query,
-            "шуруповерт",
+            "шуруповерт аккумуляторный",
         )
 
 
