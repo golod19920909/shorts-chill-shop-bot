@@ -1762,3 +1762,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Code commit: `69a0bcde167c324540d1d7e9695ad6dad9be18ef`; test commit: `95581195f867dadaeec8bd65cd7058676f6cf130`.
 - CI run `41971390777` is pending at the time of this update. Do not count the change as verified until the focused and filtered repository suites complete.
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
+
+### Fresh-search deterministic preservation of explicit features (2026-11-05)
+
+- A fallback-path audit found that `ConversationEngineState.record_slots()` deliberately skipped every feature span on a `NEW_SEARCH` turn. If Gemini interpretation timed out or was unavailable, an explicit connector-led requirement such as `с двумя аккумуляторами` could therefore disappear from the ledger and the retrieval phrase before AliExpress was called.
+- The state now preserves only connector-led feature phrases already isolated by the deterministic parser on a fresh search; arbitrary request scaffolding (for example, `покажи 5 вариантов`) is still excluded. Explicit connector features also bypass the generic count/characteristic-word suppression, so `с двумя батареями` is not lost as a generic battery mention.
+- Added offline regressions for both Russian battery phrasings and for request-scaffolding exclusion. Updated a product-switch fixture so its listing actually satisfies the explicit two-battery requirement; the previous fixture had no evidence for a requirement that is now correctly enforced.
+- Related commits: `f7c8ac2`, `d9c6b83`, `95efcbf`, `3b0323c`, `007ba85`, `ca070b9`.
+- Latest CI run `41972045632`: focused conversational regressions have passed; filtered repository suite was still running at the time of this note. Do not count the whole run as successful until it completes.
+- Offline only; no live Gemini, AliExpress or Telegram calls were made.
