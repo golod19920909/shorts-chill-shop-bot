@@ -265,10 +265,11 @@ def filter_by_required_features(
     products: list[Product],
     state: ConversationEngineState,
 ) -> tuple[list[Product], list[Product]]:
-    """Keep only candidates with evidence for every active required feature.
+    """Keep only candidates with evidence for every active hard requirement.
 
-    Missing evidence is UNKNOWN, not a successful match. Soft preferences
-    live in separate preference slots and are deliberately not filtered here.
+    Both feature and compatibility slots are mandatory. Missing evidence is
+    UNKNOWN, not a successful match. Soft preferences and use-case context
+    live in separate slots and are deliberately not filtered here.
     """
 
     required = [
