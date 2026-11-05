@@ -687,7 +687,12 @@ class ConversationSearchEngine:
         # for a fresh product search. It is a retrieval-only hint: it never
         # changes the active product identity or any hard requirement. The
         # query-variant layer independently checks that it is cross-script.
-        if intent is MessageIntent.NEW_SEARCH and isinstance(ai_turn, dict):
+        if intent in {
+            MessageIntent.NEW_SEARCH,
+            MessageIntent.REFINE,
+            MessageIntent.CORRECTION,
+            MessageIntent.ALTERNATIVES,
+        } and isinstance(ai_turn, dict):
             alternate_terms = ai_turn.get("marketplace_terms", [])
             if isinstance(alternate_terms, list):
                 bounded_terms = [
@@ -695,8 +700,8 @@ class ConversationSearchEngine:
                     for term in alternate_terms[:1]
                     if isinstance(term, str)
                     and term.strip()
-                    and len(term) <= 80
-                    and len(term.split()) <= 6
+                    and len(term) <= 120
+                    and len(term.split()) <= 10
                 ]
                 if bounded_terms:
                     strategy.request = strategy.request.model_copy(
