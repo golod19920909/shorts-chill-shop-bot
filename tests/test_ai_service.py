@@ -495,7 +495,7 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         self.assertEqual(result, ["drill-1"])
         prompt = service.captured_prompts[-1]
         self.assertIn("Пользователь НЕ задавал бюджет", prompt)
-        self.assertIn("не придумывай верхний предел", prompt)
+        self.assertIn("Не придумывай верхний предел", prompt)
 
     def test_explicit_budget_is_a_hard_selection_constraint(self) -> None:
         service = self._service(
