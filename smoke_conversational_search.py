@@ -13,7 +13,7 @@ diagnostics and a few real listing titles; it never prints credentials or
 affiliate URLs.
 
 This is an intentionally small live smoke, not a benchmark and not a claim
-that four queries represent the whole AliExpress catalogue. The broader
+that eight queries represent the whole AliExpress catalogue. The broader
 cross-category regression matrix remains in the offline test suite.
 """
 
