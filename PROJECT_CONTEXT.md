@@ -2027,3 +2027,17 @@ This is a prompt-generalization change only; deterministic identity gates,
 listing-evidence validation, retrieval and the 20/30 limits are unchanged.
 The change still requires the new branch CI run before it is considered
 verified.
+
+### Shown-product questions with use-case context — 2026-11-05
+
+A dialogue-intent audit found that a question such as «А что из этого лучше
+для дома?» could be treated as a refinement because the new use-case phrase
+was not recognized as context for a comparison of already shown products.
+The state classifier now treats demonstrative references and the target of a
+grammatical use-case phrase as dialogue scaffolding when evaluating whether a
+question refers to the current shown set. A genuinely named product remains
+unknown content and is not converted into a shown-product comparison.
+
+Added regressions for «что из этого лучше для дома?» and «какой из них лучше
+для дома?». These tests exercise deterministic intent classification; they
+do not simulate Gemini or live Telegram.
