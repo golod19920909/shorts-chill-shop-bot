@@ -132,7 +132,7 @@ async def main() -> int:
                 continue
 
             advice = await assistant.answer(
-                "Какой из них лучше по рейтингу?",
+                "Какой из них дешевле?",
                 decision.products,
             )
             if advice is None or not advice.text.strip():
