@@ -1641,3 +1641,14 @@ GitHub Actions run **41895844850** on head `beb11166a803d4a061f621f8d6b95803ec2c
 ### Partial product-type evidence scoring correction (2026-11-05)
 
 A validator audit found that partial product-type coverage was assigned a lower score, but a later head_ok branch overwrote it with the exact-match score whenever the principal noun was present. This made a listing that matched the head noun and only some requested qualifiers rank as fully exact. The final exact-score branch now runs only when all requested type tokens are covered; partial matches retain the lower coverage score and the partial_type_coverage reason. Added a regression using a three-token product identity where the title contains the head noun and one qualifier but omits another. This changes ranking confidence only: it does not turn partial matches into hard rejects or bypass semantic review. CI for the new commits is pending; no live provider calls were made.
+
+
+### Host-first accessory identity guard (2026-11-05)
+
+A role audit found that accessory-first titles (for example, "case for phone") were rejected, but host-first compounds ("phone case", "camera lens", "drill bits", "battery charger") could still pass as the requested host because the host noun appeared first. Added a category-general check for recognized accessory-role nouns following the requested type within the primary title clause. Explicit relations such as "phone with case" remain valid host listings, and a later comma-separated cross-sell fragment does not reject the primary product. The first CI run exposed an important morphology false positive: Russian descriptive adjectives such as «проводные» matched the stem for «провод». The guard now skips recognized adjectives before testing accessory-role nouns, with regressions for both the false positive and the host/accessory distinctions.
+
+Latest successful GitHub Actions run **41963951316** on head `656eec12b8a64081fee544764005377ab259217a`:
+- Focused conversational regressions: **233 passed, 21 subtests passed**.
+- Filtered repository suite: **2,136 passed, 691 subtests passed, 1 warning**.
+- The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
+- Offline only. No live AliExpress, Gemini or Telegram calls were made.
