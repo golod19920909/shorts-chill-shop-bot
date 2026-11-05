@@ -2129,3 +2129,13 @@ GitHub Actions PR workflow **42027079330** completed successfully on head **1dd2
 ### Evidence-grounded recommendations over shown products (2026-11-05)
 
 The shown-product question path previously returned verified listing quotes but did not have a structured way to make a recommendation when the buyer explicitly asked which option better matched a stated use case. The question prompt now allows a recommendation only when Gemini supplies a real product ID and at least one direct title/description quote from that same listing. The application verifies the quote and constructs the recommendation sentence itself; invalid IDs, invented quotes, missing evidence, or unspecified selection criteria cannot produce a winner. Existing claim-only answers remain supported. Added offline regressions for valid evidence, invented evidence and unknown IDs. This does not turn sparse affiliate listings into full specifications: if AliExpress did not provide relevant text, the assistant must say it cannot establish the difference.
+
+
+### Evidence-grounded recommendations and malformed model output — CI verified (2026-11-05)
+
+The already-shown product question path can now return a bounded recommendation when the buyer explicitly states a selection criterion and a listing's own title/description directly supports it. Gemini must return a real ID plus exact quote(s) from that same listing; the application validates the ID, field type and quote before composing the recommendation. If criteria are absent or evidence is missing/invalid, no winner is announced and the existing verified-quote / honest no-data behavior remains. Added regressions for valid evidence, invented quotes, unknown IDs and malformed field types.
+
+GitHub Actions push workflow **42027370747** completed successfully on head **bae5c79461eff12d2557d31e53286d76ee7507eb**:
+- Focused conversational regressions: **270 passed, 45 subtests passed**.
+- Filtered repository suite: **2,191 passed, 723 subtests passed, 1 warning**.
+- The same workflow excludes 17 documented stale legacy modules; this is not an unfiltered full-suite pass. Tests are offline; no live Telegram, Gemini or AliExpress requests were made.
