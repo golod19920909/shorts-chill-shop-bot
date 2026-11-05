@@ -412,14 +412,17 @@ def build_retrieval_strategy(
     def _covered_by_type(token: str) -> bool:
         return any(stems_match(token, t) for t in type_tokens)
 
-    # Feature spans travel into the phrase MINUS the tokens the product
-    # type already covers («катушки для спиннинга» on an active «катушка»
-    # search contributes «спиннинга», not a second «катушки»).
-    features = []
-    for feature in state.active_values("feature"):
-        kept = [token for token in tokens(feature) if not _covered_by_type(token)]
-        if kept:
-            features.append(" ".join(kept))
+    # Mandatory features and compatibility phrases must remain intact in
+    # retrieval, even when they repeat a noun/stem from the product type.
+    # That repeated word can carry the relationship being searched for:
+    # «аккумуляторный шуруповёрт» + «двумя аккумуляторами» must not collapse
+    # to «шуруповёрт двумя». The provider can handle a small amount of
+    # duplication; silently deleting a distinguishing feature is worse.
+    features = [
+        " ".join(tokens(feature))
+        for feature in state.active_values("feature")
+        if tokens(feature)
+    ]
     compatibility = state.active_values("compatibility")
     exclusions = state.active_values("exclusion")
     budget = state.active_by_kind("budget")
@@ -435,9 +438,9 @@ def build_retrieval_strategy(
     # search toward household models without rejecting a suitable listing
     # whose seller omitted those exact words.
     for compatible_target in compatibility:
-        kept = [token for token in tokens(compatible_target) if not _covered_by_type(token)]
-        if kept:
-            phrase_parts.append(" ".join(kept))
+        compatible_phrase = " ".join(tokens(compatible_target))
+        if compatible_phrase:
+            phrase_parts.append(compatible_phrase)
     for use_case in state.active_values("use_case"):
         kept = [token for token in tokens(use_case) if not _covered_by_type(token)]
         if kept:
