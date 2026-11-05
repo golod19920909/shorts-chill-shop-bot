@@ -1999,6 +1999,7 @@ seller_terms: {seller_terms_json}
             quote = claim.get("quote")
             if (
                 not isinstance(product_id, str)
+                or not isinstance(field, str)
                 or field not in {"title", "description"}
                 or not isinstance(quote, str)
             ):
