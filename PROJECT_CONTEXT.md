@@ -1789,3 +1789,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Code/test commits: `8f6a5b5`, `96c6e59`. CI run `41972799610` is in progress.
 - The semantic-review hard-requirement cap passed workflow `41972357712`: focused **255 passed / 43 subtests**; filtered repository suite **2,161 passed / 721 subtests / 1 warning**. The documentation head also passed workflow `41972415498` with the same counts. Both are offline filtered-suite runs, not unfiltered full-suite passes.
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
+
+### Continue pagination on the successful alternate phrase (2026-11-05)
+
+- Extended the primary-route API-error recovery: when the primary query fails but a bounded alternate seller phrase succeeds, deeper pages now continue on that successful alternate phrase. This preserves multi-page retrieval breadth instead of merely returning the first alternate page.
+- The same engine eligibility callback still decides when enough verified candidates have been collected; pagination remains bounded by the configured page limit. If the active fallback route fails or returns an empty deeper page, traversal stops.
+- Added a regression proving the primary error does not block the alternate route, page 2 uses that alternate phrase, and the engine's continuation decision stops before page 3.
+- Code/test commits: `5098392`, `d0c6a9f`, `9935806`, `547bb6b`. CI run `41973338394`: focused suite passed; filtered repository suite was still running at the time of this note.
+- The previous API-error fallback code head passed workflow `41972799610`: focused **256 passed / 43 subtests**; filtered repository suite **2,162 passed / 721 subtests / 1 warning**. The documentation head passed workflow `41972896883` with the same counts.
+- Offline only; no live Gemini, AliExpress or Telegram calls were made.
