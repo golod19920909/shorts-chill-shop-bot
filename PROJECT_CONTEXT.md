@@ -1771,3 +1771,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Related commits: `f7c8ac2`, `d9c6b83`, `95efcbf`, `3b0323c`, `007ba85`, `ca070b9`.
 - Latest CI run `41972045632`: focused conversational regressions have passed; filtered repository suite was still running at the time of this note. Do not count the whole run as successful until it completes.
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
+
+### Semantic-review hard-requirement cap (2026-11-05)
+
+- Auditing the final Gemini candidate-selection boundary found that `AIService.select_conversation_candidates()` silently truncated the active mandatory feature/compatibility list to the first 12 entries. With a long conversation, a candidate could therefore be approved without the selector checking later hard requirements.
+- The selector now deduplicates the bounded list and fails closed when more than 12 distinct hard requirements are active. It does not call Gemini or approve uncertain candidates under a silently weakened requirement set; the engine's existing fallback keeps deterministic-safe candidates and quarantines semantic-review candidates.
+- Added an offline regression proving a 13-requirement request skips the selector call and returns an unusable result rather than dropping constraints.
+- Code/test commits: `502a3a8`, `203d427`. CI run `41972357712` is in progress.
+- The preceding fresh-search feature fallback passed CI run `41972045632`: focused **254 passed / 43 subtests**; filtered repository suite **2,160 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live Gemini, AliExpress or Telegram calls were made.
