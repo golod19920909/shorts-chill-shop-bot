@@ -1190,7 +1190,7 @@ def _leading_product_words(message: str) -> list[str]:
         and word not in _COUNT_WORDS
         and word not in _BUDGET_FRAMING_WORDS
         and not word.isdigit()
-        and not re.search(r"\\d", word)
+        and not re.search(r"\d", word)
         and not is_colour_word(word)
         and not word.endswith(_COMPARATIVE_SUFFIXES)
     ]
