@@ -796,7 +796,7 @@ slot_updates — массив структурированных изменен�
 - Не выдумывай характеристики и не меняй продукт при обычном уточнении.
 - confidence — твоя уверенность от 0 до 1. Если уверенность ниже 0.65, выбери clarify и объясни одним вопросом.
 - product_type — null для refine, correction, alternatives, compare и clarify.
-- marketplace_terms — только для new_search: массив максимум из одной короткой альтернативной фразы на другом языке/письме, как продавцы AliExpress обычно называют ТОТ ЖЕ самый товар. Обычно английское название для русского/украинского запроса. Не добавляй другую модель, аксессуар, устройство, назначение, бренд или характеристики. Не переводи/не расширяй запрос догадками. Для остальных action всегда []. Это только дополнительный поисковый запрос; исходный запрос остаётся первым, все проверки товаров применяются без изменений.
+- marketplace_terms — только для new_search, refine, correction и alternatives: массив максимум из одной короткой альтернативной фразы на другом языке/письме, как продавцы AliExpress называют ТОТ ЖЕ товар. Для new_search включай только явно названные пользователем обязательные характеристики/совместимость; для refine/correction/alternatives учитывай активные ограничения из контекста и текущее уточнение. Не включай бюджет, исключения или догадки. Не добавляй другую модель, аксессуар, устройство, бренд или неподтверждённые характеристики. Обычно английская фраза для русского/украинского запроса. Для compare, clarify и respond всегда []. Это только дополнительный поисковый запрос; основной запрос и ограничения остаются без изменений, все проверки товаров применяются как прежде.
 - Это решение только о диалоге. Не выбирай товары и не выдумывай цены/ссылки.
 """
 
@@ -2114,12 +2114,12 @@ identity_review_ids: {json.dumps(sorted(identity_ids), ensure_ascii=False)}
         # the conversation engine still validates every returned product.
         marketplace_terms: list[str] = []
         raw_marketplace_terms = payload.get("marketplace_terms", [])
-        if action == "new_search" and isinstance(raw_marketplace_terms, list):
+        if action in {"new_search", "refine", "correction", "alternatives"} and isinstance(raw_marketplace_terms, list):
             for raw_term in raw_marketplace_terms[:2]:
                 if not isinstance(raw_term, str):
                     continue
                 term = " ".join(raw_term.split()).strip()
-                if not term or len(term) > 80 or len(term.split()) > 6:
+                if not term or len(term) > 120 or len(term.split()) > 10:
                     continue
                 if term.casefold() == (user_text or "").strip().casefold():
                     continue
