@@ -1814,7 +1814,7 @@ even while a product set is active. Offline regressions cover both branches.
 ### Role-labelled dialogue memory (2026-11-05)
 
 - A central conversation audit found that Gemini received only the last six USER messages (`recent_turns`), active shopping slots, the latest pending question and shown products. The engine did not preserve the assistant's previously delivered words as dialogue context. This weakened follow-up understanding when a user referred to an earlier assistant question or explanation.
-- Added a separate bounded `dialogue_history` (last 16 role-labelled user/assistant messages). It is deliberately separate from retrieval `turns`, so assistant messages do not alter slot provenance or turn numbering.
+- Added a separate bounded `dialogue_history` (last 12 role-labelled user/assistant events; the engine passes the available recent events). It is deliberately separate from retrieval `turns`, so assistant messages do not alter slot provenance or turn numbering.
 - The engine now passes `recent_dialogue` alongside the backward-compatible `recent_turns`. The interpreter prompt explicitly instructs Gemini to use both roles and the order of prior turns.
 - The Telegram delivery layer records successfully delivered natural replies, clarification questions and grounded product explanations into the same per-user conversation ledger.
 - Added an offline engine regression asserting that the interpreter receives the prior user message and the assistant's actual clarification question before interpreting the user's answer.
@@ -1830,4 +1830,5 @@ even while a product set is active. Offline regressions cover both branches.
 - Corrected the bounded context builder to include only validated `user` / `assistant` events, retain at most 12 entries and 1,000 characters per event, and discard the oldest transcript events first when compacting. This preserves the latest exchange while keeping the prompt under its existing 6,000-character cap.
 - Expanded context tests to cover role-labelled transcript compaction and the 30-card context boundary.
 - The failed run was workflow `41982000866`: **257 passed, 2 failed, 43 subtests passed** in the focused suite; the repository suite was skipped. Do not count it as a pass.
-- The follow-up commits are present on the PR branch, but no workflow run has yet been observed for the corrected latest head. Verification is pending.
+- Workflow `41982179657` on head `953bb808b73ea872abf5f56a52e28a35d89dc458` then exposed two remaining prompt-contract failures: the role guidance sat inside the delimited JSON section, confusing the test/parser boundary, and inflated the measured context length; the 30-card test consequently saw trailing prose after JSON. The serialized payload itself is built with `json.dumps` and remains structurally valid.
+- Moved the role-guidance prose before the `Контекст диалога (JSON):` marker so the marked block contains only JSON. Commit `9faa8709b9b4bb5291902ef612a3ee7e59a01eb1`. The follow-up workflow `41983469021` has passed the focused offline tests; the filtered repository suite is still running. Do not count the full run as passed until it completes.
