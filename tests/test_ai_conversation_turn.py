@@ -469,6 +469,25 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, ["real-2", "real-1"])
         service._generate.assert_awaited_once()
 
+    async def test_conversation_selector_does_not_silently_drop_requirements_over_prompt_limit(self):
+        service = self.make_service('{"selections":[]}') 
+        candidate = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="many-requirements",
+            title="Product listing",
+            product_url="https://www.aliexpress.com/item/many-requirements.html",
+        )
+
+        selected = await service.select_conversation_candidates(
+            [candidate],
+            query="product with many constraints",
+            wanted=1,
+            required_features=[f"required feature {index}" for index in range(13)],
+        )
+
+        self.assertIsNone(selected)
+        service._generate.assert_not_awaited()
+
     async def test_conversation_selector_uses_seller_phrase_only_as_cross_language_context(self):
         service = self.make_service('{"selections":[]}')
         candidate = Product(
