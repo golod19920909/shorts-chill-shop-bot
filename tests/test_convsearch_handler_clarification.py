@@ -16,6 +16,7 @@ from handlers.search import (
     get_pending_product_question,
     set_pending_product_question,
     should_resume_product_question,
+    is_product_question_social_aside,
     reset_conversation,
     consume_pending_clarify,
     get_pending_clarify,
@@ -63,6 +64,12 @@ class PendingProductQuestionLifecycleTests(unittest.TestCase):
         })
         self.assertIsNone(get_pending_product_question(context))
         self.assertNotIn(PENDING_PRODUCT_QUESTION_KEY, context.user_data)
+
+    def test_courtesy_messages_do_not_consume_comparison_question(self):
+        for message in ("Спасибо!", "Понятно.", "Дякую", "Thanks", "Ок"):
+            self.assertTrue(is_product_question_social_aside(message), message)
+        for message in ("цена", "автономность", "для работы", "дрель"):
+            self.assertFalse(is_product_question_social_aside(message), message)
 
     def test_criterion_answer_resumes_comparison_but_new_task_does_not(self):
         state = ConversationEngineState(user_key="pending-product-question")
