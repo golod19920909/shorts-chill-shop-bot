@@ -465,23 +465,35 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         _contains(description_tokens, token) for token in type_tokens
     )
     if accessory_head is not None and (not any_type_in_own or accessory_composite):
-        is_generic_bundle = any(
-            stems_match(accessory_head, bundle_head)
-            for bundle_head in _GENERIC_BUNDLE_HEADS
-        )
-        if (
-            is_generic_bundle
-            and (description_has_type or any_type_in_own)
-            and not head_after_role
-        ):
-            # A bundle title can be broad while its description identifies
-            # the actual contents. It is not an automatic match; defer it.
+        # The same generic nouns describe both an accessory OF a host product
+        # and a legitimate accessory product in its own right. When the user
+        # explicitly asks for that component (e.g. a phone case / watch band),
+        # an English seller title such as "Phone case for iPhone" must not be
+        # rejected merely because "case" is in the generic accessory-role set.
+        # Without a shared writing system, defer identity to the bounded
+        # semantic review; never auto-accept it from the accessory noun alone.
+        if is_accessory_product_type(product_type):
             semantic_review_required = True
             score = 0.15
-            reasons.append("type_identity_requires_semantic_review")
+            reasons.append("requested_component_identity_requires_semantic_review")
         else:
-            qualifies = False
-            reasons.append(f"accessory_head:{accessory_head}")
+            is_generic_bundle = any(
+                stems_match(accessory_head, bundle_head)
+                for bundle_head in _GENERIC_BUNDLE_HEADS
+            )
+            if (
+                is_generic_bundle
+                and (description_has_type or any_type_in_own)
+                and not head_after_role
+            ):
+                # A bundle title can be broad while its description identifies
+                # the actual contents. It is not an automatic match; defer it.
+                semantic_review_required = True
+                score = 0.15
+                reasons.append("type_identity_requires_semantic_review")
+            else:
+                qualifies = False
+                reasons.append(f"accessory_head:{accessory_head}")
     if bare_noun_only:
         # Sparse marketplace titles sometimes contain only the product head
         # ("Reel 5000"), while the description supplies the missing subtype.
