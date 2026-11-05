@@ -754,7 +754,13 @@ class SearchService:
             # Page 1 asks every grounded phrase. Later pages continue every
             # still-live phrase, preserving independent marketplace rankings
             # for RRF instead of deepening only whichever route ran first.
-            page_variants = variants if page_no == pages[0] else list(deep_page_variants)
+            if page_no == pages[0]:
+                page_variants = variants
+            elif raw:
+                page_variants = list(deep_page_variants)
+            else:
+                # Preserve the legacy non-raw pipeline's primary-only depth.
+                page_variants = [primary]
             pages_used = page_no
             pages_scanned += 1
             page_rows = 0
