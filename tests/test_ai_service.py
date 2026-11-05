@@ -318,6 +318,28 @@ class ProductQuestionContextCoverageTests(unittest.TestCase):
 
 
 class GroundedProductQuestionTests(unittest.TestCase):
+    def test_slow_product_question_returns_to_honest_fallback_within_budget(self) -> None:
+        service = AIService(api_key=None, timeout_seconds=0.01)
+        service._client = object()
+
+        async def slow_generate(contents, *, models=None, operation="generate"):
+            await asyncio.sleep(0.1)
+            return '{"claims":[]}'
+
+        service._generate = slow_generate
+        result = asyncio.run(
+            service.answer_product_question("Which one is better?", [
+                Product(
+                    marketplace=Marketplace.ALIEXPRESS,
+                    product_id="item-1",
+                    title="Cordless drill",
+                    product_url="https://example.com/item-1",
+                )
+            ])
+        )
+
+        self.assertIsNone(result)
+
     def _service(self, response: str) -> AIService:
         service = AIService(api_key=None)
         service._client = object()
