@@ -392,6 +392,36 @@ class QuestionTests(unittest.TestCase):
         self.assertNotIn("в названии указано", advice.text)
         self.assertEqual(ai.calls, [])
 
+    def test_explicit_comparison_adds_only_verified_ai_distinctions(self) -> None:
+        class ComparisonAI(StubAI):
+            async def compare_products(self, question, products):
+                self.calls.append("compare")
+                return [("ThinkPad T490s/T495", "ThinkPad X280/X390")]
+
+        first = make_product(
+            "keyboard-1",
+            "Клавиатура для Lenovo ThinkPad T490s/T495 — US layout",
+            1519.41,
+            "UAH",
+        )
+        second = make_product(
+            "keyboard-2",
+            "Клавиатура для Lenovo ThinkPad X280/X390 — FR/ES/US layout",
+            1068.55,
+            "UAH",
+        )
+        ai = ComparisonAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Отбери два варианта и сравни их", [first, second])
+        )
+
+        self.assertTrue(advice.used_ai)
+        self.assertIn("Вариант 1: «ThinkPad T490s/T495»", advice.text)
+        self.assertIn("вариант 2: «ThinkPad X280/X390»", advice.text)
+        self.assertEqual(ai.calls, ["compare"])
+
     def test_explicit_comparison_with_one_product_does_not_invent_a_pair(self) -> None:
         ai = StubAI()
         assistant = ProductAssistant(ai_service=ai)
