@@ -129,6 +129,30 @@ class GroundedVariantTests(unittest.TestCase):
         self.assertIn("wireless charging station", variants)
         self.assertLessEqual(len(variants), query_variants.MAX_PRODUCT_QUERY_VARIANTS)
 
+    def test_cross_language_marketplace_terms_cover_unrelated_product_families(self) -> None:
+        cases = [
+            ("аккумуляторный шуруповёрт", "cordless drill", "cordless power drill"),
+            ("налобный фонарь", "headlamp", "LED head torch"),
+            ("беспроводные наушники", "wireless headphones", "bluetooth headset"),
+            ("пылесос без мешка", "bagless vacuum cleaner", "bagless vacuum"),
+            ("садовый шланг", "garden hose", "watering hose"),
+            ("фильтр для воды", "water filter", "water purifier filter"),
+            ("ремешок для часов", "watch strap", "smartwatch band"),
+            ("камера наблюдения", "security camera", "CCTV camera"),
+        ]
+        for original, primary, alternate in cases:
+            with self.subTest(original=original):
+                variants = self.variants(
+                    original_query=original,
+                    normalized_query=primary,
+                    intent_marketplace_terms=[alternate],
+                )
+                self.assertEqual(variants[0], primary)
+                self.assertIn(alternate, variants)
+                self.assertLessEqual(
+                    len(variants), query_variants.MAX_PRODUCT_QUERY_VARIANTS
+                )
+
     def test_marketplace_term_never_replaces_primary_or_crosses_same_script(self) -> None:
         variants = self.variants(
             original_query="зарядное устройство",
