@@ -2474,12 +2474,20 @@ seller_terms: {seller_terms_json}
                     self.generate_failed += 1
                     return None
                 if will_fallback:
-                    logger.warning(
-                        "Gemini model %s failed; trying fallback model %s (%s)",
-                        model,
-                        chain[index + 1],
-                        detail,
-                    )
+                    if kind == "model":
+                        logger.warning(
+                            "Gemini model %s is unavailable; trying fallback model %s (%s)",
+                            model,
+                            chain[index + 1],
+                            detail,
+                        )
+                    else:
+                        logger.warning(
+                            "Gemini model %s failed; trying fallback model %s (%s)",
+                            model,
+                            chain[index + 1],
+                            detail,
+                        )
                     continue
                 logger.exception(
                     "Gemini request failed; continuing without AI assistance (%s)",
