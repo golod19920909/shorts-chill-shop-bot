@@ -505,3 +505,58 @@ class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result, "ok")
         self.assertNotIn("config", generate.await_args.kwargs)
+
+
+class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
+    async def test_conversation_selection_tries_fallback_after_primary_timeout(self):
+        generate = AsyncMock(side_effect=[
+            TimeoutError("primary timed out"),
+            SimpleNamespace(text='{"selections": []}'),
+        ])
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "candidate selection prompt",
+            models=(service.fast_model,),
+            operation="conversation_selection",
+        )
+
+        self.assertEqual(result, '{"selections": []}')
+        self.assertEqual(
+            [call.kwargs["model"] for call in generate.await_args_list],
+            ["primary-model", "fallback-model"],
+        )
+        for call in generate.await_args_list:
+            self.assertEqual(
+                call.kwargs["config"]["thinking_config"]["thinking_level"],
+                "low",
+            )
+
+    async def test_other_gemini_operations_do_not_retry_on_timeout(self):
+        generate = AsyncMock(side_effect=TimeoutError("request timed out"))
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="conversation_turn",
+        )
+
+        self.assertIsNone(result)
+        generate.assert_awaited_once()
