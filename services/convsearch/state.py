@@ -479,11 +479,29 @@ class ConversationEngineState:
                 r"(?:^|\s)(?:с|со|из|без|для|под|не|for|with|made\s+(?:of|from)|сделан\s+из|изготовлен\s+из|выполнен\s+из|чтобы|чтоб|and|so\s+that)\s+",
                 message, re.IGNORECASE
             ))
+            # A fresh item may be named BEFORE a purpose/fitment connector:
+            # «Клавиатура для ноутбука», «чехол для телефона»,
+            # «насадка на дрель». The connector describes the new item's
+            # target; it must not force the phrase into the previous product's
+            # refinement. The helper reads only the leading item head and
+            # rejects request framing, generic feature nouns and activity verbs.
+            leading_head = _leading_product_head(message)
+            current_head = _product_head(type_slot.value) if type_slot else None
+            leading_product_switch = False
+            if leading_head and current_head:
+                from services.convsearch.type_validation import stems_match
+
+                leading_product_switch = not stems_match(
+                    leading_head, current_head
+                )
             names_other_product = bool(
-                new_spans and type_tokens and not (span_tokens & type_tokens)
-                and not framing
-                and not characteristic
-                and not negations
+                leading_product_switch
+                or (
+                    new_spans and type_tokens and not (span_tokens & type_tokens)
+                    and not framing
+                    and not characteristic
+                    and not negations
+                )
             )
             if names_other_product:
                 intent = MessageIntent.NEW_SEARCH
@@ -1104,6 +1122,75 @@ _QUALIFIER_WORDS: frozenset[str] = frozenset(
 _COMPARATIVE_SUFFIXES: tuple[str, ...] = (
     "ше", "ее", "ей", "же", "ше", "ее", "ей",
 )
+
+
+_PRODUCT_REQUEST_FRAMING_WORDS = frozenset(
+    {
+        "а", "и", "ну", "теперь", "давай", "давайте", "мне", "меня", "мой",
+        "моя", "мое", "моя", "я", "нужен", "нужна", "нужно", "нужны",
+        "ищу", "хочу", "хотел", "хотела", "требуется", "требуются",
+        "подбери", "подберите", "найди", "найдите", "покажи", "покажите",
+        "закажи", "закажите", "купи", "купите", "есть", "ли", "можно",
+        "какой", "какая", "какие", "какое", "что", "насчет", "насчёт",
+        "please", "i", "need", "want", "looking", "find", "show", "a", "an",
+        "the", "some",
+    }
+)
+_PRODUCT_CONTEXT_CONNECTOR_RE = re.compile(
+    r"(?:^|\\s)(?:для|по|на|под|с|со|из|без|for|on|under|with|without)\\b",
+    re.IGNORECASE,
+)
+_PRODUCT_ACTIVITY_WORDS = frozenset(
+    {
+        "работа", "работы", "работать", "работаю", "работает", "работаем",
+        "работают", "буду", "будет", "будут", "делать", "делаю", "делает",
+        "использовать", "использую", "использует", "пользоваться",
+        "строить", "строю", "строит", "ехать", "ездить", "ходить",
+        "work", "working", "use", "using", "look", "looking", "search",
+        "searching", "install", "installing", "drive", "driving",
+    }
+)
+_RUSSIAN_ADJECTIVE_ENDING_RE = re.compile(
+    r"(?:ый|ий|ой|ая|яя|ое|ее|ые|ие|ого|его|ому|ему|ым|им|ую|юю|ых|их|ыми|ими)$",
+    re.IGNORECASE,
+)
+
+
+def _product_head(value: str) -> str | None:
+    """Return the last noun-like token in a product phrase."""
+
+    words = tokens(value or "")
+    noun_like = [
+        word for word in words
+        if not _RUSSIAN_ADJECTIVE_ENDING_RE.search(word)
+    ]
+    return noun_like[-1] if noun_like else (words[-1] if words else None)
+
+
+def _leading_product_head(message: str) -> str | None:
+    """Read a product head before a purpose/fitment connector, if present."""
+
+    connector = _PRODUCT_CONTEXT_CONNECTOR_RE.search(message or "")
+    if connector is None:
+        return None
+    phrase = (message or "")[:connector.start()]
+    words = [
+        word for word in tokens(phrase)
+        if word not in _PRODUCT_REQUEST_FRAMING_WORDS
+        and word not in _QUALIFIER_WORDS
+        and word not in _CHARACTERISTIC_NOUNS
+        and word not in _COUNT_WORDS
+        and word not in _BUDGET_FRAMING_WORDS
+        and not word.isdigit()
+        and not is_colour_word(word)
+        and not word.endswith(_COMPARATIVE_SUFFIXES)
+    ]
+    if not words:
+        return None
+    head = _product_head(" ".join(words))
+    if not head or head in _PRODUCT_ACTIVITY_WORDS:
+        return None
+    return head
 
 
 def _is_alternatives_request(message: str, state: "ConversationEngineState") -> bool:
