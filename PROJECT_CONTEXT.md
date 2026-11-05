@@ -1753,3 +1753,12 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Current head `dbfedeb9e2e420d1e7178ccd684837c4c97480b9`: focused offline CI passed after these corrections; the filtered repository suite is still running. The earlier failures were useful regressions: they exposed both the missing report handoff and the over-broad adjective/stem classification. Do not count those failed runs as verification.
 - Completed verification for code head `dbfedeb9e2e420d1e7178ccd684837c4c97480b9`: workflow [41970208379](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/41970208379) passed. Focused offline suite: **249 passed / 43 subtests**. Filtered repository suite: **2,155 passed / 721 subtests / 1 warning**. The repository suite intentionally excludes the 17 documented stale legacy modules; this is not an unfiltered full-suite pass. Latest documentation-only head `4f8f500966915e8665cfcd9b710ff4b1a33782b5` has a separate CI run in progress.
 - Latest PR head `b0c5bf716ebcba25cbf4de377087a5f0b69b7b23` (documentation/PR-body update after the code verification) also passed workflow [41970355845](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/41970355845): focused **249 passed / 43 subtests**; filtered repository suite **2,155 passed / 721 subtests / 1 warning**. This remains an offline, filtered suite; no live AliExpress/Gemini/Telegram calls were made.
+
+### Accessory-role adjective false positive (2026-11-05)
+
+- Continued the cross-category type/role audit and found that `is_accessory_product_type()` used Russian stem matching without excluding descriptive adjectives.
+- This could classify a host product such as `аккумуляторный шуруповёрт` as an accessory because the adjective shares the stem of the noun `аккумулятор`. In a request containing a later `на ...` phrase, that could misroute a technical specification (for example, voltage) into the hard compatibility slot.
+- The helper now ignores adjective tokens while continuing to recognize actual component nouns. Added positive and negative regression cases across cordless tools, wired tools, headphones, camera batteries, watch straps and drill attachments.
+- Code commit: `69a0bcde167c324540d1d7e9695ad6dad9be18ef`; test commit: `95581195f867dadaeec8bd65cd7058676f6cf130`.
+- CI run `41971390777` is pending at the time of this update. Do not count the change as verified until the focused and filtered repository suites complete.
+- Offline only; no live Gemini, AliExpress or Telegram calls were made.
