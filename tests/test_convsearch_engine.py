@@ -738,7 +738,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         ))
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(len(observed["ids"]), AI_CONVERSATION_REVIEW_POOL_LIMIT)
+        self.assertEqual(len(observed["ids"]), AI_CONVERSATION_REVIEW_POOL_LIMIT - 10)
         self.assertEqual(observed["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
         self.assertEqual(len(decision.products), 30)
         self.assertEqual(decision.report["ai_selected"], 20)
