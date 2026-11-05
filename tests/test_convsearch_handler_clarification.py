@@ -333,6 +333,45 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
         context.bot.send_message.assert_awaited_once()
 
 
+    async def test_ai_comparison_question_is_saved_for_the_users_next_turn(self):
+        from models.product import Marketplace, Product
+
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="item-1",
+            title="Wireless device",
+            product_url="https://www.aliexpress.com/item/item-1.html",
+        )
+        state = ConversationEngineState(user_key="comparison-clarify")
+        state.record_shown(["item-1"])
+        assistant = SimpleNamespace(
+            matching_products=lambda question, candidates: [],
+            answer=AsyncMock(return_value=SimpleNamespace(
+                text="Что для вас важнее — цена или автономность?", used_ai=True
+            )),
+        )
+        context = SimpleNamespace(
+            user_data={"_convsearch_state": state},
+            application=SimpleNamespace(bot_data={"product_assistant": assistant}),
+            bot=SimpleNamespace(send_message=AsyncMock()),
+        )
+        source = SimpleNamespace(request=SimpleNamespace(original_query="device"))
+
+        with (
+            patch("handlers.search.common.get_cached_products", return_value=[product]),
+            patch("handlers.search.common.get_cached_outcome", return_value=source),
+        ):
+            answered = await _answer_over_shown(
+                context, 123, "Какой вариант лучше?", "active-session",
+                conversation_state=state,
+            )
+
+        self.assertTrue(answered)
+        pending = get_pending_product_question(context)
+        self.assertEqual(pending["question"], "Какой вариант лучше?")
+        self.assertEqual(pending["session_id"], "active-session")
+        self.assertEqual(state.dialogue_history[-1]["role"], "assistant")
+
     async def test_failed_optional_hint_keeps_successfully_delivered_session(self):
         product = SimpleNamespace(product_id="delivered-product")
         outcome = SimpleNamespace(
