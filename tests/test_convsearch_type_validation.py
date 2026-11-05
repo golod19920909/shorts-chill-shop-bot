@@ -275,7 +275,7 @@ class CrossCategoryValidationTests(unittest.TestCase):
         for title, requested_type in (
             ("Replacement laptop keyboard", "keyboard"),
             ("HEPA filter for vacuum cleaner", "filter"),
-            ("Silicone smartwatch strap", "watch strap"),
+            ("Silicone wrist strap", "wrist strap"),
             ("Camera battery replacement", "camera battery"),
             ("Защитное стекло для смартфона", "защитное стекло"),
         ):
