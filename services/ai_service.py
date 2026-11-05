@@ -1964,7 +1964,7 @@ seller_terms: {seller_terms_json}
                         continue
                     field = item.get("field")
                     quote = item.get("quote")
-                    source_text = source.get(field) if field in {"title", "description"} else None
+                    source_text = source.get(field) if isinstance(field, str) and field in {"title", "description"} else None
                     normalized_quote = " ".join(quote.split()).strip() if isinstance(quote, str) else ""
                     normalized_source = " ".join(str(source_text or "").split())
                     if (
