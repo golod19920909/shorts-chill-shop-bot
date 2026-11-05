@@ -642,21 +642,20 @@ SEARCH_PLAN_PROMPT = """Сформулируй короткий поисковы
 
 QUESTION_PROMPT = """Найди в карточках только прямые текстовые подтверждения, относящиеся к вопросу покупателя.
 
-
 Верни ТОЛЬКО JSON такого вида:
-{{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}]}}
+{{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}],"recommendation":{{"product_id":"точный id или null","evidence":[{{"field":"title или description","quote":"точная непрерывная цитата"}}]}}}}
 
 Правила:
 - quote должен дословно присутствовать в указанном поле товара; не исправляй и не пересказывай цитату.
 - Выбирай только цитаты, которые прямо относятся к вопросу. Не делай выводов по типичному комплекту, категории, цене, рейтингу или фотографии.
+- Если пользователь явно просит выбрать лучший вариант или сравнить применительно к названной задаче, можешь указать recommendation только тогда, когда текст карточки одного из товаров прямо подтверждает соответствие этой задаче. В evidence обязательно приведи минимум одну точную цитату именно этого товара.
+- Не выбирай победителя по догадке, общим знаниям о категории или неподтверждённым характеристикам. Если карточки не дают достаточных оснований или пользователь не назвал критерий выбора, product_id должен быть null, evidence — [].
 - Не утверждай ничего от себя: итоговый ответ будет построен программно только из проверенных цитат.
 - Не используй другие поля и не выдумывай id.
-- Если подходящих прямых подтверждений нет, верни {{"claims":[]}}.
-- Не более 8 подтверждений.
-
+- Если подходящих подтверждений нет, верни {{ "claims": [], "recommendation": {{"product_id": null, "evidence": []}} }}.
+- Не более 8 claims и 3 evidence.
 
 Вопрос: {question}
-
 
 Товары (JSON):
 {products_json}
@@ -1948,6 +1947,47 @@ seller_terms: {seller_terms_json}
             for item in payloads
             if isinstance(item, dict) and item.get("id")
         }
+
+        # A recommendation is accepted only when Gemini ties it to a real
+        # product ID and at least one exact quote from that same listing.
+        # The user-facing sentence is assembled here; model prose is never
+        # trusted as a factual explanation.
+        recommendation = payload.get("recommendation")
+        if isinstance(recommendation, dict):
+            recommended_id = recommendation.get("product_id")
+            evidence = recommendation.get("evidence")
+            source = by_id.get(recommended_id) if isinstance(recommended_id, str) else None
+            verified_evidence: list[tuple[str, str]] = []
+            if source and isinstance(evidence, list):
+                for item in evidence[:3]:
+                    if not isinstance(item, dict):
+                        continue
+                    field = item.get("field")
+                    quote = item.get("quote")
+                    source_text = source.get(field) if field in {"title", "description"} else None
+                    normalized_quote = " ".join(quote.split()).strip() if isinstance(quote, str) else ""
+                    normalized_source = " ".join(str(source_text or "").split())
+                    if (
+                        normalized_quote
+                        and len(normalized_quote) <= 180
+                        and normalized_quote.casefold() in normalized_source.casefold()
+                        and (field, normalized_quote.casefold()) not in {
+                            (seen_field, seen_quote.casefold())
+                            for seen_field, seen_quote in verified_evidence
+                        }
+                    ):
+                        verified_evidence.append((str(field), normalized_quote))
+            if source and verified_evidence:
+                title = html.escape(str(source.get("title") or recommended_id)[:100])
+                quotes = " ".join(
+                    f"«{html.escape(quote)}»" for _field, quote in verified_evidence
+                )
+                return (
+                    "По вашему запросу наиболее подходящим выглядит "
+                    f"<b>{title}</b>. В карточке указано: {quotes} "
+                    "Вывод основан на тексте карточки AliExpress, а не на независимой проверке качества."
+                )
+
         rendered: list[str] = []
         seen: set[tuple[str, str, str]] = set()
         for claim in claims:
