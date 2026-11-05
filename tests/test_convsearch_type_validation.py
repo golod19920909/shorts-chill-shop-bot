@@ -271,6 +271,29 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 msg=f"{requested_type!r}: {title!r}",
             )
 
+    def test_cross_language_requested_accessory_is_reviewed_not_rejected_as_a_host_accessory(self) -> None:
+        # These titles begin with generic accessory nouns. They are legitimate
+        # requested products in this query, not accessories being sold for a
+        # different requested host device. The cross-language identity must
+        # be decided by the semantic reviewer, not the role-word heuristic.
+        cases = (
+            ("Phone case for iPhone 15", "чехол для телефона"),
+            ("Watch band for Apple Watch", "ремешок для часов"),
+            ("Water filter cartridge", "фильтр для воды"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("cross-language-component", title), requested_type
+                )
+                self.assertTrue(verdict.qualifies, msg=title)
+                self.assertIn(
+                    "requested_component_identity_requires_semantic_review",
+                    verdict.reasons,
+                    msg=title,
+                )
+                self.assertLess(verdict.score, 0.5)
+
     def test_requested_component_itself_remains_a_valid_product(self) -> None:
         for title, requested_type in (
             ("Replacement laptop keyboard", "keyboard"),
