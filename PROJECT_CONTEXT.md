@@ -2106,3 +2106,8 @@ Added an offline regression with a deliberately slow model stub.
 ### Product-question timeout test compatibility correction (2026-11-05)
 
 The first CI run after adding the eight-second product-question deadline reported five failures in the legacy AI-operation test stub: its overridden _generate method did not accept the optional operation keyword. The production call contract is unchanged; the stub now accepts the optional telemetry argument like the base method. This is a test-double compatibility fix, not a production behavior change. The corrected head must pass CI before this latency change is considered verified.
+
+
+### Telegram client-side rate limiting dependency (2026-11-05)
+
+A startup-log audit found the bot's own wiring intentionally enables PTB's AIORateLimiter when installed, but requirements.txt installed only the job-queue extra. Consequently normal installs emitted a warning and ran without client-side Telegram throttling. Added the rate-limiter extra to the pinned python-telegram-bot dependency and an offline startup regression asserting the limiter is available. This protects message/card navigation delivery from avoidable Telegram flood-limit bursts; it does not change AliExpress API throttling.
