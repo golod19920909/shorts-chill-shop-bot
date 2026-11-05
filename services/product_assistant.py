@@ -102,6 +102,7 @@ def product_facts(product: Product) -> dict[str, object]:
         "marketplace": str(getattr(product.marketplace, "value", product.marketplace)),
     }
     optional = (
+        "description",
         "price",
         "currency",
         "old_price",
