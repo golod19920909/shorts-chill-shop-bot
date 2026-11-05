@@ -1860,10 +1860,12 @@ pool, but the conversational engine truncated ranked candidates to the
 candidates, so it could not choose the best 20 from the broader retrieved set.
 
 The engine now keeps up to 80 deterministically validated/ranked candidates
-internally when the conversational selector is bound. Gemini reviews up to
-70 candidates, returns at most 20 selected IDs, and the remaining up to 10
-already-gated candidates may fill the presentation tail only when the model
-fills its 20-result selection. The UI remains capped at 30 (or the user's
+internally when the conversational selector is bound. For the default 30-card
+view, Gemini reviews up to 70 candidates and returns at most 20 selected IDs;
+up to 10 remaining already-gated candidates may fill the presentation tail
+only when the model fills its 20-result selection. When the user requests
+fewer than 20 cards, Gemini can review the full 80-candidate pool because no
+deterministic tail is needed. The UI remains capped at 30 (or the user's
 smaller requested count). The no-selector path also explicitly enforces that
 presentation cap. This does not expand AliExpress page limits or claim a
 full-catalogue crawl; it fixes the premature cut between retrieval and AI
