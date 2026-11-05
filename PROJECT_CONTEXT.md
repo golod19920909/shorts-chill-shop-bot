@@ -1996,3 +1996,19 @@ reject a relevant listing; the card will show that the price was not supplied.
 The model is still forbidden to invent a price or currency. The explicit-budget
 branch remains strict: a known price/currency is needed to enforce the limit.
 Added a prompt regression for this distinction.
+
+### CI verification — 2026-11-05, head f4e4b36731a8c26969c73525b4a2b88dc7a1b536
+
+GitHub Actions workflow run **42007511406** completed successfully on the
+current PR head. The job ran:
+
+- Focused conversational regressions: **268 passed, 43 subtests passed**.
+- Filtered repository suite: **2,183 passed, 721 subtests passed, 1 warning**.
+
+The repository command excludes 17 documented stale legacy modules; this is
+not an unfiltered full-suite pass. The warning is a dependency deprecation
+warning from the installed Google GenAI package. This run validates offline
+regressions only. It does not test live Telegram delivery, current AliExpress
+catalogue recall/quota, or Gemini latency and semantic decisions.
+
+PR #7 remains open, draft and unmerged. The base branch `main` is unchanged.
