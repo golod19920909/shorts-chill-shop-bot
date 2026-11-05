@@ -2223,3 +2223,22 @@ identity-review count and prompt character count (never prompt text or user
 content) so the next live run can correlate selector latency with request
 size. This change is pending CI and live Telegram verification; it is not yet
 evidence that selector timeouts are resolved.
+
+### Selector timeout fallback correction (2026-11-05)
+
+An offline code-path audit found that the selector's outer 15-second deadline
+could cancel `_generate` before its normal 20-second per-model timeout expired.
+That meant the configured fallback model was never reached when the primary
+selection model stalled, even though `_generate` already had a fallback chain.
+
+Conversation selection now caps each model attempt at 6.5 seconds and permits
+the configured fallback model after a primary client timeout. The existing
+outer 15-second selector deadline remains the hard total bound; quota failures
+still stop immediately, and timeouts in unrelated Gemini operations retain
+their previous no-retry policy. Both model attempts use the low-thinking JSON
+configuration. Added offline regressions for selector timeout → fallback
+success and for preserving the no-timeout-retry policy on other operations.
+
+This is a code-path correction based on the current timeout nesting, not a
+claim that live Gemini latency is solved. Confirm on the next Telegram run
+using per-attempt model/duration logs and the final `ai_selection` outcome.
