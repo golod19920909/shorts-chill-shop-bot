@@ -2190,3 +2190,8 @@ GitHub Actions PR workflow **42030839337** completed successfully on head **9bd7
 - Focused conversational regressions: **280 passed, 45 subtests passed**.
 - Filtered repository suite: **2,204 passed, 723 subtests passed, 1 warning**.
 - The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. Offline tests only; live Telegram, Gemini and AliExpress behavior remains to be checked with the user's credentials.
+
+
+### Live smoke script syntax verification (2026-11-05)
+
+The two manual live diagnostics are intentionally not executed by CI because they require the user's private AliExpress/Gemini credentials and make real API calls. The conversational-regression workflow now compiles both `smoke_aliexpress.py` and `smoke_conversational_search.py` on every run, catching syntax/import-independent compilation errors without loading `.env` or spending API quota. This verifies only that the scripts compile; it does not claim the live API smoke has run.
