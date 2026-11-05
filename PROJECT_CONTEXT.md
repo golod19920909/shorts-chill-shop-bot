@@ -1800,3 +1800,13 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
 
 - Final verification for documentation/code head `5699e20300bf7a0b3494dc030358eab0527631c0`: workflow `41973454655` passed. Focused regressions: **256 passed / 43 subtests**; filtered repository suite: **2,162 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules remain excluded. Offline only.
+
+### Grounded follow-ups to shown products (2026-11-05)
+
+A Gemini `respond` outcome is not allowed to answer deictic/anaphoric
+questions about cards already shown in Telegram. References such as «он»,
+«этот», «второй», «из них», and their English equivalents are routed to the
+existing `COMPARE` / grounded product-answer path. This prevents a free-form
+LLM response from asserting an unverified product attribute. Standalone
+concept questions such as «Что означает IPX7?» remain eligible for `RESPOND`,
+even while a product set is active. Offline regressions cover both branches.
