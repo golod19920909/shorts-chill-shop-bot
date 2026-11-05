@@ -2154,3 +2154,13 @@ GitHub Actions PR workflow **42027857348** completed successfully on head **06f8
 - Focused conversational regressions: **270 passed, 45 subtests passed**.
 - Filtered repository suite: **2,194 passed, 723 subtests passed, 1 warning**.
 - 17 stale legacy modules remain excluded because they import removed pre-Option-C files; this is not an unfiltered full-suite pass. Offline tests only; no live Telegram, Gemini or AliExpress calls.
+
+
+### Complete the shown-product comparison clarification loop (2026-11-05)
+
+A product-comparison clarification now remains attached to the exact result session. When Gemini cannot choose responsibly because the buyer has not named a criterion, the handler stores the question and shown-session ID for 30 minutes. The next short answer is combined with the original comparison and sent back to ProductAssistant over the same already-shown products; it does not trigger a new AliExpress search. An explicit new product request or alternatives request clears this pending comparison and continues through the normal conversation engine. The user can cancel it, expired/malformed state is discarded, and /new clears it. The pending question is stored only AFTER Telegram successfully delivers it, so a failed send cannot consume the next ordinary message. User and assistant turns are recorded in dialogue history in delivery order.
+
+Offline regressions cover pending-state round trip, expiry, malformed state, cancellation-key isolation, criterion-vs-new-task routing, the AI clarification delivery path and failed Telegram delivery. GitHub Actions PR workflow **42029090509** passed on head **ba0c031542804c7866736c4372f0842438c58500**:
+- Focused conversational regressions: **277 passed, 45 subtests passed**.
+- Filtered repository suite: **2,201 passed, 723 subtests passed, 1 warning**.
+- The 17 documented stale pre-Option-C modules remain excluded; this is not an unfiltered full-suite pass. Offline only; live Telegram, Gemini and AliExpress behavior is still not proven by CI.
