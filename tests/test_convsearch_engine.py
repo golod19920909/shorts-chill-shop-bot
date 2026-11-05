@@ -1324,5 +1324,45 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
         self.assertEqual([p.product_id for p in merged], ["a"])
 
 
+class SellerLanguageReviewContextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_engine_passes_bounded_seller_phrase_to_semantic_review(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="seller-language-review")
+        candidate = product(
+            "english-drill",
+            "Cordless drill with 2 batteries",
+        )
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[candidate],
+            report={"semantic_review_ids": ["english-drill"]},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="аккумуляторный шуруповёрт",
+                original_query="Нужен аккумуляторный шуруповёрт",
+                intent_marketplace_terms=["cordless drill"],
+            ),
+            result_limit=30,
+        )
+        observed = {}
+
+        async def selector(pool, **kwargs):
+            observed["terms"] = kwargs.get("marketplace_terms")
+            observed["identity_ids"] = kwargs.get("identity_review_ids")
+            return ["english-drill"]
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=AsyncMock(side_effect=selector),
+        ))
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(observed["terms"], ["cordless drill"])
+        self.assertEqual(observed["identity_ids"], ["english-drill"])
+        self.assertEqual([item.product_id for item in decision.products], ["english-drill"])
+        self.assertEqual(decision.report["ai_selection"], "selected")
+
+
 if __name__ == "__main__":
     unittest.main()
