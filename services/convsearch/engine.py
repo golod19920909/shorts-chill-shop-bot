@@ -1220,6 +1220,7 @@ class ConversationSearchEngine:
                     reason in verdict.reasons
                     for reason in (
                         "type_identity_requires_semantic_review",
+                        "requested_component_identity_requires_semantic_review",
                         "type_mentioned_only_after_listing_separator",
                     )
                 ):
