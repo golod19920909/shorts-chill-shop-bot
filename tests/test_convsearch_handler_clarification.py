@@ -68,6 +68,7 @@ class PendingProductQuestionLifecycleTests(unittest.TestCase):
         state.record_product_type("наушники")
         self.assertTrue(should_resume_product_question("автономность", state))
         self.assertFalse(should_resume_product_question("Найди дрель", state))
+        self.assertFalse(should_resume_product_question("дрель", state))
         self.assertFalse(should_resume_product_question("Покажи ещё варианты", state))
 
     def test_clear_pending_product_question_removes_only_its_key(self):
