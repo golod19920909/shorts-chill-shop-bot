@@ -394,7 +394,7 @@ class QuestionTests(unittest.TestCase):
 
     def test_explicit_comparison_adds_only_verified_ai_distinctions(self) -> None:
         class ComparisonAI(StubAI):
-            async def compare_products(self, question, products):
+            async def extract_paired_listing_evidence(self, question, products):
                 self.calls.append("compare")
                 return [("ThinkPad T490s/T495", "ThinkPad X280/X390")]
 
