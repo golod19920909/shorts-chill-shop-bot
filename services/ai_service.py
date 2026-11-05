@@ -2386,10 +2386,13 @@ seller_terms: {seller_terms_json}
         - a **quota/rate-limit** error stops immediately - the limit is
           account-wide and trying more models would only waste quota;
         - a **model-unavailable** error (404/503) moves on to the fallback
-          model, which is exactly what it exists for;
-        - every other error (auth, invalid request, server, timeout,
-          network, safety block) is logged and swallowed: the bot must
-          never crash because Gemini is down.
+          model;
+        - a **client timeout** also moves to the fallback model ONLY for
+          bounded conversation-candidate selection, where two short attempts
+          fit inside the engine's stricter total deadline;
+        - quota/rate limits stop immediately, and timeouts in other operations
+          keep the existing no-retry policy. All failures are swallowed so the
+          bot never crashes because Gemini is down.
 
         Every failed attempt logs ONE detail fragment built by
         ``_format_gemini_error``: model, exception class, HTTP status,
