@@ -2340,3 +2340,26 @@ Until then:
 - continue work on the main consultant/search reliability requirements using authorized sources and honest evidence handling.
 
 Resume this item only after the user explicitly reopens it and the permission/authorized-source prerequisite has been verified. The audit remains useful historical context; the pause is a deliberate project decision, not a claim that page extraction is technically impossible.
+
+### Handoff verification — extraction pause recorded and CI passed (2026-11-05)
+
+The handoff/decision-log policy and the explicit pause on ordinary AliExpress
+product-page extraction are now committed on the active working branch.
+
+Commit: `ed81a1dd2fa7ecff47d01d5279e2cef08bb24c1f`
+GitHub Actions run: [42059950804](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42059950804) — completed successfully on this exact head.
+
+Verified workflow results:
+- Focused conversational regressions: **280 passed, 45 subtests passed**.
+- Filtered repository suite: **2,208 passed, 723 subtests passed, 1 warning**.
+- Both manual live smoke scripts compiled successfully.
+- The repository suite excludes the 17 documented stale legacy modules; this is not an unfiltered full-suite pass.
+- CI tests are offline. They do not verify live Gemini latency, live AliExpress recall, or Telegram delivery.
+
+Repository status at this handoff:
+- Branch: `work/consultant-reliability`.
+- PR #7 remains open, draft and unmerged.
+- `main` is unchanged.
+- Ordinary AliExpress product-page extraction remains PAUSED under the prerequisite recorded above.
+
+Next main-TЗ work should continue with broad, category-neutral search and conversational reliability. In particular, re-check live Gemini candidate-selection latency/fallback after the 6.5-second per-model timeout and low-thinking JSON configuration; the earlier live run predates those changes. Continue investigating relevance using actual multi-category evidence, without weakening identity/evidence gates or adding product-specific exceptions. No new live run is implied by this CI result.
