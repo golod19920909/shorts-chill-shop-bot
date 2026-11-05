@@ -1973,3 +1973,18 @@ Offline prompt regressions cover both the no-budget and explicit-budget paths.
 This fixes a prompt-contract defect; it does not by itself establish live
 catalogue relevance or explain every short result set. No live provider calls
 were made for this change.
+
+### Missing-price listings when no budget is specified (2026-11-05)
+
+A follow-up audit found a second contradiction in the candidate-selection
+contract. The no-budget branch correctly said not to invent a price ceiling,
+but then still instructed Gemini to require a known positive price and
+currency. The product model and card formatter explicitly support missing
+prices and render them as unknown, so this rule could unnecessarily shrink
+otherwise relevant results even when the buyer had not asked for a price limit.
+
+The no-budget prompt now says a missing price is not, by itself, a reason to
+reject a relevant listing; the card will show that the price was not supplied.
+The model is still forbidden to invent a price or currency. The explicit-budget
+branch remains strict: a known price/currency is needed to enforce the limit.
+Added a prompt regression for this distinction.
