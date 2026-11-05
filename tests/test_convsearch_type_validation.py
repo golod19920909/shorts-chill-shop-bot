@@ -106,6 +106,17 @@ class CrossCategoryValidationTests(unittest.TestCase):
             product("p1", "Повербанк 20000 мАч быстрая зарядка"), BANK
         ).qualifies)
 
+    def test_partial_type_coverage_keeps_a_lower_identity_score(self) -> None:
+        verdict = validate_product_type(
+            product("partial-type", "Аккумуляторный шуруповёрт 21V"),
+            "аккумуляторный профессиональный шуруповёрт",
+        )
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("partial_type_coverage", verdict.reasons)
+        self.assertNotIn("type_head", verdict.reasons)
+        self.assertAlmostEqual(verdict.score, 0.5 * (2 / 3))
+
     def test_power_bank_accessories_rejected(self) -> None:
         for title in (
             "Кабель для повербанка USB-C",
