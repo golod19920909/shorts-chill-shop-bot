@@ -750,6 +750,23 @@ class EngineScenarioTests(unittest.TestCase):
                 self.assertEqual(state.active_values("type"), [])
                 self.assertEqual(state.shown_product_ids, [])
 
+    def test_model_and_spec_tokens_do_not_turn_same_product_into_a_switch(self) -> None:
+        cases = (
+            ("ноутбук", "Ноутбук Lenovo ThinkPad T14s для работы"),
+            ("телефон", "Нужна защита IP67 для телефона"),
+        )
+        for current_type, follow_up in cases:
+            with self.subTest(current_type=current_type, follow_up=follow_up):
+                state = ConversationEngineState(user_key=f"same-{current_type}")
+                state.record_product_type(current_type)
+                state.record_shown(["current-card"])
+
+                observation = state.observe(follow_up)
+
+                self.assertEqual(observation["intent"], MessageIntent.REFINE)
+                self.assertEqual(state.active_values("type"), [current_type])
+                self.assertEqual(state.shown_product_ids, ["current-card"])
+
     def test_correction_replaces_previous_requirement(self) -> None:
         state = ConversationEngineState(user_key="u-f")
         obs1 = state.observe("Нужна недорогая рыболовная катушка.")
