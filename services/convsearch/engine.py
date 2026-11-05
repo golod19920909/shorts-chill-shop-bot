@@ -683,6 +683,26 @@ class ConversationSearchEngine:
                 report={"intent": intent, "snapshot": state.snapshot()},
             )
 
+        # The interpreter may provide one alternate seller-catalogue phrase
+        # for a fresh product search. It is a retrieval-only hint: it never
+        # changes the active product identity or any hard requirement. The
+        # query-variant layer independently checks that it is cross-script.
+        if intent is MessageIntent.NEW_SEARCH and isinstance(ai_turn, dict):
+            alternate_terms = ai_turn.get("marketplace_terms", [])
+            if isinstance(alternate_terms, list):
+                bounded_terms = [
+                    " ".join(term.split()).strip()
+                    for term in alternate_terms[:1]
+                    if isinstance(term, str)
+                    and term.strip()
+                    and len(term) <= 80
+                    and len(term.split()) <= 6
+                ]
+                if bounded_terms:
+                    strategy.request = strategy.request.model_copy(
+                        update={"intent_marketplace_terms": bounded_terms}
+                    )
+
         refined = intent is not MessageIntent.NEW_SEARCH
         if callable(on_search_start):
             try:
