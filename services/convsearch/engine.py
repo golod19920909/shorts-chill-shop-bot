@@ -355,6 +355,10 @@ class ConversationSearchEngine:
         if callable(interpreter):
             context_payload = {
                 "recent_turns": [turn.text for turn in state.turns[-6:]],
+                # Include both sides of the conversation. User-only history
+                # cannot resolve references to the assistant's last question
+                # or explanation; slot state alone is not the whole dialogue.
+                "recent_dialogue": list(state.dialogue_history[-16:]),
                 "active_slots": [slot.as_dict() for slot in state.active()],
                 "shown_product_count": len(shown_products or []),
                 # Ground references such as «второй», «этот» and «из них»
