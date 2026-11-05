@@ -2242,3 +2242,13 @@ success and for preserving the no-timeout-retry policy on other operations.
 This is a code-path correction based on the current timeout nesting, not a
 claim that live Gemini latency is solved. Confirm on the next Telegram run
 using per-attempt model/duration logs and the final `ai_selection` outcome.
+
+
+### Gemini fallback logging compatibility correction — CI verified (2026-11-05)
+
+The selector timeout-fallback change initially altered the warning text used by the existing model-unavailable observability contract. The fallback itself was being attempted correctly, but the repository suite caught the log-message regression. Restored the established `is unavailable` wording specifically for classified model-unavailable failures; timeout fallback retains the distinct `failed; trying fallback` wording. No test was weakened or removed.
+
+GitHub Actions run **42056187765** on head **a9f855bbcc5b37025badf5897b7017bb79d26450** completed successfully:
+- Focused conversational regressions: **280 passed, 45 subtests passed**.
+- Filtered repository suite: **2,208 passed, 723 subtests passed, 1 warning**.
+- The 17 documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass. CI is offline and does not verify live Gemini latency, AliExpress recall or Telegram delivery.
