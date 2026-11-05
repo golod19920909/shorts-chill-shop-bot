@@ -63,7 +63,8 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
         "spring", "gear", "gears", "bearing", "bearings", "screw",
         "screws", "repair", "kit", "spare", "replacement", "replace",
         "adapter", "mount", "bit", "bits", "blade", "blades", "knife",
-        "spool", "reel cover", "carrier",
+        "spool", "reel cover", "carrier", "attachment", "accessory",
+        "accessories", "charger", "lens", "lenses",
     }
 )
 
@@ -331,6 +332,7 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     # adjectives are allowed («аккумуляторная насадка»); a preceding noun
     # before «с/со/with» means the title is about that host product.
     with_relation_accessory = False
+    accessory_follows_requested_type = False
     if head is not None:
         head_positions = [
             i for i, token in enumerate(own_tokens)
@@ -354,6 +356,29 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
                     host_prefix
                     and any(not _is_adjective(token) for token in host_prefix)
                 )
+
+        # Compound marketplace titles often put the HOST product first and
+        # its accessory immediately after it: "phone case", "camera lens",
+        # "drill bits". The earlier guard only caught accessory-first titles
+        # ("case for phone") and explicit "phone with case" relations. Check
+        # the primary title clause so a later comma-separated cross-sell does
+        # not turn a real host product into an accessory rejection.
+        primary_tokens_for_role = _raw_tokens(
+            re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
+        )
+        primary_head_positions = [
+            i for i, token in enumerate(primary_tokens_for_role)
+            if stems_match(token, head)
+        ]
+        if primary_head_positions:
+            head_pos = primary_head_positions[0]
+            relation_words = {"с", "со", "with", "and", "и"}
+            for token in primary_tokens_for_role[head_pos + 1:]:
+                if token in relation_words:
+                    break
+                if _is_accessory_head_token(token):
+                    accessory_follows_requested_type = True
+                    break
 
     # A type mentioned only in a later comma-separated listing fragment is
     # not strong evidence that the listing's principal item IS that type.
@@ -404,6 +429,9 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if with_relation_accessory:
         qualifies = False
         reasons.append("type_is_accessory_of_host_product")
+    if accessory_follows_requested_type:
+        qualifies = False
+        reasons.append("requested_type_is_host_for_accessory")
     if genitive_mention:
         qualifies = False
         reasons.append("type_mentioned_as_genitive_modifier")
