@@ -1652,3 +1652,16 @@ Latest successful GitHub Actions run **41963951316** on head `656eec12b8a64081fe
 - Filtered repository suite: **2,136 passed, 691 subtests passed, 1 warning**.
 - The workflow excludes documented stale legacy modules; this is not an unfiltered full-suite pass.
 - Offline only. No live AliExpress, Gemini or Telegram calls were made.
+
+
+### Cross-category product/component identity matrix (2026-11-05)
+
+The product-role gate previously recognized several generic accessory nouns but did not cover enough common component roles across unrelated categories. Expanded the category-general role vocabulary to include components such as batteries, screens/displays, keyboards/mice, straps/belts, filters/hoses/nozzles, remotes, cartridges/refills, protectors/films/glass, modules/sensors and motors. This is a shared role vocabulary, not a set of category-specific search rules.
+
+The matrix tests host-first component listings across smartphones, laptops, cameras, vacuum cleaners, watches, garden equipment, headphones and generic tools/appliances. Positive controls verify that a user can search for the component itself (keyboard, filter, wrist strap, camera battery, protective glass) without the host/accessory guard rejecting it. The first CI pass exposed two false positives: Russian adjective «аккумуляторная» was being read as an accessory noun, and the word «replacement» was being treated as the requested component's role. The guard now skips descriptive adjectives and treats replacement/spare as modifiers rather than accessory heads; the positive watch-strap fixture uses the explicit requested phrase «wrist strap» rather than relying on an unverified compound synonym.
+
+Latest successful GitHub Actions run **41964699548** on head `0fe74c69b3316a5176add353844ca66df8444c24`:
+- Focused conversational regressions: **235 passed, 21 subtests passed**.
+- Filtered repository suite: **2,138 passed, 691 subtests passed, 1 warning**.
+- Documented stale legacy modules remain excluded; this is not an unfiltered full-suite pass.
+- Offline only; no live AliExpress, Gemini or Telegram calls were made.
