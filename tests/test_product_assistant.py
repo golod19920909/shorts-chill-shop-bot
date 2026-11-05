@@ -396,7 +396,7 @@ class QuestionTests(unittest.TestCase):
         class ComparisonAI(StubAI):
             async def extract_paired_listing_evidence(self, question, products):
                 self.calls.append("compare")
-                return [("ThinkPad T490s/T495", "ThinkPad X280/X390")]
+                return [("compatibility", "ThinkPad T490s/T495", "ThinkPad X280/X390")]
 
         first = make_product(
             "keyboard-1",
@@ -418,8 +418,11 @@ class QuestionTests(unittest.TestCase):
         )
 
         self.assertTrue(advice.used_ai)
-        self.assertIn("Вариант 1: «ThinkPad T490s/T495»", advice.text)
-        self.assertIn("вариант 2: «ThinkPad X280/X390»", advice.text)
+        self.assertIn(
+            "Совместимость / модели: вариант 1 — «ThinkPad T490s/T495»",
+            advice.text,
+        )
+        self.assertIn("вариант 2 — «ThinkPad X280/X390»", advice.text)
         self.assertEqual(ai.calls, ["compare"])
 
     def test_explicit_comparison_with_one_product_does_not_invent_a_pair(self) -> None:
