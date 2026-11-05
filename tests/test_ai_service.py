@@ -318,6 +318,36 @@ class ProductQuestionContextCoverageTests(unittest.TestCase):
 
 
 class GroundedProductQuestionTests(unittest.TestCase):
+    def test_recommendation_requires_an_exact_quote_from_the_selected_product(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("Какой лучше для работы без розетки?", self._products())
+        )
+        self.assertIn("наиболее подходящим выглядит", answer)
+        self.assertIn("Cordless drill", answer)
+        self.assertIn("Includes two batteries", answer)
+
+    def test_recommendation_with_invented_evidence_is_not_accepted(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes five batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
+    def test_recommendation_with_unknown_product_id_is_not_accepted(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"invented","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
     def test_slow_product_question_returns_to_honest_fallback_within_budget(self) -> None:
         service = AIService(api_key=None, timeout_seconds=0.01)
         service._client = object()
