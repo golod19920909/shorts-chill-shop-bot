@@ -695,6 +695,7 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
     list. Only fields understood by the conversational planner are forwarded.
     """
     recent = context.get("recent_turns", [])
+    dialogue = context.get("recent_dialogue", [])
     slots = context.get("active_slots", [])
     shown = context.get("shown_products", [])
 
@@ -702,6 +703,15 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
         "recent_turns": [
             str(item)[:180] for item in recent[-6:]
         ] if isinstance(recent, list) else [],
+        "recent_dialogue": [
+            {
+                "role": str(item.get("role") or "")[:12],
+                "text": str(item.get("text") or "")[:1000],
+            }
+            for item in dialogue[-12:]
+            if isinstance(item, dict)
+            and item.get("role") in {"user", "assistant"}
+        ] if isinstance(dialogue, list) else [],
         "active_slots": [
             {
                 "kind": str(item.get("kind") or "")[:32],
@@ -733,6 +743,11 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     # Drop the least valuable context first; never emit malformed JSON.
+    # Keep the newest role-labelled exchange intact where possible. Older
+    # transcript events are cheaper to discard than the pending question or
+    # active constraints, and the current user message is supplied separately.
+    while len(encoded()) > max_chars and len(payload["recent_dialogue"]) > 2:
+        payload["recent_dialogue"].pop(0)
     while len(encoded()) > max_chars and payload["shown_products"]:
         payload["shown_products"].pop()
     while len(encoded()) > max_chars and payload["recent_turns"]:
