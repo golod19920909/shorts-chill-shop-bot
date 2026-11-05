@@ -1850,3 +1850,25 @@ even while a product set is active. Offline regressions cover both branches.
 - Added a regression with 50 page-one results, an empty alternate phrase and one page-two result; page-one rank 50 must remain ahead of page-two rank 1 from the same phrase.
 - Code/test commits: `96722f0`, `2fe07f4`, `984aeab`. Successful workflow [41984178716](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/41984178716) on code head `984aeab62313dec014344f1fbf57a57bb11e8e3a`: focused **260 passed / 43 subtests**; filtered repository suite **2,166 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules are excluded; this is not an unfiltered full-suite pass.
 - Offline only; no live AliExpress/Gemini/Telegram calls were made.
+
+
+## 2026-11-05 — conversational AI review pool width
+
+A retrieval/selection audit found that the provider could collect a deep raw
+pool, but the conversational engine truncated ranked candidates to the
+30-card UI limit before calling Gemini. The selector then saw at most 20
+candidates, so it could not choose the best 20 from the broader retrieved set.
+
+The engine now keeps up to 80 deterministically validated/ranked candidates
+internally when the conversational selector is bound. Gemini reviews up to
+70 candidates, returns at most 20 selected IDs, and the remaining up to 10
+already-gated candidates may fill the presentation tail only when the model
+fills its 20-result selection. The UI remains capped at 30 (or the user's
+smaller requested count). The no-selector path also explicitly enforces that
+presentation cap. This does not expand AliExpress page limits or claim a
+full-catalogue crawl; it fixes the premature cut between retrieval and AI
+selection.
+
+Regression coverage added for an 80-candidate pool, a 70-candidate Gemini
+review window, 20 AI-selected results, a ten-card tail, and the no-selector
+30-card cap. Live Gemini/AliExpress/Telegram behavior remains unverified.
