@@ -745,21 +745,19 @@ class SearchService:
         pages_used = 0
         pages_scanned = 0
         all_failed = False
-        # If the primary phrase fails, deeper pages may continue on the first
-        # successful alternate seller phrase instead of abandoning pagination.
-        deep_page_phrase = primary
+        # Every grounded phrase that returned real rows on a page remains
+        # eligible for the next documented page. Empty or failed routes are
+        # retired independently; one weak phrase cannot starve the others.
+        deep_page_variants = list(variants)
 
         for page_no in pages:
-            # Page 1 asks every grounded phrase. Deeper pages repeat the
-            # primary phrase, except when it failed: then they continue on
-            # the first successful alternate route instead of abandoning
-            # an otherwise useful catalogue search.
-            page_variants = variants if page_no == pages[0] else [deep_page_phrase]
+            # Page 1 asks every grounded phrase. Later pages continue every
+            # still-live phrase, preserving independent marketplace rankings
+            # for RRF instead of deepening only whichever route ran first.
+            page_variants = variants if page_no == pages[0] else list(deep_page_variants)
             pages_used = page_no
             pages_scanned += 1
             page_rows = 0
-            primary_route_failed = False
-            successful_page_variants: list[str] = []
             successful_page_variant_rows: dict[str, int] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
@@ -825,8 +823,6 @@ class SearchService:
                     if raw:
                         # A failed primary phrase must not prevent the
                         # remaining page-one seller routes from being tried.
-                        if variant == deep_page_phrase:
-                            primary_route_failed = True
                         logger.warning(
                             "All providers failed for %r on page %d variant %d/%d",
                             request.original_query,
@@ -839,7 +835,6 @@ class SearchService:
                         # behavior after a failed provider round.
                         all_failed = True
                 elif raw:
-                    successful_page_variants.append(variant)
                     successful_page_variant_rows[variant] = sum(
                         len(result) for result in results
                         if isinstance(result, list)
@@ -921,59 +916,32 @@ class SearchService:
             if all_failed:
                 break
             if raw:
-                # If the primary route returned no rows (even without an API
-                # error), do not spend deeper pages repeating an empty phrase
-                # while a grounded seller-language route already found items.
-                # Keep the primary route when it returned anything; raw row
-                # counts are used only to detect a genuinely empty route, not
-                # to rank or approve products.
-                primary_route_empty = (
-                    successful_page_variant_rows.get(deep_page_phrase, 0) == 0
-                )
-                if primary_route_failed or primary_route_empty:
-                    fallback_phrase = next(
-                        (
-                            phrase for phrase in successful_page_variants
-                            if phrase != deep_page_phrase
-                            and successful_page_variant_rows.get(phrase, 0) > 0
-                        ),
-                        None,
-                    )
-                    if fallback_phrase:
-                        logger.info(
-                            "RAW conversational pagination switched to a "
-                            "non-empty alternate route on page %d",
-                            page_no,
-                        )
-                        deep_page_phrase = fallback_phrase
-                    elif primary_route_failed:
-                        logger.info(
-                            "RAW conversational pagination stopped: primary "
-                            "route failed and no alternate returned rows on page %d",
-                            page_no,
-                        )
-                        break
+                # Retire only phrases that failed or returned no rows on this
+                # page. Other routes continue independently up to the same
+                # configured page bound. Row counts detect exhausted routes;
+                # they never rank or approve candidates.
+                deep_page_variants = [
+                    phrase for phrase in page_variants
+                    if successful_page_variant_rows.get(phrase, 0) > 0
+                ]
             if raw:
                 # An empty deeper page is the marketplace's end-of-results
                 # signal for this phrase; do not spend another request on a
                 # later page. Page 1 is different: every grounded variant
                 # must run before we decide whether the pool is empty.
                 if page_rows == 0 and page_no > first_page:
-                    # Page 1 contains several independent grounded query
-                    # variants. An empty answer for the primary phrase does
-                    # not prove that the broader variants are empty too.
-                    # Only an empty DEEP page ends pagination, because deeper
-                    # pages repeat the primary phrase alone.
+                    # Each route is tracked independently. An empty page
+                    # retires that route; the loop ends only when every live
+                    # route is exhausted.
                     logger.info(
                         "RAW conversational pagination stopped: page %d "
                         "returned no rows",
                         page_no,
                     )
                     break
-                # Finish every grounded route on page 1 first (RRF must see
-                # the complete route set), then request only the primary (or
-                # its successful fallback phrase) on deeper pages. Stop when
-                # the fused unique pool reaches its target.
+                # Finish every live grounded route on this page before
+                # evaluating the fused pool. Each phrase keeps its own page
+                # order, while RRF combines the distinct phrase rankings.
                 from services.convsearch.retrieval import merge_route_results
 
                 route_rankings = [
