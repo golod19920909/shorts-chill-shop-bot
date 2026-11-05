@@ -49,7 +49,7 @@ AI_CONVERSATION_SELECTION_LIMIT = 20
 # Gemini reviews up to 70 candidates and returns at most 20 best; the remaining
 # ten rows can form a deterministic, already-gated presentation tail.
 AI_CONVERSATION_CANDIDATE_POOL_LIMIT = 80
-AI_CONVERSATION_REVIEW_POOL_LIMIT = 70
+AI_CONVERSATION_REVIEW_POOL_LIMIT = 80
 # A 20-listing semantic review is materially heavier than turn routing.
 # Live telemetry showed the 8-second window repeatedly expired after the
 # interpreter had already succeeded, silently replacing Gemini's whole-pool
