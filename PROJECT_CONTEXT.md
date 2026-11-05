@@ -2306,3 +2306,37 @@ The proposal to automatically open ordinary AliExpress product pages and extract
 5. Only if permission or an authorized source is confirmed, run a bounded cross-category spike (5–10 products) measuring field coverage, SKU/region correctness, latency, failures, caching and evidence provenance before considering production integration.
 
 This is a completed source/terms feasibility audit, not a live scraping test and not a runtime implementation. No production code or credentials were changed.
+
+
+### Project handoff and decision-log policy (2026-11-05)
+
+`PROJECT_CONTEXT.md` is the durable project handoff document. Keep it useful for resuming work in a fresh conversation without re-reading the entire chat.
+
+Record significant, durable information when it changes:
+- current project goal, accepted architecture and non-negotiable requirements;
+- important technical decisions and why alternatives were accepted, rejected or deferred;
+- root causes, affected files, implemented fixes and regression coverage;
+- commit hashes, branch/PR status and verified CI outcomes;
+- live-test findings, clearly separated from offline tests and static analysis;
+- external dependencies, source limitations, operational risks and unresolved blockers;
+- paused work, the exact condition required to resume it, and explicit "do not revisit until" decisions.
+
+Do not turn this file into a raw activity log. Exclude routine tool output, repeated conversation, speculative hypotheses presented as facts, secrets, credentials, `.env` contents, and unverified claims. Prefer concise dated sections with links/commit identifiers where useful. Update the existing section when a status changes instead of leaving contradictory active and paused instructions. After each material project milestone, review whether this file needs an update before ending the work session.
+
+### Status: ordinary AliExpress product-page extraction is PAUSED (2026-11-05)
+
+The feasibility and terms audit is documented in the preceding section, committed as `114858e20f884c68757f0e6954e3a1a1c0fca80e`.
+
+**Current status: PAUSED — no implementation and no further scraping experiment.**
+
+Do not implement or test automated extraction from ordinary AliExpress product pages, browser automation, HTML scraping, proxy-based access, CAPTCHA handling or scraper services for this project unless one of these prerequisites is first met:
+1. AliExpress provides written permission that explicitly covers automated retrieval of product descriptions/specifications for this commercial affiliate shopping assistant; or
+2. AliExpress confirms an official, authorized API/feed that provides the required product evidence and the project's credentials are approved for it.
+
+Until then:
+- keep the Portals Affiliate API as the authorized production source for search, product cards, prices and affiliate links;
+- keep unsupported attributes UNKNOWN and never infer compatibility/specifications from photos, category, price or generic conventions;
+- do not spend further implementation time on the paused page-extraction route;
+- continue work on the main consultant/search reliability requirements using authorized sources and honest evidence handling.
+
+Resume this item only after the user explicitly reopens it and the permission/authorized-source prerequisite has been verified. The audit remains useful historical context; the pause is a deliberate project decision, not a claim that page extraction is technically impossible.
