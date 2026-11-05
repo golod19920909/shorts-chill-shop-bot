@@ -1798,3 +1798,5 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 - Code/test commits: `5098392`, `d0c6a9f`, `9935806`, `547bb6b`. CI run `41973338394`: focused suite passed; filtered repository suite was still running at the time of this note.
 - The previous API-error fallback code head passed workflow `41972799610`: focused **256 passed / 43 subtests**; filtered repository suite **2,162 passed / 721 subtests / 1 warning**. The documentation head passed workflow `41972896883` with the same counts.
 - Offline only; no live Gemini, AliExpress or Telegram calls were made.
+
+- Final verification for documentation/code head `5699e20300bf7a0b3494dc030358eab0527631c0`: workflow `41973454655` passed. Focused regressions: **256 passed / 43 subtests**; filtered repository suite: **2,162 passed / 721 subtests / 1 warning**. The 17 documented stale legacy modules remain excluded. Offline only.
