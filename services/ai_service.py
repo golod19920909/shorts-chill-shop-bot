@@ -672,11 +672,12 @@ QUESTION_PROMPT = """Найди в карточках только прямые 
 COMPARISON_PROMPT = """Ты сравниваешь РОВНО ДВЕ реальные карточки AliExpress, уже отобранные поиском.
 
 Верни ТОЛЬКО JSON:
-{{"differences":[{{"first":{{"product_id":"точный id первого товара","field":"title или description","quote":"точная цитата"}},"second":{{"product_id":"точный id второго товара","field":"title или description","quote":"точная цитата"}}}}]}}
+{{"differences":[{{"aspect":"compatibility|layout|material|size|package|power|other","first":{{"product_id":"точный id первого товара","field":"title или description","quote":"точная цитата"}},"second":{{"product_id":"точный id второго товара","field":"title или description","quote":"точная цитата"}}}}]}}
 
 Правила:
 - Сравнивай только эти две карточки и только по сведениям, прямо указанным в их title или description.
-- Найди до 4 действительно полезных различий для вопроса покупателя: например, заявленная совместимость, модель, размер, материал, комплектация, мощность или другой явно указанный параметр. Используй только то, что реально присутствует в тексте.
+- Для каждой пары укажи aspect из разрешённого списка: compatibility — заявленные модели/совместимость; layout — язык или раскладка; material — материал; size — размер/габариты; package — состав комплекта/количество; power — питание/мощность/ёмкость; other — другой явно названный одинаковый параметр.
+- Выбирай aspect только если обе цитаты действительно описывают именно эту сторону товара. Не называй разные параметры одним аспектом.
 - Каждая quote должна быть дословной непрерывной частью соответствующего поля, длиной от 5 до 120 символов. Не копируй название целиком.
 - В каждой паре первая цитата относится к первому товару, вторая — ко второму. Они должны показывать один и тот же аспект сравнения, а не случайные несвязанные фразы.
 - Не делай выводов по типичным свойствам категории, фотографиям, цене, рейтингу или общим знаниям.
@@ -1941,7 +1942,7 @@ seller_terms: {seller_terms_json}
 
     async def extract_paired_listing_evidence(
         self, question: str, products: list[Product]
-    ) -> list[tuple[str, str]] | None:
+    ) -> list[tuple[str, str, str]] | None:
         """Extract exact, paired evidence for a comparison of the top two listings.
 
         The application chooses the pair from the already-ranked results and
@@ -2024,20 +2025,27 @@ seller_terms: {seller_terms_json}
                 return None
             return normalized_quote
 
-        verified: list[tuple[str, str]] = []
-        seen_pairs: set[tuple[str, str]] = set()
+        allowed_aspects = {
+            "compatibility", "layout", "material", "size",
+            "package", "power", "other",
+        }
+        verified: list[tuple[str, str, str]] = []
+        seen_pairs: set[tuple[str, str, str]] = set()
         for difference in differences[:4]:
             if not isinstance(difference, dict):
+                continue
+            aspect = difference.get("aspect")
+            if not isinstance(aspect, str) or aspect not in allowed_aspects:
                 continue
             first_quote = verified_quote(difference.get("first"), first_id)
             second_quote = verified_quote(difference.get("second"), second_id)
             if not first_quote or not second_quote:
                 continue
-            key = (first_quote.casefold(), second_quote.casefold())
+            key = (aspect, first_quote.casefold(), second_quote.casefold())
             if key in seen_pairs:
                 continue
             seen_pairs.add(key)
-            verified.append((first_quote, second_quote))
+            verified.append((aspect, first_quote, second_quote))
         return verified or None
 
     async def answer_product_question(
