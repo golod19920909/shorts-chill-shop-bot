@@ -65,6 +65,16 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
         "adapter", "mount", "bit", "bits", "blade", "blades", "knife",
         "spool", "reel cover", "carrier", "attachment", "accessory",
         "accessories", "charger", "lens", "lenses",
+        # Generic components and fitment parts seen across unrelated product
+        # families. These are role nouns, not a list of product categories.
+        "аккумулятор", "батарея", "экран", "дисплей", "клавиатура",
+        "мышь", "ремешок", "ремень", "фильтр", "шланг", "сопло",
+        "форсунка", "пульт", "картридж", "пленка", "стекло",
+        "протектор", "модуль", "сенсор", "датчик", "мотор",
+        "battery", "screen", "display", "keyboard", "mouse", "strap",
+        "band", "belt", "filter", "hose", "nozzle", "remote",
+        "cartridge", "refill", "protector", "film", "glass", "module",
+        "sensor", "motor", "earpads", "pad", "pads",
     }
 )
 
