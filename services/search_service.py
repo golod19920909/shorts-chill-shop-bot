@@ -745,16 +745,20 @@ class SearchService:
         pages_used = 0
         pages_scanned = 0
         all_failed = False
+        # If the primary phrase fails, deeper pages may continue on the first
+        # successful alternate seller phrase instead of abandoning pagination.
+        deep_page_phrase = primary
 
         for page_no in pages:
             # Page 1 asks every grounded phrase; a deeper page asks the PRIMARY
             # phrase again - the words the user actually asked with - so depth
             # never multiplies the variant list.
-            page_variants = variants if page_no == pages[0] else variants[:1]
+            page_variants = variants if page_no == pages[0] else [deep_page_phrase]
             pages_used = page_no
             pages_scanned += 1
             page_rows = 0
             primary_route_failed = False
+            successful_page_variants: list[str] = []
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 # The primary query on the request's own page keeps the
@@ -817,11 +821,9 @@ class SearchService:
                 )
                 if route_failed:
                     if raw:
-                        # A failed primary phrase must not prevent page-one
-                        # alternate seller phrases from being tried. Keep any
-                        # successful alternate-route products, but do not ask
-                        # a deeper page of the same failed primary phrase.
-                        if variant_index == 1:
+                        # A failed primary phrase must not prevent the
+                        # remaining page-one seller routes from being tried.
+                        if variant == deep_page_phrase:
                             primary_route_failed = True
                         logger.warning(
                             "All providers failed for %r on page %d variant %d/%d",
@@ -834,6 +836,8 @@ class SearchService:
                         # Legacy non-raw searches retain their prior stop
                         # behavior after a failed provider round.
                         all_failed = True
+                elif raw:
+                    successful_page_variants.append(variant)
                 if expansion:
                     raw_rows_by_phrase[variant] = sum(
                         len(result)
@@ -911,12 +915,27 @@ class SearchService:
             if all_failed:
                 break
             if raw and primary_route_failed:
-                logger.info(
-                    "RAW conversational pagination stopped: primary route "
-                    "failed on page %d; retaining any successful alternate routes",
-                    page_no,
+                fallback_phrase = next(
+                    (
+                        phrase for phrase in successful_page_variants
+                        if phrase != deep_page_phrase
+                    ),
+                    None,
                 )
-                break
+                if fallback_phrase:
+                    logger.info(
+                        "RAW conversational pagination switched to successful "
+                        "alternate route after primary failure on page %d",
+                        page_no,
+                    )
+                    deep_page_phrase = fallback_phrase
+                else:
+                    logger.info(
+                        "RAW conversational pagination stopped: active route "
+                        "failed on page %d; retaining any successful page-one routes",
+                        page_no,
+                    )
+                    break
             if raw:
                 # An empty deeper page is the marketplace's end-of-results
                 # signal for this phrase; do not spend another request on a
