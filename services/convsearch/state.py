@@ -263,6 +263,12 @@ class ConversationEngineState:
         a new product request and falls through to search.
         """
 
+        # A question can refer to shown products only when a product context
+        # actually exists. Without an active type or delivered cards, phrases
+        # such as «что-нибудь полезное для дома» are new requests.
+        if self.active_by_kind("type") is None and not self.shown_product_ids:
+            return False
+
         lowered = (message or "").lower().replace("ё", "е")
         words = re.findall(r"[^\W\d_]+", lowered)
         if not any(word in _QUESTION_WORDS for word in words):
