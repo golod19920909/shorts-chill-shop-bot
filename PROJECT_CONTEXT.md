@@ -1681,6 +1681,6 @@ Latest successful GitHub Actions run **41964867978** on code head `dc1f95e35da54
 ### Cross-language marketplace query route (2026-11-05)
 - Structured query intent now supports at most one concise alternate seller-catalogue phrase for the same requested product, usually English when the user writes in Russian/Ukrainian (or vice versa).
 - The existing Gemini intent call proposes the phrase; schema normalization limits it to two candidate strings, each at most 80 characters / 6 words. Only the first is stored on a fresh search.
-- Retrieval adds the phrase only when its dominant writing system differs from the primary phrase. The original/parser query remains first and unchanged. The extra route does not alter product identity, budget, compatibility, required/excluded attributes or ranking.
+- Retrieval adds the phrase only when its dominant writing system differs from the user's original wording (so it remains useful even when the primary parser query is already translated). The original/parser query remains first and unchanged. The extra route does not alter product identity, budget, compatibility, required/excluded attributes or ranking.
 - Every candidate still passes the existing product-type, feature, exclusion and relevance checks. If Gemini is unavailable or returns no alternate, deterministic search behavior is unchanged.
 - This is a bounded recall route, not evidence of live marketplace success. Verify title-language coverage and candidate-loss rates across unrelated product categories before treating it as complete.
