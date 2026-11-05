@@ -1675,17 +1675,17 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         dialogue = ai.contexts[0][1]["recent_dialogue"]
         self.assertEqual(
-            dialogue[-3:],
+            dialogue[-2:],
             [
                 {"role": "user", "text": "Нужен налобный фонарь"},
                 {"role": "assistant", "text": "Для чего он вам нужен?"},
-                {"role": "user", "text": "Для походов"},
             ],
         )
         self.assertEqual(
-            [turn["role"] for turn in dialogue[-3:]],
-            ["user", "assistant", "user"],
+            [turn["role"] for turn in dialogue[-2:]],
+            ["user", "assistant"],
         )
+        self.assertEqual(ai.contexts[0][0], "Для походов")
 
 
 if __name__ == "__main__":
