@@ -2610,3 +2610,47 @@ on code/test head 83a629b35c0ee45f1f2c5819b59caeee88ee8398:
 Offline verification only. Live Telegram retest is still required to confirm
 that the fresh-product and same-product refinement boundaries behave
 naturally with the actual conversation ledger and provider results.
+
+### Make paired product comparisons understandable at a glance (2026-11-05)
+
+The exact-evidence comparison extension still rendered two valid quotes as
+unlabelled «Вариант 1 / Вариант 2» fragments. Although the text was grounded,
+a buyer could not tell whether the pair described compatibility, keyboard
+layout, material, dimensions or package contents. This repeated the
+user-observed clarity problem in a less severe form.
+
+Changed:
+- services/ai_service.py — comparison evidence now includes a required,
+  allow-listed aspect (compatibility, layout, material, size, package,
+  power, other) for each paired quote. Both quotes must still pass exact
+  product-ID, field and source-text validation; unknown aspect labels are
+  rejected.
+- services/product_assistant.py — verified pairs are rendered under a clear
+  Russian dimension label (e.g. «Совместимость / модели» or
+  «Язык / раскладка»), with separate values for variant 1 and variant 2.
+  The renderer still does not show Gemini-authored prose or infer a winner.
+- tests/test_ai_service.py — valid aspect output, invalid aspect rejection,
+  and quote-grounding checks.
+- tests/test_product_assistant.py — buyer-facing labelled comparison output.
+
+Commits:
+- AI aspect extraction/validation: 01a0eef4ddff1f14ddc9babd69e2c4d970df8c3e.
+- Labelled deterministic rendering: 2afe6624a59d1861d15bcd42844bbebda03c9b7e.
+- AI validation tests: 0f5abfd9e16a90ccfc9c0268994c6ca3969f3838,
+  1b84a95636279fa4e37259716b84b3f41ccf1e11.
+- Buyer-facing rendering regression: 1df551edeb554cd88594bacdf123dccda09426d1.
+
+GitHub Actions run
+[42085698806](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/42085698806)
+completed successfully on code/test head 1df551edeb554cd88594bacdf123dccda09426d1:
+- Focused conversational regressions: **285 passed, 58 subtests passed**.
+- Filtered repository suite: **2,222 passed, 738 subtests passed, 1 warning**.
+- Both manual live smoke scripts compiled successfully.
+- The 17 documented stale legacy modules remain excluded; this is not an
+  unfiltered full-suite pass.
+
+Offline CI only. No live Telegram comparison has yet confirmed that Gemini
+assigns the right comparison dimension to real AliExpress listing text.
+The comparison aspect is an allow-listed model classification, while every
+displayed quote remains checked against its source listing. PR #7 remains
+draft/open/unmerged; main is untouched.
