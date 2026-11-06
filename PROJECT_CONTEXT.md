@@ -3433,3 +3433,17 @@ Proposed evaluation design to complete Stage VIII:
 8. Include provider failures, timeouts, quota errors and fallback chains. A model that is cheap but causes more empty searches, retries or unsafe candidates must not win on token price alone.
 
 No evaluation dataset or runner has been added yet. No live provider calls were made. Stage VIII remains open.
+
+
+### Correction — SDK HTTP retry behavior verified against pinned version (2026-11-06)
+
+The earlier audit note left SDK-internal HTTP retries unresolved. This has now been checked against the exact upstream source tag for the project's pinned google-genai 2.24.0:
+
+- AIService constructs the client as genai.Client(api_key=api_key) without http_options or retry_options.
+- In google-genai v2.24.0, retry_args(options=None) explicitly returns a one-attempt policy (stop_after_attempt(1)). The SDK does not automatically retry transient HTTP 408/429/5xx/network errors when retry_options is absent.
+- Therefore, for the current pinned runtime, one AIService._generate model attempt corresponds to one SDK HTTP attempt; a configured fallback model is a separate application-level attempt and is already recorded separately by gemini_telemetry.
+- Do not import retry defaults from newer SDK documentation into the v2.24.0 cost model. If the SDK is upgraded or retry_options are configured later, re-audit the exact version and include internal retry counts in telemetry.
+
+Pinned-version source: https://github.com/googleapis/python-genai/blob/v2.24.0/google/genai/_api_client.py (retry_args; async request path). Client construction: services/ai_service.py, AIService.__init__.
+
+This resolves the previous "SDK-internal retries, if any" uncertainty for the current pinned configuration. Provider-side work after a client timeout can still have unknown billing; that is separate from client retries.
