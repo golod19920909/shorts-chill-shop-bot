@@ -2811,13 +2811,19 @@ Verification:
 - Source and test changes were fetched back from GitHub and inspected.
 - The budget-reset regular expression is stored with the intended Python
   word-boundary and whitespace escapes.
-- No local test runner is available in this remote editing session; these
-  regressions have NOT YET BEEN EXECUTED. GitHub CI status is not yet
-  available for these commits. No test pass is claimed.
-- These are offline state-ledger tests; they do not call AliExpress, Gemini
-  or Telegram.
+- GitHub Actions run 42158103054 completed successfully on the PROJECT_CONTEXT
+  commit 36746bea9b38ffd36e82160c149ceeb6fc80bfb0.
+- Focused conversational regressions: 289 passed, 65 subtests passed.
+- Filtered repository suite: 2,226 passed, 745 subtests passed, 1 warning.
+  The workflow excludes 17 stale legacy modules; this is not an unfiltered
+  full-repository run.
+- Both manual live smoke scripts compiled successfully; CI did NOT execute
+  them against AliExpress, Gemini or Telegram.
+- The suite's warning is a google-genai Python deprecation warning. GitHub
+  runner also reports Node 20 action deprecation warnings; neither caused
+  the workflow to fail.
 
-Remaining: execute the focused budget/state tests and filtered conversational
-suite on the branch. The live Telegram check will be requested only after
-offline verification is complete. PR #7 remains draft/open/unmerged; main
-is untouched.
+Remaining: review the wider conversation lifecycle and search-quality gaps,
+then prepare a bounded live Telegram check. The live check is not yet
+requested because this pass has only verified offline behavior. PR #7
+remains draft/open/unmerged; main is untouched.
