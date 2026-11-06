@@ -13,6 +13,7 @@ from tests.eval_consultant_benchmark_runner import (
     _google_request,
     _qwen_url,
     _qwen_structured_output_config,
+    _anthropic_compatible_schema,
     score_decision,
     validate_provider_roster,
 )
@@ -257,3 +258,13 @@ def test_qwen38_flash_uses_strict_json_schema_without_forcing_non_thinking():
 def test_qwen_no_results_reply_remains_plain_text():
     assert _qwen_structured_output_config("qwen3.5-flash", "no_results_reply") == {}
 
+
+def test_anthropic_schema_drops_unsupported_numeric_bounds_recursively():
+    cleaned = _anthropic_compatible_schema(TURN_SCHEMA)
+    assert "minimum" not in json.dumps(cleaned)
+    assert "maximum" not in json.dumps(cleaned)
+    assert cleaned["properties"]["confidence"] == {"type": "number"}
+    assert cleaned["properties"]["slot_updates"]["items"]["properties"]["operation"]["enum"] == [
+        "add", "replace", "remove"
+    ]
+    assert TURN_SCHEMA["properties"]["confidence"]["minimum"] == 0
