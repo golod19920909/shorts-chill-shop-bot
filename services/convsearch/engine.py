@@ -1097,8 +1097,20 @@ class ConversationSearchEngine:
         if exclusions:
             query_parts.append("ИСКЛЮЧИТЬ: " + "; ".join(exclusions))
         budget = state.active_by_kind("budget")
+        budget_constraint = None
         if budget is not None:
-            query_parts.append(f"ЖЁСТКИЙ БЮДЖЕТ: до {budget.value}")
+            budget_parts = str(budget.value or "").split(maxsplit=1)
+            budget_currency = (
+                budget_parts[1] if len(budget_parts) > 1
+                else str(getattr(strategy.request, "currency", None) or "").strip()
+            )
+            budget_constraint = " ".join(
+                part for part in (budget_parts[0] if budget_parts else "", budget_currency)
+                if part
+            )
+            query_parts.append(
+                f"ЖЁСТКИЙ БЮДЖЕТ: до {budget_constraint or budget.value}"
+            )
         query = " | ".join(part.strip() for part in query_parts if part and part.strip())
 
         selection_timeout = min(
@@ -1124,7 +1136,7 @@ class ConversationSearchEngine:
             "marketplace_terms": getattr(
                 strategy.request, "intent_marketplace_terms", []
             ),
-            "budget_constraint": budget.value if budget is not None else None,
+            "budget_constraint": budget_constraint,
         }
         # Keep injected selectors / older adapters that implement the
         # established contract working. The production AIService accepts the
