@@ -226,15 +226,26 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
             raise ValueError(f"Unsupported provider: {provider.provider}")
 
     duration_ms = (time.perf_counter() - started) * 1000
-    payload = response.json() if response.content else {}
     if response.is_error:
-        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        try:
+            error_payload = response.json() if response.content else {}
+        except ValueError:
+            error_payload = {}
+        error = error_payload.get("error", {}) if isinstance(error_payload, dict) else {}
         error_code = error.get("code") or error.get("type") if isinstance(error, dict) else None
         raise ProviderHTTPError(
             response.status_code,
             str(error_code or "provider_error"),
             duration_ms=duration_ms,
         )
+    try:
+        payload = response.json() if response.content else {}
+    except ValueError as exc:
+        raise ProviderHTTPError(
+            response.status_code,
+            "invalid_json_envelope",
+            duration_ms=duration_ms,
+        ) from exc
 
     if provider.provider == "google":
         candidates = payload.get("candidates", []) or []
