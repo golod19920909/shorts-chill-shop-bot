@@ -246,6 +246,12 @@ _EXPLICIT_PRODUCT_CONTEXT_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RECOMMENDATION_FOLLOWUP_RE = re.compile(
+    r"\b(?:посовет\w*|рекоменд\w*|подскаж\w*|выбр\w*|"
+    r"recommend\w*|suggest\w*|choose|pick)\b",
+    re.IGNORECASE,
+)
+
 
 def _explicit_requested_product_type(text: str) -> str | None:
     """Extract the requested item, leaving prepositional targets as context."""
@@ -499,6 +505,7 @@ class ConversationSearchEngine:
                     _is_comparative_followup(text)
                     or _is_modifier_only_request(text)
                     or bool(_EXPLICIT_PRODUCT_CONTEXT_RE.search(text))
+                    or bool(_RECOMMENDATION_FOLLOWUP_RE.search(text))
                 )
                 if is_alternatives_request(text):
                     intent_override = MessageIntent.ALTERNATIVES
