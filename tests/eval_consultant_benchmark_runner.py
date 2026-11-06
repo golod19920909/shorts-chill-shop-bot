@@ -244,8 +244,8 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
         candidate_tokens = meta.get("candidatesTokenCount")
         thought_tokens = meta.get("thoughtsTokenCount")
         billable_output = (
-            None if candidate_tokens is None and thought_tokens is None
-            else (candidate_tokens or 0) + (thought_tokens or 0)
+            None if candidate_tokens is None or thought_tokens is None
+            else candidate_tokens + thought_tokens
         )
         usage = _usage(
             input_tokens=meta.get("promptTokenCount"),
