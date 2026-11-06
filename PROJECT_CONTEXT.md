@@ -4096,3 +4096,34 @@ CI wiring follow-up for the structured candidate-selection schema:
 - `.github/workflows/conversational-regression.yml` now explicitly includes `tests/test_ai_service.py::ConversationSelectionEvidenceTests` in the focused offline gate. The broader suite excludes `tests/test_ai_service.py`, so without this explicit focused entry the new schema regression would not run in CI.
 - Workflow change commit: `3fffa770f1db1286a4ff1c3feccf88e1abcfe7b2`.
 - The workflow run triggered by the preceding code commit was still in progress at the time of this note; no pass/fail conclusion is claimed for the new schema change. A new run for the workflow update had not yet appeared in the commit-runs query.
+
+
+
+## 2026-11-06 — CI result and current source audit for candidate-selection schema
+
+GitHub Actions run `42198968177` (job `conversational-regressions`) completed on the PR merge ref containing the candidate-selection schema work.
+
+Verified results:
+- Focused conversational regression command: **434 passed, 1 deselected, 76 subtests passed** in 3.36 seconds. This command explicitly includes `tests/test_ai_service.py::ConversationSelectionEvidenceTests`.
+- Smoke-script compilation step completed before the test steps.
+- Wider repository test command: **551 failed, 1,749 passed, 1 deselected, 591 subtests passed**. The failures again cluster around legacy tests calling removed `AIService._fallback_parse` and `AIService._with_result_limit`. The focused gate is green; the wider suite is not. Do not describe the repository-wide suite as passing and do not restore removed legacy APIs merely to silence obsolete tests.
+- The CI run checked the PR merge ref; the PR head at the time was `8105425b2c76eccdaf9bbf0d682b699613abda9a`. PR #7 remains draft/open/unmerged with base `main`.
+
+Source audit performed:
+- `services/convsearch/engine.py`: every turn is interpreted against recent user/assistant dialogue, active slots, pending clarification, and up to 30 shown product identities; explicit product switches are separated from refinements; comparison of shown products is routed without a new provider search; search turns build one retrieval strategy, gather a broad pool, apply hard deterministic gates, then run bounded AI selection.
+- The default display ceiling remains 30; candidate collection target is up to 80 when semantic selection is available; the selector's output cap is 20. Smaller valid pools are not padded.
+- Provider errors are returned as explicit provider-error outcomes while pending clarification is retained. Empty/no-eligible results may receive a short grounded follow-up reply, with a deterministic fallback if the model is unavailable.
+- `services/ai_service.py`: both `conversation_turn` and `conversation_selection` now pass structured schemas through the shared primary/fallback request loop. Selection evidence schema is built from the active exact mandatory requirements; the existing semantic validator still requires each evidence quote to occur in the listing title or description.
+- This source review is not a live provider check. It does not prove that Gemini accepts the dynamic evidence schema in production or that both models behave equally on real Telegram conversations.
+
+Current verification status:
+- Focused offline gate on the current PR merge ref: PASS (434 tests + 76 subtests).
+- Wider repository suite: FAIL (551 legacy failures; 1,749 passed).
+- Live Gemini/AliExpress/Telegram after the candidate-selection schema change: NOT YET TESTED.
+- No .env access, no production/main changes, and no PR merge.
+
+Remaining main-TЗ work:
+- Perform a provider-backed smoke of the dynamic selection schema on the primary and fallback models, confirming the same schema is accepted by both.
+- Continue focused evaluation of multi-turn context, feature/compatibility enforcement, comparison of shown cards, alternative searches, and provider/model failure behavior.
+- After the branch passes the focused gate, perform controlled live Telegram chains across several unrelated product categories, not a single product example.
+- Keep PR #7 open and do not merge without explicit instruction.
