@@ -471,6 +471,33 @@ async def run_benchmark(
     def sha256(value: str) -> str:
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
+    def percentile(values: list[float], fraction: float) -> float | None:
+        if not values:
+            return None
+        ordered = sorted(values)
+        index = max(0, min(len(ordered) - 1, int(round((len(ordered) - 1) * fraction))))
+        return round(ordered[index], 2)
+
+    summary_by_alias: dict[str, Any] = {}
+    for alias in sorted(set(aliases.values())):
+        rows = [row for row in results if row["alias"] == alias]
+        accepted = [row for row in rows if row["status"] == "accepted"]
+        durations = [float(row["provider_duration_ms"]) for row in rows if row.get("provider_duration_ms") is not None]
+        known_costs = [float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None]
+        summary_by_alias[alias] = {
+            "requests": len(rows),
+            "accepted_by_application_validator": len(accepted),
+            "acceptance_rate": round(len(accepted) / len(rows), 4) if rows else None,
+            "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4) if rows else None,
+            "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4) if rows else None,
+            "latency_p50_ms": percentile(durations, 0.50),
+            "latency_p95_ms": percentile(durations, 0.95),
+            "input_tokens_total_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
+            "output_tokens_total_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
+            "cost_usd_total_known": round(sum(known_costs), 8) if known_costs else None,
+            "cost_requests_covered": len(known_costs),
+        }
+
     manifest = {
         "dataset_version": DATASET_VERSION,
         "seed": seed,
@@ -485,7 +512,7 @@ async def run_benchmark(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps({"manifest": manifest, "results": results}, ensure_ascii=False, indent=2),
+        json.dumps({"manifest": manifest, "summary_by_alias": summary_by_alias, "results": results}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     map_path.write_text(json.dumps(alias_map, ensure_ascii=False, indent=2), encoding="utf-8")
