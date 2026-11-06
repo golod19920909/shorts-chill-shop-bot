@@ -3095,3 +3095,32 @@ Official sources consulted:
 - OpenAI supported countries: https://help.openai.com/en/articles/5347006-openai-api-supported-countries-and-territories
 
 No provider or model has been selected for production. No benchmark, real user cost, or saving percentage is claimed from list prices alone.
+
+### Cost calculation from the supplied 2026-11-06 live log (sample only)
+
+Official Google documentation clarifies that for thinking models the billable response is **candidate/output tokens + thinking tokens**. The SDK fields are separate; `total_token_count = prompt + candidates + thoughts`. This is now the accounting rule for Gemini in this project. Source: https://ai.google.dev/gemini-api/docs/generate-content/thinking and https://ai.google.dev/api/generate-content
+
+Rates checked 2026-11-06:
+- Gemini 3.8 Flash Standard through 2026-12-31: $0.75 / MTok input and $3.75 / MTok output (including thoughts).
+- Gemini 3.1 Flash-Lite Standard: $0.25 / MTok input and $1.50 / MTok output (including thoughts).
+- Google lists Ukraine as a supported Gemini API / AI Studio region: https://ai.google.dev/gemini-api/docs/available-regions
+
+Applying those rates to successful attempts with complete usage fields in the supplied log:
+- 05:53:31 `conversation_turn`, Gemini 3.8 Flash: 1,891 input + (47 candidate + 132 thoughts) output → **$0.0020895**.
+- 05:53:50 primary `conversation_selection`, Gemini 3.8 Flash: timed out; usage metadata unavailable → **unknown cost**, not zero.
+- 05:53:55 fallback `conversation_selection`, Gemini 3.1 Flash-Lite: 12,367 input + (1,391 candidate + 113 thoughts) output → **$0.00534775**.
+- Known subtotal for those successful attempts: **$0.00743725**, excluding the timed-out primary selector attempt. This is a lower bound for that search, not its complete cost.
+- 06:00:54 `conversation_turn`, Gemini 3.8 Flash: 2,369 input + (44 candidate + 188 thoughts) output → **$0.00264675**.
+- 06:00:57 generic `generate`, Gemini 3.8 Flash: 194 input + (20 candidate + 143 thoughts) output → **$0.00075675**.
+- 06:01:23 `conversation_selection`, Gemini 3.8 Flash: 11,684 input + 5 candidate output; thoughts field was not present in the logged metadata → **at least $0.00878175**, with the output amount incomplete if thought tokens were omitted rather than zero.
+- 06:01:15 turn timeout and 06:01:26 no-results-reply timeout: usage unavailable → unknown cost.
+
+These figures demonstrate why thinking tokens and fallback attempts matter. They are not a monthly forecast, average conversation cost, or complete bill reconciliation. The supplied log has multiple user turns and incomplete timeout metadata; provider billing export/console data is needed to reconcile unknown usage.
+
+### Additional audit leads (not yet changed)
+
+- The live log shows a successful primary `conversation_selection` timeout followed by a fallback model success. This is expected under current policy, but the timed-out primary may still have incurred provider-side work and its token cost is unknown to the application.
+- The follow-up log includes a successful turn interpretation followed by a generic `generate` call before the engine returned `engine-clarify`. The source shows a separate `_clarification_question` helper can call `decide_chat_action` for short, strategy-less messages. The exact relationship between those two calls needs trace-level confirmation; do not label it redundant without replaying the exact request/decision.
+- The legacy `SearchService.find_products_from_text` path calls `AIService.parse_query` and then `parse_query_intent`, whose `_ai_intent` helper can also call the same AIService's `_generate`. The authoritative conversational engine does not use this legacy text parser, so first establish whether any production handler still reaches this path before including it in active consultant costs or changing it.
+- `services/vision_search.py` calls the shared `AIService._generate` directly without a specific operation label; this is another reason operation-level accounting is currently incomplete.
+- No code or model-routing change has been made based on these leads. Each candidate optimization must be assessed against actual caller reachability, quality, and latency first.
