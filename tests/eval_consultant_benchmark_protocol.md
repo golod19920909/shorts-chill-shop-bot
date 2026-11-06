@@ -101,7 +101,9 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 - No model API keys have been added to CI or repository settings; never add them. Benchmark credentials must be supplied locally through environment variables, not committed or printed.
 - No model comparison results exist. The runner has not been executed against real provider APIs. Do not describe any candidate as better, faster or cheaper in actual bot use until it has been measured on this protocol.
 
-## 10. Official API references checked 2026-11-06
+## 10. Official API references and pricing checked 2026-11-06
+
+- Consolidated tariff and Ukraine availability matrix: `tests/eval_provider_pricing_2026-11-06.md`.
 
 - OpenAI GPT-6 Luna model and pricing: https://developers.openai.com/api/docs/models/gpt-6-luna and https://developers.openai.com/api/docs/pricing
 - OpenAI Responses structured outputs: https://developers.openai.com/api/docs/guides/structured-outputs and https://developers.openai.com/api/reference/resources/responses/methods/create
