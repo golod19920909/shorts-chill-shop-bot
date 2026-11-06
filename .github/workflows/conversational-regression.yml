@@ -38,6 +38,8 @@ jobs:
           tests/test_eval_consultant_dialogue_dataset.py
           tests/test_eval_consultant_benchmark_runner.py
           tests/test_eval_consultant_auxiliary_dataset.py
+          tests/test_ai_service.py
+          tests/test_query_intent.py
       - name: Run repository suite excluding stale legacy modules
         run: >
           python -m pytest -q tests/
