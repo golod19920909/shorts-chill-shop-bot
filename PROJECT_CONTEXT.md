@@ -2965,3 +2965,58 @@ Verification remains pending: the new offline tests have not been run in this se
 The startup warning says Telegram client-side rate limiting is disabled. This is not a missing repository dependency: `requirements.txt` already declares `python-telegram-bot[job-queue,rate-limiter]==22.8`. The active local `.venv` appears not to have the optional rate-limiter extra installed (or has not been refreshed from the current requirements). After pulling the branch, install/synchronize runtime dependencies with `python -m pip install -r requirements.txt`; do not change the dependency declaration solely to silence this warning.
 
 The same log shows the scheduled `price_tracking` job executed successfully and no AliExpress transport/API failure during the displayed search. The Google GenAI AFC message is an SDK usage advisory, not by itself evidence of a failed search. End-to-end search latency (about 25.3 seconds on the first turn) remains a performance issue to measure after the correctness fixes.
+
+## New workstream: AI cost and performance optimization (2026-11-06)
+
+The user has approved a separate, comprehensive workstream to reduce the cost of AI operations without degrading conversational understanding, search quality, product validation, answer quality, reliability, or response speed. The full user specification is the governing scope for this workstream; this section records its durable requirements and current audit status.
+
+### Non-negotiable boundaries
+
+- Measure first, research alternatives second, select an architecture third, and implement only after evidence supports the change.
+- Preserve the current Option C architecture: Gemini interprets dialogue turns and performs bounded semantic candidate review; deterministic state, AliExpress retrieval, hard constraints, compatibility/type validation, ranking, and Telegram delivery remain authoritative.
+- Do not change AliExpress retrieval, candidate-pool breadth, type/feature/compatibility gates, budget/exclusion filters, ranking, card construction, prices, or affiliate links to save AI cost.
+- Do not replace language understanding with keyword-only logic or discard context needed to preserve task identity, budget, compatibility, exclusions, or prior clarifications.
+- Do not move high-impact decisions to a cheaper model without comparative quality evidence. A model must never approve unverified product attributes or compatibility.
+- Do not add paid providers/gateways or uncontrolled parallel model calls. No secrets or .env access. Do not change main or merge PR #7 without explicit approval.
+- Ordinary AliExpress product-page extraction remains paused and is explicitly outside this workstream.
+- No live Telegram run is currently possible. Use source inspection, offline tests, official documentation, pricing research, and reproducible offline comparisons; mark live-dependent conclusions as pending.
+
+### Required investigation and deliverables
+
+1. Full inventory of every AI/LLM call site, operation, model, prompt/context payload, timeout, retry/fallback policy, call frequency, usage metadata, and failure mode.
+2. Per-scenario and per-dialogue cost/latency analysis: new search, budget and feature constraints, refinements, budget changes, exclusions, task switches, compare, product questions, compatibility, sparse/no results, and long multi-turn sessions.
+3. Current, dated research of concrete Gemini, OpenAI, Anthropic, DeepSeek, Qwen and other viable models/providers, using official pricing/API documentation and independent developer reports where useful. Verify Ukraine API availability, Russian-language behavior, structured output, context, rate limits, caching, latency, and reliability.
+4. Compare Gemini-only optimization, Gemini plus a cheaper model, a second full provider, deterministic task routing, and gateways such as LiteLLM/OpenRouter/Vercel AI Gateway. Include gateway fees, added latency, lock-in, and maintenance.
+5. Audit prompt/context/token payloads, structured state, prompt specialization, safe reuse, and cache invalidation. Never drop semantically relevant context.
+6. Build a diverse dialogue evaluation set and compare models/architectures on intent, context, constraints, task switching, retrieval outcomes, compatibility, unsupported claims, comparison quality, and final answers.
+7. Build a financial model for 20/50/100/500 active users with multiple realistic activity levels; separate measured facts from projections and fixed from variable costs.
+8. Only after the evidence-based architecture decision, implement small reversible changes with regression coverage, cost/latency comparison, fallback checks, and an updated context record.
+
+### Initial repository inspection (2026-11-06; preliminary, not a completed audit)
+
+- Working branch: `work/consultant-reliability`.
+- Branch head at start of this workstream: `f08590381780ef2aa4f5da5951325378a519668c`.
+- PR #7 remains draft/open/unmerged; `main` is untouched.
+- `AGENTS.md` was read. Its Option C, minimal-change, offline-test, honest-data, 20-selection/30-card, and secret-protection rules remain in force.
+- Gemini client calls are centralized in `services/ai_service.py` via `AIService._generate`; the current code also contains photo understanding, product analysis, feed selection and legacy/helper methods. The active conversational engine calls turn interpretation and candidate selection; product-question and no-results reply paths are separate.
+- Identified callable AI operations in `AIService`: `parse_query`, `rank_candidates`, `describe_image_query`, `analyze_image`, `analyze_product`, `select_candidates`, `select_feed_candidates`, `select_conversation_candidates`, `compose_no_results_reply`, `plan_product_search`, `extract_paired_listing_evidence`, `answer_product_question`, `decide_conversation_turn`, and `decide_chat_action`. Some are legacy, feed-only, photo-only, or product-assistant paths and must be traced to actual callers before counting them as active consultant traffic.
+- Most `_generate` calls currently inherit the generic operation label `generate`; only key conversational paths explicitly label `conversation_turn`, `conversation_selection`, `no_results_reply`, and `product_question`. This prevents reliable operation-level attribution until the call-site inventory is completed and labels are made meaningful.
+- `services/gemini_telemetry.py` already records individual attempts with model, operation, duration, outcome, and available usage metadata fields: prompt, candidate, total, cached-content, and thinking tokens. Missing usage metadata is correctly marked unavailable; failed/time-out attempts have unknown token usage and must not be treated as zero.
+- Existing telemetry does not yet calculate money. It has a ContextVar-based per-turn collector, but this initial inspection has not established that production request paths actually enter `turn_scope`; integration must be verified before relying on per-dialogue aggregates.
+- Model defaults in `config/settings.py`: smart/fast/vision roles currently default to `gemini-3.8-flash`; fallback defaults to `gemini-3.1-flash-lite`. These are configuration facts, not proof of current price, availability, or comparative quality.
+- `AIService._generate` appends the configured fallback model to the model chain. Quota errors stop immediately; model-unavailable errors can fall back; client-timeout fallback is enabled only for `conversation_turn` and `conversation_selection`. Conversation-turn attempts are capped at 4 seconds each; conversation-selection attempts at 6.5 seconds each, with an outer 15-second selector deadline and 8.5-second turn deadline. These policies must be included in cost and latency measurements.
+- The existing telemetry is useful groundwork, not a complete cost-control system: it lacks verified per-operation production aggregation, provider price tables/cost calculation, dialogue-level scenario attribution, user/activity cohort reporting, budget alerts, and a complete accounting strategy for timeouts whose provider-side token usage is unavailable.
+- The 2026-11-06 live log previously supplied by the user showed one new search making a successful `conversation_turn` call, then a primary `conversation_selection` timeout at 6.509 s followed by a successful fallback call at 4.248 s. It also showed a later follow-up where turn interpretation timed out and the no-results reply timed out. These are examples only, not a statistically valid cost or latency baseline.
+- That same live log showed first-search end-to-end latency around 25.3 seconds. This is a performance observation to investigate, not a Gemini-only duration and not a benchmark.
+- The startup rate-limiter warning is an environment issue: `requirements.txt` already declares `python-telegram-bot[job-queue,rate-limiter]==22.8`; the local venv may not have the extra installed. It is separate from Gemini spend.
+- No provider/model has been selected for migration. No AI behavior, prompts, search logic, model routing, or provider configuration has been changed as part of this new workstream yet.
+
+### Current status and next steps
+
+- Stage I: started. Initial architecture, model defaults, operation entry points, telemetry fields, timeout/fallback rules, and key measurement gaps have been identified. Full caller tracing, prompt-size inventory, and operation-by-operation measurements remain open.
+- Stage II: not started; requires representative real usage telemetry and/or controlled replay scenarios. The supplied single log is insufficient to calculate average dialogue cost.
+- Stage III–XI: not started; current dated provider pricing/API research and comparative evaluation are required before choosing a model or gateway.
+- Stage XII: not started; no optimization changes are authorized until the audit and comparison support them.
+- Stage XV observability: partially present at per-attempt token/duration level; operation attribution, actual cost, reliable dialogue aggregation, provider/user cohorts, and financial alerts remain to be designed.
+- No tests were run for this documentation-only update. No live bot, Gemini, AliExpress, or Telegram calls were made.
+- Update this section after each material audit finding or implementation, recording exact files, commit SHA, verification evidence, and unresolved risks. Keep the existing PR #7 draft and `main` unchanged.
