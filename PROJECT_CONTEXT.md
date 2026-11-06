@@ -3736,3 +3736,24 @@ Official Qwen sources rechecked 2026-11-06:
 - Current pricing/region table (last updated 2026-11-05): https://www.alibabacloud.com/help/en/model-studio/model-pricing
 
 No production bot code, model routing, prompts, retrieval, validation, ranking or .env was changed. No real provider API was called. Candidate selection remains blocked until authentic, permitted AliExpress candidate snapshots are available.
+### Production Gemini operation labels (2026-11-06)
+
+Added explicit telemetry operation names at all inspected production AIService call sites and direct helpers. This is instrumentation-only and does not alter model routing, prompt contents, timeouts, retry/fallback behavior, AliExpress retrieval, product validation, ranking or Telegram output.
+
+Labels now distinguish the core Option C operations (`conversation_turn`, `conversation_selection`, `chat_action`, `no_results_reply`), ProductAssistant and feed operations (`product_search_plan`, `feed_candidate_selection`, `product_candidate_selection`, `product_advice`, `product_comparison_evidence`, `product_question_answer`), photo operations (`photo_vision_search`, `photo_image_analysis`, `photo_query_description`) and legacy/unverified paths (`legacy_query_parse`, `legacy_query_intent`, `discovery_ranking`).
+
+Files changed:
+- services/ai_service.py — explicit operation labels for every inspected internal _generate call.
+- services/query_intent.py — label legacy structured intent request.
+- services/vision_search.py — label photo-to-search-query request.
+- tests/test_query_intent.py and tests/test_ai_service.py — regression checks for query-intent and chat-action labels.
+- tests/eval_gemini_operation_inventory.md — operation inventory updated to match actual telemetry labels.
+
+Commits:
+- 0ea22929d8bbb75ed525c27d2c028c817fd57809 — AIService operation labels.
+- 5b98bef8277799de6fec6e261883cb95c76f973b — legacy query-intent label.
+- 327b7dab789dc391afe405139e22b82952b3261a — photo vision label.
+- 2b946680619389372e2462ea40012cac5229ecd6 — query-intent telemetry test.
+- 0dff561f6f904332cac807d5f751860b367da594 — chat-action telemetry test.
+
+Per-attempt `gemini_attempt op=...` logs can now be grouped by operation. The existing `turn_scope` collector is not yet wired into active Telegram handlers, so request-level aggregate totals and durable per-dialogue cost accounting remain incomplete. This is the next measurement-infrastructure gap; no user IDs or prompts should be added to logs.
