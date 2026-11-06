@@ -555,7 +555,7 @@ class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
         result = await service._generate(
             "conversation prompt",
             models=(service.fast_model,),
-            operation="conversation_turn",
+            operation="product_question_answer",
         )
 
         self.assertIsNone(result)
