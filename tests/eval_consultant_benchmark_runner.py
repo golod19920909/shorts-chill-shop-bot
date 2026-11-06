@@ -203,7 +203,6 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                     "model": provider.model,
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"},
-                    "max_tokens": 2048,
                 },
             )
         elif provider.provider == "qwen":
@@ -470,6 +469,13 @@ async def run_benchmark(
                 "anthropic": "medium",
                 "deepseek": "provider_default_thinking",
                 "qwen": "disabled_required_for_schema",
+            }[p.provider],
+            "output_token_limit": {
+                "google": None,
+                "openai": None,
+                "anthropic": 2048,
+                "deepseek": None,
+                "qwen": None,
             }[p.provider],
             "resolved_models": [],
         }
