@@ -3619,3 +3619,12 @@ The inventory deliberately distinguishes:
 - operation names from generic `generate` logs whose exact helper cannot be attributed from telemetry.
 
 No application code or production telemetry was changed.
+
+
+### Stages VI–VII — model-routing hypotheses and latency evidence documented (2026-11-06)
+
+Added:
+- `tests/eval_model_routing_hypotheses.md` — operation-by-operation risk assessment. Highest-priority cheap-model candidates are no-results wording, short clarify-vs-search and search-phrase planning; core conversation interpretation and semantic candidate selection remain on the quality baseline until benchmark evidence exists. Product advice, comparisons and photo vision are separately gated by factual/multimodal quality.
+- `tests/eval_gemini_latency_baseline.md` — the limited live timings from the supplied 6 November session plus source-level per-attempt/outer bounds. It explicitly refuses to infer p50/p95 from a handful of observations or attribute the full 19.9s no-eligible route to Gemini alone.
+
+No model routing, timeout, retry, or production behavior was changed.
