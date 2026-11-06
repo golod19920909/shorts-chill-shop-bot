@@ -4090,3 +4090,9 @@ Remaining TЗ work:
 - Continue validating context continuity, comparison of shown cards, feature/compatibility enforcement, multi-page retrieval, and the 20-AI-selection / 30-card presentation contract.
 - Run controlled live Telegram scenarios only after the latest branch passes the focused gate.
 - PR #7 remains draft/open/unmerged; `main` is untouched.
+
+
+CI wiring follow-up for the structured candidate-selection schema:
+- `.github/workflows/conversational-regression.yml` now explicitly includes `tests/test_ai_service.py::ConversationSelectionEvidenceTests` in the focused offline gate. The broader suite excludes `tests/test_ai_service.py`, so without this explicit focused entry the new schema regression would not run in CI.
+- Workflow change commit: `3fffa770f1db1286a4ff1c3feccf88e1abcfe7b2`.
+- The workflow run triggered by the preceding code commit was still in progress at the time of this note; no pass/fail conclusion is claimed for the new schema change. A new run for the workflow update had not yet appeared in the commit-runs query.
