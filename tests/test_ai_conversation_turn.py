@@ -599,7 +599,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("НЕ доказывает соответствие", prompt)
         self.assertIn("неизвестный тип пропускай", prompt)
         self.assertIn("Проверяй совместимость отдельно", prompt)
-        self.assertIn("после запятой", prompt)
+        self.assertIn("Не считай запятую сама по себе признаком второго товара", prompt)
         self.assertIn("проверь описание и состав", prompt)
         self.assertIn("основной предмет", prompt)
         self.assertNotIn("сварочная маска", prompt)
