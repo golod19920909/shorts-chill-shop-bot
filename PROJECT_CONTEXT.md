@@ -3404,3 +3404,32 @@ Current code implications:
 - A prompt-order/cache experiment is a later optimization candidate. First measure real cached-token hit rates from repeated production-like calls; do not add explicit cache objects until the stable prefix size, hit rate, storage TTL and savings justify their complexity.
 
 This corrects and supersedes any interpretation of the earlier cache note that implied Gemini had no caching enabled by default.
+
+
+### Stage VIII preparation — existing evaluation assets and their limits (2026-11-06)
+
+The existing repository has useful regression coverage, but it does **not** yet provide the required blind multi-model benchmark for the active Option C consultant.
+
+- tests/test_ai_conversation_turn.py contains focused tests for validated actions, grounded slot updates, cross-language seller terms, exact quote evidence, budgets, exclusions and product identity.
+- tests/test_convsearch_turn_interpretation.py contains a broad set of multi-turn engine/handler regressions: shown-card grounding, product switches, clarification answers, budget refinements, exclusions, compare-vs-new-search, natural replies and provider failures.
+- tests/test_convsearch_engine.py covers retrieval-pool behavior, 30-card cap, up to 80/70/20 candidate selection, semantic review, no-results replies, budgets and multiple product-family scenarios (including fishing reels, cordless screwdrivers, power banks and household alternatives).
+- tests/test_product_assistant.py covers advice, cheaper/similar/better selection, deterministic answers, comparisons, currency consistency and grounded evidence.
+- These are primarily unit/integration contract tests with mocked Gemini responses. They prove application validation and fallback behavior, not that a live model understands Russian/Ukrainian dialogue correctly or that one provider is as good as another.
+
+Important legacy-evaluation mismatch:
+- tests/eval_b5_dataset.py contains 35 controlled RU/UK/EN single-query cases across product, numeric, budget, exclusion, ambiguous, discovery and cross-category groups.
+- tests/eval_b5_runner.py sends those cases through SearchService.find_products_from_text, which is the legacy structured-query entry point. The active Telegram text-search path uses ConversationSearchEngine directly and does not call that method.
+- Therefore B5 is not a valid benchmark for the active Option C conversational interpreter or its per-turn Gemini cost. It may still be useful as a legacy parser/retrieval diagnostic, but its runner must not be presented as active consultant quality evidence.
+- Do not run B5 as the primary optimization benchmark or use its results to compare models for the active dialogue route.
+
+Proposed evaluation design to complete Stage VIII:
+1. Build a separate, versioned dialogue dataset with at least the 13 required scenarios and multi-turn transcripts, not isolated search phrases.
+2. Cover Russian, Ukrainian and English; include mixed-script seller-title cases and language switches.
+3. Use several unrelated product families from the current regression suite plus additional categories, avoiding one product-specific benchmark.
+4. For the interpreter, score action classification, product identity, retained/replaced/removed slots, clarification quality, product-switch detection, and whether retrieval should or should not run.
+5. For the selector, replay identical real or carefully captured AliExpress candidate pools to every model; score exact product identity, each mandatory feature, exclusions, budget, evidence quote grounding, precision/recall and safe abstention.
+6. Keep application validators and deterministic gates identical for all models. Separate raw model output quality from final application acceptance.
+7. Run blinded model comparisons with the same prompts, candidate payloads, output schema, timeouts and concurrency; record p50/p95 latency, input/output/thought/cached tokens, valid-schema rate, accepted-candidate precision/recall and total task cost.
+8. Include provider failures, timeouts, quota errors and fallback chains. A model that is cheap but causes more empty searches, retries or unsafe candidates must not win on token price alone.
+
+No evaluation dataset or runner has been added yet. No live provider calls were made. Stage VIII remains open.
