@@ -1939,3 +1939,27 @@ class BudgetLifecycleAcrossRefinementsTests(unittest.TestCase):
                     ],
                     ["superseded"],
                 )
+
+class ConversationalRecommendationIdentityRegressionTests(unittest.TestCase):
+    """Recommendation wording must not be mistaken for a new product name."""
+
+    def test_generic_recommendation_questions_have_no_product_identity(self):
+        from services.convsearch.engine import _product_type_of
+
+        for message in (
+            "Какой бы ты посоветовал в пределах 1000 грн",
+            "Что бы ты рекомендовал до 2000 грн",
+            "Какой лучше выбрать?",
+            "Which one would you recommend under $30?",
+        ):
+            with self.subTest(message=message):
+                self.assertIsNone(_product_type_of(message))
+
+    def test_explicitly_named_new_product_still_has_product_identity(self):
+        from services.convsearch.engine import _product_type_of
+
+        self.assertEqual(
+            _product_type_of("Теперь найди шуруповёрт"),
+            "шуруповёрт",
+        )
+
