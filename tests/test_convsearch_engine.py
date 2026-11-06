@@ -1950,7 +1950,10 @@ class ConversationalRecommendationIdentityRegressionTests(unittest.TestCase):
             "Какой бы ты посоветовал в пределах 1000 грн",
             "Что бы ты рекомендовал до 2000 грн",
             "Какой лучше выбрать?",
+            "Помоги выбрать что-нибудь до 1000 грн",
+            "Подскажи, что лучше взять?",
             "Which one would you recommend under $30?",
+            "Can you help me choose one under $30?",
         ):
             with self.subTest(message=message):
                 self.assertIsNone(_product_type_of(message))
@@ -1961,5 +1964,56 @@ class ConversationalRecommendationIdentityRegressionTests(unittest.TestCase):
         self.assertEqual(
             _product_type_of("Теперь найди шуруповёрт"),
             "шуруповёрт",
+        )
+
+class RecommendationFollowupContinuityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_recommendation_budget_followup_keeps_active_product(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        observed = {}
+
+        class EmptyBackend:
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
+                observed["query"] = strategy.request.normalized_query
+                return BackendOutcome(
+                    ok=True,
+                    reason="no_candidates",
+                    products=[],
+                    request=strategy.request,
+                )
+
+        class OvereagerAI:
+            async def decide_conversation_turn(self, text, *, context):
+                return {
+                    "action": "new_search",
+                    "confidence": 0.99,
+                    "product_type": None,
+                    "marketplace_terms": [],
+                    "question": None,
+                    "response": None,
+                    "slot_updates": [],
+                }
+
+        engine = ConversationSearchEngine(retrieval_backend=EmptyBackend())
+        engine.bind_ai_service(OvereagerAI())
+        state = ConversationEngineState(user_key="recommendation-followup")
+        state.record_product_type("лазерный уровень")
+
+        decision = await engine.handle_message(
+            "recommendation-followup",
+            "Какой бы ты посоветовал в пределах 1000 грн",
+            state=state,
+        )
+
+        self.assertEqual(decision.outcome, Outcome.NO_CANDIDATES)
+        self.assertIn("лазерный уровень", observed["query"])
+        self.assertNotIn("бы посоветовал", observed["query"])
+        self.assertEqual(
+            decision.report.get("intent"),
+            MessageIntent.REFINE,
+        )
+        self.assertEqual(
+            state.active_by_kind("type").value,
+            "лазерный уровень",
         )
 
