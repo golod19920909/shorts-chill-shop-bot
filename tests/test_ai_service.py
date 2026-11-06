@@ -472,9 +472,13 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         service = AIService(api_key=None)
         service._client = object()
         service.captured_prompts = []
+        service.captured_schemas = []
 
-        async def fake_generate(contents, *, models=None, operation="generate"):
+        async def fake_generate(
+            contents, *, models=None, operation="generate", response_schema=None
+        ):
             service.captured_prompts.append(contents)
+            service.captured_schemas.append(response_schema)
             self.assertEqual(operation, "conversation_selection")
             self.assertIn('"selections"', contents)
             return response
@@ -488,6 +492,31 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             product_id="drill-1",
             title="Cordless screwdriver with 2 batteries",
             product_url="https://example.com/drill-1",
+        )
+
+    def test_selection_schema_requires_each_active_feature_evidence_field(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries",'
+            '"быстрой зарядкой":"fast charging"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver",
+            required_features=["двумя аккумуляторами", "быстрой зарядкой"],
+            identity_review_ids=["drill-1"],
+        ))
+
+        self.assertIsNone(result)
+        schema = service.captured_schemas[-1]
+        self.assertEqual(schema["properties"]["selections"]["items"]["properties"][
+            "requirement_evidence"
+        ]["required"], ["двумя аккумуляторами", "быстрой зарядкой"])
+        self.assertEqual(
+            set(schema["properties"]["selections"]["items"]["properties"][
+                "requirement_evidence"
+            ]["properties"]),
+            {"двумя аккумуляторами", "быстрой зарядкой"},
         )
 
     def test_selection_requires_exact_listing_quote_for_mandatory_feature(self) -> None:
