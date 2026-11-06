@@ -3778,3 +3778,12 @@ Created `tests/eval_gateway_comparison_2026-11-06.md` with current official term
 Files: `tests/eval_gateway_comparison_2026-11-06.md`, `tests/eval_model_routing_hypotheses.md`.
 
 Gateway research is advisory only; no gateway was installed, no API keys were added, and no production request was routed through a gateway.
+### Gemini-only benchmark enablement (2026-11-06)
+
+Removed the unnecessary requirement for two different provider families in the benchmark runner. It now accepts two distinct provider/model combinations and records `comparison_scope` as either `same_provider_model_comparison` or `cross_provider`. This enables the first real comparison using the existing Gemini key: Gemini 3.8 Flash versus Gemini 3.1 Flash-Lite. Duplicate identical provider/model pairs remain rejected.
+
+Added `tests/eval_gemini_rates_2026-11-06.json` with standard paid-tier and cached-input rates for those two models. The rates are valid through 2026-12-31; the Gemini 3.8 Flash price increases on 2027-01-01 and the rate file must be refreshed then. Updated `tests/eval_provider_pricing_2026-11-06.md` and the benchmark protocol with the rate file and a local execution command.
+
+Commits: `b5cca7a23a2c256f29063ea841a0ea23e8414adf` (runner), `0c3bb708325de985e7f26e55ba4fab6f9e5c6090` (tests), `75211a14429dfc6fbccd5790c83c95c1e33e27e7` (protocol), `77d4fc6a24a6fa847fddf68fa5392614aff15091` (Gemini rate file).
+
+No provider API calls have been made. The benchmark still needs a real local run; no production model or route has changed.
