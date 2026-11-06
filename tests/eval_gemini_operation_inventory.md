@@ -155,3 +155,15 @@ The highest-confidence opportunities to evaluate next are:
 - measure no-results and photo-fallback invocation rates before changing their prompts or model roles.
 
 No production call, retrieval breadth, ranking, filtering, validation, product evidence, or Telegram delivery behavior was changed by this audit.
+
+
+## 13. Prompt-prefix and cache-readiness audit
+
+Source-level findings:
+- `AIService._generate` sends `model` and `contents`; it does not create a Gemini cached-content resource or set a cache identifier. Candidate selection alone adds JSON MIME and low thinking. The telemetry reader can observe cached-token metadata if the provider returns it, but this is not evidence that explicit caching is configured.
+- No confirmed cache-token hit appeared in the supplied 6 November live log.
+- The conversation-turn prompt places the variable JSON context near the beginning of the template, before most of the stable instruction text. Only the short pre-context portion is a stable request prefix; the large instruction tail cannot be assumed to hit an automatic prefix cache.
+- The conversation-selection prompt starts with variable query, identity IDs and seller terms before its stable JSON contract and lengthy fixed selection rules. Its largest static section is therefore not at the beginning of the request.
+- The candidate payload itself is dynamic and must remain present for grounded selection. It is not safe to cache or omit product evidence as though it were constant.
+
+Potential Stage V experiment, not yet implemented: move only immutable system rules to the beginning and place current-turn context / requirements / candidate rows after them, then compare exact output quality, cache-hit tokens, billed input, latency and total cost. Keep prompt hashes and blind regression results. Do not introduce cache state that can reuse old candidate rows, prices, budgets, region or conversation constraints.
