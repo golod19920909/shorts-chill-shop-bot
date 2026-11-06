@@ -196,6 +196,16 @@ _BUDGET_RE = re.compile(
     r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
     re.IGNORECASE,
 )
+_BUDGET_RESET_RE = re.compile(
+    r"(?:\\bбюджет\\s+(?:не\\s+(?:важен|важно|имеет\\s+значения)|"
+    r"отсутствует|не\\s+ограничен)\\b|"
+    r"\\bцена\\s+(?:не\\s+(?:важна|важно|имеет\\s+значения)|"
+    r"не\\s+ограничена)\\b|"
+    r"\\bбез\\s+(?:ограничений|лимита)\\s+(?:по\\s+)?цене\\b|"
+    r"\\bпо\\s+цене\\s+ограничений\\s+нет\\b|"
+    r"\\bno\\s+budget\\b|\\bbudget\\s+(?:doesn't\\s+matter|is\\s+unlimited)\\b)",
+    re.IGNORECASE,
+)
 _CURRENCY_BY_WORD = {
     "грн": "UAH", "грив": "UAH", "₴": "UAH", "uah": "UAH",
     "$": "USD", "usd": "USD", "доллар": "USD", "долар": "USD",
@@ -629,12 +639,6 @@ class ConversationEngineState:
                             slot.status = "superseded"
                             slot.superseded_turn = index
 
-            # A budget statement replaces only the previous budget. New
-            # feature spans and exclusions are otherwise additive unless a
-            # future structured correction contract identifies a narrower
-            # replacement target.
-            if _budget(message):
-                self._supersede_kinds(index, {"budget"})
             structured_context_targets = {
                 (update.get("kind"), " ".join(str(update.get("target") or "").split()).casefold())
                 for update in (slot_updates or [])
@@ -658,6 +662,13 @@ class ConversationEngineState:
                             slot.superseded_turn = index
                 else:
                     self._supersede_kinds(index, {"use_case", "compatibility"})
+        # A newly stated budget replaces the previous one regardless of
+        # whether Gemini labels this turn refine or correction. A clear
+        # no-budget statement removes the old ceiling instead of leaving a
+        # stale price cap active in the retrieval ledger.
+        if _budget(message) or _BUDGET_RESET_RE.search(message):
+            self._supersede_kinds(index, {"budget"})
+
         self.record_turn(message)
         preferences = [
             _PREFERENCE_QUERY_TERMS[token]
