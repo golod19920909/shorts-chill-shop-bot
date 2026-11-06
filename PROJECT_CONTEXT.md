@@ -2892,6 +2892,12 @@ Verification:
 - The filtered suite excludes 17 stale legacy modules; this is not an
   unfiltered full-repository test run. No live AliExpress, Gemini or Telegram
   calls were made by CI.
+- The final currency-change commit sequence includes the compatibility
+  correction (3dd1d2e216d3902d44023e0c379a3a312f81927c), the explicit
+  provider-currency override (750c46a8d1f9797ffcd56e399a1c4b3cbf4310fc),
+  and the two request-currency regressions
+  (bf59ccba9b9903db0a9b7aacdf8b8ec01993e4e7). CI run 42158469493 covers
+  the test commit and passed all reported checks.
 - The previous budget-lifecycle change has passed GitHub Actions run
   42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
   tests + 745 subtests. Seventeen stale legacy modules were excluded.
