@@ -9,7 +9,7 @@ Audit date: 2026-11-06. This is a source-level inventory plus the limited token 
 | `conversation_turn` / `decide_conversation_turn` | `ConversationSearchEngine.handle_message` for ordinary non-shortcut text turns | Fast role; primary `gemini-3.8-flash`, fallback `gemini-3.1-flash-lite`; production request has no explicit generation config | 4s per primary attempt; 8.5s outer turn bound | Two successful 3.8 calls: 1,891 input + 47 candidate + 132 thoughts; 2,369 input + 44 candidate + 188 thoughts. |
 | `conversation_selection` / `select_conversation_candidates` | Engine after retrieval and deterministic checks when a non-empty eligible pool remains | Primary 3.8, fallback 3.1 Flash-Lite; JSON MIME + low thinking; up to 70 candidates, selects max 20 | 6.5s primary attempt; 15s outer bound | Prompt 31,862 chars; successful fallback: 12,367 input + 1,391 candidate + 113 thoughts. One primary timeout at 6.509s has unknown provider-side usage. A later response had 11,684 input + 5 candidate tokens, but thought usage was missing, so total output cost is unknown. |
 | `no_results_reply` / `compose_no_results_reply` | Engine after successful retrieval ends with no candidates/no eligible candidates; skipped after selector failure/timeout or exhausted turn budget | Fast role; generic JSON/text helper | 3s outer bound | No reliable token usage in supplied logs; a no-results reply timed out in the 6 Nov session. |
-| `generate` / `decide_chat_action` | Only the short (≤4-word), strategy-less clarification branch after the main interpreter did not return a validated `clarify` action | Fast role; 3.8 primary + configured fallback; no explicit output config | General 20s default, bounded by engine turn budget | One generic `generate` log on an `engine-clarify` route: 194 input + 20 candidate + 143 thoughts. The log labels the operation only as `generate`, so exact method attribution is not guaranteed. |
+| `chat_action` / `decide_chat_action` | Only the short (≤4-word), strategy-less clarification branch after the main interpreter did not return a validated `clarify` action | Fast role; 3.8 primary + configured fallback; no explicit output config | General 20s default, bounded by engine turn budget | One historical pre-label `generate` log on an `engine-clarify` route: 194 input + 20 candidate + 143 thoughts. New attempts are explicitly labeled `chat_action`. |
 
 Local shortcuts (e.g. count/currency follow-ups and narrowing already-shown cards) can avoid `conversation_turn` entirely. Validated `respond` and shown-card comparison routes can exit before AliExpress retrieval and candidate selection.
 
@@ -17,12 +17,12 @@ Local shortcuts (e.g. count/currency follow-ups and narrowing already-shown card
 
 | AIService method / default operation label | Active caller and condition | Prompt/config notes | Usage evidence |
 |---|---|---|---|
-| `plan_product_search` / `generate` | ProductAssistant similar/cheaper/better search planning | Search-plan template ~363 chars; real provider search follows | No per-operation token sample. |
-| `select_feed_candidates` / `generate` | SearchService non-raw search results; category browse; merged photo-search pool | Feed selector template; separate from Option C conversation selector | No per-operation token sample. |
-| `select_candidates` / `generate` | ProductAssistant after deterministic goal-specific filtering | Selection template ~536 chars | No per-operation token sample. |
-| `analyze_product` / `generate` | ProductAssistant product advice when AI available | Analysis template ~627 chars | No per-operation token sample. |
-| `extract_paired_listing_evidence` / `product_question` | Explicit comparison of two shown products | Comparison template ~1,661 chars; paired evidence, then deterministic rendering | No per-operation token sample. |
-| `answer_product_question` / `product_question` | Other product questions only after deterministic evidence cannot answer | Question template ~1,859 chars; product evidence can include multiple shown cards | No per-operation token sample. |
+| `product_search_plan` / `plan_product_search` | ProductAssistant similar/cheaper/better search planning | Search-plan template ~363 chars; real provider search follows | No per-operation token sample. |
+| `feed_candidate_selection` / `select_feed_candidates` | SearchService non-raw search results; category browse; merged photo-search pool | Feed selector template; separate from Option C conversation selector | No per-operation token sample. |
+| `product_candidate_selection` / `select_candidates` | ProductAssistant after deterministic goal-specific filtering | Selection template ~536 chars | No per-operation token sample. |
+| `product_advice` / `analyze_product` | ProductAssistant product advice when AI available | Analysis template ~627 chars | No per-operation token sample. |
+| `product_comparison_evidence` / `extract_paired_listing_evidence` | Explicit comparison of two shown products | Comparison template ~1,661 chars; paired evidence, then deterministic rendering | No per-operation token sample. |
+| `product_question_answer` / `answer_product_question` | Other product questions only after deterministic evidence cannot answer | Question template ~1,859 chars; product evidence can include multiple shown cards | No per-operation token sample. |
 
 ProductAssistant similar/cheaper/better can make up to three calls: `plan_product_search`, the generic `select_feed_candidates` inside SearchService, then goal-specific `select_candidates`. The latter two are separate selection passes; their marginal value is unmeasured. Do not remove one before a controlled replay compares recall and quality.
 
@@ -32,11 +32,11 @@ Category browse can make one feed-selection call. Ordinary «✨ Находки�
 
 | Method / label | Caller and condition | Prompt notes | Usage evidence |
 |---|---|---|---|
-| `analyze_photo_with_vision` / `generate` | Active photo-message handler's first vision stage | Image-analysis prompt ~1,304 chars plus image payload | No per-operation token sample. |
-| `analyze_image` / `generate` | Legacy photo fallback if first vision stage yields no usable query | Separate image analysis prompt; can create a second sequential request for one photo | No per-operation token sample. |
-| `describe_image_query` / `generate` | Older image-description helper; no active caller established in inspected handler graph | Image-query prompt ~360 chars | Not counted as active photo traffic without a caller. |
-| `parse_query` / `generate` | Legacy `SearchService.find_products_from_text`; no caller from authoritative `handlers.search.search_message` path | Query-parsing prompt ~2,311 chars; can be followed by `parse_query_intent` in the legacy path | Exclude from normal Option C conversation forecast until production reachability is proven. |
-| `rank_candidates` / `generate` | `SearchService.find_discovery`; no active Telegram caller established | Ranking prompt ~728 chars | Treat as unverified/legacy traffic. |
+| `photo_vision_search` / `analyze_photo_with_vision` | Active photo-message handler's first vision stage | Image-analysis prompt ~1,304 chars plus image payload | No per-operation token sample. |
+| `photo_image_analysis` / `analyze_image` | Legacy photo fallback if first vision stage yields no usable query | Separate image analysis prompt; can create a second sequential request for one photo | No per-operation token sample. |
+| `photo_query_description` / `describe_image_query` | Older image-description helper; no active caller established in inspected handler graph | Image-query prompt ~360 chars | Not counted as active photo traffic without a caller. |
+| `legacy_query_parse` / `parse_query` | Legacy `SearchService.find_products_from_text`; no caller from authoritative `handlers.search.search_message` path | Query-parsing prompt ~2,311 chars; can be followed by `parse_query_intent` in the legacy path | Exclude from normal Option C conversation forecast until production reachability is proven. |
+| `discovery_ranking` / `rank_candidates` | `SearchService.find_discovery`; no active Telegram caller established | Ranking prompt ~728 chars | Treat as unverified/legacy traffic. |
 
 The active photo handler can call the first vision operation and then a second legacy `analyze_image` request if the first result is unusable. This is a genuine sequential fallback path and should be measured separately.
 
@@ -167,3 +167,16 @@ Source-level findings:
 - The candidate payload itself is dynamic and must remain present for grounded selection. It is not safe to cache or omit product evidence as though it were constant.
 
 Potential Stage V experiment, not yet implemented: move only immutable system rules to the beginning and place current-turn context / requirements / candidate rows after them, then compare exact output quality, cache-hit tokens, billed input, latency and total cost. Keep prompt hashes and blind regression results. Do not introduce cache state that can reuse old candidate rows, prices, budgets, region or conversation constraints.
+
+## 2026-11-06 telemetry operation labels
+
+Added explicit operation labels to every inspected AIService._generate call site and the two direct helper callers. The per-attempt `gemini_attempt op=...` log can now distinguish:
+- `conversation_turn`, `conversation_selection`, `chat_action`, `no_results_reply`;
+- `product_search_plan`, `feed_candidate_selection`, `product_candidate_selection`, `product_advice`;
+- `product_comparison_evidence`, `product_question_answer`;
+- `photo_vision_search`, `photo_image_analysis`, `photo_query_description`;
+- `legacy_query_parse`, `legacy_query_intent`, `discovery_ranking`.
+
+This changes telemetry labels only; it does not change prompts, model selection, retry/fallback rules, timeouts, search, validation, ranking, or Telegram output. The historical `generate` log sample for the clarification route predates the new label and is retained as historical evidence.
+
+Important remaining measurement gap: `services/gemini_telemetry.py` defines `turn_scope`, but no active Telegram handler currently opens it. Per-attempt logs are attributable by operation, but per-user-message aggregated token totals are not yet emitted by the production request flow. Do not claim per-dialogue accounting is complete until handler scopes and a privacy-safe persistence/aggregation path are implemented.
