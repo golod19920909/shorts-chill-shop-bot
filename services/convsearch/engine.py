@@ -1347,7 +1347,9 @@ class ConversationSearchEngine:
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         report["rejected_exclusion"] = len(rejected_ex)
         report["after_exclusion"] = len(eligible)
-        eligible, rejected_budget = retrieval_mod.filter_by_budget(eligible, state)
+        eligible, rejected_budget = retrieval_mod.filter_by_budget(
+            eligible, state, default_currency=strategy.request.currency,
+        )
         report["rejected_budget"] = len(rejected_budget)
         report["after_budget"] = len(eligible)
 
