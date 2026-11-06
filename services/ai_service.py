@@ -2255,7 +2255,7 @@ seller_terms: {seller_terms_json}
             # This is the decision that governs whether retrieval is
             # appropriate at all. Give it a bounded but realistic window;
             # candidate selection has its own independent window afterwards.
-            async with asyncio.timeout(min(self.timeout_seconds, 8.0)):
+            async with asyncio.timeout(min(self.timeout_seconds, 8.5)):
                 raw = await self._generate(
                     prompt,
                     models=(self.fast_model,),
@@ -2549,6 +2549,12 @@ seller_terms: {seller_terms_json}
                 attempt_timeout = min(
                     attempt_timeout, CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS
                 )
+            elif operation == "conversation_turn":
+                # Turn interpretation is the gate to retrieval. A bounded
+                # primary attempt plus one fast fallback is more useful than
+                # abandoning seller-language query expansion on the first
+                # transient client timeout.
+                attempt_timeout = min(attempt_timeout, 4.0)
             try:
                 async with asyncio.timeout(attempt_timeout):
                     request_kwargs = {"model": model, "contents": contents}
@@ -2587,7 +2593,10 @@ seller_terms: {seller_terms_json}
                 kind = _classify_gemini_error(exc)
                 will_fallback = index + 1 < len(chain) and (
                     kind == "model"
-                    or (kind == "timeout" and operation == "conversation_selection")
+                    or (
+                        kind == "timeout"
+                        and operation in {"conversation_selection", "conversation_turn"}
+                    )
                 )
                 detail = _format_gemini_error(
                     exc,
