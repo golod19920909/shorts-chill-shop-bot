@@ -788,7 +788,7 @@ async def run_benchmark(
         rows = [row for row in results if row["alias"] == alias]
         accepted = [row for row in rows if row["status"] == "accepted"]
         turn_rows = [row for row in rows if row["operation"] == "conversation_turn"]
-        action_rows = [row for row in rows if row["operation"] in {"conversation_turn", "chat_action"}]
+        chat_rows = [row for row in rows if row["operation"] == "chat_action"]
         summary_by_alias[alias] = {
             "requests": len(rows),
             "accepted_by_application_validator": len(accepted),
@@ -797,9 +797,13 @@ async def run_benchmark(
                 round(sum(bool(row["score"].get("all_exact")) for row in turn_rows) / len(turn_rows), 4)
                 if turn_rows else None
             ),
-            "action_exact_rate": (
-                round(sum(bool(row["score"].get("action_exact")) for row in action_rows) / len(action_rows), 4)
-                if action_rows else None
+            "conversation_turn_action_exact_rate": (
+                round(sum(bool(row["score"].get("action_exact")) for row in turn_rows) / len(turn_rows), 4)
+                if turn_rows else None
+            ),
+            "chat_action_exact_rate": (
+                round(sum(bool(row["score"].get("action_exact")) for row in chat_rows) / len(chat_rows), 4)
+                if chat_rows else None
             ),
         }
 
@@ -812,7 +816,7 @@ async def run_benchmark(
         for key, rows in groups.items():
             accepted = [row for row in rows if row["status"] == "accepted"]
             turn_rows = [row for row in rows if row["operation"] == "conversation_turn"]
-            action_rows = [row for row in rows if row["operation"] in {"conversation_turn", "chat_action"}]
+            chat_rows = [row for row in rows if row["operation"] == "chat_action"]
             summaries[key] = {
                 "requests": len(rows),
                 "accepted": len(accepted),
@@ -821,9 +825,13 @@ async def run_benchmark(
                     round(sum(bool(row["score"].get("all_exact")) for row in turn_rows) / len(turn_rows), 4)
                     if turn_rows else None
                 ),
-                "action_exact_rate": (
-                    round(sum(bool(row["score"].get("action_exact")) for row in action_rows) / len(action_rows), 4)
-                    if action_rows else None
+                "conversation_turn_action_exact_rate": (
+                    round(sum(bool(row["score"].get("action_exact")) for row in turn_rows) / len(turn_rows), 4)
+                    if turn_rows else None
+                ),
+                "chat_action_exact_rate": (
+                    round(sum(bool(row["score"].get("action_exact")) for row in chat_rows) / len(chat_rows), 4)
+                    if chat_rows else None
                 ),
             }
         return summaries
@@ -876,6 +884,7 @@ async def run_benchmark(
         return {key: performance_summary(rows) for key, rows in groups.items()}
 
     alias_map["performance_by_alias"] = private_performance_by_alias
+    alias_map["performance_by_alias_operation"] = private_grouped_summary("operation")
     alias_map["performance_by_alias_scenario"] = private_grouped_summary("scenario")
     alias_map["performance_by_alias_language"] = private_grouped_summary("language")
     alias_map["performance_by_request"] = private_performance_rows
@@ -907,6 +916,7 @@ async def run_benchmark(
         json.dumps({
             "manifest": manifest,
             "summary_by_alias": summary_by_alias,
+            "summary_by_alias_operation": grouped_summary("operation"),
             "summary_by_alias_scenario": grouped_summary("scenario"),
             "summary_by_alias_language": grouped_summary("language"),
             "results": results,
