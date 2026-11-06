@@ -112,3 +112,35 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 - Alibaba Qwen 3.5 Flash model/regions/structured output: https://help.aliyun.com/zh/model-studio/qwen3-5-flash
 - Alibaba structured output modes and Qwen3.5 non-thinking restriction: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
 - Alibaba OpenAI-compatible API: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
+
+
+## 11. Human blind review and scope boundaries
+
+The current runner measures the interpreter decision only. It does **not** execute the post-search portions stored in the corpus metadata:
+- it does not call the live AliExpress provider;
+- it does not benchmark candidate selection (blocked until authentic candidate snapshots exist);
+- it does not call no-results wording, product advice, paired comparison evidence, or factual product-question helpers;
+- it does not score the final Telegram answer or real product relevance.
+
+Therefore D11's no-results and D12's provider-failure metadata are not themselves exercised by the interpreter runner. Their first-turn intent decisions are measured; their downstream behavior requires separate operation-specific replay sets.
+
+After automated scoring, reviewers must score the raw outputs under the random aliases without opening the alias map:
+- language naturalness and clarity (1–5);
+- whether the model asks exactly one useful clarification when required (1–5; N/A otherwise);
+- whether the answer preserves the user's explicit constraints and context (pass/fail);
+- whether it introduces an unsupported fact, requirement, product identity or compatibility claim (hard fail);
+- whether marketplace terms are useful, cross-language where needed, and do not change the product identity (1–5; N/A if none);
+- concise reviewer rationale.
+
+Use two independent reviewers for any case that may change provider routing. Resolve disagreements before revealing provider names. Keep the automated decision score and human-language score separate; do not average away a hard failure.
+
+## 12. Required follow-up replay sets
+
+Create and review separate gold sets before testing these operations across providers:
+1. No-results replies: real outcomes classified as no candidates, no eligible products, selector empty, and provider failure (provider failure must not be presented as an empty catalogue).
+2. Product questions: anonymized real card fields, questions whose answer is present, absent, ambiguous, and compatibility-related. Score exact quote grounding and safe abstention.
+3. Product comparisons: paired real card snapshots; score each field difference against its exact source and whether the final deterministic renderer says only what is supported.
+4. ProductAssistant planning/selection: anonymized real AliExpress candidate pools with gold relevance/goal labels; do not reuse synthetic rows as marketplace evidence.
+5. Photo analysis: consented/anonymized image set with image-type, visible text, uncertainty and search-hypothesis gold labels. No user images or identifiers in public repository fixtures.
+
+These replay sets are separate from the 13-scenario interpreter corpus. The interpreter results alone cannot authorize a model switch for product selection, factual answers, comparisons or vision.
