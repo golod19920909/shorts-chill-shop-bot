@@ -3586,3 +3586,17 @@ GitHub Actions completed for code head `d6eede7fe9d743a0a39bdb57e4f3653928b45860
 - Workflow still skips the repository-wide filtered suite after the focused step fails. No full-suite pass is claimed.
 - This run includes the provider adapter changes for Qwen strict JSON Schema/non-thinking mode, reasoning-mode manifest, billable Gemini thought-token handling, cache-write accounting, and safe non-JSON HTTP error classification.
 - These are offline tests only. No provider API was called, so endpoint credentials, region access, live schema compatibility, actual model versions, costs and latency remain unverified until a deliberate benchmark run.
+
+
+### Selector snapshot prerequisite verified (2026-11-06)
+
+Inspected the existing live evaluation artifacts rather than assuming they contain candidate data:
+- `tests/eval_b5_results_live.json` is a genuine 2026-10-21 live run, but each of its 35 cases stores aggregate stage counts, outcome, latency and diagnostics only. It contains no final product titles, descriptions or selector input rows.
+- `tests/fixtures_stage44b4_capture_runner.py` captures `parse_query` / `parse_query_intent` raw text and parsed outputs. Its `CaptureRecord` has no candidate-pool field and its live runner is explicitly disabled pending separate owner authorization.
+- `tests/fixtures_stage44b4_replay.py` replays captured parser responses; it does not replay candidate selection.
+- `tests/eval_b5_runner.py` uses generated mock product rows for its offline path. These are not authentic AliExpress listings and are not valid selector benchmark evidence.
+- The user's supplied 6 November live log contains counts/token metadata but not the full 70-candidate payload.
+
+Added `tests/eval_selector_capture_schema.md` to define the exact snapshot shape, provenance, privacy rules, independent gold labels and replay invariants. It contains a clearly marked schema example only, not fake benchmark products.
+
+Selector quality comparison remains blocked until authentic, permitted AliExpress candidate snapshots are available. Do not fabricate candidate rows or infer product-level gold labels from aggregate B5 counts.
