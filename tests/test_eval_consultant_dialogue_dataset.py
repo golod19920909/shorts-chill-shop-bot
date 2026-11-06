@@ -1,6 +1,6 @@
 """Structural checks for the active Option C dialogue evaluation corpus."""
 
-from eval_consultant_dialogue_dataset import (
+from tests.eval_consultant_dialogue_dataset import (
     DATASET_VERSION,
     DIALOGUE_CASES,
     LANGUAGES,
