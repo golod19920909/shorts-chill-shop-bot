@@ -3886,3 +3886,88 @@ Remaining work:
   refinement/product-switch scenarios.
 - Continue the main consultant TЗ; this fix alone does not establish readiness.
 
+## 2026-11-06 — Follow-up continuity guard: state-ledger root cause and CI corrections
+
+The first regression test revealed that filtering recommendation words only in
+the engine's product-type reader was insufficient. The lower-level
+ConversationEngineState.observe() independently classified the same
+conversation scaffolding as a new product because its own constraint_spans
+pipeline used a separate stopword/qualifier vocabulary. That lower-level
+NEW_SEARCH transition superseded the active product before retrieval, even
+though the engine had decided the turn was a refinement.
+
+Additional changes:
+- services/convsearch/text.py: expanded shared RU/EN stopwords for generic
+  recommendation, choosing and assistance language so those words do not
+  survive as content terms in constraint spans.
+- services/convsearch/state.py: added common budget framing inflections and
+  a narrowly scoped preserve_active_product signal. When the engine has
+  identified a refinement and no explicit product switch, this signal can
+  override a false lower-level product-switch classification.
+- services/convsearch/engine.py: passes the continuity signal only when an
+  over-eager AI new_search action is being converted to REFINE, there is an
+  active product and no grounded explicit product switch.
+- tests/test_convsearch_engine.py: broadened natural-language
+  recommendation cases and added an integration regression that simulates an
+  over-eager new_search model action while a product is active.
+- tests/test_ai_operations.py: added checks that conversation_turn receives
+  the shared JSON schema and that primary/fallback attempts receive the same
+  schema; updated an old test that incorrectly expected no config for
+  conversation_turn.
+
+CI findings and corrections:
+- The first focused CI run after the schema change reported 2 failures:
+  one test expected the unnormalized spelling with ё; one existing operation
+  config test still expected conversation_turn to have no config.
+- The next run showed the recommendation follow-up still reached clarification.
+  Investigation identified the second, independent classifier in
+  state.observe(); the stopword and continuity changes above address this.
+- An intermediate run after the broad continuity override exposed three
+  existing regressions: shown-product questions were routed to results, and
+  an explicitly named new product was incorrectly kept in the old search.
+  The guard was narrowed so it only overrides a false NEW_SEARCH
+  classification when the model itself over-called new_search; deterministic
+  COMPARE and genuinely named product switches retain priority.
+
+Relevant commits after the previous context entry:
+- 0caf6476e33858ea9045e81420912a0cdf432d08 — broader engine-level
+  conversational scaffolding.
+- baf0ffdefb4dabadc68cbf3cfaaa44d3ec52b08a — recommendation continuity
+  integration regression.
+- 531ea6b25a091487a1023d883282c8653a692cab — normalized product token
+  expectation in regression.
+- 54ace946d3192d9e042a2c91304f1cedbbddc4f6 — Gemini config tests aligned
+  with the new shared schema.
+- 2a59748cc0134ebc648ff0a436eed6ce4b9205ab — shared text stopwords for
+  recommendation language.
+- 640b29fd3c9351c69c6d47da623a9176b2681fae — budget framing vocabulary.
+- 3dfcef93759ba98ff45e435141d4e9595d8c1e9f — state-ledger continuity
+  protection signal.
+- 2c5d50168868999adcc78331a1acc07249929402 — engine passes grounded
+  continuity decision into the ledger.
+- 89595cc540dd0d44d9bf9fda790230e6a825d6d0 — primary/fallback schema
+  equality regression.
+- ba725030a2cabc8fac5c010b6ad9fc1cbd2a73e6 — narrow the state continuity
+  override to false product-switch classifications.
+- a7045fae6afbf27af7bd80dde7bfd38d47b1295f — apply the continuity signal
+  only to an over-eager AI new_search action.
+
+Verification:
+- CI for earlier commits did fail as described above; those failures were
+  used to identify and narrow the change. Do not describe those runs as green.
+- CI runs for the latest commits ba725030... and a7045fae... are in progress
+  at the time of this update.
+- Live Telegram tests after these changes have not been run.
+- No production/main changes, no PR merge, no .env access and no live
+  provider benchmark were performed.
+
+Remaining:
+- Wait for focused CI on the latest head and fix any new regression before
+  asking for a local pull.
+- Verify both model attempts receive and accept the same structured schema
+  through a live or provider-backed smoke (no new paid benchmark).
+- Then repeat the live Telegram multi-turn test: initial product request,
+  budget recommendation follow-up, a real product switch, and a question
+  about already-shown cards.
+- Main consultant TЗ remains in progress; this is not a readiness sign-off.
+
