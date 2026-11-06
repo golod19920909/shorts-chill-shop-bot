@@ -1068,7 +1068,10 @@ async def _ai_intent(
     INTENT_AI_STATS["attempted"] += 1
     started = time.perf_counter()
     try:
-        text = await ai._generate(f"{INTENT_PROMPT}\n\nQuery: {query}")
+        text = await ai._generate(
+            f"{INTENT_PROMPT}\n\nQuery: {query}",
+            operation="legacy_query_intent",
+        )
         error = None if text else "ai_returned_none"
     except Exception as exc:  # noqa: BLE001 - AI failure must never escape
         text = None
