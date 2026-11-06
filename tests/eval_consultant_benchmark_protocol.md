@@ -181,3 +181,8 @@ The runner can compare `gemini-3.8-flash` and `gemini-3.1-flash-lite` using the 
 ## Provider-specific schema compatibility
 
 Anthropic's current structured-output JSON Schema subset does not support numeric constraints such as `minimum` and `maximum`. The benchmark removes those constraints from the Anthropic request schema only; the same production application validator still enforces the confidence range after parsing. Other providers retain the original schema where their API supports those keywords. This avoids treating an unsupported schema keyword as a model failure.
+
+
+## Structured-output cold-start latency
+
+Anthropic documents that the first request with a new JSON Schema compiles a grammar and caches it for 24 hours. The first `conversation_turn` and first `chat_action` request therefore include a schema-specific cold-start cost; later requests with the same schema are warm. Keep the raw per-case latency rows and inspect the first case for each operation separately from warm p50/p95. Do not discard the cold start when estimating first-user experience.
