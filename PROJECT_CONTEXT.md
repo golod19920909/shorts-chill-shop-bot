@@ -3672,3 +3672,30 @@ CI for the current benchmark/protocol changes:
 - Commit `628e0ea99e3de25d5a4eed7888682243427247e1`: **305 passed, 2 failed, 65 subtests passed**.
 - The same two known baseline failures remain: stale literal selector-prompt wording assertion and legacy `AIService._with_result_limit` missing-method failure. The workflow skips the filtered repository-wide suite after the focused command fails. No full-suite pass is claimed.
 - No model API calls, provider credentials, production prompt changes, search-core changes or live Telegram tests were made.
+
+
+### Benchmark runner fairness and blind-review hardening (2026-11-06)
+
+The interpreter benchmark now preserves the **actual production Gemini request mode**: prompt-only JSON instructions, with no `responseMimeType` or `responseSchema`, because `AIService.decide_conversation_turn` does not enable structured output in production. A unit test covers this exact request body.
+
+Provider-native output/reasoning differences are explicitly recorded in the private map:
+- Gemini: production prompt-only JSON; provider-default reasoning; no explicit output-token cap.
+- OpenAI: strict JSON Schema; medium reasoning effort; no explicit output-token cap.
+- Anthropic: JSON Schema; medium effort; 2048 max tokens required by Messages API.
+- DeepSeek: JSON Object mode; provider-default reasoning; no explicit output-token cap.
+- Qwen: strict JSON Schema in documented non-thinking mode; no explicit output-token cap.
+
+This is a practical comparison of valid native provider modes, not a claim that the inference controls are identical. Any finalist needs a separate effort/latency sweep before production configuration.
+
+Blind artifacts were tightened:
+- The reviewer-facing results file contains only aliases, scenario/language, raw output, application-validated decision, gold label and quality score.
+- Provider/model IDs, resolved versions, seed, tariff table, token usage, latency, HTTP/provider errors and per-request costs are written only to the separate private map/performance artifact.
+- Cost calculations use the resolved provider model ID when returned. Rate data and its hash are private. The reviewer-facing file no longer contains latency, token counts or costs that could bias or partially unblind scoring.
+- Added an offline test that runs the harness with mocked transports and asserts that provider identity and performance data are absent from the blind artifact.
+
+Latest CI for branch head `eb49bdce147a557598661dee3994547bf74cedb5`:
+- **307 passed, 2 failed, 65 subtests passed**.
+- The only two failures remain the same pre-existing baseline issues: stale selector-prompt literal wording assertion and the legacy `AIService._with_result_limit` missing-method failure.
+- The repository-wide filtered suite is skipped after the focused step fails. No full-suite pass is claimed.
+
+No real provider requests were made. The benchmark remains opt-in and requires credentials for at least two distinct providers supplied through process environment variables. No API keys were added to the repository. The runner is not yet a completed benchmark and no alternative has been selected.
