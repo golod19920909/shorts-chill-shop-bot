@@ -3502,3 +3502,20 @@ Latest corpus commits:
 - `4c69724861708e92ac7ec01f3aa495b72918b178` — clarify ambiguous compressor scenario.
 - `887947092fa86d58e2c667282797e7e000c4b21f` — remove duplicated assistant turn in D13.
 - `15307450ea73e4b11460b36823384ba1c70f2419` — structural test file.
+
+
+### CI verification of the new dialogue corpus (2026-11-06)
+
+The corpus structural tests were added to the focused offline CI command in `.github/workflows/conversational-regression.yml`.
+
+Observed GitHub Actions result for commit `b969cdc6b3ded0f0f72c578ced9f934f7fb5a03f`:
+- The new corpus tests were collected successfully after correcting the import to `tests.eval_consultant_dialogue_dataset`.
+- Focused suite result: **297 passed, 2 failed, 65 subtests passed**. The five new structural tests account for the increase from the previous run's 292 passing tests.
+- The same two failures are present on the pre-corpus commit `0fafe3ae1de79f0cb53b04882076353948d03c92` (run #1078), so they predate this evaluation-corpus work:
+  1. `test_conversation_selector_prompt_enforces_exclusions_and_budget` expects the literal phrase «после запятой», while the current prompt has the equivalent updated paragraph but not that exact wording.
+  2. `test_text_query_is_parsed_and_searched` reaches legacy `SearchService.find_products_from_text` and fails because `AIService._with_result_limit` is missing.
+- Neither failure was introduced by the new corpus. Both are left untouched because they concern an old prompt wording assertion and a legacy search path outside the current cost-audit scope.
+- The workflow's repository-wide filtered suite is skipped because the focused command fails first. Do not report a green CI run or a full-suite pass.
+- The corrected import and all five corpus structural tests are confirmed to pass by the 297-pass result; the two baseline failures remain.
+
+The CI workflow change only adds `tests/test_eval_consultant_dialogue_dataset.py` to the focused offline command. It does not change runtime bot behavior.
