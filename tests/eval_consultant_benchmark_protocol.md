@@ -5,11 +5,11 @@ Corpus: `tests/eval_consultant_dialogue_dataset.py`, version `consultant-dialogu
 
 ## 1. Scope
 
-Benchmark the current Option C decision layer first:
-- input: the exact user message and bounded context snapshot from the corpus;
-- output: the structured conversation decision;
-- validation: the same application validator used by `AIService.decide_conversation_turn`;
-- no marketplace retrieval, product fabrication, ranking changes, or Telegram side effects.
+Benchmark three current Option C language operations:
+- conversation-turn interpretation: exact user message + bounded context → structured decision, validated by the production `AIService.decide_conversation_turn` path;
+- short clarification helper: short message → `search` or one clarification question, validated by `AIService.decide_chat_action`;
+- no-results wording: user request + active constraints + grounded search outcome → one short plain-text question, validated by `AIService.compose_no_results_reply`.
+The auxiliary helper corpora are artificial language/contract fixtures, not marketplace product evidence. No marketplace retrieval, product fabrication, ranking changes, or Telegram side effects occur in this benchmark.
 
 The selector is a separate benchmark. It must not use synthetic product rows. Capture anonymized, permitted real AliExpress API candidate pools first, including the exact title, description, category, price, currency, rating/order fields passed to the selector. Every candidate model must receive the identical saved pool and requirement set.
 
@@ -97,9 +97,9 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 
 - The 13-scenario dialogue corpus exists, but gold labels need a review pass before model selection.
 - No permitted real AliExpress selector candidate snapshots have been added yet.
-- No provider-neutral blind runner exists yet.
+- A provider-neutral blind runner exists for the three language operations above; no provider API calls have been made yet.
 - No model API keys have been added to CI or repository settings; never add them. Benchmark credentials must be supplied locally through environment variables, not committed or printed.
-- No model comparison results exist. Do not describe any candidate as better, faster or cheaper in actual bot use until it has been measured on this protocol.
+- No model comparison results exist. The runner has not been executed against real provider APIs. Do not describe any candidate as better, faster or cheaper in actual bot use until it has been measured on this protocol.
 
 ## 10. Official API references checked 2026-11-06
 
