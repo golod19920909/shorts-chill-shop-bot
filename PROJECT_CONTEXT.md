@@ -3575,3 +3575,14 @@ CI evidence:
 - Subsequent changes added cache-write billing coverage, exact model-version capture, UTC run timestamp, per-scenario/per-language summaries, Qwen strict schema mode, and normalized effort settings. Their latest CI run is pending/needs verification; do not claim those newest changes passed until a completed run confirms them.
 
 No provider API calls have been made; no model benchmark results exist yet. No production code, prompts, search/retrieval/ranking behavior, provider routing or credentials were changed. Selector benchmarking remains blocked until authentic, permitted AliExpress candidate-pool snapshots are captured.
+
+
+### Latest runner verification update (2026-11-06)
+
+GitHub Actions completed for code head `d6eede7fe9d743a0a39bdb57e4f3653928b45860`:
+- Focused offline result: **305 passed, 2 failed, 65 subtests passed**.
+- All 12 new evaluation tests (5 dialogue-corpus structure checks + 7 benchmark-runner checks) are included in the passing count.
+- The two failures are unchanged and predate this work: the stale literal prompt assertion «после запятой» and legacy `AIService._with_result_limit` missing-method failure.
+- Workflow still skips the repository-wide filtered suite after the focused step fails. No full-suite pass is claimed.
+- This run includes the provider adapter changes for Qwen strict JSON Schema/non-thinking mode, reasoning-mode manifest, billable Gemini thought-token handling, cache-write accounting, and safe non-JSON HTTP error classification.
+- These are offline tests only. No provider API was called, so endpoint credentials, region access, live schema compatibility, actual model versions, costs and latency remain unverified until a deliberate benchmark run.
