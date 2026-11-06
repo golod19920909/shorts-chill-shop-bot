@@ -3699,3 +3699,40 @@ Latest CI for branch head `eb49bdce147a557598661dee3994547bf74cedb5`:
 - The repository-wide filtered suite is skipped after the focused step fails. No full-suite pass is claimed.
 
 No real provider requests were made. The benchmark remains opt-in and requires credentials for at least two distinct providers supplied through process environment variables. No API keys were added to the repository. The runner is not yet a completed benchmark and no alternative has been selected.
+
+### Benchmark runner operation-dispatch and Qwen contract correction (2026-11-06)
+
+A source review of the latest auxiliary-corpus addition found that the task list contained chat_action and no_results_reply cases, but the runner still invoked decide_conversation_turn for every task. Those auxiliary cases therefore could not be measured through their real production methods. Fixed the benchmark-only runner so it dispatches to:
+- AIService.decide_conversation_turn for the main multi-turn corpus;
+- AIService.decide_chat_action for short clarification/search classification;
+- AIService.compose_no_results_reply for no-results wording.
+
+The injected transport now preserves the benchmark operation label when a production helper uses the generic _generate default, so each provider receives the correct structured-output or plain-text mode. The runner reports operation-specific summaries and private per-operation latency/token/cost breakdowns. The conversation-turn primary attempt timeout is capped at the production 4-second per-model bound; chat-action and no-results retain their own bounded timeouts. No fallback/retry is used in the first capability pass.
+
+A second official-documentation check found that the prior Qwen setting was invalid: Qwen 3.5 Flash is documented for JSON Object output in non-thinking mode, not strict JSON Schema. The runner now uses JSON Object + enable_thinking=false for Qwen 3.5/3.6 Flash, and uses strict JSON Schema for Qwen 3.7/3.8 families where documented. No max_tokens is set for Qwen structured-output requests. The blind map records the actual mode and reasoning setting per model. The benchmark tests cover Qwen 3.5, Qwen 3.8 and plain-text no-results behavior.
+
+Files changed:
+- tests/eval_consultant_benchmark_runner.py — operation-specific dispatch, attribution, timeout manifest, Qwen family-specific output configuration, per-operation summaries.
+- tests/test_eval_consultant_benchmark_runner.py — fake transport covers all three operations; tests for Qwen structured-output modes and operation-level summaries.
+- tests/eval_consultant_benchmark_protocol.md — corrected Qwen mode documentation, runner scope and remaining blockers.
+
+Commits:
+- 78c5c4c73d3e947c90405018858dad63dca67a3f — runner operation dispatch and Qwen output modes.
+- 2ba63a6835c0dd0efb3ae17ddc146d4616f425bb — operation/Qwen regression tests.
+- 37fe59681c5531b1eac3fdabd002d7b1c06d16ae — protocol correction.
+- 4138ab770152382c7debdbc2cceb16df111f7787 — operation-specific cost/latency summaries.
+- a9d894f38336f1c66c403481d606a884c33ac323 — summary regression tests.
+
+CI evidence on commit 37fe59681c5531b1eac3fdabd002d7b1c06d16ae, workflow run 42178983152:
+- Focused suite: 313 passed, 2 failed, 65 subtests passed.
+- The two failures are the same known pre-existing baseline failures: an old selector-prompt test expects the literal phrase «после запятой» although the prompt uses equivalent updated wording, and a legacy SearchService test expects the removed _with_result_limit helper.
+- The filtered repository suite was skipped because the focused step failed. This is not a green CI run or a full-suite pass.
+- The new Qwen and auxiliary-operation tests are included in the passing count. The run confirms the benchmark test fake exercises the three operation paths without provider API calls.
+- CI for the subsequent operation-summary commits is pending/being checked separately.
+
+Official Qwen sources rechecked 2026-11-06:
+- Structured-output support matrix: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
+- Qwen 3.5 Flash model capabilities: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen3-5-flash
+- Current pricing/region table (last updated 2026-11-05): https://www.alibabacloud.com/help/en/model-studio/model-pricing
+
+No production bot code, model routing, prompts, retrieval, validation, ranking or .env was changed. No real provider API was called. Candidate selection remains blocked until authentic, permitted AliExpress candidate snapshots are available.
