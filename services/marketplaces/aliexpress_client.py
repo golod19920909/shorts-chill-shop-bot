@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import hmac
 import logging
 from datetime import datetime, timedelta, timezone
@@ -274,6 +275,10 @@ class AliExpressClient:
         #: diagnostics without being counted as failures.
         self.empty_results = 0
         self.last_empty_at: str | None = None
+        # Searches, detail lookups and the background price tracker share
+        # one application key. Serialize requests through this client so
+        # independent bot tasks cannot burst the same affiliate API at once.
+        self._call_lock = asyncio.Lock()
 
     @property
     def is_configured(self) -> bool:
@@ -312,11 +317,18 @@ class AliExpressClient:
         )
         return params
 
-    async def _retry(self, error_class: str, attempt: int) -> None:
+    async def _retry(
+        self,
+        error_class: str,
+        attempt: int,
+        *,
+        delay: float | None = None,
+    ) -> None:
         """Spend one bounded retry on a documented transient failure.
 
         Increments ``retries_spent`` (surfaced in /admin) and waits the
-        configured backoff before the next attempt. Never raises.
+        configured backoff or a server-reported short rate-limit cooldown.
+        Never raises.
         """
 
         self.retries_spent += 1
@@ -326,10 +338,65 @@ class AliExpressClient:
             attempt + 1,
             self.max_retries - attempt,
         )
-        if self.retry_backoff:
-            await asyncio.sleep(self.retry_backoff)
+        wait = max(self.retry_backoff, delay or 0.0)
+        if wait:
+            await asyncio.sleep(wait)
 
-    async def call(self, method: str, business: dict[str, Any] | None = None) -> dict:
+    @staticmethod
+    def _short_api_call_limit_wait(error: dict[str, Any]) -> float | None:
+        """Return a bounded wait only for an explicitly short ApiCallLimit.
+
+        Permanent quota/permission/business errors remain non-retryable.
+        The affiliate gateway sometimes reports a temporary ban duration in
+        its ApiCallLimit message; retry only when that duration is explicit
+        and no longer than five seconds.
+        """
+
+        codes = {
+            str(error.get("code") or "").casefold(),
+            str(error.get("sub_code") or "").casefold(),
+        }
+        if "apicalllimit" not in codes:
+            return None
+        message = " ".join(
+            str(error.get(key) or "")
+            for key in ("sub_msg", "msg", "message")
+        )
+        match = re.search(
+            r"ban\s+will\s+last\s+(\d+(?:\.\d+)?)\s+seconds?",
+            message,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        seconds = float(match.group(1))
+        if not 0 < seconds <= 5:
+            return None
+        return seconds
+
+    async def call(
+        self,
+        method: str,
+        business: dict[str, Any] | None = None,
+        *,
+        _rate_limit_retry_used: bool = False,
+    ) -> dict:
+        """Serialize all operations using this application's AliExpress key."""
+
+        async with self._call_lock:
+            return await self._call_unlocked(
+                method,
+                business,
+                _rate_limit_retry_used=_rate_limit_retry_used,
+            )
+
+    async def _call_unlocked(
+        self,
+        method: str,
+        business: dict[str, Any] | None = None,
+        *,
+        _rate_limit_retry_used: bool = False,
+    ) -> dict:
         """Perform one documented API call and return its business payload.
 
         Raises :class:`AliExpressApiError` for HTTP failures, malformed
@@ -410,6 +477,21 @@ class AliExpressClient:
             # keeps its class visible in /admin.
             error = payload["error_response"]
             code = error.get("code")
+            wait = self._short_api_call_limit_wait(error)
+            if (
+                wait is not None
+                and self.max_retries > 0
+                and not _rate_limit_retry_used
+            ):
+                await self._retry("ApiCallLimit", 0, delay=wait)
+                # The business envelope is decoded after the transport loop,
+                # so re-enter once with an explicit guard rather than using
+                # continue outside that loop. A repeated ban is surfaced.
+                return await self._call_unlocked(
+                    method,
+                    business,
+                    _rate_limit_retry_used=True,
+                )
             self.calls_err += 1
             self.last_error_class = f"error_response code={code}"
             raise AliExpressApiError(

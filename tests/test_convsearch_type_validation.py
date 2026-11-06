@@ -11,7 +11,7 @@ from __future__ import annotations
 import unittest
 
 from models.product import Marketplace, Product
-from services.convsearch.type_validation import validate_product_type
+from services.convsearch.type_validation import stems_match, validate_product_type
 
 
 def product(pid: str, title: str, *, price: float = 25.0) -> Product:
@@ -28,6 +28,20 @@ def product(pid: str, title: str, *, price: float = 25.0) -> Product:
 REEL = "рыболовная катушка"
 BANK = "повербанк"
 DRILL = "дрель"
+
+
+class StemMatchingTests(unittest.TestCase):
+    """Word-form matching must not collapse unrelated Latin product nouns."""
+
+    def test_russian_inflections_keep_existing_stem_matching(self) -> None:
+        self.assertTrue(stems_match("шуруповерт", "шуруповерта"))
+        self.assertTrue(stems_match("катушка", "катушки"))
+
+    def test_english_plural_forms_match_without_prefix_false_positives(self) -> None:
+        self.assertTrue(stems_match("bearing", "bearings"))
+        self.assertTrue(stems_match("battery", "batteries"))
+        self.assertFalse(stems_match("table", "tablet"))
+        self.assertFalse(stems_match("drill", "drilling"))
 
 
 class FishingReelValidationTests(unittest.TestCase):
@@ -59,6 +73,23 @@ class FishingReelValidationTests(unittest.TestCase):
         self.assertFalse(self._verdict("Шпуля для рыболовной катушки"))
         self.assertFalse(self._verdict("Запасная шпуля лескоукладчик"))
 
+    def test_sparse_title_with_description_subtype_is_deferred_for_review(self) -> None:
+        item = product("x", "Катушка 5000")
+        item.description = "Рыболовная катушка для спиннинга"
+        verdict = validate_product_type(item, REEL)
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "bare_type_with_description_confirmation_requires_review",
+            verdict.reasons,
+        )
+
+    def test_conflicting_title_subtype_is_not_rescued_by_description(self) -> None:
+        item = product("x", "Кассетная катушка для магнитофона")
+        item.description = "Рыболовная катушка, spinning reel"
+        verdict = validate_product_type(item, REEL)
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("ambiguous_bare_noun", verdict.reasons)
+
     def test_bare_ambiguous_noun_is_rejected(self) -> None:
         # "катушка" alone is ambiguous (audio tape reel vs fishing reel):
         # without the context token there is insufficient evidence.
@@ -70,10 +101,47 @@ class FishingReelValidationTests(unittest.TestCase):
 class CrossCategoryValidationTests(unittest.TestCase):
     """The same rules must generalize (power bank, drill, appliance)."""
 
+    def test_descriptive_component_adjectives_are_not_accessory_identities(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        for requested_type in (
+            "аккумуляторный шуруповёрт",
+            "проводной инструмент",
+            "беспроводные наушники",
+        ):
+            self.assertFalse(
+                is_accessory_product_type(requested_type),
+                msg=requested_type,
+            )
+
+    def test_component_nouns_still_identify_accessory_products(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        for requested_type in (
+            "аккумулятор для камеры",
+            "ремешок для часов",
+            "насадка на дрель",
+        ):
+            self.assertTrue(
+                is_accessory_product_type(requested_type),
+                msg=requested_type,
+            )
+
     def test_power_bank_qualifies(self) -> None:
         self.assertTrue(validate_product_type(
             product("p1", "Повербанк 20000 мАч быстрая зарядка"), BANK
         ).qualifies)
+
+    def test_partial_type_coverage_keeps_a_lower_identity_score(self) -> None:
+        verdict = validate_product_type(
+            product("partial-type", "Аккумуляторный шуруповёрт 21V"),
+            "аккумуляторный профессиональный шуруповёрт",
+        )
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("partial_type_coverage", verdict.reasons)
+        self.assertNotIn("type_head", verdict.reasons)
+        self.assertAlmostEqual(verdict.score, 0.5 * (2 / 3))
 
     def test_power_bank_accessories_rejected(self) -> None:
         for title in (
@@ -125,6 +193,220 @@ class CrossCategoryValidationTests(unittest.TestCase):
         self.assertTrue(verdict.qualifies)
         self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
 
+    def test_non_accessory_set_requests_are_not_fitment_relations(self) -> None:
+        from services.convsearch.type_validation import is_accessory_product_type
+
+        self.assertFalse(is_accessory_product_type("наборы на свадьбу"))
+        self.assertFalse(is_accessory_product_type("комплекты для дома"))
+        self.assertTrue(is_accessory_product_type("набор насадок"))
+        self.assertTrue(is_accessory_product_type("комплект кабелей"))
+
+    def test_description_only_product_identity_requires_semantic_review(self) -> None:
+        candidate = product(
+            "generic-title",
+            "Универсальный набор инструментов",
+        ).model_copy(update={
+            "description": "Насадка для дрели по дереву с хвостовиком",
+        })
+
+        verdict = validate_product_type(candidate, "насадка")
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+        self.assertLess(verdict.score, 0.5)
+
+    def test_bundle_title_containing_requested_item_is_deferred_for_review(self) -> None:
+        candidate = product(
+            "attachment-set",
+            "Набор насадок для дрели",
+        )
+
+        verdict = validate_product_type(candidate, "насадка")
+
+        self.assertTrue(verdict.qualifies)
+        self.assertIn("type_identity_requires_semantic_review", verdict.reasons)
+        self.assertLess(verdict.score, 0.5)
+
+    def test_description_cannot_override_title_identifying_an_accessory(self) -> None:
+        candidate = product(
+            "reel-spring-description",
+            "Пружина для рыболовной катушки",
+        ).model_copy(update={
+            "description": "Совместима с рыболовной катушкой",
+        })
+
+        verdict = validate_product_type(candidate, REEL)
+
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("type_only_in_role_clause", verdict.reasons)
+
+    def test_late_type_mention_in_a_mixed_listing_title_requires_review(self) -> None:
+        verdict = validate_product_type(
+            product(
+                "mixed-listing",
+                "Многофункциональная дрель, угловая шлифовальная машина, "
+                "набор шатунов, насадки для шатунов, регулируемый диск",
+            ),
+            "насадка",
+        )
+        # A later mention must not count as a verified principal-product match.
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "type_mentioned_only_after_listing_separator", verdict.reasons
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_host_first_compound_accessory_titles_are_not_the_requested_host(self) -> None:
+        for title, requested_type in (
+            ("Phone case for iPhone 15", "phone"),
+            ("Camera lens 50mm", "camera"),
+            ("Cordless drill bits set", "drill"),
+            ("Battery charger USB-C", "battery"),
+        ):
+            verdict = validate_product_type(
+                product("host-accessory-compound", title), requested_type
+            )
+            self.assertFalse(verdict.qualifies, msg=title)
+            self.assertIn(
+                "requested_type_is_host_for_accessory", verdict.reasons,
+                msg=title,
+            )
+
+    def test_cross_category_host_first_component_titles_are_rejected(self) -> None:
+        # The same role rule must work across unrelated product families;
+        # these are generic component nouns, not per-category search patches.
+        cases = (
+            ("Smartphone screen protector", "smartphone"),
+            ("Laptop keyboard replacement", "laptop"),
+            ("Camera battery pack", "camera"),
+            ("Vacuum cleaner HEPA filter", "vacuum cleaner"),
+            ("Smartwatch replacement strap", "smartwatch"),
+            ("Garden hose nozzle", "garden hose"),
+            ("Wireless headphones ear pads", "wireless headphones"),
+            ("Электрический инструмент аккумулятор", "электрический инструмент"),
+            ("Пылесос фильтр HEPA", "пылесос"),
+            ("Часы ремешок силиконовый", "часы"),
+        )
+        for title, requested_type in cases:
+            verdict = validate_product_type(
+                product("cross-category-component", title), requested_type
+            )
+            self.assertFalse(verdict.qualifies, msg=f"{requested_type!r}: {title!r}")
+            self.assertIn(
+                "requested_type_is_host_for_accessory", verdict.reasons,
+                msg=f"{requested_type!r}: {title!r}",
+            )
+
+    def test_cross_language_requested_accessory_is_reviewed_not_rejected_as_a_host_accessory(self) -> None:
+        # These titles begin with generic accessory nouns. They are legitimate
+        # requested products in this query, not accessories being sold for a
+        # different requested host device. The cross-language identity must
+        # be decided by the semantic reviewer, not the role-word heuristic.
+        cases = (
+            ("Phone case for iPhone 15", "чехол для телефона"),
+            ("Watch band for Apple Watch", "ремешок для часов"),
+            ("Water filter cartridge", "фильтр для воды"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("cross-language-component", title), requested_type
+                )
+                self.assertTrue(verdict.qualifies, msg=title)
+                self.assertIn(
+                    "requested_component_identity_requires_semantic_review",
+                    verdict.reasons,
+                    msg=title,
+                )
+                self.assertLess(verdict.score, 0.5)
+
+    def test_accessory_adjective_does_not_turn_a_host_product_into_a_component_request(self) -> None:
+        verdict = validate_product_type(
+            product("case-for-drill", "Case for cordless drill"),
+            "аккумуляторный шуруповёрт",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("accessory_head:case", verdict.reasons)
+        self.assertNotIn(
+            "requested_component_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+
+    def test_requested_component_itself_remains_a_valid_product(self) -> None:
+        for title, requested_type in (
+            ("Replacement laptop keyboard", "keyboard"),
+            ("HEPA filter for vacuum cleaner", "filter"),
+            ("Silicone wrist strap", "wrist strap"),
+            ("Camera battery replacement", "camera battery"),
+            ("Защитное стекло для смартфона", "защитное стекло"),
+        ):
+            verdict = validate_product_type(
+                product("requested-component", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=f"{requested_type!r}: {title!r}")
+
+    def test_descriptive_adjective_is_not_misread_as_accessory(self) -> None:
+        for title, requested_type in (
+            ("Наушники проводные", "наушники"),
+            ("Повербанк проводной зарядки", "повербанк"),
+        ):
+            verdict = validate_product_type(
+                product("descriptive-adjective", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=title)
+
+    def test_host_with_accessory_relation_remains_a_host_product(self) -> None:
+        for title, requested_type in (
+            ("Phone with protective case", "phone"),
+            ("Camera with lens cover", "camera"),
+        ):
+            verdict = validate_product_type(
+                product("host-with-accessory", title), requested_type
+            )
+            self.assertTrue(verdict.qualifies, msg=title)
+
+    def test_later_cross_sell_fragment_does_not_reject_primary_host(self) -> None:
+        verdict = validate_product_type(
+            product("host-cross-sell", "Phone 15, case included"), "phone"
+        )
+        self.assertTrue(verdict.qualifies)
+
+    def test_host_product_with_requested_accessory_is_not_the_accessory(self) -> None:
+        for title, requested_type in (
+            ("Дрель аккумуляторная с насадкой", "насадка"),
+            ("Телефон с защитным чехлом", "чехол"),
+            ("Шуруповёрт с насадкой-миксером", "насадка"),
+        ):
+            verdict = validate_product_type(
+                product("host-with-accessory", title), requested_type
+            )
+            self.assertFalse(verdict.qualifies, msg=title)
+
+    def test_english_host_product_with_accessory_is_not_the_accessory(self) -> None:
+        verdict = validate_product_type(
+            product("drill-with-attachment", "Drill with attachment"),
+            "attachment",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertIn("type_is_accessory_of_host_product", verdict.reasons)
+
+    def test_adjective_before_requested_accessory_is_still_valid(self) -> None:
+        verdict = validate_product_type(
+            product("real-attachment", "Аккумуляторная насадка для дрели"),
+            "насадка",
+        )
+        self.assertTrue(verdict.qualifies)
+
+    def test_requested_type_in_primary_title_clause_is_deterministic(self) -> None:
+        verdict = validate_product_type(
+            product("real-attachment", "Насадка для дрели по дереву"),
+            "насадка",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertNotIn(
+            "type_mentioned_only_after_listing_separator", verdict.reasons
+        )
+
     def test_drill_qualifies_but_bits_rejected(self) -> None:
         self.assertTrue(validate_product_type(
             product("d1", "Дрель аккумуляторная ударная 21V"), DRILL
@@ -136,6 +418,55 @@ class CrossCategoryValidationTests(unittest.TestCase):
             product("d3", "Насадка для дрели миксер"), DRILL
         ).qualifies)
 
+    def test_cross_language_title_is_deferred_to_semantic_review(self) -> None:
+        # A Russian request may retrieve an English marketplace title.
+        # Different scripts cannot be compared with shared word stems, so
+        # the candidate must reach semantic review rather than be discarded.
+        verdict = validate_product_type(
+            product("english-drill", "Cordless screwdriver drill driver 21V"),
+            "аккумуляторный шуруповёрт",
+        )
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "cross_language_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_same_language_synonym_without_shared_type_token_is_reviewed(self) -> None:
+        verdict = validate_product_type(
+            product("synonym-drill", "Беспроводная электрическая дрель"),
+            "шуруповёрт",
+        )
+
+        # No shared stem is uncertainty, not proof that the marketplace
+        # listing is unrelated. Gemini must still confirm the identity.
+        self.assertTrue(verdict.qualifies)
+        self.assertIn(
+            "type_identity_requires_semantic_review",
+            verdict.reasons,
+        )
+        self.assertLess(verdict.score, 0.5)
+
+    def test_accessory_with_no_shared_type_token_is_still_rejected(self) -> None:
+        verdict = validate_product_type(
+            product("driver-bits", "Набор бит для шуруповёрта"),
+            "шуруповёрт",
+        )
+
+        self.assertFalse(verdict.qualifies)
+        self.assertTrue(
+            any(reason.startswith("accessory_head:") for reason in verdict.reasons)
+        )
+
+    def test_cross_language_accessory_is_still_rejected(self) -> None:
+        verdict = validate_product_type(
+            product("english-bits", "Drill bits set for cordless screwdriver"),
+            "шуруповёрт",
+        )
+        self.assertFalse(verdict.qualifies)
+        self.assertTrue(any(reason.startswith("accessory_head:") for reason in verdict.reasons))
+
     def test_no_type_requested_passes_everything(self) -> None:
         self.assertTrue(validate_product_type(
             product("n1", "Что угодно вообще"), None
@@ -144,6 +475,54 @@ class CrossCategoryValidationTests(unittest.TestCase):
     def test_empty_title_is_rejected_when_type_requested(self) -> None:
         self.assertFalse(validate_product_type(product("n2", ""), REEL).qualifies)
 
+    def test_trailing_adjective_does_not_replace_requested_product_head(self) -> None:
+        for requested_type in ("карманный фонарик", "фонарик карманный"):
+            verdict = validate_product_type(
+                product("flashlight", "Карманный светодиодный фонарик 1000 lm"),
+                requested_type,
+            )
+            self.assertTrue(verdict.qualifies, msg=requested_type)
+
+
 
 if __name__ == "__main__":
     unittest.main()
+
+class GenericAddOnRoleTests(unittest.TestCase):
+    """Host-plus-addon titles must not masquerade as the requested host.
+
+    The role words are generic, not product-category exceptions. The same
+    words must still be searchable when the user asks for the add-on itself.
+    """
+
+    def test_addons_appended_to_host_titles_are_rejected(self) -> None:
+        cases = (
+            ("Kitchen faucet aerator 360 degree", "kitchen faucet"),
+            ("Кухонный кран-аэратор 360 градусов", "кухонный кран"),
+            ("Kitchen faucet silicone mat", "kitchen faucet"),
+            ("Кухонный кран силиконовый коврик", "кухонный кран"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("host-addon", title), requested_type
+                )
+                self.assertFalse(verdict.qualifies, msg=title)
+                self.assertIn(
+                    "requested_type_is_host_for_accessory",
+                    verdict.reasons,
+                    msg=title,
+                )
+
+    def test_addons_remain_valid_when_the_addon_is_the_requested_product(self) -> None:
+        cases = (
+            ("Faucet aerator 360 degree", "aerator"),
+            ("Silicone sink mat", "sink mat"),
+            ("Коврик для раковины силиконовый", "коврик"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title, requested_type=requested_type):
+                verdict = validate_product_type(
+                    product("requested-addon", title), requested_type
+                )
+                self.assertTrue(verdict.qualifies, msg=title)

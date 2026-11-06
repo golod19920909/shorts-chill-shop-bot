@@ -161,6 +161,8 @@ class SearchRequest(BaseModel):
     # keeps working unchanged. Stage 2 carries them as structured state /
     # diagnostics only - no relevance code reads them yet (that is Stage 3).
     intent_product_type: str | None = None
+    #: Alternate seller-catalogue wording, used only as a retrieval route.
+    intent_marketplace_terms: list[str] = Field(default_factory=list)
     intent_brand: str | None = None
     intent_model: str | None = None
     intent_generation: str | None = None

@@ -90,7 +90,7 @@ def validate_candidate(
             else:
                 # A negated word ABSENT from the product is satisfied.
                 evidence.append(f"exclusion_absent:{value}")
-        elif slot.kind == "feature":
+        elif slot.kind in {"feature", "compatibility"}:
             value = slot.value
             value_tokens = tokens(value)
             if not value_tokens:

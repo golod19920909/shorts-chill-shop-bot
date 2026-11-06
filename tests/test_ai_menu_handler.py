@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from handlers import ai_assistant
 from keyboards.main import CB_BACK, main_menu_keyboard
@@ -159,10 +160,14 @@ class FakeContext:
 class RecordingAssistant:
     """Stands in for ``ProductAssistant`` at the handler boundary."""
 
-    def __init__(self, selection=None, advice=None) -> None:
+    def __init__(self, selection=None, advice=None, matching=None) -> None:
         self.selection = selection
         self.advice = advice
+        self.matching = list(matching or [])
         self.questions: list[str] = []
+
+    def matching_products(self, question, products):
+        return [product for product in self.matching if product in products]
 
     async def analyze(self, product):
         return self.advice
@@ -305,6 +310,48 @@ class AiMenuCallbackTests(unittest.TestCase):
         self.assertTrue(query.answers)
         self.assertIn("Некорректная кнопка", query.answers[-1][0])
 
+
+
+class ShownQuestionRoutingTests(unittest.TestCase):
+    def test_feature_match_reuses_existing_card_renderer(self) -> None:
+        from handlers import common, search as search_handler
+
+        original = make_outcome(10)
+        selected = original.products[9]
+        assistant = RecordingAssistant(matching=[selected])
+        context = FakeContext({
+            "database": FakeDatabase(),
+            "product_assistant": assistant,
+        })
+        context.user_data[common.OUTCOME_CACHE_KEY] = {"s1": original}
+        captured = {}
+
+        async def fake_send(ctx, chat_id, outcome, **kwargs):
+            captured["chat_id"] = chat_id
+            captured["outcome"] = outcome
+            captured["kwargs"] = kwargs
+            return "s2"
+
+        with patch.object(search_handler, "send_search_results", fake_send):
+            handled = run(
+                search_handler._answer_over_shown(
+                    context,
+                    47,
+                    "А какой из них ярко светит?",
+                    "s1",
+                    user_id=1,
+                    telegram_id=555,
+                )
+            )
+
+        self.assertTrue(handled)
+        self.assertEqual(captured["chat_id"], 47)
+        self.assertEqual(captured["outcome"].products, [selected])
+        self.assertEqual(captured["outcome"].request, original.request)
+        self.assertTrue(captured["kwargs"]["pre_curated"])
+        self.assertFalse(captured["kwargs"]["follow_up"])
+        self.assertEqual(context.user_data["last_shown_session"], "s2")
+        self.assertEqual(context.bot.messages, [])
 
 
 class AiActionCallbackTests(unittest.TestCase):

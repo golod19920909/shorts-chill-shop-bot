@@ -91,7 +91,7 @@ class FakeAI:
         self._result = result
         self._exc = exc
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.calls += 1
         if self._exc is not None:
             raise self._exc

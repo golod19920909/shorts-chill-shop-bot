@@ -230,7 +230,7 @@ class CapturingAIService(AIService):
     def is_available(self) -> bool:
         return self._client is not None
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         chain = list(models or (self.fast_model,))
         if self.fallback_model and self.fallback_model not in chain:
             chain.append(self.fallback_model)
@@ -266,8 +266,8 @@ class CapturingAIService(AIService):
         real_generate = self._generate                      # bound BEFORE swap
         raw_holder: dict[str, str | None] = {"raw": None}
 
-        async def _spy(contents, *, models=None):
-            text = await real_generate(contents, models=models)
+        async def _spy(contents, *, models=None, operation="generate"):
+            text = await real_generate(contents, models=models, operation=operation)
             raw_holder["raw"] = text
             return text
 
@@ -295,8 +295,8 @@ class CapturingAIService(AIService):
         real_generate = self._generate                      # bound BEFORE swap
         raw_holder: dict[str, str | None] = {"raw": None}
 
-        async def _spy(contents, *, models=None):
-            text = await real_generate(contents, models=models)
+        async def _spy(contents, *, models=None, operation="generate"):
+            text = await real_generate(contents, models=models, operation=operation)
             raw_holder["raw"] = text
             return text
 

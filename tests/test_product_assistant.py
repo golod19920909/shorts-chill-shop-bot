@@ -26,6 +26,7 @@ from services.product_assistant import (
     cheaper_candidates,
     deterministic_advice,
     intent_from_title,
+    matching_products_for_question,
     product_facts,
 )
 from services.search_service import SearchOutcome
@@ -356,6 +357,117 @@ class QuestionTests(unittest.TestCase):
         self.assertIn("12.00 USD", advice.text)
         self.assertEqual(ai.calls, [])
 
+    def test_explicit_comparison_renders_two_products_and_real_differences(self) -> None:
+        first = make_product(
+            "keyboard-1",
+            "Клавиатура с подсветкой для Lenovo ThinkPad T490s/T495/T14s — раскладка US",
+            1519.41,
+            "UAH",
+            rating=4.7,
+            orders_count=120,
+        )
+        second = make_product(
+            "keyboard-2",
+            "Клавиатура для Lenovo ThinkPad X280/X390/L13 Gen1 — раскладки FR/ES/US",
+            1068.55,
+            "UAH",
+            rating=4.6,
+            orders_count=80,
+        )
+        ai = StubAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Отбери два варианта и сравни их", [first, second])
+        )
+
+        self.assertFalse(advice.used_ai)
+        self.assertIn("<b>Вариант 1</b>", advice.text)
+        self.assertIn("<b>Вариант 2</b>", advice.text)
+        self.assertIn("T490s/T495/T14s", advice.text)
+        self.assertIn("X280/X390/L13 Gen1", advice.text)
+        self.assertIn("1519.41 UAH", advice.text)
+        self.assertIn("1068.55 UAH", advice.text)
+        self.assertIn("Вариант 2 дешевле на 450.86 UAH", advice.text)
+        self.assertNotIn("в названии указано", advice.text)
+        self.assertEqual(ai.calls, [])
+
+    def test_explicit_comparison_adds_only_verified_ai_distinctions(self) -> None:
+        class ComparisonAI(StubAI):
+            async def extract_paired_listing_evidence(self, question, products):
+                self.calls.append("compare")
+                return [("compatibility", "ThinkPad T490s/T495", "ThinkPad X280/X390")]
+
+        first = make_product(
+            "keyboard-1",
+            "Клавиатура для Lenovo ThinkPad T490s/T495 — US layout",
+            1519.41,
+            "UAH",
+        )
+        second = make_product(
+            "keyboard-2",
+            "Клавиатура для Lenovo ThinkPad X280/X390 — FR/ES/US layout",
+            1068.55,
+            "UAH",
+        )
+        ai = ComparisonAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Отбери два варианта и сравни их", [first, second])
+        )
+
+        self.assertTrue(advice.used_ai)
+        self.assertIn(
+            "Совместимость / модели: вариант 1 — «ThinkPad T490s/T495»",
+            advice.text,
+        )
+        self.assertIn("вариант 2 — «ThinkPad X280/X390»", advice.text)
+        self.assertEqual(ai.calls, ["compare"])
+
+    def test_explicit_comparison_with_one_product_does_not_invent_a_pair(self) -> None:
+        ai = StubAI()
+        assistant = ProductAssistant(ai_service=ai)
+
+        advice = run(
+            assistant.answer("Сравни два варианта", [ORIGINAL])
+        )
+
+        self.assertFalse(advice.used_ai)
+        self.assertIn("нужны минимум два товара", advice.text)
+        self.assertEqual(ai.calls, [])
+
+    def test_worth_choosing_is_not_misclassified_as_a_price_question(self) -> None:
+        ai = StubAI(answer="Сравните рейтинг и отзывы перед выбором.")
+        assistant = ProductAssistant(ai_service=ai)
+        products = [make_product("a", "Наушники", 20.0)]
+
+        advice = run(assistant.answer("Что из этого стоит выбрать?", products))
+
+        self.assertTrue(advice.used_ai)
+        self.assertIn("Сравните рейтинг", advice.text)
+        self.assertEqual(ai.calls, ["question"])
+
+    def test_value_question_is_not_misclassified_as_a_price_question(self) -> None:
+        ai = StubAI(answer="Ценность варианта зависит от ваших приоритетов.")
+        assistant = ProductAssistant(ai_service=ai)
+        products = [make_product("a", "Наушники", 20.0)]
+
+        advice = run(assistant.answer("В чем ценность этого варианта?", products))
+
+        self.assertTrue(advice.used_ai)
+        self.assertIn("Ценность", advice.text)
+        self.assertEqual(ai.calls, ["question"])
+
+    def test_explicit_how_much_does_it_cost_is_a_price_question(self) -> None:
+        assistant = ProductAssistant(ai_service=StubAI())
+        products = [make_product("a", "Наушники", 20.0)]
+
+        advice = run(assistant.answer("Сколько стоит этот вариант?", products))
+
+        self.assertFalse(advice.used_ai)
+        self.assertIn("20.00 USD", advice.text)
+
     def test_most_ordered_question_uses_real_order_counts(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))
         products = [
@@ -367,6 +479,40 @@ class QuestionTests(unittest.TestCase):
 
         self.assertIn("900", advice.text)
 
+    def test_brightness_comparison_uses_lumen_values_from_titles(self) -> None:
+        assistant = ProductAssistant(ai_service=StubAI(available=False))
+        products = [
+            make_product("600", "Фонарик COB 600 лм", 290.0, "UAH"),
+            make_product("800", "Карманный фонарь 800LM", 378.0, "UAH"),
+            make_product("1100", "УФ-фонарик EDC 1100LM", 1503.0, "UAH"),
+            make_product("word", "Ультра яркий карманный фонарик", 250.0, "UAH"),
+        ]
+        advice = run(assistant.answer("А какой из них ярче светит?", products))
+        self.assertFalse(advice.used_ai)
+        self.assertIn("1100 лм", advice.text)
+        self.assertIn("не независимое измерение", advice.text)
+        self.assertNotIn("AliExpress этого нет", advice.text)
+
+    def test_brightness_question_is_not_a_product_selection(self) -> None:
+        products = [
+            make_product("600", "Фонарик 600 лм", 290.0, "UAH"),
+            make_product("1100", "Фонарик 1100 лм", 390.0, "UAH"),
+        ]
+        selected = matching_products_for_question(
+            "А какой из них ярче светит?", products
+        )
+        self.assertEqual(selected, [])
+
+    def test_brightness_comparison_does_not_invent_lumens(self) -> None:
+        assistant = ProductAssistant(ai_service=StubAI(available=False))
+        products = [
+            make_product("a", "Ультра яркий фонарик", 20.0, "UAH"),
+            make_product("b", "Мощный карманный фонарь", 25.0, "UAH"),
+        ]
+        advice = run(assistant.answer("Какой светит ярче?", products))
+        self.assertIn("не могу надёжно это подтвердить", advice.text)
+
+
     def test_missing_information_is_reported_honestly(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))
         products = [make_product("a", "Наушники", 20.0)]
@@ -374,7 +520,35 @@ class QuestionTests(unittest.TestCase):
         advice = run(assistant.answer("А он подходит для ноутбука?", products))
 
         self.assertFalse(advice.used_ai)
-        self.assertIn("В данных AliExpress этого нет", advice.text)
+        self.assertIn("не могу надёжно это подтвердить", advice.text)
+
+    def test_feature_question_selects_matching_existing_products(self) -> None:
+        products = [
+            make_product("dim", "Карманный светодиодный фонарик", 20.0),
+            make_product("bright", "Супер яркий мощный карманный фонарик", 30.0),
+            make_product("other", "Компактный фонарь с клипсой", 15.0),
+        ]
+
+        selected = matching_products_for_question(
+            "А какой из них ярко светит?", products
+        )
+
+        self.assertEqual([product.product_id for product in selected], ["bright"])
+
+    def test_comparison_questions_are_not_mistaken_for_feature_selection(self) -> None:
+        products = [
+            make_product("cheap", "Дешёвый фонарик", 10.0),
+            make_product("normal", "Карманный фонарик", 20.0),
+        ]
+
+        self.assertEqual(
+            matching_products_for_question("Какой вариант дешевле?", products),
+            [],
+        )
+        self.assertEqual(
+            matching_products_for_question("Какой из них лучше?", products),
+            [],
+        )
 
     def test_feature_question_uses_real_titles_only(self) -> None:
         assistant = ProductAssistant(ai_service=StubAI(available=False))

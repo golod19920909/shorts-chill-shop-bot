@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from models.product import Marketplace, Product
 from services.ai_service import (
@@ -40,6 +42,7 @@ def make_product(**overrides) -> Product:
         "marketplace": Marketplace.ALIEXPRESS,
         "product_id": "p-1",
         "title": "Беспроводные наушники TWS",
+        "description": "Wireless earbuds with touch controls",
         "product_url": "https://www.aliexpress.com/item/1.html",
         "affiliate_url": "https://s.click.aliexpress.com/e1x",
         "price": 19.99,
@@ -63,7 +66,7 @@ class StubbedAIService(AIService):
         self.prompts: list[object] = []
         self.models: list[tuple[str, ...]] = []
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.prompts.append(contents)
         self.models.append(tuple(models or ()))
         return self._response
@@ -208,68 +211,61 @@ class CandidateSelectionValidationTests(unittest.TestCase):
 
 
 class QuestionValidationTests(unittest.TestCase):
-    def test_an_answer_over_real_data_is_returned(self) -> None:
-        service = StubbedAIService("У этого товара цена 19.99 USD.")
-
-        answer = run(
-            service.answer_product_question("Сколько стоит?", [make_product()])
+    def test_an_answer_is_built_from_a_verified_listing_quote(self) -> None:
+        service = StubbedAIService(
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Wireless earbuds with touch controls"}]}'
         )
 
-        self.assertIn("19.99", answer)
+        answer = run(
+            service.answer_product_question("Что указано о наушниках?", [make_product()])
+        )
 
-    def test_an_invented_number_is_rejected(self) -> None:
-        service = StubbedAIService("Цена этого товара 2.99 USD.")
+        self.assertIn("Wireless earbuds with touch controls", answer)
+        self.assertIn("Беспроводные наушники TWS", answer)
+
+    def test_an_invented_quote_is_rejected(self) -> None:
+        service = StubbedAIService(
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Active noise cancellation"}]}'
+        )
 
         self.assertIsNone(
-            run(
-                service.answer_product_question(
-                    "Сколько стоит?", [make_product()]
-                )
-            )
+            run(service.answer_product_question("Есть ли шумоподавление?", [make_product()]))
         )
 
-    def test_one_bad_number_no_longer_discards_a_correct_answer(self) -> None:
-        # Observed live: a single stray figure made the whole answer vanish,
-        # so the feature was effectively dead. Unsupported SENTENCES are
-        # dropped; the verified ones are still shown.
+    def test_model_cannot_add_unsupported_delivery_claim(self) -> None:
         service = StubbedAIService(
-            "Цена товара 19.99 USD. Обычно доставка занимает 30 дней."
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Wireless earbuds with touch controls"}],'
+            '"answer":"Доставка займёт 30 дней."}'
         )
 
         answer = run(
-            service.answer_product_question("Сколько стоит и как долго едет?", [make_product()])
+            service.answer_product_question("Что известно о товаре и доставке?", [make_product()])
         )
 
-        self.assertIsNotNone(answer)
-        self.assertIn("19.99", answer)
+        self.assertIn("Wireless earbuds with touch controls", answer)
         self.assertNotIn("30 дней", answer)
 
-    def test_every_sentence_invented_yields_no_answer_at_all(self) -> None:
+    def test_every_invented_quote_yields_no_answer(self) -> None:
         service = StubbedAIService(
-            "Доставка 30 дней. Рейтинг 4.9 из 5. Вес 500 грамм."
+            '{"claims":[{"product_id":"p-1","field":"description",'
+            '"quote":"Waterproof, 500 grams"}]}'
         )
 
         self.assertIsNone(
-            run(
-                service.answer_product_question("Какая доставка?", [make_product()])
-            )
+            run(service.answer_product_question("Он водонепроницаемый?", [make_product()]))
         )
 
-    def test_the_documented_no_data_answer_becomes_none(self) -> None:
-        service = StubbedAIService("нет данных")
+    def test_empty_evidence_list_becomes_no_answer(self) -> None:
+        service = StubbedAIService('{"claims":[]}')
 
         self.assertIsNone(
-            run(
-                service.answer_product_question(
-                    "А он подходит для ноутбука?", [make_product()]
-                )
-            )
+            run(service.answer_product_question("А он подходит для ноутбука?", [make_product()]))
         )
 
     def test_a_claim_the_data_cannot_answer_is_left_to_the_caller(self) -> None:
-        # A claim without numbers cannot be caught by the numeric gate, so the
-        # deterministic layer answers first whenever the fields can answer,
-        # and its honest "no such data" wins over a guess.
         from services.product_assistant import deterministic_answer
 
         self.assertIsNone(
@@ -473,3 +469,147 @@ class StrictSelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
+    async def test_conversation_selection_uses_low_thinking_and_json_output(self):
+        generate = AsyncMock(return_value=SimpleNamespace(text='{"selections": []}'))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "candidate selection prompt",
+            models=(service.fast_model,),
+            operation="conversation_selection",
+        )
+
+        self.assertEqual(result, '{"selections": []}')
+        config = generate.await_args.kwargs["config"]
+        self.assertEqual(config["response_mime_type"], "application/json")
+        self.assertEqual(config["thinking_config"]["thinking_level"], "low")
+
+    async def test_conversation_turn_uses_shared_json_schema(self):
+        from services.ai_service import CONVERSATION_TURN_SCHEMA
+
+        generate = AsyncMock(return_value=SimpleNamespace(text='{"action":"refine"}'))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(result, '{"action":"refine"}')
+        config = generate.await_args.kwargs["config"]
+        self.assertEqual(config["response_mime_type"], "application/json")
+        self.assertIs(config["response_schema"], CONVERSATION_TURN_SCHEMA)
+
+    async def test_other_gemini_operations_keep_the_default_generation_config(self):
+        generate = AsyncMock(return_value=SimpleNamespace(text="ok"))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "unrelated prompt",
+            models=(service.fast_model,),
+            operation="unrelated_operation",
+        )
+
+        self.assertEqual(result, "ok")
+        self.assertNotIn("config", generate.await_args.kwargs)
+
+
+class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
+    async def test_conversation_selection_tries_fallback_after_primary_timeout(self):
+        generate = AsyncMock(side_effect=[
+            TimeoutError("primary timed out"),
+            SimpleNamespace(text='{"selections": []}'),
+        ])
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "candidate selection prompt",
+            models=(service.fast_model,),
+            operation="conversation_selection",
+        )
+
+        self.assertEqual(result, '{"selections": []}')
+        self.assertEqual(
+            [call.kwargs["model"] for call in generate.await_args_list],
+            ["primary-model", "fallback-model"],
+        )
+        for call in generate.await_args_list:
+            self.assertEqual(
+                call.kwargs["config"]["thinking_config"]["thinking_level"],
+                "low",
+            )
+
+    async def test_other_gemini_operations_do_not_retry_on_timeout(self):
+        generate = AsyncMock(side_effect=TimeoutError("request timed out"))
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="product_question_answer",
+        )
+
+        self.assertIsNone(result)
+        generate.assert_awaited_once()
+
+class GeminiConversationTurnFallbackSchemaTests(unittest.IsolatedAsyncioTestCase):
+    async def test_primary_and_fallback_receive_the_same_conversation_schema(self):
+        from services.ai_service import CONVERSATION_TURN_SCHEMA
+
+        generate = AsyncMock(side_effect=[
+            TimeoutError("primary timed out"),
+            SimpleNamespace(text='{"action":"refine"}'),
+        ])
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(result, '{"action":"refine"}')
+        self.assertEqual(generate.await_count, 2)
+        first_config = generate.await_args_list[0].kwargs["config"]
+        fallback_config = generate.await_args_list[1].kwargs["config"]
+        self.assertEqual(first_config, fallback_config)
+        self.assertEqual(first_config["response_mime_type"], "application/json")
+        self.assertIs(first_config["response_schema"], CONVERSATION_TURN_SCHEMA)
+

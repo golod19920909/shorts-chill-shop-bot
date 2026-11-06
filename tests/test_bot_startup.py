@@ -18,6 +18,7 @@ from bot import (
     _post_init,
     _post_shutdown,
     build_application,
+    build_rate_limiter,
     publish_command_menu,
 )
 from config.settings import MarketplaceCredentials, Settings
@@ -67,6 +68,11 @@ class BotStartupTestCase(unittest.TestCase):
 
 
 class ApplicationWiringTests(BotStartupTestCase):
+    def test_telegram_rate_limiter_is_installed(self) -> None:
+        # The runtime requirements include PTB's rate-limiter extra; without
+        # it Telegram delivery has no client-side flood protection.
+        self.assertIsNotNone(build_rate_limiter())
+
     def test_handlers_and_services_are_registered(self) -> None:
         application = build_application(self.make_settings())
 

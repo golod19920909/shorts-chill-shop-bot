@@ -102,6 +102,7 @@ def product_facts(product: Product) -> dict[str, object]:
         "marketplace": str(getattr(product.marketplace, "value", product.marketplace)),
     }
     optional = (
+        "description",
         "price",
         "currency",
         "old_price",
@@ -429,7 +430,27 @@ def similar_candidates(original: Product, candidates: list[Product]) -> list[Pro
 #: Phrases that mean "compare prices" / "compare popularity" / "compare
 #: reviews" in a product question. Checked in this order, because a
 #: question can contain several ("какой из этих вариантов дешевле").
-_PRICE_MARKERS = ("дешев", "дорог", "цена", "стоит", "price", "cheap", "expensive")
+_PRICE_MARKERS = (
+    "дешев", "дорог", "стоимост", "price", "cheap", "expensive",
+    "how much", "cost",
+)
+
+
+def _is_price_question(question: str) -> bool:
+    """Recognize explicit price intent without confusing 'worth choosing' with cost."""
+    text = (question or "").lower().replace("ё", "е")
+    if any(marker in text for marker in _PRICE_MARKERS):
+        return True
+    return bool(
+        re.search(
+            r"\bцен(?:а|ы|у|е|ой|ник)\w*\b|"
+            r"\bсколько\s+(?:это\s+)?стоит\b|"
+            r"\bво\s+сколько\b|"
+            r"\bпо\s+какой\s+цене\b|"
+            r"\bhow\s+much\s+(?:does\s+it\s+)?cost\b",
+            text,
+        )
+    )
 _ORDERS_MARKERS = ("заказ", "продаж", "популяр", "orders", "sales")
 _REVIEW_MARKERS = ("рейтинг", "отзыв", "оценк", "rating", "reviews")
 
@@ -443,7 +464,7 @@ _QUESTION_STOPWORDS = frozenset(
         "этих", "это", "эти", "он", "она", "оно", "они", "подходит", "подойдет",
         "подойдёт", "для", "мне", "мой", "моя", "моего", "можно", "или", "чем",
         "что", "чего", "самый", "самая", "самое", "более", "менее", "нужен",
-        "нужна", "нужно",
+        "нужна", "нужно", "светит", "светят", "светить", "светится", "светятся",
     }
 )
 
@@ -481,6 +502,181 @@ def _price_lines(products: dict[str, Product]) -> list[str]:
     ]
 
 
+_COMPARISON_ASPECT_LABELS = {
+    "compatibility": "Совместимость / модели",
+    "layout": "Язык / раскладка",
+    "material": "Материал",
+    "size": "Размер",
+    "package": "Комплектация",
+    "power": "Питание / мощность",
+    "other": "Другой параметр",
+}
+
+
+_COMPARISON_REQUEST_MARKERS = (
+    "сравни", "сравнить", "сравнение", "сопостав", "отличаются",
+    "различия", "compare", "comparison",
+)
+
+
+def is_explicit_comparison_request(question: str) -> bool:
+    """Recognize an explicit request to compare already-shown products."""
+
+    lowered = (question or "").casefold().replace("ё", "е")
+    return any(marker in lowered for marker in _COMPARISON_REQUEST_MARKERS)
+
+
+def deterministic_comparison(
+    question: str,
+    products: list[Product],
+    *,
+    evidence_differences: list[tuple[str, str, str]] | None = None,
+) -> str | None:
+    """Compare the two highest-ranked shown products using only real fields.
+
+    The search/semantic-selection pipeline has already ordered the products.
+    This renderer compares its first two distinct listings. Optional Gemini
+    evidence is accepted only after exact-quote validation in AIService; all
+    numeric facts and the final wording are assembled locally.
+    """
+
+    if not is_explicit_comparison_request(question):
+        return None
+
+    pair: list[Product] = []
+    seen_ids: set[str] = set()
+    for product in products:
+        product_id = str(product.product_id)
+        if product_id in seen_ids:
+            continue
+        seen_ids.add(product_id)
+        pair.append(product)
+        if len(pair) == 2:
+            break
+
+    if len(pair) < 2:
+        return (
+            "Для сравнения нужны минимум два товара из показанных результатов. "
+            "Сейчас доступен только один подходящий вариант."
+        )
+
+    first, second = pair
+    lines = [
+        "Сравнил два наиболее релевантных варианта из показанных результатов.",
+        "",
+    ]
+
+    for number, product in enumerate(pair, start=1):
+        title = html.escape(str(product.title or "Товар")[:240])
+        lines.append(f"<b>Вариант {number}</b>")
+        lines.append(title)
+        if product.price is not None:
+            lines.append(f"• Цена: {format_price(product.price, product.currency)}")
+        else:
+            lines.append("• Цена: нет данных в карточке")
+        if product.rating is not None:
+            lines.append(f"• Рейтинг: {product.rating:g} из 5")
+        if product.positive_rate is not None:
+            lines.append(f"• Положительных отзывов: {product.positive_rate:g}%")
+        if product.orders_count is not None:
+            lines.append(f"• Заказов: {product.orders_count}")
+        if product.delivery_estimate:
+            lines.append(f"• Доставка: {html.escape(str(product.delivery_estimate)[:100])}")
+        if product.shipping_cost is not None:
+            lines.append(
+                "• Стоимость доставки: "
+                f"{format_price(product.shipping_cost, product.currency)}"
+            )
+        lines.append("")
+
+    differences: list[str] = []
+    if first.price is not None and second.price is not None:
+        first_currency = (first.currency or "").upper()
+        second_currency = (second.currency or "").upper()
+        if first_currency and first_currency == second_currency:
+            delta = abs(first.price - second.price)
+            if delta > 0:
+                cheaper_number = 1 if first.price < second.price else 2
+                differences.append(
+                    f"Вариант {cheaper_number} дешевле на "
+                    f"{format_price(delta, first.currency)}."
+                )
+            else:
+                differences.append("Цены одинаковые.")
+        else:
+            differences.append(
+                "Не хватает одинаковых данных о валюте, поэтому цены напрямую не сравниваю."
+            )
+
+    if first.rating is not None and second.rating is not None:
+        if first.rating != second.rating:
+            higher = 1 if first.rating > second.rating else 2
+            differences.append(
+                f"У варианта {higher} выше рейтинг: "
+                f"{max(first.rating, second.rating):g} против "
+                f"{min(first.rating, second.rating):g} из 5."
+            )
+        else:
+            differences.append(f"Рейтинг одинаковый: {first.rating:g} из 5.")
+
+    if first.positive_rate is not None and second.positive_rate is not None:
+        if first.positive_rate != second.positive_rate:
+            higher = 1 if first.positive_rate > second.positive_rate else 2
+            differences.append(
+                f"У варианта {higher} выше доля положительных отзывов: "
+                f"{max(first.positive_rate, second.positive_rate):g}% против "
+                f"{min(first.positive_rate, second.positive_rate):g}%."
+            )
+
+    if first.orders_count is not None and second.orders_count is not None:
+        if first.orders_count != second.orders_count:
+            more = 1 if first.orders_count > second.orders_count else 2
+            differences.append(
+                f"У варианта {more} больше накопленных заказов: "
+                f"{max(first.orders_count, second.orders_count)} против "
+                f"{min(first.orders_count, second.orders_count)}."
+            )
+
+    verified_differences: list[tuple[str, str, str]] = []
+    for item in (evidence_differences or [])[:4]:
+        if not isinstance(item, (tuple, list)) or len(item) != 3:
+            continue
+        aspect, first_quote, second_quote = item
+        if (
+            aspect not in _COMPARISON_ASPECT_LABELS
+            or not isinstance(first_quote, str)
+            or not isinstance(second_quote, str)
+            or not first_quote.strip()
+            or not second_quote.strip()
+        ):
+            continue
+        verified_differences.append(
+            (_COMPARISON_ASPECT_LABELS[aspect], first_quote, second_quote)
+        )
+
+    lines.append("<b>Главные отличия по данным карточек</b>")
+    if differences:
+        lines.extend(f"• {item}" for item in differences)
+    if verified_differences:
+        lines.extend(
+            f"• {html.escape(label)}: вариант 1 — «{html.escape(first_quote)}»; "
+            f"вариант 2 — «{html.escape(second_quote)}»."
+            for label, first_quote, second_quote in verified_differences
+        )
+    if not differences and not verified_differences:
+        lines.append(
+            "В карточках недостаточно общих характеристик, чтобы объективно "
+            "назвать один вариант лучше другого. Сопоставьте сведения, "
+            "указанные в названиях выше."
+        )
+    lines.extend([
+        "",
+        "Я сравниваю только сведения, которые AliExpress передал в этих карточках; "
+        "неуказанные характеристики и совместимость не додумываю.",
+    ])
+    return "\n".join(lines)
+
+
 def _feature_probe_words(question: str) -> list[str]:
     return [
         word.lower()
@@ -488,6 +684,96 @@ def _feature_probe_words(question: str) -> list[str]:
         if len(word) >= 4 and word.lower() not in _QUESTION_STOPWORDS
     ]
 
+
+
+def matching_products_for_question(
+    question: str, products: list[Product]
+) -> list[Product]:
+    """Return existing products whose REAL titles contain a requested feature.
+
+    This is a deterministic, title-grounded selector. It never invents or
+    enriches product attributes; callers may re-render the returned Product
+    objects through the normal Telegram card path.
+    """
+
+    text = (question or "").lower()
+    if any(
+        marker in text
+        for marker in (*_PRICE_MARKERS, *_ORDERS_MARKERS, *_REVIEW_MARKERS)
+    ):
+        return []
+    if any(
+        marker in text
+        for marker in ("лучше", "лучший", "лучшие", "сравн", "почему")
+    ):
+        return []
+
+    probes = _feature_probe_words(question)
+    if not probes or not products:
+        return []
+    def title_matches_probe(title: str, probe: str) -> bool:
+        if phrase_in_text(title, probe):
+            return True
+        # Russian adverbs often describe the same feature as an adjective in
+        # a seller title («ярко» -> «яркий», «быстро» -> «быстрый»).
+        # Compare the shortened form only at a title-word boundary.
+        if len(probe) >= 4 and probe.endswith(("о", "е")):
+            stem = probe[:-1]
+            return any(
+                token.lower().startswith(stem)
+                for token in _WORD_RE.findall(title or "")
+            )
+        return False
+
+    matched = [
+        product
+        for product in products
+        if any(title_matches_probe(product.title, word) for word in probes)
+    ]
+    return matched[:MAX_RESULTS_SHOWN]
+
+
+def _lumen_value(title: str | None) -> float | None:
+    """Extract a seller-advertised lumen value from a real listing title."""
+    if not title:
+        return None
+    match = re.search(
+        r"(?<!\w)(\d{2,5}(?:[.,]\d+)?)\s*(?:lm|лм|люмен(?:а|ов)?)",
+        str(title), flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    try:
+        return float(match.group(1).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _brightness_comparison(question: str, products: list[Product]) -> str | None:
+    """Compare seller-advertised lumen values; never infer brightness."""
+    lowered = (question or "").lower().replace("ё", "е")
+    if not any(m in lowered for m in ("ярк", "свет", "люмен", " lm", "лм", "освещ")):
+        return None
+    measured = [
+        (value, product) for product in products
+        if (value := _lumen_value(product.title)) is not None
+    ]
+    if not measured:
+        return None
+    measured.sort(key=lambda item: (item[0], item[1].orders_count or 0), reverse=True)
+    top_value = measured[0][0]
+    leaders = [product for value, product in measured if value == top_value]
+    lines = ["🔦 <b>По заявленным люменам ярче всего:</b>"]
+    for product in leaders[:3]:
+        lines.append(f"• {html.escape(product.title[:100])} — {top_value:g} лм")
+    lower_values = [value for value, _product in measured if value < top_value]
+    if lower_values:
+        lines.append(f"• Для сравнения: следующий указанный уровень — {max(lower_values):g} лм.")
+    lines.append(
+        "Это цифры из названий продавцов AliExpress, а не независимое измерение: "
+        "фактическую яркость они не подтверждают."
+    )
+    return "\n".join(lines)
 
 
 def deterministic_answer(question: str, products: list[Product]) -> str | None:
@@ -505,7 +791,7 @@ def deterministic_answer(question: str, products: list[Product]) -> str | None:
 
     text = (question or "").lower()
 
-    if any(marker in text for marker in _PRICE_MARKERS):
+    if _is_price_question(text):
         cheapest = _extreme_per_currency(products, cheapest=True)
         if not cheapest:
             return None
@@ -565,24 +851,25 @@ def deterministic_answer(question: str, products: list[Product]) -> str | None:
             ]
         )
 
+    # Numeric comparisons are answers, not product selections. Keep the
+    # selector's return type strictly list[Product]; render the factual
+    # comparison here, where a text answer is expected.
+    brightness = _brightness_comparison(question, products)
+    if brightness:
+        return brightness
+
     # Positive feature probe: report products whose REAL titles contain the
     # asked word. A negative result returns None (a different wording may
     # still match), so the bot never claims "нет" too confidently.
-    probes = _feature_probe_words(question)
-    if probes:
-        matched = [
-            product
-            for product in products
-            if any(phrase_in_text(product.title, word) for word in probes)
-        ]
-        if matched:
-            lines = ["✅ <b>Такие варианты есть в этой выборке</b>"]
-            lines.extend(
-                f"• {product.title[:70]} — "
-                f"{format_price(product.price, product.currency)}"
-                for product in matched[:MAX_RESULTS_SHOWN]
-            )
-            return "\n".join(lines)
+    matched = matching_products_for_question(question, products)
+    if matched:
+        lines = ["✅ <b>Такие варианты есть в этой выборке</b>"]
+        lines.extend(
+            f"• {product.title[:70]} — "
+            f"{format_price(product.price, product.currency)}"
+            for product in matched
+        )
+        return "\n".join(lines)
 
     return None
 
@@ -735,8 +1022,28 @@ class ProductAssistant:
     ) -> CandidateSelection:
         return await self._select("better", product, candidates)
 
+    def matching_products(
+        self, question: str, products: list[Product]
+    ) -> list[Product]:
+        """Select already-shown products with title evidence for a feature question."""
+
+        return matching_products_for_question(question, products)
+
     async def answer(self, question: str, products: list[Product]) -> ProductAdvice:
         """«💬 Задать свой вопрос» - exact answers first, language second."""
+
+        if is_explicit_comparison_request(question):
+            evidence_differences = None
+            compare = getattr(self.ai, "extract_paired_listing_evidence", None)
+            if self.ai_available and callable(compare):
+                evidence_differences = await compare(question, products)
+            comparison = deterministic_comparison(
+                question,
+                products,
+                evidence_differences=evidence_differences,
+            )
+            if comparison:
+                return ProductAdvice(comparison, bool(evidence_differences))
 
         deterministic = deterministic_answer(question, products)
         if deterministic:
@@ -748,7 +1055,7 @@ class ProductAssistant:
                 return ProductAdvice(text, True)
 
         return ProductAdvice(
-            "В данных AliExpress этого нет — по этим товарам такой информации "
-            "маркетплейс не передал.",
+            "По данным этих карточек не могу надёжно это подтвердить. "
+            "Не хочу угадывать характеристики или совместимость.",
             False,
         )

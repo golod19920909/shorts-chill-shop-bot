@@ -8,6 +8,7 @@ Gemini output. Nothing here touches the network.
 from __future__ import annotations
 
 import asyncio
+import json
 import unittest
 
 from models.product import Marketplace, Product
@@ -163,6 +164,44 @@ class AIOutputValidationTests(unittest.TestCase):
 
         self.assertEqual(request.normalized_query, "беспроводные наушники")
 
+    def test_no_results_reply_is_natural_plain_text_with_one_question(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertEqual(operation, "no_results_reply")
+            self.assertEqual(models, (service.fast_model,))
+            self.assertIn("не удалось подобрать", contents)
+            return "Пока не вижу подходящего совпадения. Какое из пожеланий можно немного ослабить?"
+
+        service._generate = fake_generate
+        reply = asyncio.run(service.compose_no_results_reply(
+            "Нужен аккумуляторный инструмент",
+            active_slots=[{"kind": "budget", "value": "2500 UAH"}],
+            reason="no_eligible",
+        ))
+
+        self.assertEqual(
+            reply,
+            "Пока не вижу подходящего совпадения. Какое из пожеланий можно немного ослабить?",
+        )
+
+    def test_no_results_reply_rejects_unbounded_or_non_question_output(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            return "Поиск завершён. Подходящих товаров нет."
+
+        service._generate = fake_generate
+        reply = asyncio.run(service.compose_no_results_reply(
+            "Нужен инструмент",
+            active_slots=[],
+            reason="no_candidates",
+        ))
+
+        self.assertIsNone(reply)
+
     def test_valid_catalog_query_is_left_untouched(self) -> None:
         request = AIService._to_search_request(
             {"normalized_query": "wireless headphones"}, fallback_text="наушники"
@@ -243,6 +282,570 @@ class AIOutputValidationTests(unittest.TestCase):
         self.assertIsNone(asyncio.run(service.rank_candidates([product])))
 
 
+class ProductQuestionContextCoverageTests(unittest.TestCase):
+    """A question about shown cards must not silently ignore cards 9–30."""
+
+    def test_question_prompt_includes_all_products_on_a_default_page(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        captured: list[str] = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            captured.append(contents)
+            return "нет данных"
+
+        service._generate = fake_generate
+        products = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id=f"page-{index}",
+                title=f"Product number {index}",
+                product_url=f"https://example.com/{index}",
+                price=float(index + 1),
+                currency="USD",
+            )
+            for index in range(30)
+        ]
+
+        result = asyncio.run(
+            service.answer_product_question("Compare all shown products", products)
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual(len(captured), 1)
+        self.assertIn('"id": "page-0"', captured[0])
+        self.assertIn('"id": "page-29"', captured[0])
+
+
+
+class GroundedProductQuestionTests(unittest.TestCase):
+    def test_missing_selection_criteria_produces_one_clarifying_question(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":null,"evidence":[]},'
+            '"clarification":"Что для вас важнее — цена или автономность?"}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("Какой из них лучше?", self._products())
+        )
+        self.assertEqual(answer, "Что для вас важнее — цена или автономность?")
+
+    def test_clarification_with_multiple_questions_or_links_is_rejected(self) -> None:
+        for question in (
+            "Что важнее? Цена или автономность?",
+            "Что важнее? https://example.com",
+        ):
+            response = json.dumps(
+                {
+                    "claims": [],
+                    "recommendation": {"product_id": None, "evidence": []},
+                    "clarification": question,
+                }
+            )
+            service = self._service(response)
+            self.assertIsNone(asyncio.run(
+                service.answer_product_question("Какой лучше?", self._products())
+            ))
+
+    def test_recommendation_requires_an_exact_quote_from_the_selected_product(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("Какой лучше для работы без розетки?", self._products())
+        )
+        self.assertIn("наиболее подходящим выглядит", answer)
+        self.assertIn("Cordless drill", answer)
+        self.assertIn("Includes two batteries", answer)
+
+    def test_recommendation_with_invented_evidence_is_not_accepted(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes five batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
+    def test_malformed_recommendation_field_is_ignored_safely(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":["description"],"quote":"Includes two batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
+    def test_recommendation_with_unknown_product_id_is_not_accepted(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"invented","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Какой лучше?", self._products())
+        ))
+
+    def test_slow_product_question_returns_to_honest_fallback_within_budget(self) -> None:
+        service = AIService(api_key=None, timeout_seconds=0.01)
+        service._client = object()
+
+        async def slow_generate(contents, *, models=None, operation="generate"):
+            await asyncio.sleep(0.1)
+            return '{"claims":[]}'
+
+        service._generate = slow_generate
+        result = asyncio.run(
+            service.answer_product_question("Which one is better?", [
+                Product(
+                    marketplace=Marketplace.ALIEXPRESS,
+                    product_id="item-1",
+                    title="Cordless drill",
+                    product_url="https://example.com/item-1",
+                )
+            ])
+        )
+
+        self.assertIsNone(result)
+
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertIn('"claims"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def _products(self) -> list[Product]:
+        return [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="item-1",
+                title="Cordless drill",
+                description="Includes two batteries and a charger",
+                product_url="https://example.com/item-1",
+            )
+        ]
+
+    def test_answer_is_built_from_exact_listing_quote(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":"description",'
+            '"quote":"Includes two batteries"}]}'
+        )
+        answer = asyncio.run(
+            service.answer_product_question("У какого товара два аккумулятора?", self._products())
+        )
+        self.assertIn("Includes two batteries", answer)
+        self.assertIn("Cordless drill", answer)
+        self.assertNotIn("имеет две батареи", answer)
+
+    def test_malformed_claim_field_is_ignored_safely(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":["description"],'
+            '"quote":"Includes two batteries"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("У какого товара два аккумулятора?", self._products())
+        ))
+
+    def test_invented_quote_is_rejected(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"item-1","field":"description",'
+            '"quote":"Includes three batteries"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("У какого товара три аккумулятора?", self._products())
+        ))
+
+    def test_unknown_product_id_is_rejected(self) -> None:
+        service = self._service(
+            '{"claims":[{"product_id":"invented","field":"title","quote":"Cordless drill"}]}'
+        )
+        self.assertIsNone(asyncio.run(
+            service.answer_product_question("Что за товар?", self._products())
+        ))
+
+class ConversationSelectionEvidenceTests(unittest.TestCase):
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+        service.captured_prompts = []
+        service.captured_schemas = []
+
+        async def fake_generate(
+            contents, *, models=None, operation="generate", response_schema=None
+        ):
+            service.captured_prompts.append(contents)
+            service.captured_schemas.append(response_schema)
+            self.assertEqual(operation, "conversation_selection")
+            self.assertIn('"selections"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def _product(self) -> Product:
+        return Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="drill-1",
+            title="Cordless screwdriver with 2 batteries",
+            product_url="https://example.com/drill-1",
+        )
+
+    def test_selection_schema_requires_each_active_feature_evidence_field(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries",'
+            '"быстрой зарядкой":"fast charging"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver",
+            required_features=["двумя аккумуляторами", "быстрой зарядкой"],
+            identity_review_ids=["drill-1"],
+        ))
+
+        self.assertIsNone(result)
+        schema = service.captured_schemas[-1]
+        self.assertEqual(schema["properties"]["selections"]["items"]["properties"][
+            "requirement_evidence"
+        ]["required"], ["двумя аккумуляторами", "быстрой зарядкой"])
+        self.assertEqual(
+            set(schema["properties"]["selections"]["items"]["properties"][
+                "requirement_evidence"
+            ]["properties"]),
+            {"двумя аккумуляторами", "быстрой зарядкой"},
+        )
+
+    def test_selection_requires_exact_listing_quote_for_mandatory_feature(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertEqual(result, ["drill-1"])
+
+    def test_selection_rejects_invented_or_missing_feature_evidence(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"includes two batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_every_mandatory_feature_needs_its_own_listing_quote(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"with 2 batteries"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="cordless screwdriver",
+            required_features=["двумя аккумуляторами", "быстрой зарядкой"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_evidence_quote_cannot_join_title_and_description_boundaries(self) -> None:
+        product = self._product().model_copy(update={
+            "title": "Cordless",
+            "description": "screwdriver with 2 batteries",
+        })
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [product],
+            query="cordless screwdriver",
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_category_path_cannot_substitute_for_listing_evidence(self) -> None:
+        product = self._product().model_copy(update={
+            "title": "Cordless screwdriver",
+            "category_path": ["Tools", "Two battery sets"],
+        })
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{"двумя аккумуляторами":"Two battery sets"}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [product],
+            query="cordless screwdriver with two batteries",
+            required_features=["двумя аккумуляторами"],
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_selection_rejects_identity_quote_not_present_in_listing(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"professional power tool",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            identity_review_ids=["drill-1"],
+        ))
+        self.assertIsNone(result)
+
+    def test_empty_selections_is_a_valid_semantic_no_match(self) -> None:
+        service = self._service('{"selections":[]}')
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            required_features=["двумя аккумуляторами"],
+        ))
+        self.assertEqual(result, [])
+
+    def test_no_budget_does_not_create_an_implicit_price_ceiling(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="шуруповёрт"
+        ))
+        self.assertEqual(result, ["drill-1"])
+        prompt = service.captured_prompts[-1]
+        self.assertIn("Пользователь НЕ задавал бюджет", prompt)
+        self.assertIn("Не придумывай верхний предел", prompt)
+        self.assertIn("Если цена отсутствует, не считай", prompt)
+        self.assertIn("карточка честно покажет", prompt)
+        self.assertNotIn("всё равно требуются известные", prompt)
+
+    def test_explicit_budget_is_a_hard_selection_constraint(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()],
+            query="шуруповёрт",
+            budget_constraint="до 2500 грн",
+        ))
+        self.assertEqual(result, ["drill-1"])
+        prompt = service.captured_prompts[-1]
+        self.assertIn("Пользователь задал жёсткий бюджет: до 2500 грн", prompt)
+        self.assertIn("цена не должна превышать указанную границу", prompt)
+
+
+class CandidatePayloadTests(unittest.TestCase):
+    def test_rank_payload_carries_real_marketplace_category_context(self) -> None:
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="category-context",
+            title="Cordless screwdriver",
+            product_url="https://example.com/item/category-context.html",
+            category_path=["Tools", "Power Tools"],
+        )
+
+        payload = AIService._rank_payload(product)
+
+        self.assertEqual(payload["category_path"], ["Tools", "Power Tools"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
+
+class GroundedProductComparisonTests(unittest.TestCase):
+    def _products(self) -> list[Product]:
+        return [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="keyboard-1",
+                title="Keyboard for ThinkPad T490s/T495, US layout",
+                description="Backlit replacement keyboard",
+                product_url="https://example.com/keyboard-1",
+                price=1519.41,
+                currency="UAH",
+            ),
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="keyboard-2",
+                title="Keyboard for ThinkPad X280/X390, FR/ES/US layout",
+                description="Backlit replacement keyboard",
+                product_url="https://example.com/keyboard-2",
+                price=1068.55,
+                currency="UAH",
+            ),
+        ]
+
+    def _service(self, response: str) -> AIService:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            self.assertIn('"differences"', contents)
+            self.assertIn('"id": "keyboard-1"', contents)
+            self.assertIn('"id": "keyboard-2"', contents)
+            return response
+
+        service._generate = fake_generate
+        return service
+
+    def test_comparison_returns_only_exact_paired_quotes_from_both_cards(self) -> None:
+        response = json.dumps({
+            "differences": [{
+                "aspect": "compatibility",
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        result = asyncio.run(
+            service.extract_paired_listing_evidence("Сравни эти два варианта", self._products())
+        )
+
+        self.assertEqual(
+            result,
+            [("compatibility", "ThinkPad T490s/T495", "ThinkPad X280/X390")],
+        )
+
+    def test_comparison_rejects_invented_or_misassigned_quotes(self) -> None:
+        cases = (
+            {
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad T14s",
+                },
+            },
+            {
+                "first": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+                "second": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+            },
+        )
+        for difference in cases:
+            with self.subTest(difference=difference):
+                service = self._service(json.dumps({
+                    "differences": [{**difference, "aspect": "compatibility"}]
+                }))
+                self.assertIsNone(asyncio.run(
+                    service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
+                ))
+
+    def test_comparison_rejects_unknown_aspect_label(self) -> None:
+        response = json.dumps({
+            "differences": [{
+                "aspect": "best_value",
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": "ThinkPad T490s/T495",
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "ThinkPad X280/X390",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        self.assertIsNone(asyncio.run(
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
+        ))
+
+    def test_comparison_rejects_full_title_and_nonexistent_text(self) -> None:
+        first_title = self._products()[0].title
+        response = json.dumps({
+            "differences": [{
+                "aspect": "compatibility",
+                "first": {
+                    "product_id": "keyboard-1",
+                    "field": "title",
+                    "quote": first_title,
+                },
+                "second": {
+                    "product_id": "keyboard-2",
+                    "field": "title",
+                    "quote": "the keyboard is much better",
+                },
+            }]
+        })
+        service = self._service(response)
+
+        self.assertIsNone(asyncio.run(
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
+        ))
+
+    def test_comparison_with_one_product_does_not_call_gemini(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        calls = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            calls.append(contents)
+            return '{"differences":[]}'
+
+        service._generate = fake_generate
+        self.assertIsNone(asyncio.run(
+            service.extract_paired_listing_evidence("Сравни", self._products()[:1])
+        ))
+        self.assertEqual(calls, [])
+
+    def test_slow_comparison_returns_to_deterministic_fallback(self) -> None:
+        service = AIService(api_key=None, timeout_seconds=0.01)
+        service._client = object()
+
+        async def slow_generate(contents, *, models=None, operation="generate"):
+            await asyncio.sleep(0.1)
+            return '{"differences":[]}'
+
+        service._generate = slow_generate
+        self.assertIsNone(asyncio.run(
+            service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
+        ))
+
+
+
+class OperationAttributionTests(unittest.TestCase):
+    def test_short_chat_action_has_a_distinct_telemetry_operation(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        operations = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            operations.append(operation)
+            return '{"action":"search"}'
+
+        service._generate = fake_generate
+        result = asyncio.run(service.decide_chat_action("USB charger"))
+        self.assertEqual(result, {"action": "search"})
+        self.assertEqual(operations, ["chat_action"])

@@ -1,4 +1,4 @@
-﻿"""Free-form search handler plus product-card actions.
+"""Free-form search handler plus product-card actions.
 
 The search flow is ONE screen:
 
@@ -35,6 +35,7 @@ from keyboards.products import (
     CB_PREFIX_TRACK,
     browse_card_keyboard,
 )
+from models.product import Product
 from models.search_request import SearchMode, SearchRequest
 from services import analytics
 from services.conversation import ConversationState, is_count_only_follow_up
@@ -48,8 +49,8 @@ from services.search_service import AI_FEED_RESULTS, SearchOutcome, SearchServic
 from utils.formatting import CAPTION_LIMIT
 
 from services.convsearch.contract import Outcome as ConvOutcome
-from services.convsearch.engine import ConversationSearchEngine
-from services.convsearch.state import ConversationEngineState, MessageIntent
+from services.convsearch.engine import ConversationSearchEngine, _explicit_requested_product_type
+from services.convsearch.state import ConversationEngineState, MessageIntent, _is_alternatives_request
 
 logger = logging.getLogger(__name__)
 
@@ -85,8 +86,8 @@ WELCOME_SMART_SEARCH = (
 #: belong to the internal log - the user gets a short, honest sentence and
 #: the advice that actually helps: change the query or its parameters.
 EMPTY_RESULT_TEXT = (
-    "😕 По вашему запросу ничего не найдено. "
-    "Попробуйте изменить запрос или параметры поиска."
+    "Пока не удалось подобрать подходящий вариант — что из ваших пожеланий "
+    "можно немного ослабить, чтобы расширить поиск?"
 )
 
 #: The ONLY text a user ever sees when the search itself could not run: no
@@ -96,6 +97,26 @@ EMPTY_RESULT_TEXT = (
 SEARCH_UNAVAILABLE_TEXT = (
     "⚠️ Поиск временно недоступен. Попробуйте позже."
 )
+
+#: Real candidates were retrieved, but semantic selection could not verify
+#: which ones match the user's intent. Never show an unreviewed mixed pool.
+SEMANTIC_SELECTION_UNAVAILABLE_TEXT = (
+    "Не удалось надёжно проверить найденные варианты, поэтому я не буду "
+    "показывать случайные товары. Попробуйте повторить запрос чуть позже."
+)
+
+
+def _no_eligible_user_message(decision) -> str:
+    natural_reply = getattr(decision, "reply", None)
+    if isinstance(natural_reply, str) and natural_reply.strip():
+        return natural_reply.strip()
+    selection_status = (decision.report or {}).get("ai_selection")
+    if selection_status in {
+        "timeout_fallback", "error_fallback", "unavailable_fallback",
+        "turn_budget_exhausted", "empty_fallback",
+    }:
+        return SEMANTIC_SELECTION_UNAVAILABLE_TEXT
+    return EMPTY_RESULT_TEXT
 
 #: The ONLY text a user ever sees when a COMPARE/EXPLAIN/ANSWER question
 #: cannot be answered because the previously shown products are gone (the
@@ -122,6 +143,7 @@ CONVERSATION_KEY = "search_conversation"
 #: search completes - a failed search keeps the thread so the clarification
 #: is not silently lost. Per-user, in memory - no database change.
 PENDING_CLARIFY_KEY = "pending_clarify"
+PENDING_PRODUCT_QUESTION_KEY = "pending_product_question"
 
 #: Discovery screen headline. The pipeline only reorders/drops REAL
 #: marketplace listings, and the text does not claim "popular"/"best".
@@ -177,6 +199,28 @@ def get_conversation(context: ContextTypes.DEFAULT_TYPE):
         return None
     return state
 
+def _products_actually_shown(
+    products: list[Product],
+    shown_product_ids: list[str],
+    *,
+    limit: int = 30,
+) -> list[Product]:
+    """Return only cached products the user has actually opened in Telegram.
+
+    A result session caches the whole browse pool, but initially only its
+    first card is delivered. The rest become visible one-by-one as the user
+    browses; cached candidates must never be described to Gemini as already
+    shown before that happens.
+    """
+    if limit <= 0 or not shown_product_ids:
+        return []
+    visible_ids = set(shown_product_ids[-limit:])
+    return [
+        product for product in products
+        if product.product_id in visible_ids
+    ]
+
+
 def _last_shown_session(context: ContextTypes.DEFAULT_TYPE) -> str | None:
     """The session id of the result set currently on screen, if any.
 
@@ -200,6 +244,20 @@ def _clear_stale_shown_session_for_new_search(
         context.user_data.pop("last_shown_session", None)
 
 
+def _get_convsearch_state(context: ContextTypes.DEFAULT_TYPE, user_key: str) -> ConversationEngineState:
+    """Return a live ledger, dropping it BEFORE touching an expired one.
+
+    Touching the TTL before checking expiry would accidentally revive stale
+    product types, budgets and exclusions whenever a user returned later.
+    """
+    state = context.user_data.get("_convsearch_state")
+    if not isinstance(state, ConversationEngineState) or state.is_expired():
+        state = ConversationEngineState(user_key=user_key)
+    state.touch()
+    context.user_data["_convsearch_state"] = state
+    return state
+
+
 def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Forget the current shopping context (search, results, pending question).
 
@@ -211,12 +269,13 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     # The conversational-search ledger is dropped; the shown-session cache
     # and the pending clarification follow.
     context.user_data.pop("_convsearch_state", None)
-    for key in (CONVERSATION_KEY, PENDING_CLARIFY_KEY, "last_shown_session"):
+    for key in (CONVERSATION_KEY, PENDING_CLARIFY_KEY, PENDING_PRODUCT_QUESTION_KEY, "last_shown_session"):
         context.user_data.pop(key, None)
 
 #: How long a pending clarifying question stays answerable (mirrors the
 #: conversation TTL: half an hour).
 CLARIFY_TTL_SECONDS = 30 * 60
+PRODUCT_QUESTION_TTL_SECONDS = 30 * 60
 
 def _clear_ledger_pending_question(context: ContextTypes.DEFAULT_TYPE) -> None:
     state = context.user_data.get("_convsearch_state")
@@ -252,7 +311,9 @@ def consume_pending_clarify(context: ContextTypes.DEFAULT_TYPE, outcome) -> bool
     the next user message can retry without losing the conversational context.
     """
 
-    if outcome is ConvOutcome.PROVIDER_ERROR:
+    if outcome in {ConvOutcome.PROVIDER_ERROR, ConvOutcome.RESPOND}:
+        # A conversational aside (e.g. «спасибо») is not an answer to the
+        # pending shopping question; keep the original clarification alive.
         return False
     removed = context.user_data.pop(PENDING_CLARIFY_KEY, None) is not None
     _clear_ledger_pending_question(context)
@@ -267,6 +328,77 @@ def set_pending_clarify(context: ContextTypes.DEFAULT_TYPE, question: str, origi
         "original": original,
         "asked_at": time.monotonic(),
     }
+
+
+def set_pending_product_question(context, question: str, session_id: str) -> None:
+    context.user_data[PENDING_PRODUCT_QUESTION_KEY] = {
+        "question": (question or "").strip()[:500],
+        "session_id": str(session_id),
+        "asked_at": time.monotonic(),
+    }
+
+
+def get_pending_product_question(context) -> dict | None:
+    pending = context.user_data.get(PENDING_PRODUCT_QUESTION_KEY)
+    if not isinstance(pending, dict):
+        return None
+    asked_at = pending.get("asked_at")
+    if (
+        not isinstance(asked_at, (int, float))
+        or not isinstance(pending.get("question"), str)
+        or not pending.get("question", "").strip()
+        or not isinstance(pending.get("session_id"), str)
+        or not pending.get("session_id", "").strip()
+    ):
+        context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+        return None
+    if time.monotonic() - asked_at > PRODUCT_QUESTION_TTL_SECONDS:
+        context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+        logger.info("Pending product-comparison question expired and was dropped")
+        return None
+    return pending
+
+
+def clear_pending_product_question(context) -> None:
+    context.user_data.pop(PENDING_PRODUCT_QUESTION_KEY, None)
+
+
+_PRODUCT_QUESTION_SOCIAL_ASIDES = frozenset(
+    {
+        "спасибо", "большое спасибо", "благодарю", "спасибо большое",
+        "пожалуйста", "привет", "здравствуйте", "добрый день",
+        "добрый вечер", "понятно", "ясно", "хорошо", "ладно", "ок", "окей",
+        "дякую", "дуже дякую", "привіт", "добрий день", "зрозуміло",
+        "thanks", "thank you", "thanks a lot", "hello", "hi", "good morning",
+        "good afternoon", "got it", "understood", "okay", "ok", "all right",
+    }
+)
+
+
+def is_product_question_social_aside(text: str) -> bool:
+    """Recognize a short courtesy/acknowledgement, not a selection criterion."""
+
+    value = " ".join((text or "").casefold().replace("ё", "е").split()).strip()
+    value = re.sub(r"[.!?,…]+$", "", value).strip()
+    return value in _PRODUCT_QUESTION_SOCIAL_ASIDES
+
+
+def should_resume_product_question(text: str, state: ConversationEngineState | None) -> bool:
+    if _explicit_requested_product_type(text):
+        return False
+    if isinstance(state, ConversationEngineState) and _is_alternatives_request(text, state):
+        return False
+    return True
+
+
+def _is_plain_product_clarification(text: str) -> bool:
+    value = " ".join((text or "").split()).strip()
+    return bool(
+        15 <= len(value) <= 240
+        and value.endswith("?")
+        and value.count("?") == 1
+        and not re.search(r"https?://|www\.|<[^>]+>|\{", value, re.IGNORECASE)
+    )
 
 # --- narrowing the SHOWN results («оставь 5 из этих 30») -------------------
 
@@ -468,27 +600,76 @@ async def _answer_over_shown(
     chat_id: int,
     question: str,
     session_id: str,
+    *,
+    user_id: int | None = None,
+    telegram_id: int | None = None,
+    conversation_state: ConversationEngineState | None = None,
+    force_answer: bool = False,
+    record_user_text: str | None = None,
 ) -> bool:
-    """Answer a COMPARE/EXPLAIN/ANSWER question over the SHOWN products.
+    """Answer or re-render a COMPARE/EXPLAIN question over the SHOWN products.
 
-    Reuses the SAME ``ProductAssistant`` the 🤖 menu uses, over the SAME cached
-    result set - so the answer is built only from real product fields and the
-    assistant says "нет данных" instead of inventing anything. Returns ``False``
-    when there is nothing to answer over, so the caller can fall back to a
-    normal search rather than showing an empty screen.
+    Feature matches backed by real listing titles are re-delivered as the
+    existing product cards. Questions requiring explanation still use the
+    factual ProductAssistant text answer. No provider search is performed.
     """
 
     assistant = context.application.bot_data.get("product_assistant")
-    products = common.get_cached_products(context, session_id)
-    if assistant is None or not products:
+    cached_products = common.get_cached_products(context, session_id)
+    source_outcome = common.get_cached_outcome(context, session_id)
+    conversation_state = conversation_state or context.user_data.get("_convsearch_state")
+    if isinstance(conversation_state, ConversationEngineState):
+        # The conversational search path has an explicit delivery ledger:
+        # only products opened in Telegram count as shown.
+        products = _products_actually_shown(
+            cached_products, conversation_state.shown_product_ids
+        )
+    else:
+        # Legacy card-action sessions predate this ledger. Preserve their
+        # established cached-result behavior; the main conversational path
+        # always supplies its state and takes the strict branch above.
+        products = cached_products
+    if assistant is None or not products or source_outcome is None:
         return False
 
-    advice = await assistant.answer(question, products[:8])
+    selector = getattr(assistant, "matching_products", None)
+    selected = selector(question, products) if callable(selector) and not force_answer else []
+    if selected:
+        narrowed = SearchOutcome(
+            request=source_outcome.request,
+            products=list(selected),
+        )
+        shown = await send_search_results(
+            context,
+            chat_id,
+            narrowed,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            pre_curated=True,
+            follow_up=False,
+            conversation_state=conversation_state,
+        )
+        if shown:
+            context.user_data["last_shown_session"] = shown
+        return True
+
+    # Compare against every product shown, not an arbitrary first-eight subset.
+    advice = await assistant.answer(question, products)
     if advice is None or not getattr(advice, "text", "").strip():
         return False
+    if isinstance(conversation_state, ConversationEngineState) and record_user_text:
+        conversation_state.record_turn(record_user_text)
     await context.bot.send_message(
         chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
     )
+    # Persist the pending question only after Telegram confirms delivery; an
+    # undelivered prompt must not consume the user's next ordinary message.
+    if getattr(advice, "used_ai", False) and _is_plain_product_clarification(advice.text):
+        set_pending_product_question(context, question, session_id)
+    else:
+        clear_pending_product_question(context)
+    if isinstance(conversation_state, ConversationEngineState):
+        conversation_state.record_assistant_turn(advice.text)
     return True
 
 def _apply_user_result_count(
@@ -548,6 +729,44 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # fresh request that supersedes earlier constraints. Keep a combined
     # phrase only for the human-facing search-history record.
     pending = get_pending_clarify(context)
+    pending_product_question = get_pending_product_question(context) if pending is None else None
+    if pending_product_question is not None:
+        lowered = text.lower()
+        if lowered in {"отмена", "отменить", "cancel", "забудь", "не надо"}:
+            clear_pending_product_question(context)
+            await message.reply_text(
+                "Хорошо, остановим сравнение. Если захотите, можем продолжить подбор.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+            _turn_done("product-question-cancelled")
+            return
+        state = context.user_data.get("_convsearch_state")
+        if is_product_question_social_aside(text):
+            # A courtesy/acknowledgement is not the requested criterion. Keep
+            # the pending comparison alive while the normal conversation
+            # engine handles the aside without a marketplace search.
+            pass
+        elif should_resume_product_question(text, state):
+            combined_question = (
+                f"{pending_product_question['question']}\n"
+                f"Критерий выбора покупателя: {text}"
+            )
+            answered = await _answer_over_shown(
+                context,
+                message.chat_id,
+                combined_question,
+                pending_product_question["session_id"],
+                telegram_id=update.effective_user.id if update.effective_user else None,
+                conversation_state=state if isinstance(state, ConversationEngineState) else None,
+                force_answer=True,
+                record_user_text=text,
+            )
+            if answered:
+                _turn_done("product-question-followup")
+                return
+            clear_pending_product_question(context)
+        else:
+            clear_pending_product_question(context)
     if pending is not None:
         lowered = text.lower()
         if lowered in {"отмена", "отменить", "cancel", "забудь", "не надо"}:
@@ -615,10 +834,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # The per-user conversation ledger lives in the bot's EXISTING
     # ``context.user_data`` store (per-user isolation and expiry follow
     # the architecture the bot already trusts) — no parallel state store.
-    conv_state = context.user_data.get("_convsearch_state")
-    if not isinstance(conv_state, ConversationEngineState):
-        conv_state = ConversationEngineState(user_key=user_key)
-    conv_state.touch()
+    conv_state = _get_convsearch_state(context, user_key)
 
     await common.record_event(
         context,
@@ -629,7 +845,18 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
     seen = await common.seen_products(context, user_id)
-    await message.reply_text(SEARCHING_TEXT)
+    async def announce_search_start() -> None:
+        await message.reply_text(SEARCHING_TEXT)
+
+    shown_session_id = _last_shown_session(context)
+    shown_outcome = (
+        common.get_cached_outcome(context, shown_session_id)
+        if shown_session_id else None
+    )
+    shown_products = _products_actually_shown(
+        list(shown_outcome.products) if shown_outcome is not None else [],
+        conv_state.shown_product_ids,
+    )
 
     try:
         decision = await engine.handle_message(
@@ -639,6 +866,8 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             result_limit=original_count,
             currency=region.get("currency"),
             state=conv_state,
+            shown_products=shown_products,
+            on_search_start=announce_search_start,
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")
@@ -679,6 +908,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await _deliver_decision(
         context, message, decision,
         user_id=user_id, telegram_id=telegram_id, original_text=original_text,
+        conversation_state=conv_state,
     )
     _turn_done(f"engine-{decision.outcome.value}")
 
@@ -691,8 +921,26 @@ async def _deliver_decision(
     user_id,
     telegram_id,
     original_text: str,
+    conversation_state: ConversationEngineState,
 ) -> None:
     """Render ONE ``SearchDecision``. No re-search, no re-filtering."""
+
+    if decision.outcome is ConvOutcome.RESPOND:
+        reply = (decision.reply or "").strip()
+        if reply:
+            await context.bot.send_message(
+                message.chat_id, reply, reply_markup=back_to_menu_keyboard()
+            )
+            conversation_state.record_assistant_turn(reply)
+        else:
+            fallback_reply = "Давайте продолжим. Что именно вы хотите подобрать?"
+            await context.bot.send_message(
+                message.chat_id,
+                fallback_reply,
+                reply_markup=back_to_menu_keyboard(),
+            )
+            conversation_state.record_assistant_turn(fallback_reply)
+        return
 
     if decision.outcome is ConvOutcome.CLARIFY:
         question = (
@@ -703,13 +951,20 @@ async def _deliver_decision(
         await context.bot.send_message(
             message.chat_id, question, reply_markup=back_to_menu_keyboard()
         )
+        conversation_state.record_assistant_turn(question)
         return
 
     if decision.outcome is ConvOutcome.COMPARE:
         session_id = _last_shown_session(context)
         if session_id is not None:
             answered = await _answer_over_shown(
-                context, message.chat_id, original_text, session_id
+                context,
+                message.chat_id,
+                original_text,
+                session_id,
+                user_id=user_id,
+                telegram_id=telegram_id,
+                conversation_state=conversation_state,
             )
             if answered:
                 return
@@ -717,6 +972,7 @@ async def _deliver_decision(
             message.chat_id, STALE_RESULTS_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(STALE_RESULTS_TEXT)
         return
 
     if decision.outcome is ConvOutcome.PROVIDER_ERROR:
@@ -731,6 +987,7 @@ async def _deliver_decision(
             message.chat_id, SEARCH_UNAVAILABLE_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
         return
 
     if decision.outcome in (ConvOutcome.NO_CANDIDATES, ConvOutcome.NO_ELIGIBLE):
@@ -745,10 +1002,12 @@ async def _deliver_decision(
             telegram_id=telegram_id,
             metadata={"source": "text", "reason": reason},
         )
+        no_match_reply = _no_eligible_user_message(decision)
         await context.bot.send_message(
-            message.chat_id, EMPTY_RESULT_TEXT,
+            message.chat_id, no_match_reply,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(no_match_reply)
         return
 
     if decision.outcome is not ConvOutcome.RESULTS or not decision.products:
@@ -756,6 +1015,7 @@ async def _deliver_decision(
             message.chat_id, EMPTY_RESULT_TEXT,
             reply_markup=back_to_menu_keyboard(),
         )
+        conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
         return
 
     # RESULTS: the engine already validated, filtered, deduped and ranked
@@ -789,6 +1049,7 @@ async def _deliver_decision(
     shown = await send_search_results(
         context, message.chat_id, outcome,
         user_id=user_id, telegram_id=telegram_id, pre_curated=True,
+        conversation_state=conversation_state,
     )
     if shown:
         context.user_data["last_shown_session"] = shown
@@ -959,6 +1220,7 @@ async def send_search_results(
     curation_mode: str | None = None,
     pre_curated: bool = False,
     follow_up: bool = True,
+    conversation_state: ConversationEngineState | None = None,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1032,10 +1294,14 @@ async def send_search_results(
                 SEARCH_UNAVAILABLE_TEXT,
                 reply_markup=back_to_menu_keyboard(),
             )
+            if conversation_state is not None:
+                conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
             return None
         await context.bot.send_message(
             chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
         )
+        if conversation_state is not None:
+            conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
         return None
 
     session_id = common.remember_outcome(
@@ -1058,7 +1324,7 @@ async def send_search_results(
         origin="telegram-sent",
         limit=AI_FEED_RESULTS,
     )
-    await _send_product_cards(
+    delivered = await _send_product_cards(
         context,
         chat_id,
         outcome,
@@ -1066,6 +1332,14 @@ async def send_search_results(
         user_id=user_id,
         telegram_id=telegram_id,
     )
+    if not delivered:
+        return None
+    # Engine selection is not delivery. Acknowledge only the products the
+    # user can actually see; discovery feeds do not pass this state object.
+    if conversation_state is not None:
+        # Only the first card is sent now; the remaining products are
+        # reachable through the browse button and are acknowledged on edit.
+        conversation_state.record_shown([outcome.products[0].product_id])
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
     # invented here - only the count actually delivered above. A caller with
@@ -1074,9 +1348,21 @@ async def send_search_results(
     if follow_up:
         hint = _result_summary_text(outcome)
         if hint:
-            await context.bot.send_message(
-                chat_id, hint, reply_markup=back_to_menu_keyboard()
-            )
+            try:
+                await context.bot.send_message(
+                    chat_id, hint, reply_markup=back_to_menu_keyboard()
+                )
+                if conversation_state is not None:
+                    conversation_state.record_assistant_turn(hint)
+            except Exception:
+                # The product card is already delivered and the session is
+                # valid. A failed optional hint must not hide its session id
+                # from the caller or break compare/browse follow-ups.
+                logger.warning(
+                    "Failed to send the post-card follow-up hint for session %s",
+                    session_id,
+                    exc_info=True,
+                )
     return session_id
 
 def _browse_keyboard(
@@ -1138,7 +1424,7 @@ async def _send_product_cards(
     *,
     user_id: int | None = None,
     telegram_id: int | None = None,
-) -> None:
+) -> bool:
     """Send ONE card - the first product of the deduplicated result set.
 
     Navigation happens by editing this single message: every product of
@@ -1149,34 +1435,9 @@ async def _send_product_cards(
 
     products = outcome.products
     if not products:
-        return
+        return False
     meta = common.get_outcome_meta(context, session_id)
     header = meta.get("header")
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        product=products[0],
-    )
-
-    # The per-user history is written for EVERY flow (search, category,
-    # popular, photo) - each flow into its OWN scope: the next open of this
-    # feed must skip the card the user is looking at right now, while a
-    # normal search is never emptied by the popular rotation's state.
-    await common.remember_shown(
-        context,
-        user_id,
-        products[0],
-        flow=common.session_flow(context, session_id),
-    )
-
-    # The SAME instant is the only honest moment to call a product "seen": the
-    # card is in front of the user right now. The novelty history of the
-    # curation layer is written next to the per-scope history above - it never
-    # replaces it, and a failed write degrades to the old behaviour.
-    await common.remember_views(context, user_id, [products[0]])
 
     tracked = await common.is_product_tracked(
         context, user_id, products[0].product_id
@@ -1195,6 +1456,46 @@ async def _send_product_cards(
         )
     except Exception:
         logger.exception("Failed to send the browsing card of session %s", session_id)
+        return False
+
+    # Only a successfully sent card is a shown product. Keep user-facing
+    # histories and analytics behind the same delivery boundary. These
+    # secondary writes must not turn a successful Telegram send into a
+    # reported delivery failure.
+    try:
+        await common.record_event(
+            context,
+            analytics.EVENT_PRODUCT_SHOWN,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            product=products[0],
+        )
+        await common.remember_shown(
+            context,
+            user_id,
+            products[0],
+            flow=common.session_flow(context, session_id),
+        )
+        await common.remember_views(context, user_id, [products[0]])
+    except Exception:
+        logger.exception(
+            "Failed to record post-delivery history for session %s", session_id
+        )
+    return True
+
+async def _record_browsed_conversation_product(
+    context: ContextTypes.DEFAULT_TYPE,
+    session_id: str,
+    product_id: str,
+) -> None:
+    """Add a product to the conversation ledger only after a successful browse edit."""
+
+    if context.user_data.get("last_shown_session") != session_id:
+        return
+    state = context.user_data.get("_convsearch_state")
+    if isinstance(state, ConversationEngineState):
+        state.record_shown([product_id])
+
 
 async def _edit_browsed_card(
     query,
@@ -1256,6 +1557,9 @@ async def _edit_browsed_card(
                 ),
                 reply_markup=reply_markup,
             )
+            await _record_browsed_conversation_product(
+                context, session_id, product.product_id
+            )
             return
         except Exception:
             # The new image URL may be unfetchable by Telegram; fall
@@ -1275,6 +1579,9 @@ async def _edit_browsed_card(
         await _replace_browsed_card(
             query, context, product, index, caption, reply_markup
         )
+        await _record_browsed_conversation_product(
+            context, session_id, product.product_id
+        )
         return
 
     if is_photo:
@@ -1287,6 +1594,9 @@ async def _edit_browsed_card(
         await query.edit_message_text(
             caption, parse_mode="HTML", reply_markup=reply_markup
         )
+    await _record_browsed_conversation_product(
+        context, session_id, product.product_id
+    )
 
 async def _replace_browsed_card(
     query,

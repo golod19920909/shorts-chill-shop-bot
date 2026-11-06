@@ -9,7 +9,7 @@
 # price tracking (services/price_tracker.py); without it the bot still
 # runs, but reports tracking as manual.
 
-python-telegram-bot[job-queue]==22.8
+python-telegram-bot[job-queue,rate-limiter]==22.8
 httpx==0.28.1
 python-dotenv==1.2.3
 google-genai==2.24.0

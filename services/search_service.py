@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 import re
 import time
 from dataclasses import dataclass, field
@@ -133,6 +134,12 @@ DEFAULT_PAGE_SIZE = 5
 #: a feed or a photo takes its breadth from its own pipeline (see
 #: ``query_variants``).
 MAX_SEARCH_PAGES = 3
+
+#: Hard wall-clock budget for a conversational retrieval pass. The engine
+#: evaluates partial rows after this deadline and can still answer with
+#: already collected listings; one slow page must not multiply the per-call
+#: AliExpress timeout across every query variant and page.
+RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS = 30.0
 
 #: Stems of MOOD adjectives ("прикольное", "необычные", "полезные") and
 #: filler pronouns/adverbs. Stems, not full words, so inflections are
@@ -593,6 +600,7 @@ class SearchService:
         feed_selection: bool = True,
         raw: bool = False,
         raw_broaden: bool = False,
+        raw_continue: Callable[[list[Product]], bool] | None = None,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -728,29 +736,56 @@ class SearchService:
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
         pages = (
             list(range(first_page, self.max_search_pages + 1))
-            if broaden and not raw and request.mode is SearchMode.SEARCH
+            if broaden and request.mode is SearchMode.SEARCH
             else [first_page]
         )
 
         pairs: list[tuple[MarketplaceProvider, object]] = []
-        # Keep each grounded phrase's provider rows separate until RAW
-        # collection so conversational retrieval can fuse independent route
-        # rankings instead of inheriting phrase execution order.
-        raw_route_pairs: list[list[tuple[MarketplaceProvider, object]]] = []
+        # Keep one ordered provider-row stream per grounded phrase. Pages of
+        # the same phrase are one marketplace ranking, not independent routes:
+        # page 2 rank 1 must follow page 1 rank 50 during RRF fusion.
+        raw_route_pairs: dict[str, list[tuple[MarketplaceProvider, object]]] = {}
         outcome = SearchOutcome(
             request=request, unavailable_marketplaces=list(unavailable)
         )
         pages_used = 0
+        pages_scanned = 0
         all_failed = False
+        # Every grounded phrase that returned real rows on a page remains
+        # eligible for the next documented page. Empty or failed routes are
+        # retired independently; one weak phrase cannot starve the others.
+        deep_page_variants = list(variants)
+        raw_deadline = (
+            time.perf_counter() + RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS
+            if raw and raw_continue is not None
+            else None
+        )
+        raw_deadline_exhausted = False
 
         for page_no in pages:
-            # Page 1 asks every grounded phrase; a deeper page asks the PRIMARY
-            # phrase again - the words the user actually asked with - so depth
-            # never multiplies the variant list.
-            page_variants = variants if page_no == pages[0] else variants[:1]
+            # Page 1 asks every grounded phrase. Later pages continue every
+            # still-live phrase, preserving independent marketplace rankings
+            # for RRF instead of deepening only whichever route ran first.
+            if page_no == pages[0]:
+                page_variants = variants
+            elif raw:
+                page_variants = list(deep_page_variants)
+            else:
+                # Preserve the legacy non-raw pipeline's primary-only depth.
+                page_variants = [primary]
             pages_used = page_no
+            pages_scanned += 1
+            page_rows = 0
+            successful_page_variant_rows: dict[str, int] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
+                if raw_deadline is not None:
+                    remaining = raw_deadline - time.perf_counter()
+                    if remaining <= 0:
+                        raw_deadline_exhausted = True
+                        break
+                else:
+                    remaining = None
                 # The primary query on the request's own page keeps the
                 # parser's request object; a further variant (or a deeper
                 # page) only ever replaces the marketplace phrase / the page
@@ -763,15 +798,37 @@ class SearchService:
                         update={"normalized_query": variant, "page_no": page_no}
                     )
                 route_started = time.perf_counter()
-                results = await asyncio.gather(
-                    *(
-                        self._timed_provider_call(
-                            provider, provider.search_products(variant_request)
+                try:
+                    if remaining is None:
+                        results = await asyncio.gather(
+                            *(
+                                self._timed_provider_call(
+                                    provider, provider.search_products(variant_request)
+                                )
+                                for provider in active
+                            ),
+                            return_exceptions=True,
                         )
-                        for provider in active
-                    ),
-                    return_exceptions=True,
-                )
+                    else:
+                        async with asyncio.timeout(remaining):
+                            results = await asyncio.gather(
+                                *(
+                                    self._timed_provider_call(
+                                        provider, provider.search_products(variant_request)
+                                    )
+                                    for provider in active
+                                ),
+                                return_exceptions=True,
+                            )
+                except TimeoutError:
+                    # asyncio.timeout cancels only the in-flight provider round.
+                    # Previously completed routes remain in raw_route_pairs and
+                    # are fused below; the caller can still evaluate partial rows.
+                    raw_deadline_exhausted = True
+                    results = [
+                        TimeoutError("conversational retrieval deadline")
+                        for _provider in active
+                    ]
                 route_pairs = list(zip(active, results, strict=True))
                 if raw:
                     # Per-route timing makes the conversational retrieval
@@ -783,6 +840,7 @@ class SearchService:
                         len(result) for result in results
                         if isinstance(result, list)
                     )
+                    page_rows += route_rows
                     route_failures = sum(
                         1 for result in results
                         if isinstance(result, BaseException)
@@ -802,22 +860,32 @@ class SearchService:
                     )
                 pairs.extend(route_pairs)
                 if raw:
-                    raw_route_pairs.append(route_pairs)
-                if all(
+                    raw_route_pairs.setdefault(variant, []).extend(route_pairs)
+                route_failed = all(
                     isinstance(result, BaseException)
                     or bool(getattr(result, "provider_error", None))
                     for result in results
-                ):
-                    # Every provider raised on this round: nothing was
-                    # retrieved and nothing can be - deeper pages or further
-                    # variants would only repeat the same failing calls.
-                    logger.warning(
-                        "All providers failed for %r on page %d; stopping this "
-                        "search instead of retrying identical calls",
-                        request.original_query,
-                        page_no,
+                )
+                if route_failed:
+                    if raw:
+                        # A failed primary phrase must not prevent the
+                        # remaining page-one seller routes from being tried.
+                        logger.warning(
+                            "All providers failed for %r on page %d variant %d/%d",
+                            request.original_query,
+                            page_no,
+                            variant_index,
+                            len(page_variants),
+                        )
+                    else:
+                        # Legacy non-raw searches retain their prior stop
+                        # behavior after a failed provider round.
+                        all_failed = True
+                elif raw:
+                    successful_page_variant_rows[variant] = sum(
+                        len(result) for result in results
+                        if isinstance(result, list)
                     )
-                    all_failed = True
                 if expansion:
                     raw_rows_by_phrase[variant] = sum(
                         len(result)
@@ -890,18 +958,104 @@ class SearchService:
                 # RAW conversational retrieval evaluates every bounded
                 # grounded route before fusion. Stopping as soon as the first
                 # route fills the pool would make RRF depend on route order.
-                if all_failed:
+                if all_failed or raw_deadline_exhausted:
                     break
-            if all_failed or (not raw and len(outcome.products) >= pool_target):
+            if all_failed:
+                break
+            if raw:
+                # Retire only phrases that failed or returned no rows on this
+                # page. Other routes continue independently up to the same
+                # configured page bound. Row counts detect exhausted routes;
+                # they never rank or approve candidates.
+                deep_page_variants = [
+                    phrase for phrase in page_variants
+                    if successful_page_variant_rows.get(phrase, 0) > 0
+                ]
+            if raw:
+                # An empty deeper page is the marketplace's end-of-results
+                # signal for this phrase; do not spend another request on a
+                # later page. Page 1 is different: every grounded variant
+                # must run before we decide whether the pool is empty.
+                if page_rows == 0 and page_no > first_page:
+                    # Each route is tracked independently. An empty page
+                    # retires that route; the loop ends only when every live
+                    # route is exhausted.
+                    logger.info(
+                        "RAW conversational pagination stopped: page %d "
+                        "returned no rows",
+                        page_no,
+                    )
+                    break
+                # Finish every live grounded route on this page before
+                # evaluating the fused pool. Each phrase keeps its own page
+                # order, while RRF combines the distinct phrase rankings.
+                from services.convsearch.retrieval import merge_route_results
+
+                route_rankings = [
+                    self._deduplicate(route_pairs)
+                    for route_pairs in raw_route_pairs.values()
+                ]
+                current_raw = merge_route_results(*route_rankings)
+                if exclude:
+                    current_raw = [
+                        product for product in current_raw
+                        if identity_pair(product) not in exclude
+                    ]
+                current_unique = len(current_raw)
+                if raw_continue is not None:
+                    # The conversational engine knows the active product type,
+                    # mandatory features, exclusions and budget. Let that same
+                    # evaluator decide whether this raw pool contains enough
+                    # usable candidates; raw row count alone can be mostly
+                    # accessories or unrelated listings.
+                    if not raw_continue(current_raw):
+                        logger.info(
+                            "RAW conversational pagination stopped: "
+                            "eligible candidate target reached after page %d "
+                            "(raw=%d)",
+                            page_no, current_unique,
+                        )
+                        break
+                elif current_unique >= pool_target:
+                    logger.info(
+                        "RAW conversational pagination stopped: pool target "
+                        "reached (%d/%d) after page %d",
+                        current_unique, pool_target, page_no,
+                    )
+                    break
+                if raw_deadline_exhausted:
+                    logger.warning(
+                        "RAW conversational retrieval reached its %.0fs time budget; "
+                        "continuing with %d collected route(s)",
+                        RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS,
+                        len(raw_route_pairs),
+                    )
+                    break
+            elif len(outcome.products) >= pool_target:
                 break
 
         if raw:
+            # A conversational continuation predicate has already bounded
+            # retrieval by the configured page limit. Preserve the complete
+            # bounded page set for the engine's real eligibility pass instead
+            # of cutting it again by raw row count.
+            raw_candidate_cap = pool_target
+            if raw_continue is not None:
+                raw_candidate_cap = max(
+                    pool_target,
+                    sum(
+                        len(result)
+                        for route in raw_route_pairs.values()
+                        for _provider, result in route
+                        if isinstance(result, list)
+                    ),
+                )
             outcome = self._collect_raw(
                 request=request,
                 pairs=pairs,
                 outcome=outcome,
                 exclude=exclude,
-                cap=pool_target,
+                cap=raw_candidate_cap,
             )
             if broaden and len(raw_route_pairs) > 1:
                 # Import lazily: convsearch.retrieval intentionally reuses
@@ -910,7 +1064,7 @@ class SearchService:
 
                 route_rankings = [
                     self._deduplicate(route_pairs)
-                    for route_pairs in raw_route_pairs
+                    for route_pairs in raw_route_pairs.values()
                 ]
                 fused = merge_route_results(*route_rankings)
                 fused_count = len(fused)
@@ -919,7 +1073,7 @@ class SearchService:
                         product for product in fused
                         if identity_pair(product) not in exclude
                     ]
-                outcome.products = fused[:pool_target]
+                outcome.products = fused[:raw_candidate_cap]
                 outcome.products_before_filtering = fused_count
                 outcome.comparisons = build_comparison(outcome.products)
                 logger.info(
@@ -927,13 +1081,13 @@ class SearchService:
                     len(route_rankings), len(fused),
                 )
             if broaden:
-                variants_used = len(pairs) // max(1, len(active))
                 logger.info(
-                    "RAW conversational retrieval used %d grounded query variant(s) "
-                    "on one page (pool=%d cap=%d)",
-                    variants_used,
+                    "RAW conversational retrieval used %d provider route(s) "
+                    "across %d page(s) (pool=%d cap=%d)",
+                    len(raw_route_pairs),
+                    pages_scanned,
                     outcome.found_count,
-                    pool_target,
+                    raw_candidate_cap if raw_continue is not None else pool_target,
                 )
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase

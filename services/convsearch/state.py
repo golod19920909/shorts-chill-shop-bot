@@ -1,4 +1,4 @@
-﻿"""Conversation state for the conversational search engine.
+"""Conversation state for the conversational search engine.
 
 Adapted from the reference ``src/state.py`` dialog-state design (utterances
 with provenance, active/superseded slot ledger, override down-weighting,
@@ -47,7 +47,7 @@ class Slot:
     down-weights rather than erases and stays auditable.
     """
 
-    kind: str            # "type" | "use_case" | "feature" | "exclusion" | "budget" | "preference"
+    kind: str            # "type" | "use_case" | "compatibility" | "feature" | "exclusion" | "budget" | "preference"
     value: str
     source_turn: int
     raw_text: str
@@ -91,7 +91,11 @@ _FEATURE_INTRO_RE = re.compile(
     re.IGNORECASE,
 )
 _USE_CASE_INTRO_RE = re.compile(
-    r"(?:^|\s)(?:для|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
+    # «для X» and «по X» express the task/material the requested item is
+    # intended to work with («насадка по дереву», «диск по металлу»).
+    # Keep this as soft application context: marketplace titles need not
+    # repeat the exact wording for a candidate to be suitable.
+    r"(?:^|\s)(?:для|по|for)\s+(.+?)(?=\s+(?:с|со|из|без|под|по|with|without|made\s+(?:of|from))\s+|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _EXPLICIT_REQUEST_RE = re.compile(
@@ -100,7 +104,7 @@ _EXPLICIT_REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 _REQUEST_TARGET_RE = re.compile(
-    r"\bна\s+(.+?)(?=\s+(?:для|с|со|из|без|под|до|от|в|по|к|у|о|об)\b|[,!?;:]|$)",
+    r"\b(?:на|под)\s+(.+?)(?=\s+(?:на|для|с|со|из|без|под|до|от|в|по|к|у|о|об)\b|[,!?;:]|$)",
     re.IGNORECASE,
 )
 _REVERSAL_RE = re.compile(
@@ -139,7 +143,8 @@ _ALTERNATION_MARKERS: tuple[str, ...] = (
 _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
     {
         "желательно", "желательн", "примерно", "максимум", "макс",
-        "предел", "бюджет", "до", "от", "меньше", "больше", "не", "более",
+        "предел", "пределах", "рамках", "лимит", "лимита",
+        "бюджет", "бюджете", "до", "от", "меньше", "больше", "не", "более",
         "долларов", "доллар", "доллара", "usd", "uah", "eur", "евро",
         "грн", "гривн", "гривна", "гривны", "гривен", "рублей", "руб",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
@@ -183,13 +188,25 @@ _COMPARE_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Budget wording: «до 500 гривен», «under $30», «бюджет 2000».
+#: Budget wording: «до 500 гривен», «under $30», «бюджет 2000»,
+#: and an explicitly framed amount without currency («до 2000»).
 _BUDGET_RE = re.compile(
-    r"(?:(?:до|under|up to|не более|меньше|less than|max|максимум)\s*)?"
+    r"(?:(?:до|under|up\s+to|не более|меньше|less than|max|максимум|"
+    r"бюджет(?:ом)?|budget)\s*)?"
     r"(\d+(?:[.,]\d+)?)\s*"
     r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\s*"
     r"(грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
-    r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
+    r"евро|eur|€|руб[а-я]*|₽| грн)?",
+    re.IGNORECASE,
+)
+_BUDGET_RESET_RE = re.compile(
+    r"(?:\bбюджет\s+(?:не\s+(?:важен|важно|имеет\s+значения)|"
+    r"отсутствует|не\s+ограничен)\b|"
+    r"\bцена\s+(?:не\s+(?:важна|важно|имеет\s+значения)|"
+    r"не\s+ограничена)\b|"
+    r"\bбез\s+(?:ограничений|лимита)\s+(?:по\s+)?цене\b|"
+    r"\bпо\s+цене\s+ограничений\s+нет\b|"
+    r"\bno\s+budget\b|\bbudget\s+(?:doesn't\s+matter|is\s+unlimited)\b)",
     re.IGNORECASE,
 )
 _CURRENCY_BY_WORD = {
@@ -206,6 +223,9 @@ class ConversationEngineState:
 
     user_key: str
     turns: list[Turn] = field(default_factory=list)
+    # Role-labelled dialogue memory is separate from retrieval turns so
+    # assistant messages never change slot provenance or turn numbering.
+    dialogue_history: list[dict[str, str]] = field(default_factory=list)
     slots: list[Slot] = field(default_factory=list)
     shown_product_ids: list[str] = field(default_factory=list)
     #: The last meaningful search outcome, honestly recorded.
@@ -221,6 +241,27 @@ class ConversationEngineState:
     def touch(self) -> None:
         self.updated_at = time.monotonic()
 
+    def record_turn(self, text: str) -> int:
+        """Record a conversational utterance without changing search slots."""
+        message = (text or "").strip()
+        if not message:
+            return len(self.turns)
+        index = len(self.turns) + 1
+        self.turns.append(Turn(index=index, text=message))
+        self.dialogue_history.append({"role": "user", "text": message[:1000]})
+        del self.dialogue_history[:-12]
+        self.touch()
+        return index
+
+    def record_assistant_turn(self, text: str) -> None:
+        """Remember the assistant's actual delivered words for follow-up understanding."""
+        message = (text or "").strip()
+        if not message:
+            return
+        self.dialogue_history.append({"role": "assistant", "text": message[:1000]})
+        del self.dialogue_history[:-12]
+        self.touch()
+
     # -- observation -------------------------------------------------------
 
     def _is_about_current(self, message: str) -> bool:
@@ -235,16 +276,31 @@ class ConversationEngineState:
         a new product request and falls through to search.
         """
 
+        # A question can refer to shown products only when a product context
+        # actually exists. Without an active type or delivered cards, phrases
+        # such as «что-нибудь полезное для дома» are new requests.
+        if self.active_by_kind("type") is None and not self.shown_product_ids:
+            return False
+
         lowered = (message or "").lower().replace("ё", "е")
         words = re.findall(r"[^\W\d_]+", lowered)
         if not any(word in _QUESTION_WORDS for word in words):
             return False
+        # Deictic references («из этого») and a use-case target («для дома»)
+        # do not name a new product. They can accompany a question asking us
+        # to choose among the already shown candidates.
+        use_case_tokens = {
+            token
+            for match in _USE_CASE_INTRO_RE.finditer(message)
+            for token in tokens(match.group(1))
+        }
         content = [
             token for token in tokens(message)
             if token not in _CHARACTERISTIC_NOUNS
             and token not in _QUALIFIER_WORDS
             and token not in _BUDGET_FRAMING_WORDS
             and token not in _QUESTION_WORDS
+            and token not in use_case_tokens
             and not is_colour_word(token)
             and not token.isdigit()
         ]
@@ -264,6 +320,7 @@ class ConversationEngineState:
         intent_override: str | None = None,
         slot_updates: list[dict] | None = None,
         allow_product_switch: bool = False,
+        preserve_active_product: bool = False,
     ) -> dict:
         """Record one user message and return its classified intent.
 
@@ -310,29 +367,61 @@ class ConversationEngineState:
         # seller never writes «для дома» in its title. Keep it separate from
         # explicit equipment/features such as «с двумя аккумуляторами».
         use_case_spans: list[str] = []
-        # «на X» is soft target/context only inside an explicit product request
-        # («насадка на дрель для дерева»). Do not reinterpret unrelated
-        # activity context such as «буду работать на стройке».
+        compatibility_spans: list[str] = []
+        # «X на Y» can mean a fitment relation («насадка на дрель»,
+        # «чехол на телефон») or an ordinary purpose («подарок на свадьбу»).
+        # Treat it as hard compatibility only when X is a generic accessory
+        # product role. Unrelated activity context such as «буду работать на
+        # стройке» is never parsed as a product relation.
         request_match = _EXPLICIT_REQUEST_RE.search(message)
         if request_match:
-            for match in _REQUEST_TARGET_RE.finditer(request_match.group(1)):
-                value = " ".join(tokens(match.group(1)))
-                if value:
-                    use_case_spans.append(value)
+            request_phrase = request_match.group(1)
+            target_matches = list(_REQUEST_TARGET_RE.finditer(request_phrase))
+            if target_matches:
+                from services.convsearch.type_validation import (
+                    is_accessory_product_type,
+                )
+                requested_item = request_phrase[:target_matches[0].start()]
+                is_compatibility_relation = is_accessory_product_type(requested_item)
+                for target_index, match in enumerate(target_matches):
+                    value = " ".join(tokens(match.group(1)))
+                    if value:
+                        # Only the FIRST target phrase names the accessory's
+                        # host device. Later «для/на X» phrases describe its
+                        # application/material («насадка на дрель для дерева»).
+                        target = (
+                            compatibility_spans
+                            if is_compatibility_relation and target_index == 0
+                            else use_case_spans
+                        )
+                        target.append(value)
         for match in _USE_CASE_INTRO_RE.finditer(message):
             value = " ".join(tokens(match.group(1)))
             if value:
                 use_case_spans.append(value)
-        use_case_spans = list(dict.fromkeys(use_case_spans))
-        if use_case_spans:
-            use_case_tokens = {
-                token for value in use_case_spans for token in tokens(value)
+        compatibility_spans = list(dict.fromkeys(compatibility_spans))
+        compatibility_token_sets = [
+            set(tokens(value)) for value in compatibility_spans
+        ]
+        use_case_spans = [
+            value for value in dict.fromkeys(use_case_spans)
+            if not any(
+                set(tokens(value)) == target_tokens
+                for target_tokens in compatibility_token_sets
+            )
+        ]
+        if use_case_spans or compatibility_spans:
+            context_tokens = {
+                token
+                for value in [*use_case_spans, *compatibility_spans]
+                for token in tokens(value)
             }
             residual_spans: list[str] = []
             for span in message_spans:
                 residual = [
                     token for token in tokens(span)
-                    if token not in use_case_tokens and token not in {"с", "со", "для", "for"}
+                    if token not in context_tokens
+                    and token not in {"с", "со", "для", "по", "for"}
                 ]
                 if len(residual) >= 2:
                     residual_spans.append(" ".join(residual))
@@ -342,15 +431,22 @@ class ConversationEngineState:
         # is a REFINE, never an ambiguous message and never a new product.
         # (Kept as message_spans evidence for the classifier below.)
 
+        names_other_product = False
         comparative_followup = _is_comparative_followup(message)
         explicit_compare = bool(_COMPARE_RE.search(message))
-        if (
+        alternatives_request = (
+            index > 1 and _is_alternatives_request(message, self)
+        )
+        if alternatives_request:
+            # An explicit request for more/different results takes precedence
+            # over the broad grammar that recognizes questions about shown
+            # products; «какие ещё варианты для дома?» is not a comparison.
+            intent = MessageIntent.ALTERNATIVES
+        elif (
             (self._is_about_current(message) and not comparative_followup)
             or (explicit_compare and not comparative_followup)
         ):
             intent = MessageIntent.COMPARE
-        elif index > 1 and _is_alternatives_request(message, self):
-            intent = MessageIntent.ALTERNATIVES
         elif reversal:
             intent = MessageIntent.CORRECTION
         elif index == 1 and not self.active():
@@ -397,11 +493,34 @@ class ConversationEngineState:
                 r"(?:^|\s)(?:с|со|из|без|для|под|не|for|with|made\s+(?:of|from)|сделан\s+из|изготовлен\s+из|выполнен\s+из|чтобы|чтоб|and|so\s+that)\s+",
                 message, re.IGNORECASE
             ))
+            # A fresh item may be named BEFORE a purpose/fitment connector:
+            # «Клавиатура для ноутбука», «чехол для телефона»,
+            # «насадка на дрель». The connector describes the new item's
+            # target; it must not force the phrase into the previous product's
+            # refinement. The helper reads only the leading item head and
+            # rejects request framing, generic feature nouns and activity verbs.
+            leading_words = _leading_product_words(message)
+            leading_head = _product_head(" ".join(leading_words)) if leading_words else None
+            current_head = _product_head(type_slot.value) if type_slot else None
+            leading_product_switch = False
+            if leading_head and current_head:
+                from services.convsearch.type_validation import stems_match
+
+                # A user may restate the current product together with a
+                # brand/model before the connector («ноутбук ThinkPad T14s
+                # для работы»). The current product head anywhere in that
+                # leading phrase means this is not a product switch.
+                leading_product_switch = not any(
+                    stems_match(current_head, word) for word in leading_words
+                )
             names_other_product = bool(
-                new_spans and type_tokens and not (span_tokens & type_tokens)
-                and not framing
-                and not characteristic
-                and not negations
+                leading_product_switch
+                or (
+                    new_spans and type_tokens and not (span_tokens & type_tokens)
+                    and not framing
+                    and not characteristic
+                    and not negations
+                )
             )
             if names_other_product:
                 intent = MessageIntent.NEW_SEARCH
@@ -442,15 +561,34 @@ class ConversationEngineState:
             protected_transition = (
                 intent is MessageIntent.NEW_SEARCH
                 and intent_override != MessageIntent.NEW_SEARCH
+                and (
+                    names_other_product
+                    or allow_product_switch
+                    or self.active_by_kind("type") is None
+                )
             ) or (
                 intent is MessageIntent.COMPARE
                 and intent_override != MessageIntent.COMPARE
+                and bool(self.shown_product_ids)
             ) or (
                 intent is MessageIntent.REFINE
                 and intent_override is MessageIntent.NEW_SEARCH
                 and connector_led_refinement
                 and not allow_product_switch
             )
+            # The conversational engine has already checked whether the
+            # current message contains a grounded, different product identity.
+            # If it explicitly asks to keep the active product, that decision
+            # must outrank this lower-level span heuristic: request wording such
+            # as «какой бы ты посоветовал» is not a product switch.
+            if (
+                preserve_active_product
+                and intent is MessageIntent.NEW_SEARCH
+                and names_other_product
+                and intent_override is MessageIntent.REFINE
+                and not allow_product_switch
+            ):
+                protected_transition = False
             if not protected_transition:
                 intent = intent_override
 
@@ -519,47 +657,64 @@ class ConversationEngineState:
                             slot.status = "superseded"
                             slot.superseded_turn = index
 
-            # A budget statement replaces only the previous budget. New
-            # feature spans and exclusions are otherwise additive unless a
-            # future structured correction contract identifies a narrower
-            # replacement target.
-            if _budget(message):
-                self._supersede_kinds(index, {"budget"})
-            structured_use_case_targets = {
-                " ".join(str(update.get("target") or "").split()).casefold()
+            structured_context_targets = {
+                (update.get("kind"), " ".join(str(update.get("target") or "").split()).casefold())
                 for update in (slot_updates or [])
                 if isinstance(update, dict)
                 and update.get("operation") == "replace"
-                and update.get("kind") == "use_case"
+                and update.get("kind") in {"use_case", "compatibility"}
                 and isinstance(update.get("target"), str)
             }
-            if use_case_spans and (reversal or structured_use_case_targets):
-                if structured_use_case_targets:
+            if (use_case_spans or compatibility_spans) and (
+                reversal or structured_context_targets
+            ):
+                if structured_context_targets:
                     for slot in self.slots:
                         if (
                             slot.status == "active"
-                            and slot.kind == "use_case"
-                            and " ".join(slot.value.split()).casefold()
-                            in structured_use_case_targets
+                            and slot.kind in {"use_case", "compatibility"}
+                            and (slot.kind, " ".join(slot.value.split()).casefold())
+                            in structured_context_targets
                         ):
                             slot.status = "superseded"
                             slot.superseded_turn = index
                 else:
-                    self._supersede_kinds(index, {"use_case"})
-        self.turns.append(Turn(index=index, text=message))
-        self.touch()
+                    self._supersede_kinds(index, {"use_case", "compatibility"})
+        # A newly stated budget replaces the previous one regardless of
+        # whether Gemini labels this turn refine or correction. A clear
+        # no-budget statement removes the old ceiling instead of leaving a
+        # stale price cap active in the retrieval ledger.
+        if _budget(message) or _BUDGET_RESET_RE.search(message):
+            self._supersede_kinds(index, {"budget"})
+
+        self.record_turn(message)
         preferences = [
             _PREFERENCE_QUERY_TERMS[token]
             for token in tokens(message)
             if token in _PREFERENCE_QUERY_TERMS
         ]
+        # Preserve connector-led requirements on the initial product
+        # request as well as on follow-ups. The general span parser is
+        # intentionally not trusted to turn every phrase in a new-search
+        # sentence into a mandatory feature, but an explicit construction
+        # such as «с двумя аккумуляторами» is a real user constraint.
+        context_spans = [*use_case_spans, *compatibility_spans]
+        explicit_feature_spans = [
+            value for value in dict.fromkeys(introduced_features)
+            if not any(
+                set(tokens(value)) == set(tokens(context))
+                for context in context_spans
+            )
+        ]
         return {
             "intent": intent,
             "negations": negations,
             "spans": message_spans,
+            "explicit_features": explicit_feature_spans,
             "budget": _budget(message),
             "preferences": list(dict.fromkeys(preferences)),
             "use_cases": list(dict.fromkeys(use_case_spans)),
+            "compatibilities": list(dict.fromkeys(compatibility_spans)),
             "reversal": reversal,
         }
 
@@ -571,16 +726,49 @@ class ConversationEngineState:
             update for update in (result.get("model_slot_updates") or [])
             if isinstance(update, dict)
         ]
-        replacement_targets = {
+        structured_positive_targets = {
             (
                 update.get("kind"),
                 " ".join(str(update.get("target") or "").split()).casefold(),
             )
             for update in model_updates
-            if update.get("operation") == "replace"
-            and update.get("kind") in {"use_case", "feature", "preference"}
+            if update.get("operation") in {"replace", "remove"}
+            and update.get("kind") in {"use_case", "compatibility", "feature", "preference"}
             and isinstance(update.get("target"), str)
         }
+        # Do not let deterministic extraction recreate a slot that Gemini
+        # explicitly replaced or removed in this same turn. The model update
+        # is applied at the end of this method, so all extraction loops below
+        # must know both sides of those operations in advance.
+        structured_targets: dict[str, set[str]] = {
+            kind: set()
+            for kind in {"use_case", "compatibility", "feature", "exclusion", "preference"}
+        }
+        structured_span_target_tokens: list[set[str]] = []
+        structured_exclusion_targets: set[str] = set()
+        for update in model_updates:
+            kind = update.get("kind")
+            operation = update.get("operation", "add")
+            if kind not in structured_targets:
+                continue
+            values: list[str] = []
+            if operation in {"replace", "remove"} and isinstance(update.get("target"), str):
+                values.append(update["target"])
+            if operation in {"add", "replace"} and isinstance(update.get("value"), str):
+                values.append(update["value"])
+            for raw_value in values:
+                normalized = " ".join(raw_value.split()).casefold()
+                if not normalized:
+                    continue
+                structured_targets[kind].add(normalized)
+                value_tokens = set(tokens(raw_value))
+                if value_tokens:
+                    structured_span_target_tokens.append(value_tokens)
+            if kind == "exclusion" and operation in {"replace", "remove"}:
+                target = update.get("target")
+                if isinstance(target, str):
+                    structured_exclusion_targets.add(" ".join(target.split()).casefold())
+
         negations = result.get("negations") or []
         for value in negations:
             # «Не X, а Y» is a targeted replacement, not a request to
@@ -588,11 +776,12 @@ class ConversationEngineState:
             # operation supersedes the old slot below; do not also create an
             # exclusion for the same phrase.
             negation_tokens = set(tokens(str(value)))
-            if any(
-                kind in {"feature", "use_case", "preference"}
+            normalized_negation = " ".join(str(value).split()).casefold()
+            if normalized_negation in structured_exclusion_targets or any(
+                kind in {"feature", "use_case", "compatibility", "preference"}
                 and target_tokens
                 and target_tokens.issubset(negation_tokens)
-                for kind, target in replacement_targets
+                for kind, target in structured_positive_targets
                 for target_tokens in [set(tokens(target))]
             ):
                 continue
@@ -601,18 +790,30 @@ class ConversationEngineState:
         # selection, but is never a hard title-evidence requirement. Do not
         # re-add the old side of an explicit use-case replacement from the
         # deterministic phrase extractor.
-        use_case_replacement_targets = {
-            " ".join(str(update.get("target") or "").split()).casefold()
-            for update in model_updates
-            if update.get("operation") == "replace"
-            and update.get("kind") == "use_case"
-            and isinstance(update.get("target"), str)
-        }
+        structured_use_case_targets = structured_targets["use_case"]
+        # If Gemini identifies a connector phrase as hard compatibility,
+        # do not also keep the deterministic parser's softer use_case copy
+        # of the same target. Include old/new values for compatibility
+        # corrections and removals so stale duplicates cannot survive.
+        structured_compatibility_targets = structured_targets["compatibility"]
         for value in result.get("use_cases") or []:
-            if " ".join(str(value).split()).casefold() in use_case_replacement_targets:
+            normalized_use_case = " ".join(str(value).split()).casefold()
+            if (
+                normalized_use_case in structured_use_case_targets
+                or normalized_use_case in structured_compatibility_targets
+            ):
                 continue
             self._add_slot(Slot(
                 kind="use_case", value=value, source_turn=index, raw_text=""
+            ))
+        # Explicit accessory fitment is a hard compatibility constraint,
+        # not merely soft application context («насадка на дрель» must fit a
+        # drill). Missing listing evidence is quarantined for semantic review.
+        for value in result.get("compatibilities") or []:
+            if " ".join(str(value).split()).casefold() in structured_compatibility_targets:
+                continue
+            self._add_slot(Slot(
+                kind="compatibility", value=value, source_turn=index, raw_text=""
             ))
         # Feature spans are CONSTRAINTS of an active search. A NEW_SEARCH
         # message names a product, not a feature: recording its span
@@ -623,13 +824,24 @@ class ConversationEngineState:
         model_use_case_tokens = [
             set(tokens(update.get("value", "")))
             for update in model_updates
-            if update.get("kind") == "use_case" and isinstance(update.get("value"), str)
+            if update.get("kind") in {"use_case", "compatibility"} and isinstance(update.get("value"), str)
         ]
+        feature_spans = result.get("spans") or []
+        if result.get("intent") is MessageIntent.NEW_SEARCH:
+            # On a fresh search, retain only explicitly connector-led
+            # requirements. Do not reinterpret arbitrary title/request
+            # scaffolding («5 вариантов шуруповёрта») as product features.
+            feature_spans = result.get("explicit_features") or []
+        explicit_feature_values = {
+            " ".join(str(value).split()).casefold()
+            for value in (result.get("explicit_features") or [])
+            if isinstance(value, str) and value.strip()
+        }
         if result.get("intent") not in (
-            MessageIntent.NEW_SEARCH, MessageIntent.AMBIGUOUS,
-            MessageIntent.COMPARE, MessageIntent.ALTERNATIVES,
+            MessageIntent.AMBIGUOUS, MessageIntent.COMPARE,
+            MessageIntent.ALTERNATIVES,
         ):
-            for span in result.get("spans") or []:
+            for span in feature_spans:
                 # If Gemini has identified a grounded application-context
                 # phrase inside a larger grammatical span («буду работать
                 # на стройке»), do not misrecord the whole sentence as a
@@ -638,6 +850,9 @@ class ConversationEngineState:
                 if any(
                     wanted and wanted.issubset(span_token_set)
                     for wanted in model_use_case_tokens
+                ) or any(
+                    wanted and wanted.issubset(span_token_set)
+                    for wanted in structured_span_target_tokens
                 ):
                     continue
                 # A «не X» span is an EXCLUSION (the negation slot already
@@ -651,19 +866,25 @@ class ConversationEngineState:
                 # everything. Real feature nouns («с чехлом в комплекте»,
                 # «быстрая зарядка») stay requirements.
                 span_tokens = tokens(span)
-                if span_tokens and all(
-                    token in _QUALIFIER_WORDS
-                    or is_colour_word(token)
-                    or token in _BUDGET_FRAMING_WORDS
-                    or token in _COUNT_WORDS
-                    or token.isdigit()
-                    for token in span_tokens
+                if (
+                    span.casefold() not in explicit_feature_values
+                    and span_tokens
+                    and all(
+                        token in _QUALIFIER_WORDS
+                        or is_colour_word(token)
+                        or token in _BUDGET_FRAMING_WORDS
+                        or token in _COUNT_WORDS
+                        or token.isdigit()
+                        for token in span_tokens
+                    )
                 ):
                     continue
                 self._add_slot(Slot(kind="feature", value=span, source_turn=index, raw_text=""))
         # Comparative follow-ups must survive as active preferences. They
         # are useful retrieval/ranking signals, but never hard title filters.
         for value in result.get("preferences") or []:
+            if " ".join(str(value).split()).casefold() in structured_targets["preference"]:
+                continue
             self._add_slot(Slot(
                 kind="preference", value=value, source_turn=index, raw_text=""
             ))
@@ -686,7 +907,7 @@ class ConversationEngineState:
             operation = update.get("operation", "add")
             target = update.get("target")
             value = update.get("value")
-            if kind not in {"use_case", "feature", "exclusion", "preference"}:
+            if kind not in {"use_case", "compatibility", "feature", "exclusion", "preference"}:
                 continue
             if operation not in {"add", "replace", "remove"}:
                 continue
@@ -752,7 +973,7 @@ class ConversationEngineState:
     def authoritative_text(self) -> str:
         """Compact query built from the active ledger (reference analogue)."""
 
-        order = {"type": 0, "use_case": 1, "feature": 2, "budget": 3, "preference": 4}
+        order = {"type": 0, "compatibility": 1, "use_case": 2, "feature": 3, "budget": 4, "preference": 5}
         slots = sorted(
             self.active(),
             key=lambda slot: (order.get(slot.kind, 9), slot.source_turn),
@@ -857,29 +1078,44 @@ def _negation_values(message: str) -> list[str]:
 
 
 def _budget(message: str) -> dict:
-    """Numeric budget + currency from one message; {} when none."""
+    """Numeric budget + optional currency from one message; {} when none.
 
-    match = _BUDGET_RE.search(message or "")
-    if not match:
-        return {}
-    raw = match.group(1).replace(",", ".").replace(" ", "")
-    try:
-        amount = float(raw)
-    except ValueError:
-        return {}
-    scale = (match.group(2) or "").lower()
-    if scale:
-        # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
-        amount *= 1000
-    # Match offsets are relative to the full input, not group(0). Slicing
-    # group(0) with an absolute offset loses the currency after framing text.
-    tail = (message[match.start():match.end()] or "").lower()
-    currency = None
-    for word, code in _CURRENCY_BY_WORD.items():
-        if word in tail:
-            currency = code
-            break
-    return {"max": amount, "currency": currency}
+    A bare amount is a budget only when it is explicitly framed («до 2000»,
+    «бюджет 2000»). An amount followed by a currency is self-identifying.
+    This avoids treating product dimensions/model numbers as price limits.
+    """
+
+    raw_message = message or ""
+    for match in _BUDGET_RE.finditer(raw_message):
+        # The regex also scans ordinary numbers (lengths, model numbers).
+        # Accept a match only when it has a currency suffix or an explicit
+        # budget marker immediately before the amount.
+        tail = raw_message[match.start():match.end()]
+        currency = None
+        lowered_tail = tail.lower()
+        for word, code in _CURRENCY_BY_WORD.items():
+            if word in lowered_tail:
+                currency = code
+                break
+        explicit_marker = bool(re.match(
+            r"(?i)\s*(?:до|under|up\s+to|не более|меньше|less than|max|"
+            r"максимум|бюджет(?:ом)?|budget)\b",
+            tail,
+        ))
+        if currency is None and not explicit_marker:
+            continue
+
+        raw = match.group(1).replace(",", ".").replace(" ", "")
+        try:
+            amount = float(raw)
+        except ValueError:
+            continue
+        scale = (match.group(2) or "").lower()
+        if scale:
+            # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
+            amount *= 1000
+        return {"max": amount, "currency": currency}
+    return {}
 
 
 def _is_short_refinement(message: str) -> bool:
@@ -921,6 +1157,8 @@ _QUALIFIER_WORDS: frozenset[str] = frozenset(
         "самом", "деле", "нибудь", "полезное", "полезный", "полезная",
         "интересное", "интересный", "интересная", "необычное", "необычный",
         "необычная", "любое", "любой", "любая", "то",
+        # Demonstratives that point back to the visible candidate set.
+        "этого", "этой", "этих", "этими", "эти", "данного", "данной",
         "подешевле", "подороже", "полегче", "потяжелее", "получше", "похуже",
         "поменьше", "побольше", "покороче", "подлиннее", "компактнее",
         "мощнее", "дешевле", "дороже", "легче", "тяжелее", "быстрее",
@@ -935,6 +1173,86 @@ _COMPARATIVE_SUFFIXES: tuple[str, ...] = (
 )
 
 
+_PRODUCT_REQUEST_FRAMING_WORDS = frozenset(
+    {
+        "а", "и", "ну", "теперь", "давай", "давайте", "мне", "меня", "мой",
+        "моя", "мое", "моя", "я", "нужен", "нужна", "нужно", "нужны",
+        "ищу", "хочу", "хотел", "хотела", "требуется", "требуются",
+        "подбери", "подберите", "найди", "найдите", "покажи", "покажите",
+        "закажи", "закажите", "купи", "купите", "оставь", "оставьте",
+        "сохрани", "сохранить", "выбери", "выберите", "отбери", "отберите",
+        "убери", "уберите", "удали", "удалите", "сделай", "сделать",
+        "дай", "дайте", "предложи", "предложите", "есть", "ли", "можно",
+        "какой", "какая", "какие", "какое", "что", "насчет", "насчёт",
+        "please", "i", "need", "want", "looking", "find", "show", "a", "an",
+        "the", "some",
+    }
+)
+_PRODUCT_CONTEXT_CONNECTOR_RE = re.compile(
+    r"(?:^|\s)(?:для|по|на|под|с|со|из|без|for|on|under|with|without)\b",
+    re.IGNORECASE,
+)
+_PRODUCT_ACTIVITY_WORDS = frozenset(
+    {
+        "работа", "работы", "работать", "работаю", "работает", "работаем",
+        "работают", "буду", "будет", "будут", "делать", "делаю", "делает",
+        "использовать", "использую", "использует", "пользоваться",
+        "строить", "строю", "строит", "ехать", "ездить", "ходить",
+        "work", "working", "use", "using", "look", "looking", "search",
+        "searching", "install", "installing", "drive", "driving",
+    }
+)
+_RUSSIAN_ADJECTIVE_ENDING_RE = re.compile(
+    r"(?:ый|ий|ой|ая|яя|ое|ее|ые|ие|ого|его|ому|ему|ым|им|ую|юю|ых|их|ыми|ими)$",
+    re.IGNORECASE,
+)
+
+
+def _product_head(value: str) -> str | None:
+    """Return the last noun-like token in a product phrase."""
+
+    words = tokens(value or "")
+    noun_like = [
+        word for word in words
+        if not _RUSSIAN_ADJECTIVE_ENDING_RE.search(word)
+    ]
+    return noun_like[-1] if noun_like else (words[-1] if words else None)
+
+
+def _leading_product_words(message: str) -> list[str]:
+    """Read meaningful item words before a purpose/fitment connector."""
+
+    connector = _PRODUCT_CONTEXT_CONNECTOR_RE.search(message or "")
+    if connector is None:
+        return []
+    phrase = (message or "")[:connector.start()]
+    words = [
+        word for word in tokens(phrase)
+        if word not in _PRODUCT_REQUEST_FRAMING_WORDS
+        and word not in _QUALIFIER_WORDS
+        and word not in _CHARACTERISTIC_NOUNS
+        and word not in _COUNT_WORDS
+        and word not in _BUDGET_FRAMING_WORDS
+        and not word.isdigit()
+        and not re.search(r"\d", word)
+        and not is_colour_word(word)
+        and not word.endswith(_COMPARATIVE_SUFFIXES)
+    ]
+    if not words:
+        return []
+    head = _product_head(" ".join(words))
+    if not head or head in _PRODUCT_ACTIVITY_WORDS:
+        return []
+    return words
+
+
+def _leading_product_head(message: str) -> str | None:
+    """Return the noun-like head before a purpose/fitment connector."""
+
+    words = _leading_product_words(message)
+    return _product_head(" ".join(words)) if words else None
+
+
 def _is_alternatives_request(message: str, state: "ConversationEngineState") -> bool:
     """Whether a later message asks for DIFFERENT results in the SAME task.
 
@@ -946,14 +1264,26 @@ def _is_alternatives_request(message: str, state: "ConversationEngineState") -> 
     search, not an alternatives turn.
     """
 
+    # An alternation request only makes sense inside an existing task.
+    # A greeting or other non-shopping turn must not make «покажи другие
+    # варианты» look like a continuation when there is no search to continue.
+    if not state.active() and not state.shown_product_ids:
+        return False
+
     lowered = (message or "").lower().replace("ё", "е")
     if not any(marker in lowered for marker in _ALTERNATION_MARKERS):
         return False
+    use_case_tokens = {
+        token
+        for match in _USE_CASE_INTRO_RE.finditer(message)
+        for token in tokens(match.group(1))
+    }
     content = [
         token for token in tokens(message)
         if token not in _CHARACTERISTIC_NOUNS
         and token not in _QUALIFIER_WORDS
         and token not in _BUDGET_FRAMING_WORDS
+        and token not in use_case_tokens
         and not any(token.startswith(marker) for marker in _ALTERNATION_MARKERS)
         and not is_colour_word(token)
         and not token.isdigit()

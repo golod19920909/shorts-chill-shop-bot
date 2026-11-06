@@ -153,8 +153,15 @@ def _product_text_for_match(product: Product) -> str:
 def filter_by_budget(
     products: list[Product],
     state: ConversationEngineState,
+    *,
+    default_currency: str | None = None,
 ) -> tuple[list[Product], list[Product]]:
-    """Enforce a hard budget; unknown price/currency never passes."""
+    """Enforce a hard budget; unknown price/currency never passes.
+
+    If the user gave a numeric ceiling without naming a currency, use the
+    active search currency (for example the bot's UAH display currency).
+    An explicitly stated budget currency always takes precedence.
+    """
 
     budget = state.active_by_kind("budget")
     if budget is None:
@@ -165,7 +172,10 @@ def filter_by_budget(
     except (ValueError, IndexError):
         # An unparseable active budget is unsafe: do not silently disable it.
         return [], list(products)
-    budget_currency = parts[1].strip().upper() if len(parts) > 1 else ""
+    budget_currency = (
+        parts[1].strip().upper() if len(parts) > 1
+        else str(default_currency or "").strip().upper()
+    )
     survivors, rejected = [], []
     for product in products:
         product_currency = str(product.currency or "").strip().upper()
@@ -182,23 +192,57 @@ def filter_by_budget(
     return survivors, rejected
 
 
-def _feature_is_evidenced(product: Product, feature: str) -> bool:
-    """Require positive title/description evidence for a mandatory feature."""
+_FEATURE_NEGATION_TOKENS = frozenset({
+    "не", "без", "нет", "нету", "несовместим", "несовместима",
+    "несовместимо", "неподдерживает", "неподходит", "неимеет",
+    "not", "no", "without", "incompatible", "unsupported",
+    "doesnt", "doesn", "dont", "excluded", "excluding",
+})
 
-    wanted = _terms(feature)
+
+def _feature_is_evidenced(product: Product, feature: str) -> bool:
+    """Require one contiguous, affirmative evidence span in a single field.
+
+    Token presence scattered across a title and description is not proof of
+    a relationship: a listing can mention "two modes" and "one battery" while
+    the user explicitly requires two batteries. Negated mentions are also
+    unknown, not positive evidence, and must go to semantic review.
+    """
+
+    from services.convsearch.type_validation import _raw_tokens, stems_match
+
+    wanted = _raw_tokens(feature)
     if not wanted:
         return True
-    evidence_text = " ".join(
-        part for part in (product.title or "", product.description or "") if part
-    )
-    observed = _terms(evidence_text)
-    from services.convsearch.type_validation import stems_match
 
-    matched = sum(
-        1 for token in wanted
-        if any(stems_match(token, candidate) for candidate in observed)
+    def has_positive_span(text: str) -> bool:
+        observed = _raw_tokens(text)
+        width = len(wanted)
+        if width > len(observed):
+            return False
+        for start in range(len(observed) - width + 1):
+            end = start + width
+            if not all(
+                stems_match(wanted[offset], observed[start + offset])
+                for offset in range(width)
+            ):
+                continue
+            # Keep a small context window around the exact feature span.
+            # If it is explicitly negated ("not compatible with X",
+            # "without two batteries", "X not included"), do not call it
+            # verified; the bounded semantic selector may inspect it.
+            context = (
+                observed[max(0, start - 3):start]
+                + observed[end:min(len(observed), end + 3)]
+            )
+            if any(token in _FEATURE_NEGATION_TOKENS for token in context):
+                continue
+            return True
+        return False
+
+    return has_positive_span(product.title or "") or has_positive_span(
+        product.description or ""
     )
-    return matched / len(wanted) >= 0.6
 
 
 def partition_required_feature_evidence(
@@ -214,7 +258,7 @@ def partition_required_feature_evidence(
     data. If semantic review is unavailable, they remain quarantined.
     """
 
-    required = state.active_values("feature")
+    required = [*state.active_values("feature"), *state.active_values("compatibility")]
     if not required:
         return list(products), []
     verified: list[Product] = []
@@ -231,13 +275,17 @@ def filter_by_required_features(
     products: list[Product],
     state: ConversationEngineState,
 ) -> tuple[list[Product], list[Product]]:
-    """Keep only candidates with evidence for every active required feature.
+    """Keep only candidates with evidence for every active hard requirement.
 
-    Missing evidence is UNKNOWN, not a successful match. Soft preferences
-    live in separate preference slots and are deliberately not filtered here.
+    Both feature and compatibility slots are mandatory. Missing evidence is
+    UNKNOWN, not a successful match. Soft preferences and use-case context
+    live in separate slots and are deliberately not filtered here.
     """
 
-    required = state.active_values("feature")
+    required = [
+        *state.active_values("feature"),
+        *state.active_values("compatibility"),
+    ]
     if not required:
         return list(products), []
     survivors, rejected = [], []
@@ -311,7 +359,9 @@ class RetrievalBackend:
             raise RuntimeError("RetrievalBackend has no SearchService bound")
         return self._search_service
 
-    async def retrieve(self, strategy: RetrievalStrategy, *, exclude=None) -> BackendOutcome:
+    async def retrieve(
+        self, strategy: RetrievalStrategy, *, exclude=None, should_continue=None
+    ) -> BackendOutcome:
         service = self._require_service()
         request = strategy.request
         phrase = (request.normalized_query or request.original_query or "").strip()
@@ -319,7 +369,8 @@ class RetrievalBackend:
             return BackendOutcome(ok=False, reason="empty_query", request=request)
         try:
             outcome: SearchOutcome = await service.find_products(
-                request, exclude=exclude, raw=True, broaden=True, raw_broaden=True
+                request, exclude=exclude, raw=True, broaden=True, raw_broaden=True,
+                raw_continue=should_continue,
             )
         except Exception:
             logger.exception("RetrievalBackend: provider call failed")
@@ -375,14 +426,18 @@ def build_retrieval_strategy(
     def _covered_by_type(token: str) -> bool:
         return any(stems_match(token, t) for t in type_tokens)
 
-    # Feature spans travel into the phrase MINUS the tokens the product
-    # type already covers («катушки для спиннинга» on an active «катушка»
-    # search contributes «спиннинга», not a second «катушки»).
-    features = []
-    for feature in state.active_values("feature"):
-        kept = [token for token in tokens(feature) if not _covered_by_type(token)]
-        if kept:
-            features.append(" ".join(kept))
+    # Mandatory features and compatibility phrases must remain intact in
+    # retrieval, even when they repeat a noun/stem from the product type.
+    # That repeated word can carry the relationship being searched for:
+    # «аккумуляторный шуруповёрт» + «двумя аккумуляторами» must not collapse
+    # to «шуруповёрт двумя». The provider can handle a small amount of
+    # duplication; silently deleting a distinguishing feature is worse.
+    features = [
+        " ".join(tokens(feature))
+        for feature in state.active_values("feature")
+        if tokens(feature)
+    ]
+    compatibility = state.active_values("compatibility")
     exclusions = state.active_values("exclusion")
     budget = state.active_by_kind("budget")
 
@@ -396,6 +451,10 @@ def build_retrieval_strategy(
     # it is NOT a mandatory title feature. «Для дома» should broaden the
     # search toward household models without rejecting a suitable listing
     # whose seller omitted those exact words.
+    for compatible_target in compatibility:
+        compatible_phrase = " ".join(tokens(compatible_target))
+        if compatible_phrase:
+            phrase_parts.append(compatible_phrase)
     for use_case in state.active_values("use_case"):
         kept = [token for token in tokens(use_case) if not _covered_by_type(token)]
         if kept:
@@ -421,7 +480,7 @@ def build_retrieval_strategy(
     )
 
     covered = set(tokens(" ".join(phrase_parts)))
-    from services.convsearch.engine import _DISCOURSE_MARKERS
+    from services.convsearch.engine import _DISCOURSE_MARKERS, _REQUEST_FILLER
 
     def _already_covered(token: str) -> bool:
         return (
@@ -455,6 +514,7 @@ def build_retrieval_strategy(
             and token not in _CHARACTERISTIC_NOUNS
             and token not in _QUALIFIER_WORDS
             and token not in _DISCOURSE_MARKERS
+            and token not in _REQUEST_FILLER
             and not is_colour_word(token)
             and not _already_covered(token)
             and not _is_excluded_token(token)
@@ -470,7 +530,10 @@ def build_retrieval_strategy(
     has_current_turn_slots = any(
         slot.status == "active"
         and slot.source_turn == current_turn
-        and slot.kind in {"use_case", "feature", "exclusion", "preference", "budget"}
+        and slot.kind in {
+            "use_case", "compatibility", "feature", "exclusion",
+            "preference", "budget",
+        }
         for slot in state.slots
     )
     constraint_words: list[str] = []
@@ -514,13 +577,25 @@ def build_retrieval_strategy(
     if not phrase:
         return None
 
+    # An explicitly stated budget currency must also become the
+    # marketplace request currency. Otherwise a user asking «до 50 USD»
+    # while the bot's display default is UAH would retrieve UAH prices and
+    # then correctly reject every row as a currency mismatch.
+    request_currency = currency
+    if budget is not None:
+        budget_parts = str(budget.value or "").split(maxsplit=1)
+        if len(budget_parts) > 1:
+            explicit_budget_currency = budget_parts[1].strip().upper()
+            if explicit_budget_currency in {"UAH", "USD", "EUR", "RUB"}:
+                request_currency = explicit_budget_currency
+
     request = SearchRequest(
         original_query=text or phrase,
         normalized_query=phrase,
         mode=SearchMode.SEARCH,
         result_limit=result_limit,
-        currency=currency,
-        required_features=[*list(state.active_values("feature")), *constraint_words],
+        currency=request_currency,
+        required_features=[*list(state.active_values("feature")), *list(state.active_values("compatibility")), *constraint_words],
         excluded_features=list(exclusions),
     )
     if budget is not None:

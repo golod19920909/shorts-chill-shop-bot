@@ -54,6 +54,9 @@ class Product(BaseModel):
     product_url: str
 
     description: str | None = None
+    #: Marketplace-provided category labels, ordered from broad to specific.
+    #: They are weak semantic context only; they never prove product identity.
+    category_path: list[str] = Field(default_factory=list)
     image_url: str | None = None
 
     price: float | None = Field(default=None, ge=0)

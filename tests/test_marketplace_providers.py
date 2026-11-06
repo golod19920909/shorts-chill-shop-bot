@@ -153,6 +153,8 @@ class ProviderContractTests(unittest.TestCase):
                                         {
                                             "product_id": "100500",
                                             "product_title": "Wireless Earbuds",
+                                            "first_level_category_name": "Consumer Electronics",
+                                            "second_level_category_name": "Audio",
                                             "product_detail_url": "https://example.com/i/100500.html",
                                             "product_main_image_url": "https://example.com/i.jpg",
                                             "target_sale_price": "9.99",
@@ -188,6 +190,7 @@ class ProviderContractTests(unittest.TestCase):
         product = products[0]
         self.assertEqual(product.marketplace, Marketplace.ALIEXPRESS)
         self.assertEqual(product.product_id, "100500")
+        self.assertEqual(product.category_path, ["Consumer Electronics", "Audio"])
         self.assertEqual(product.price, 9.99)
         self.assertEqual(product.currency, "USD")
         self.assertEqual(product.orders_count, 120)

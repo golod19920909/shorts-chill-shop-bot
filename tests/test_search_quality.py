@@ -439,8 +439,8 @@ class EmptyResultUxTests(unittest.TestCase):
 
         self.assertEqual(
             text,
-            "😕 По вашему запросу ничего не найдено. "
-            "Попробуйте изменить запрос или параметры поиска.",
+            "Пока не удалось подобрать подходящий вариант — что из ваших пожеланий "
+            "можно немного ослабить, чтобы расширить поиск?",
         )
         for forbidden in (
             "AliExpress",
@@ -455,6 +455,19 @@ class EmptyResultUxTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, text)
+
+    def test_natural_followup_is_preferred_when_engine_provides_one(self) -> None:
+        from services.convsearch.contract import Outcome, SearchDecision
+
+        decision = SearchDecision(
+            outcome=Outcome.NO_CANDIDATES,
+            reply="Пока не нашёл подходящий вариант. Какое пожелание можно ослабить?",
+        )
+
+        self.assertEqual(
+            search_handler._no_eligible_user_message(decision),
+            decision.reply,
+        )
 
     def test_an_empty_search_sends_that_message_and_nothing_else(self) -> None:
         context = self.context()

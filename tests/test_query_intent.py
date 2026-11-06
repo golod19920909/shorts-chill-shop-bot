@@ -51,11 +51,13 @@ class FakeAI:
         self.fast_model = "gemini-test"
         self.last_model = None
         self.calls = 0
+        self.last_operation = None
         self._result = result
         self._exc = exc
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.calls += 1
+        self.last_operation = operation
         if self._exc is not None:
             raise self._exc
         return self._result
@@ -64,7 +66,7 @@ class FakeAI:
 INTENT_FIELDS = {
     "product_type", "brand", "model", "generation",
     "required_attributes", "optional_attributes", "compatibility",
-    "budget", "excluded_product_types",
+    "budget", "excluded_product_types", "marketplace_terms",
 }
 
 
@@ -382,6 +384,7 @@ class AISuccessTests(unittest.TestCase):
             "brand": None,
             "budget": {"max": 2000, "currency": "грн"},
             "unknown_extra": "drop me",
+            "marketplace_terms": ["wireless charger", "wireless charger", "x" * 100],
         }
         ai = FakeAI(result=json.dumps(payload))
         intent, meta = parse("зарядка для iPhone 15 Pro до 2000 грн", ai)
@@ -391,8 +394,10 @@ class AISuccessTests(unittest.TestCase):
         self.assertIsNotNone(meta.latency_ms)
         self.assertEqual(intent.product_type, "зарядка")
         self.assertEqual(intent.compatibility, ["iPhone 15 Pro"])
+        self.assertEqual(intent.marketplace_terms, ["wireless charger"])
         self.assertEqual(intent.budget.max, 2000)
         self.assertEqual(intent.budget.currency, "UAH")
+        self.assertEqual(intent.marketplace_terms, ["wireless charger"])
         self.assertNotIn("unknown_extra", intent.model_dump())
         self.assertEqual(ai.calls, 1)
         self.assertEqual(INTENT_AI_STATS["ok"], 1)
@@ -525,3 +530,12 @@ class CircuitBreakerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OperationAttributionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_ai_state()
+
+    def test_legacy_intent_call_has_a_distinct_telemetry_operation(self) -> None:
+        ai = FakeAI(result=json.dumps({"product_type": "павербанк"}))
+        parse("павербанк", ai)
+        self.assertEqual(ai.last_operation, "legacy_query_intent")

@@ -329,30 +329,34 @@ def _is_script_neutral(canon_word: str) -> bool:
 
 
 
+def _english_singular(word: str) -> str:
+    """Normalize a small set of regular English plurals without prefix guesses."""
+
+    if len(word) > 5 and word.endswith("ies"):
+        return word[:-3] + "y"
+    if len(word) > 4 and word.endswith(("ches", "shes", "xes", "zes", "sses")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def _is_latin_word(word: str) -> bool:
+    return bool(word) and ("a" <= word[0] <= "z")
+
+
 def _word_matches(phrase_word: str, candidate: str) -> bool:
     """Whether one phrase word matches one haystack word.
 
-    Comparison is anchored at the word start and uses a 4-character stem, so
-    Russian inflections match ("наушник"/"наушники", "ночное"/"ночным",
-    "шумоподавление"/"шумоподавления") while a match INSIDE another word is
-    impossible ("проводные" never matches "беспроводные").
-
-    Known limitation, kept deliberately: the stem is compared in one
-    direction, so a feature can also match a much SHORTER word that merely
-    starts the same way - requiring "wireless" also accepts "Wired
-    Headphones". Tightening this (e.g. by demanding that the shorter word be
-    fully consumed) was tried and REJECTED: it is structurally identical to
-    the legitimate pair "ночное"/"ночным", so it would break real Russian
-    morphology. Distinguishing them needs lemmatisation, not a prefix rule.
+    Cyrillic words retain the established four-character inflection stem.
+    Latin words use exact matching plus conservative English plural
+    normalization. Arbitrary shared prefixes are not evidence: "table" and
+    "tablet", or "wireless" and "wired", are different words.
     """
 
-    # Stage 46: a NUMBER is a hard value - two digit tokens match only when
-    # equal («20000» never matches «20001»), and a digit token matches a
-    # Russian number word (and vice versa) when they denote the SAME
-    # quantity («2» == «двумая»). A bare digit never matches a non-number
-    # word and a number word never matches a non-digit word, so there is no
-    # broad substring matching here. Words keep the 4-char inflection-prefix
-    # rule («аккумуляторами» matches «аккумулятора»).
+    # A NUMBER is a hard value - two digit tokens match only when equal
+    # ("20000" never matches "20001"). A digit token may also match a known
+    # Russian number word when both denote the same quantity.
     phrase_is_digit = phrase_word.isdigit()
     candidate_is_digit = candidate.isdigit()
     if phrase_is_digit or candidate_is_digit:
@@ -361,9 +365,20 @@ def _word_matches(phrase_word: str, candidate: str) -> bool:
         if phrase_num is not None and candidate_num is not None:
             return phrase_num == candidate_num
         return False
-    if len(phrase_word) >= PREFIX_MATCH_LENGTH:
+
+    if phrase_word == candidate:
+        return True
+    if _is_latin_word(phrase_word) and _is_latin_word(candidate):
+        return _english_singular(phrase_word) == _english_singular(candidate)
+    if (
+        phrase_word
+        and candidate
+        and 0x0400 <= ord(phrase_word[0]) <= 0x052F
+        and 0x0400 <= ord(candidate[0]) <= 0x052F
+        and len(phrase_word) >= PREFIX_MATCH_LENGTH
+    ):
         return candidate.startswith(phrase_word[:PREFIX_MATCH_LENGTH])
-    return candidate == phrase_word
+    return False
 
 
 #: Prepositions that can dangle at the END of a captured «с X» / «без X»

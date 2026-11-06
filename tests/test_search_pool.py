@@ -119,6 +119,49 @@ class GroundedVariantTests(unittest.TestCase):
         self.assertEqual(variants[0], "keychain construction tool")
         self.assertIn("брелок инструмента", variants)
 
+    def test_ai_marketplace_term_adds_cross_language_retrieval_route(self) -> None:
+        variants = self.variants(
+            original_query="Нужен беспроводной зарядный блок",
+            normalized_query="wireless charger",
+            intent_marketplace_terms=["wireless charging station"],
+        )
+        self.assertEqual(variants[0], "wireless charger")
+        self.assertIn("wireless charging station", variants)
+        self.assertLessEqual(len(variants), query_variants.MAX_PRODUCT_QUERY_VARIANTS)
+
+    def test_cross_language_marketplace_terms_cover_unrelated_product_families(self) -> None:
+        cases = [
+            ("аккумуляторный шуруповёрт", "cordless drill", "cordless power drill"),
+            ("налобный фонарь", "headlamp", "LED head torch"),
+            ("беспроводные наушники", "wireless headphones", "bluetooth headset"),
+            ("пылесос без мешка", "bagless vacuum cleaner", "bagless vacuum"),
+            ("садовый шланг", "garden hose", "watering hose"),
+            ("фильтр для воды", "water filter", "water purifier filter"),
+            ("ремешок для часов", "watch strap", "smartwatch band"),
+            ("камера наблюдения", "security camera", "CCTV camera"),
+        ]
+        for original, primary, alternate in cases:
+            with self.subTest(original=original):
+                variants = self.variants(
+                    original_query=original,
+                    normalized_query=primary,
+                    intent_marketplace_terms=[alternate],
+                )
+                self.assertEqual(variants[0], primary)
+                self.assertIn(alternate, variants)
+                self.assertLessEqual(
+                    len(variants), query_variants.MAX_PRODUCT_QUERY_VARIANTS
+                )
+
+    def test_marketplace_term_never_replaces_primary_or_crosses_same_script(self) -> None:
+        variants = self.variants(
+            original_query="зарядное устройство",
+            normalized_query="зарядное устройство",
+            intent_marketplace_terms=["блок питания"],
+        )
+        self.assertEqual(variants[0], "зарядное устройство")
+        self.assertNotIn("блок питания", variants)
+
     def test_no_variant_contains_a_word_the_user_did_not_write(self) -> None:
         original = "брелок в виде строительного инструмента"
         variants = self.variants(original_query=original)
