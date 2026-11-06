@@ -161,6 +161,7 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                 json={
                     "model": provider.model,
                     "input": prompt,
+                    "reasoning": {"effort": "medium"},
                     "text": {
                         "format": {
                             "type": "json_schema",
@@ -183,7 +184,10 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                     "model": provider.model,
                     "max_tokens": 2048,
                     "messages": [{"role": "user", "content": prompt}],
-                    "output_config": {"format": {"type": "json_schema", "schema": TURN_SCHEMA}},
+                    "output_config": {
+                        "effort": "medium",
+                        "format": {"type": "json_schema", "schema": TURN_SCHEMA},
+                    },
                 },
             )
         elif provider.provider == "deepseek":
@@ -442,6 +446,13 @@ async def run_benchmark(
                 "anthropic": "json_schema",
                 "deepseek": "json_object",
                 "qwen": "strict_json_schema_non_thinking",
+            }[p.provider],
+            "reasoning_mode": {
+                "google": "provider_default",
+                "openai": "medium",
+                "anthropic": "medium",
+                "deepseek": "provider_default_thinking",
+                "qwen": "disabled_required_for_schema",
             }[p.provider],
             "resolved_models": [],
         }
