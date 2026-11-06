@@ -2881,10 +2881,13 @@ Verification:
   42158404800: 292 focused tests + 65 subtests, and 2,229 filtered-suite
   tests + 745 subtests, with one google-genai deprecation warning. Seventeen
   stale legacy modules remain excluded.
-- The subsequent explicit-budget-currency request change and its two new
-  strategy tests are in separate CI runs 42158456293 and 42158469493; those
-  runs are still in progress at this context update. No pass is claimed for
-  those latest changes yet.
+- CI run 42158456293 passed after the explicit-budget-currency request
+  change: 292 focused tests + 65 subtests, and 2,229 filtered-suite tests
+  + 745 subtests, with one google-genai deprecation warning. This run was
+  created before the two new strategy regressions were added.
+- CI run 42158469493, which includes the two new strategy regressions, is
+  still in progress at this context update; no pass is claimed for those
+  two new tests until that run completes.
 - The previous budget-lifecycle change has passed GitHub Actions run
   42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
   tests + 745 subtests. Seventeen stale legacy modules were excluded.
