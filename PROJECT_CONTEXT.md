@@ -3799,3 +3799,19 @@ Files/commits:
 - `tests/eval_consultant_benchmark_protocol.md` — provider-specific schema behavior recorded (`57eedc2674ec0562eb9f7d71ffa65b3b551b640a`).
 
 Official source checked 2026-11-06: https://platform.claude.com/docs/en/build-with-claude/structured-outputs. No provider API calls have been made; the change prevents a known invalid request configuration in the benchmark only.
+### Product-advice factual validator restored (2026-11-06)
+
+Reviewing the full repository test output exposed a real active-path defect: `ProductAssistant.analyze()` calls `AIService.analyze_product()`, but `analyze_product()` referenced `self._validated_ai_text()` which did not exist. That meant the AI product-advice path could raise `AttributeError` instead of safely validating observations and falling back to deterministic advice.
+
+Implemented the missing static validator. It accepts concise text only when all numeric tokens are present in the actual `product_facts()` payload, rejects URLs/HTML and overlong text, and excludes product IDs from the allowed numeric evidence. The factual product block remains deterministic; this helper does not alter search, candidate selection or ranking.
+
+Also repaired test fakes affected by the new telemetry operation argument: the query-intent circuit-breaker fake and the legacy capture runner spy now accept/forward `operation`. Updated the timeout test to exercise a non-retrying product-question operation rather than incorrectly asserting that `conversation_turn` does not fallback; conversation-turn fallback remains intentional.
+
+Files/commits:
+- `services/ai_service.py` — restored `_validated_ai_text` (`0b3869f1c24f97d989d6d6157de227d62599e0de`; URL-regex correction `0ead7a7c13e1379ec50e365183ed8af1a56f79f4`).
+- `tests/test_ai_operations.py` — updated the timeout expectation to target a non-retrying operation (`41276033dc53ca9c3c06c2fbea69a37979f019d8`).
+- `tests/test_intent_circuit_recovery.py` — fake accepts the operation keyword (`0c8025abe7c114a4b3bd8b6778d7dee25b1bb6d1`).
+- `tests/fixtures_stage44b4_capture_runner.py` — capture spies forward the operation keyword (`c6c0cdede0217e6aea44eca6fc933471b91f342e`).
+- `.github/workflows/conversational-regression.yml` — active product-advice and circuit-breaker tests added to the focused suite (`8a2c7f2baae57ada01676e21e5c2e0564d67b1ac`).
+
+CI on commit `0ead7a7c13e1379ec50e365183ed8af1a56f79f4`: focused offline test step completed successfully. The repository-wide step is still being evaluated; its prior run exposed hundreds of old tests that invoke removed legacy AIService parser helpers. Do not restore `_fallback_parse` or `_with_result_limit` solely to satisfy those legacy tests: active Option C uses `services/query_intent.py`, `services/consultant.py` and deterministic SearchService paths. Keep the legacy-suite status explicit.
