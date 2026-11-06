@@ -3600,3 +3600,22 @@ Inspected the existing live evaluation artifacts rather than assuming they conta
 Added `tests/eval_selector_capture_schema.md` to define the exact snapshot shape, provenance, privacy rules, independent gold labels and replay invariants. It contains a clearly marked schema example only, not fake benchmark products.
 
 Selector quality comparison remains blocked until authentic, permitted AliExpress candidate snapshots are available. Do not fabricate candidate rows or infer product-level gold labels from aggregate B5 counts.
+
+
+### Stage I — consolidated operation inventory published (2026-11-06)
+
+Added `tests/eval_gemini_operation_inventory.md` as the readable source/live-log matrix for:
+- active Option C conversation operations;
+- ProductAssistant and category/discovery helper calls;
+- photo and legacy/unverified methods;
+- prompt template character sizes versus actual measured token counts;
+- exact successful request cost samples using the correct candidate + thoughts billing;
+- unknown token/cost cases and telemetry gaps.
+
+The inventory deliberately distinguishes:
+- active production callsites from legacy/unverified methods;
+- prompt characters from provider tokens;
+- successful observed requests from timed-out requests with unknown usage;
+- operation names from generic `generate` logs whose exact helper cannot be attributed from telemetry.
+
+No application code or production telemetry was changed.
