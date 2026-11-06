@@ -593,6 +593,8 @@ class ConversationSearchEngine:
             preserve_active_product=bool(
                 current_type is not None
                 and not explicit_product_switch
+                and isinstance(ai_turn, dict)
+                and ai_turn.get("action") == "new_search"
                 and intent_override is MessageIntent.REFINE
             ),
         )
