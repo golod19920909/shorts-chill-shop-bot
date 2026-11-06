@@ -33,7 +33,7 @@ from typing import Any
 
 import httpx
 
-from services.ai_service import AIService
+from services.ai_service import AIService, CONVERSATION_TURN_PROMPT
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
 
 
@@ -214,7 +214,11 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
     if response.is_error:
         error = payload.get("error", {}) if isinstance(payload, dict) else {}
         error_code = error.get("code") or error.get("type") if isinstance(error, dict) else None
-        raise ProviderHTTPError(response.status_code, str(error_code or "provider_error"))
+        raise ProviderHTTPError(
+            response.status_code,
+            str(error_code or "provider_error"),
+            duration_ms=duration_ms,
+        )
 
     if provider.provider == "google":
         candidates = payload.get("candidates", []) or []
@@ -279,10 +283,11 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
 
 
 class ProviderHTTPError(RuntimeError):
-    def __init__(self, status: int, code: str):
+    def __init__(self, status: int, code: str, *, duration_ms: float | None = None):
         super().__init__(f"HTTP {status} ({code})")
         self.status = status
         self.code = code
+        self.duration_ms = duration_ms
 
 
 def _norm(value: Any) -> str | None:
@@ -401,12 +406,19 @@ async def run_benchmark(
             model=provider.model,
             fast_model=provider.model,
             fallback_model=provider.model,
-            timeout_seconds=timeout_seconds,
+            # Match the production 8.5s turn deadline while the adapter below
+            # enforces one primary attempt with the configured 4s default.
+            timeout_seconds=8.5,
         )
         call_record: dict[str, Any] = {}
 
         async def injected_generate(contents, *, models=None, operation="generate"):
-            response = await call_provider(provider, str(contents), timeout_seconds)
+            try:
+                response = await call_provider(provider, str(contents), timeout_seconds)
+            except Exception as exc:
+                call_record["duration_ms"] = getattr(exc, "duration_ms", None)
+                call_record["http_status"] = getattr(exc, "status", None)
+                raise
             call_record.update({
                 "raw_text": response.text,
                 "usage": response.usage,
@@ -466,7 +478,7 @@ async def run_benchmark(
         "primary_attempt_timeout_seconds": timeout_seconds,
         "retries": 0,
         "fallbacks": 0,
-        "prompt_sha256": sha256(AIService.__module__ + ":CONVERSATION_TURN_PROMPT"),
+        "prompt_sha256": sha256(CONVERSATION_TURN_PROMPT),
         "dataset_sha256": sha256(json.dumps(DIALOGUE_CASES, ensure_ascii=False, sort_keys=True)),
         "provider_aliases": sorted(set(aliases.values())),
         "note": "Model names are in the separate blind-map file. This is interpreter-only; no selector candidate pools are included.",
