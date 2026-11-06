@@ -1490,7 +1490,7 @@ class AIService:
         cleaned = " ".join(text.split()).strip()
         if not cleaned or len(cleaned) > 240:
             return None
-        if re.search(r"https?://|www\\.|<[^>]+>", cleaned, re.IGNORECASE):
+        if re.search(r"https?://|www\.|<[^>]+>", cleaned, re.IGNORECASE):
             return None
 
         allowed_numbers: set[str] = set()
