@@ -14,7 +14,6 @@ from tests.eval_consultant_benchmark_runner import (
     _qwen_url,
     score_decision,
     validate_provider_roster,
-    Provider,
 )
 
 
