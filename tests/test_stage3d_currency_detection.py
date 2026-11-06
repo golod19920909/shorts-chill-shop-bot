@@ -63,7 +63,7 @@ class FakeAI:
         self._result = result
         self._exc = exc
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.calls += 1
         if self._exc is not None:
             raise self._exc
@@ -660,7 +660,7 @@ class ContradictoryAIOutputTests(unittest.TestCase):
     def test_ai_failure_falls_back_to_currency_detection(self):
         # _generate returning None simulates an AI failure; parse_query then
         # falls back to the deterministic parser which still detects currency.
-        async def _none_generate(contents, *, models=None):
+        async def _none_generate(contents, *, models=None, operation="generate"):
             return None
         svc = AIService(api_key="fake-key")
         svc._client = object()
