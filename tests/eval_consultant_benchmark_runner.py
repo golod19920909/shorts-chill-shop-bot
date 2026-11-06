@@ -73,6 +73,17 @@ TURN_SCHEMA: dict[str, Any] = {
 }
 
 
+CHAT_ACTION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["action", "question"],
+    "properties": {
+        "action": {"type": "string", "enum": ["search", "clarify"]},
+        "question": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    },
+}
+
+
 @dataclass(frozen=True)
 class Provider:
     key: str
@@ -144,8 +155,18 @@ def _qwen_url(base_url: str) -> str:
     return base + "/compatible-mode/v1/chat/completions"
 
 
-async def call_provider(provider: Provider, prompt: str, timeout_seconds: float) -> ModelResponse:
-    """One provider attempt. No retries, fallback, prompt logging or key logging."""
+async def call_provider(
+    provider: Provider,
+    prompt: str,
+    timeout_seconds: float,
+    *,
+    operation: str = "conversation_turn",
+) -> ModelResponse:
+    """One provider attempt. No retries, fallback, prompt logging or key logging.
+
+    Native structured output is used for interpreter/chat-action JSON. The
+    no-results helper remains plain text, matching its production contract.
+    """
     started = time.perf_counter()
     timeout = httpx.Timeout(timeout_seconds)
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -160,24 +181,47 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                 json=_google_request(prompt),
             )
         elif provider.provider == "openai":
+            body: dict[str, Any] = {
+                "model": provider.model,
+                "input": prompt,
+                "reasoning": {"effort": "medium"},
+            }
+            schema = (
+                TURN_SCHEMA if operation == "conversation_turn"
+                else CHAT_ACTION_SCHEMA if operation == "chat_action"
+                else None
+            )
+            if schema is not None:
+                body["text"] = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": operation,
+                        "strict": True,
+                        "schema": schema,
+                    }
+                }
             response = await client.post(
                 "https://api.openai.com/v1/responses",
                 headers={"Authorization": f"Bearer {provider.api_key}"},
-                json={
-                    "model": provider.model,
-                    "input": prompt,
-                    "reasoning": {"effort": "medium"},
-                    "text": {
-                        "format": {
-                            "type": "json_schema",
-                            "name": "conversation_turn",
-                            "strict": True,
-                            "schema": TURN_SCHEMA,
-                        }
-                    },
-                },
+                json=body,
             )
         elif provider.provider == "anthropic":
+            body = {
+                "model": provider.model,
+                "max_tokens": 2048,
+                "messages": [{"role": "user", "content": prompt}],
+                "output_config": {"effort": "medium"},
+            }
+            schema = (
+                TURN_SCHEMA if operation == "conversation_turn"
+                else CHAT_ACTION_SCHEMA if operation == "chat_action"
+                else None
+            )
+            if schema is not None:
+                body["output_config"]["format"] = {
+                    "type": "json_schema",
+                    "schema": schema,
+                }
             response = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
@@ -185,46 +229,46 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                     "anthropic-version": "2023-06-01",
                     "content-type": "application/json",
                 },
-                json={
-                    "model": provider.model,
-                    "max_tokens": 2048,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "output_config": {
-                        "effort": "medium",
-                        "format": {"type": "json_schema", "schema": TURN_SCHEMA},
-                    },
-                },
+                json=body,
             )
         elif provider.provider == "deepseek":
+            body = {
+                "model": provider.model,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if operation in {"conversation_turn", "chat_action"}:
+                body["response_format"] = {"type": "json_object"}
             response = await client.post(
                 "https://api.deepseek.com/chat/completions",
                 headers={"Authorization": f"Bearer {provider.api_key}"},
-                json={
-                    "model": provider.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                },
+                json=body,
             )
         elif provider.provider == "qwen":
+            body = {
+                "model": provider.model,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            schema = (
+                TURN_SCHEMA if operation == "conversation_turn"
+                else CHAT_ACTION_SCHEMA if operation == "chat_action"
+                else None
+            )
+            if schema is not None:
+                body["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": operation,
+                        "strict": True,
+                        "schema": schema,
+                    },
+                }
+                # Qwen3.5 Flash supports JSON Schema output in non-thinking
+                # mode; its docs warn not to set max_tokens in this mode.
+                body["enable_thinking"] = False
             response = await client.post(
                 _qwen_url(provider.base_url or ""),
                 headers={"Authorization": f"Bearer {provider.api_key}"},
-                json={
-                    "model": provider.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "conversation_turn",
-                            "strict": True,
-                            "schema": TURN_SCHEMA,
-                        },
-                    },
-                    # Qwen3.5 Flash supports JSON Schema output in
-                    # non-thinking mode. Its docs warn not to set max_tokens
-                    # when structured output is enabled.
-                    "enable_thinking": False,
-                },
+                json=body,
             )
         else:  # pragma: no cover - closed provider registry
             raise ValueError(f"Unsupported provider: {provider.provider}")
