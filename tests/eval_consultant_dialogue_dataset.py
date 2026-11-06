@@ -333,9 +333,10 @@ DIALOGUE_CASES = [
         "turns": [
             _turn(
                 "Подбери компрессор для гаража",
-                "new_search",
-                product_type="компрессор",
-                retrieval=True,
+                "clarify",
+                context=_context(),
+                retrieval=False,
+                note="Garage use alone does not distinguish tire inflation from painting or other compressor tasks; ask one focused question.",
             ),
             _turn(
                 "Нужен для подкачки автомобильных шин, не для покраски",
@@ -344,6 +345,7 @@ DIALOGUE_CASES = [
                     active_slots=(("type", "компрессор"),),
                     recent_dialogue=(
                         ("user", "Подбери компрессор для гаража"),
+                        ("assistant", "Для какой задачи нужен компрессор?"),
                         ("assistant", "Для какой задачи нужен компрессор?"),
                     ),
                     pending_question="Для какой задачи нужен компрессор?",
