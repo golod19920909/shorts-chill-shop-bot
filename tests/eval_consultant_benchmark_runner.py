@@ -517,8 +517,10 @@ def _safe_error(exc: BaseException) -> dict[str, Any]:
 
 
 def validate_provider_roster(providers: list[Provider]) -> None:
-    if len({provider.provider for provider in providers}) < 2:
-        raise SystemExit("Configure credentials for at least two distinct providers; two Google models alone are not a cross-provider comparison.")
+    model_routes = {(provider.provider, provider.model) for provider in providers}
+    if len(model_routes) < 2:
+        raise SystemExit("Configure at least two distinct provider/model combinations.")
+
 
 
 def score_chat_action(expected_action: str, actual: Any) -> dict[str, Any]:
@@ -909,6 +911,12 @@ async def run_benchmark(
             ensure_ascii=False, sort_keys=True,
         )),
         "provider_aliases": sorted(set(aliases.values())),
+        "provider_families": sorted({provider.provider for provider in providers}),
+        "comparison_scope": (
+            "cross_provider"
+            if len({provider.provider for provider in providers}) > 1
+            else "same_provider_model_comparison"
+        ),
         "note": "Model names are in the separate blind-map file. This benchmark covers conversation interpretation, short chat-action and no-results reply; it does not benchmark candidate selection or product factual answers.",
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
