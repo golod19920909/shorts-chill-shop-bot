@@ -40,4 +40,4 @@ class SemanticIdentityPromptTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selected, [candidate.product_id])
         prompt = service._generate.await_args.args[0]
         self.assertIn("Не считай запятую сама по себе признаком второго товара", prompt)
-        self.assertIn("отклонить карточку", prompt)
+        self.assertIn("отклони карточку", prompt)
