@@ -804,3 +804,19 @@ class GroundedProductComparisonTests(unittest.TestCase):
             service.extract_paired_listing_evidence("Сравни эти варианты", self._products())
         ))
 
+
+
+class OperationAttributionTests(unittest.TestCase):
+    def test_short_chat_action_has_a_distinct_telemetry_operation(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        operations = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            operations.append(operation)
+            return '{"action":"search"}'
+
+        service._generate = fake_generate
+        result = asyncio.run(service.decide_chat_action("USB charger"))
+        self.assertEqual(result, {"action": "search"})
+        self.assertEqual(operations, ["chat_action"])
