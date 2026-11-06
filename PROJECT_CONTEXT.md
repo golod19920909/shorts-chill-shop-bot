@@ -2844,17 +2844,26 @@ Changed:
   currency; an explicit USD/EUR/UAH value takes precedence. Missing product
   price or product currency still fails closed.
 - services/convsearch/engine.py — the active evaluation path now passes
-  strategy.request.currency to the hard budget filter. The compatibility
-  shape_pool helper remains fail-closed when no search currency is available.
+  the optional strategy request currency to the hard budget filter. It uses
+  getattr so older/minimal request fixtures without a currency field remain
+  supported and fail closed.
+- services/convsearch/retrieval.py — if the user explicitly names a supported
+  budget currency (UAH/USD/EUR/RUB), the marketplace SearchRequest now uses
+  that currency too. If the user gives no currency, the existing active
+  search/display currency remains the default.
 - tests/test_convsearch_engine.py — added regressions for an unspecified
-  budget using UAH search currency, explicit USD overriding UAH, and
-  unspecified budget with no available default currency.
+  budget using UAH search currency, explicit USD overriding UAH both in the
+  filter and marketplace request, and unspecified budget with no available
+  default currency.
 - PROJECT_CONTEXT.md — records this retrieval/budget consistency correction.
 
 Commits:
 - Filter fallback currency: 3f7ca22722a008f5d4c2de8044c25230d5d4e076.
 - Engine wiring: 782442a8eb53189aee78263970bc943af78cfad5.
-- Regression tests: 6a0ec089098b4b7952cefc01fb1b2b81c06c153f.
+- Initial regression tests: 6a0ec089098b4b7952cefc01fb1b2b81c06c153f.
+- Compatibility with minimal request objects: 3dd1d2e216d3902d44023e0c379a3a312f81927c.
+- Explicit budget currency controls provider request currency: 750c46a8d1f9797ffcd56e399a1c4b3cbf4310fc.
+- Request-currency regressions: bf59ccba9b9903db0a9b7aacdf8b8ec01993e4e7.
 - PROJECT_CONTEXT update: pending.
 
 Verification:
