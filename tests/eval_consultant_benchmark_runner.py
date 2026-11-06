@@ -160,6 +160,27 @@ def _qwen_url(base_url: str) -> str:
     return base + "/compatible-mode/v1/chat/completions"
 
 
+def _anthropic_compatible_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Remove JSON Schema numeric bounds unsupported by Claude structured outputs.
+
+    The production application validator still checks confidence in [0, 1].
+    """
+    unsupported = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf"}
+
+    def clean(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: clean(child)
+                for key, child in value.items()
+                if key not in unsupported
+            }
+        if isinstance(value, list):
+            return [clean(item) for item in value]
+        return value
+
+    return clean(schema)
+
+
 def _qwen_supports_json_schema(model: str) -> bool:
     """Qwen 3.7/3.8 families document JSON Schema output."""
     return (model or "").strip().lower().startswith(("qwen3.7-", "qwen3.8-"))
@@ -278,7 +299,7 @@ async def call_provider(
             if schema is not None:
                 body["output_config"]["format"] = {
                     "type": "json_schema",
-                    "schema": schema,
+                    "schema": _anthropic_compatible_schema(schema),
                 }
             response = await client.post(
                 "https://api.anthropic.com/v1/messages",
@@ -590,7 +611,7 @@ async def run_benchmark(
                 "conversation_turn": {
                     "google": "prompt_json_only_production",
                     "openai": "strict_json_schema",
-                    "anthropic": "json_schema",
+                    "anthropic": "json_schema_without_numeric_bounds",
                     "deepseek": "json_object",
                     "qwen": _qwen_output_mode(p.model, "conversation_turn"),
                 }[p.provider],
