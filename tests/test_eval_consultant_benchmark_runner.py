@@ -12,6 +12,7 @@ from tests.eval_consultant_benchmark_runner import (
     _extract_openai_text,
     _google_request,
     _qwen_url,
+    _qwen_structured_output_config,
     score_decision,
     validate_provider_roster,
 )
@@ -148,9 +149,16 @@ def test_gemini_baseline_uses_the_same_prompt_only_json_mode_as_production():
 
 
 def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch):
-    async def fake_call_provider(provider, prompt, timeout_seconds):
-        return ModelResponse(
-            text=json.dumps({
+    async def fake_call_provider(provider, prompt, timeout_seconds, *, operation="conversation_turn"):
+        if operation == "chat_action":
+            response_text = json.dumps(
+                {"action": "clarify", "question": "Какой именно товар вам нужен?"},
+                ensure_ascii=False,
+            )
+        elif operation == "no_results_reply":
+            response_text = "Какое из ограничений можно немного ослабить?"
+        else:
+            response_text = json.dumps({
                 "action": "clarify",
                 "confidence": 0.9,
                 "product_type": None,
@@ -158,7 +166,9 @@ def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch
                 "question": "Какой именно товар вам нужен?",
                 "response": None,
                 "slot_updates": [],
-            }, ensure_ascii=False),
+            }, ensure_ascii=False)
+        return ModelResponse(
+            text=response_text,
             usage={
                 "input_tokens": 10,
                 "output_tokens": 20,
@@ -196,6 +206,13 @@ def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch
     assert "seed" not in results["manifest"]
     assert "rates_by_model" not in results["manifest"]
     assert results["results"]
+    assert {row["operation"] for row in results["results"]} == {
+        "conversation_turn", "chat_action", "no_results_reply"
+    }
+    assert any(
+        row["operation"] == "no_results_reply" and row["score"]["accepted"]
+        for row in results["results"]
+    )
     for row in results["results"]:
         assert "provider" not in row
         assert "model" not in row
@@ -210,3 +227,20 @@ def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch
     assert private_map["performance_by_request"]
     assert private_map["performance_by_alias"]
     assert private_map["seed"] == 123
+
+def test_qwen35_flash_uses_json_object_and_disables_thinking():
+    assert _qwen_structured_output_config("qwen3.5-flash", "conversation_turn") == {
+        "response_format": {"type": "json_object"},
+        "enable_thinking": False,
+    }
+
+
+def test_qwen38_flash_uses_strict_json_schema_without_forcing_non_thinking():
+    config = _qwen_structured_output_config("qwen3.8-flash", "conversation_turn")
+    assert config["response_format"]["type"] == "json_schema"
+    assert "enable_thinking" not in config
+
+
+def test_qwen_no_results_reply_remains_plain_text():
+    assert _qwen_structured_output_config("qwen3.5-flash", "no_results_reply") == {}
+
