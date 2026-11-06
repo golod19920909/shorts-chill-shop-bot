@@ -4166,3 +4166,183 @@ Current-head workflow query returned PR-triggered run:
 - Check all available workflow runs on that exact SHA, and inspect failed job logs when applicable.
 - The immediate CI issue to resolve in the project work is the stale legacy test boundary/configuration, not restoring old APIs by default.
 - After a green focused gate and an appropriate broader offline gate, manual live Telegram scenarios remain a separate user-controlled step. CI does not prove provider-backed Gemini/AliExpress behavior.
+
+
+## 2026-11-06 — New workstream: monetization, promotions, cross-selling and affiliate analytics
+
+### User decision and goal
+The user reviewed an external proposal for monetizing an AliExpress AI shopping consultant and agreed with the balanced direction: build on the existing Shorts Chill Shop Bot rather than bolt on a separate sales bot. The user explicitly noted that promo codes, promotional sections and an admin panel had already been implemented in earlier project work. The user asked for a GitHub audit and a single implementation TЗ; that TЗ was prepared in the conversation. This entry preserves the decisions and implementation handoff.
+
+Core principle, in priority order:
+1. User benefit, relevance, compatibility and truthful recommendations.
+2. Reliability and verified marketplace data.
+3. Affiliate revenue optimization, only within the first two constraints.
+
+Do not rank an unsuitable product higher for commission. Affiliate commission may only be a tie-breaker between comparably suitable, trustworthy products, and only when real commission data is available.
+
+### Repository audit performed
+Repository: `golod19920909/shorts-chill-shop-bot`
+Branch inspected: `work/consultant-reliability`
+File audited: `PROJECT_CONTEXT.md` (existing large project history retained; this section is appended, not a replacement).
+
+Relevant source files fetched and inspected:
+- `config/promo.py`
+- `handlers/promo_codes.py`
+- `config/sales.py`
+- `handlers/sales.py`
+- `config/hot_discounts.py`
+- `services/analytics.py`
+- `database/models.py`
+- `handlers/admin.py`
+- `manage_sales.py` (identified in the project structure and sales implementation docs)
+- Relevant tests identified: `tests/test_promotions.py`, `tests/test_promo_codes.py`, `tests/test_product_promo_card.py`, `tests/test_admin_panel.py`, `tests/test_sales_section.py`.
+
+Important: this was a targeted source audit, not a complete runtime/live API audit. Do not imply every historical feature is currently active or that AliExpress endpoints have been tested live.
+
+### Verified existing functionality and constraints
+
+1. Product-level promo data:
+- Existing AliExpress product processing extracts `promo_code_info` (documented by `handlers/promo_codes.py` and the existing product-card implementation).
+- Product-level promo information is separate from the standalone promo landing page.
+- Preserve this working pipeline and its existing tests. Do not replace it with invented codes or a new parallel promo model.
+- During implementation, inspect the exact current extractor, Product model fields, card rendering, saved/favorite product serialization and tests before editing.
+
+2. Standalone «🎟 Промокоды»:
+- `config/promo.py` defines one fixed `PROMO_REFERRAL_URL`.
+- `handlers/promo_codes.py` renders one screen and one Telegram URL button to that configured destination.
+- The current implementation intentionally is NOT a dynamic list of promo campaigns.
+- The source comments state that the app's available AliExpress API access does not document a user-facing coupon-code list through the campaign records; internal campaign IDs/names are not to be presented as coupons.
+- Legacy `pcamp:<index>` callbacks are handled safely without resurrecting the removed campaign list.
+- Preserve the configured URL verbatim unless a separately verified and approved change is made.
+
+3. Sales events / «Чёрная пятница»:
+- `config/sales.py` contains a reusable event registry; currently `black_friday` is the configured event.
+- Event enabled state and destination URL are stored in the existing database `bot_config` key/value configuration using `sale.<event_id>.enabled` and `sale.<event_id>.url`.
+- `handlers/sales.py` uses a reusable landing screen and admin-aware visibility.
+- Disabled events are hidden from ordinary users and independently rejected server-side if a callback is forged. Admins can preview disabled events.
+- URLs are validated as HTTP(S) with a host; missing/invalid destinations fail safely.
+- Sales landing pages deliberately do not invent product feeds, historical prices or discounts. A future event should reuse this machinery rather than copy handlers.
+
+4. «🔥 Горячие скидки»:
+- `config/hot_discounts.py` defines exactly four configured affiliate destinations: Super discounts, Brand discounts, Product bundles, Coins discounts.
+- Current implementation is a set of direct fixed partner destinations, not a dynamically verified product/deal feed.
+- Its comments explicitly prohibit inventing additional destinations or reconstructing/modifying the provided URLs.
+- Preserve these four existing destinations unless the owner explicitly approves a change and the replacement partner URLs are verified.
+
+5. Affiliate analytics:
+- `services/analytics.py` has a controlled event vocabulary and labels for the admin panel.
+- Existing event names distinguish affiliate clicks (`affiliate_clicked`) from ordinary external clicks (`external_clicked`).
+- The source comments explicitly document a measurement gap: current «Купить» URL buttons do not report button presses back to the bot, so the existing click event producer is dormant for that direct-URL-button flow. Historical rows and aggregation labels remain.
+- Do not report product-link handoff or card display as a real click, order, sale or commission.
+- A safe click-measurement solution needs a separate compatibility/security assessment before implementation. A redirect/tracking endpoint must preserve the complete original AliExpress affiliate URL and attribution parameters, validate destinations against an allowlist or trusted stored records, prevent open redirects, avoid leaking secrets, and be tested with Telegram and AliExpress Portals. Never claim attribution is guaranteed.
+
+6. Admin panel:
+- The existing admin panel is in `handlers/admin.py`; it already contains multiple operational/statistics screens, including users, searches, favorites, product tracking and other system diagnostics.
+- Sales operations are also supported by `manage_sales.py` and the shared DB config.
+- Extend the existing panel; do not create a second admin interface or duplicate existing controls.
+- Preserve the existing `ADMIN_IDS` authorization and server-side authorization checks. Never expose API keys, tokens, signed URLs or other secrets in admin output/logs.
+
+7. API access caution:
+- Existing project history records `hotproduct.query` as unavailable due to `InsufficientPermission`; `link.generate` is not currently used.
+- These historical constraints must be re-verified against the current app permissions and official API documentation before any design depends on them.
+- Do not assume AliExpress Portals exposes coupon lists, per-product commission values, order conversion details or all promotional feeds through the current API key.
+- The user uses AliExpress Portals directly; do not redirect the project to Admitad/ePN or other marketplaces. AliExpress remains the only marketplace in scope.
+
+### Approved implementation direction / requirements
+
+A. Preliminary audit before code:
+- Read `AGENTS.md` and this `PROJECT_CONTEXT.md`.
+- Re-fetch current PR #7 head and branch status before making changes; do not assume the branch tip from a prior audit is current.
+- Inspect actual current files, tests, DB migrations/schema, Product fields and API permissions.
+- Produce a concise inventory: working, partial, intentionally removed, unavailable due to API/permissions, and missing.
+- Avoid duplicate implementations and do not revive deleted legacy campaign screens without new evidence and explicit approval.
+
+B. Affiliate-aware ranking:
+- Preserve relevance, correctness, compatibility, real quality evidence, price/value and user constraints as primary ranking criteria.
+- Commission can be a secondary tie-breaker only for comparable candidates and only if verified commission data is available.
+- If commission data is unavailable, omit commission-based ranking entirely; do not infer category rates or use promotional claims such as universal 20–50% Hot Products commissions.
+
+C. Promo codes and deals:
+- Preserve product-level `promo_code_info` extraction, validation, storage and card display.
+- Investigate official, currently authorized sources for seller coupons, platform promo codes, coupon conditions, minimum order and expiry.
+- Implement additional dynamic coupon retrieval only if an official permitted endpoint/source returns verifiable user-facing coupon data.
+- Never convert campaign IDs/names or discount percentages into coupon codes.
+- Never fabricate coupon values, expiry dates, eligibility or final prices.
+- Keep the current «🎟 Промокоды» partner landing link as a safe fallback; do not break or silently replace it.
+- Preserve «🔥 Горячие скидки» four configured destinations and the reusable sales-event system.
+- Dynamic deal/product feeds are optional and conditional on verified API data and permissions.
+
+D. Cross-selling:
+- Add optional contextual recommendations only after the primary shopping request has been properly handled.
+- The AI may decide whether an offer is relevant; deterministic services must retrieve and validate actual products.
+- Suggest one or two genuinely useful complementary products, not a stream of ads.
+- Check compatibility with the selected/main product using real specifications/evidence.
+- Clearly distinguish accessories from the main product.
+- Ask the user whether they want to see options; only search when the user agrees.
+- If the user declines, continue the conversation naturally and do not repeat the offer persistently.
+- No hardcoded product-specific categories or special cases; examples are illustrative only.
+- Additional search failure must not damage the main consultation.
+
+E. Partner links and measurement:
+- Audit the complete `promotion_link` lifecycle from provider response through candidate/product model, Telegram card, favorites/saved products and tracking.
+- Preserve all partner parameters exactly; do not silently substitute plain marketplace URLs.
+- Investigate click measurement because Telegram direct URL buttons do not report presses.
+- Implement tracking only after proving the redirect approach is compatible with Telegram and AliExpress affiliate attribution. Secure against open redirects and tampering.
+- Separate metrics: product/card shown, affiliate link click, ordinary external click, partner-reported order, confirmed purchase, approved commission.
+- A click is not a purchase; an order is not necessarily a confirmed commission.
+
+F. Affiliate and commercial analytics:
+- Extend existing `services/analytics.py` and `analytics_events` schema rather than create a parallel analytics system.
+- Add useful breakdowns for affiliate clicks by category, search/consultation flow, cross-sell, promo/sales section and product where the data is legitimately available.
+- Investigate official Portals reports/API for orders, confirmed purchases and commission. If API access is unavailable, consider a safe manual report import only after auditing report format and privacy.
+- Do not claim sales/revenue from clicks or unconfirmed order data.
+- Respect privacy: do not duplicate free-form user text in analytics; never log secrets or signed URLs.
+
+G. Admin panel:
+- Extend existing `/admin` screens with useful partner funnel, promotion status, cross-sell and verified order/commission data.
+- Provide safe enable/disable controls for new features, reusing existing DB config patterns where appropriate.
+- Preserve server-side admin checks and fail-safe behavior.
+- Do not add settings that imply unsupported API capabilities.
+
+H. Architecture and reliability:
+- Preserve the agreed Option C hybrid architecture.
+- Gemini handles natural-language understanding, dialogue, intent and deciding whether a cross-sell offer is appropriate.
+- Deterministic services handle AliExpress retrieval, product validation, compatibility, ranking gates, promo extraction, affiliate URL handling, analytics and Telegram delivery.
+- Do not restore the removed full Gemini ShoppingAgent loop or legacy parser APIs.
+- Do not hardcode specific products/categories as logic.
+- Keep AliExpress as the only marketplace.
+- Avoid unnecessary Gemini/API calls; cache verified promo/deal data where appropriate.
+- Additional promo/cross-sell/analytics failures must fail safely and must not block the primary consultation.
+- Preserve conversation state and idempotency across repeated button presses/restarts.
+
+I. Verification:
+- Add focused regressions for every changed behavior and run the relevant existing tests.
+- Run the focused conversational acceptance gate and applicable regression suites; accurately report the known wider legacy-suite failures documented above.
+- Do not claim a full repository pass if stale tests still fail.
+- Offline tests do not prove live provider/API behavior.
+- Prepare controlled manual Telegram scenarios for the owner: normal search, promo-bearing product, no-promo product, coupon expiry/eligibility, cross-sell accept/decline, incompatible accessory rejection, partner link open, disabled/enabled sales section, admin-only controls, API/Gemini failure fallback.
+- Live checks using real credentials are performed only when explicitly authorized and available; never access or expose `.env`.
+
+### Execution order
+1. Stage A — source/API audit and inventory; no code changes until findings and scope are clear.
+2. Stage B — partner-link lifecycle and truthful click/funnel analytics; validate attribution safety before implementation.
+3. Stage C — verified promo-code/deal data improvements, preserving existing promo landing pages and product promo cards.
+4. Stage D — opt-in contextual cross-selling with deterministic compatibility checks.
+5. Stage E — integrate controls and metrics into the existing admin panel.
+6. Stage F — regression, security, performance and manual Telegram test preparation.
+
+Do not expand scope or skip ahead without reporting the audit findings. Do not rewrite functioning components without evidence.
+
+### Documentation and handoff rule
+After every substantial change, update this file with exact files, behavior, commit SHA, tests and remaining risks. Preserve previous project history. The full detailed implementation TЗ was supplied to the user in the 2026-11-06 conversation under the title:
+`Shorts Chill Shop Bot — развитие монетизации, промокодов, скидок, дополнительных продаж и партнёрской аналитики`.
+This section is the durable engineering handoff and acceptance summary.
+
+### Current status of this new workstream
+- Audit: targeted source inspection completed on 2026-11-06.
+- Code changes for this workstream: NOT STARTED.
+- Live AliExpress API/Portals permission checks for additional coupons, deals, commission or order reporting: NOT YET PERFORMED.
+- Dynamic cross-selling: NOT YET IMPLEMENTED.
+- New partner click tracking: NOT YET IMPLEMENTED; attribution compatibility is an open prerequisite.
+- Existing promo/product-card, sales-event, hot-discount and admin mechanisms must be preserved.
+- Next action: re-fetch the current PR #7 head/branch and review the remaining relevant files/tests in full; then produce the Stage A audit inventory and confirm any API permission limitations before implementation.
