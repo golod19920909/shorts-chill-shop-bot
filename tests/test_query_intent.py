@@ -51,11 +51,13 @@ class FakeAI:
         self.fast_model = "gemini-test"
         self.last_model = None
         self.calls = 0
+        self.last_operation = None
         self._result = result
         self._exc = exc
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.calls += 1
+        self.last_operation = operation
         if self._exc is not None:
             raise self._exc
         return self._result
@@ -528,3 +530,12 @@ class CircuitBreakerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class OperationAttributionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        reset_ai_state()
+
+    def test_legacy_intent_call_has_a_distinct_telemetry_operation(self) -> None:
+        ai = FakeAI(result=json.dumps({"product_type": "павербанк"}))
+        parse("павербанк", ai)
+        self.assertEqual(ai.last_operation, "legacy_query_intent")
