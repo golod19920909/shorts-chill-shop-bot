@@ -227,12 +227,16 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
         meta = payload.get("usageMetadata", {}) or {}
         candidate_tokens = meta.get("candidatesTokenCount")
         thought_tokens = meta.get("thoughtsTokenCount")
+        billable_output = (
+            None if candidate_tokens is None and thought_tokens is None
+            else (candidate_tokens or 0) + (thought_tokens or 0)
+        )
         usage = _usage(
             input_tokens=meta.get("promptTokenCount"),
             # Gemini reports candidate and thought tokens separately. Both
             # are billable output; keep the split for analysis but count the
             # sum exactly once in output_tokens.
-            output_tokens=(candidate_tokens or 0) + (thought_tokens or 0),
+            output_tokens=billable_output,
             candidate_output_tokens=candidate_tokens,
             reasoning_tokens=thought_tokens,
             cached_input_tokens=meta.get("cachedContentTokenCount"),
@@ -257,12 +261,17 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
             if isinstance(block, dict) and block.get("type") == "text"
         )
         meta = payload.get("usage", {}) or {}
-        cache_read = meta.get("cache_read_input_tokens") or 0
-        cache_write = meta.get("cache_creation_input_tokens") or 0
+        base_input = meta.get("input_tokens")
+        cache_read = meta.get("cache_read_input_tokens")
+        cache_write = meta.get("cache_creation_input_tokens")
+        total_input = (
+            None if base_input is None and cache_read is None and cache_write is None
+            else (base_input or 0) + (cache_read or 0) + (cache_write or 0)
+        )
         usage = _usage(
             # Anthropic reports uncached, cache-read and cache-write input
             # categories separately; normalize input_tokens to their total.
-            input_tokens=(meta.get("input_tokens") or 0) + cache_read + cache_write,
+            input_tokens=total_input,
             output_tokens=meta.get("output_tokens"),
             cached_input_tokens=cache_read,
             cache_write_tokens=cache_write,
