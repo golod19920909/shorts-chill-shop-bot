@@ -3195,3 +3195,57 @@ Preliminary architecture implications (not a recommendation yet):
 - Vercel AI Gateway has no published token markup and is worth keeping on the comparison list, but it is an external dependency rather than a required feature.
 - OpenRouter is useful for broad model experimentation, but its standard credit purchase fee makes it less attractive as a permanent production path when direct provider accounts are available.
 - No gateway has been connected, and no provider key/configuration has been added.
+
+
+### Stage I — verified production call graph and further cost risks (2026-11-06)
+
+This update records source-level reachability from the PR head `98b3630f4d11a5f136987445053381452912932d`. It does not change application code.
+
+#### Confirmed active conversational call sequence
+
+1. The normal text handler first handles several local shortcuts (pending product-question continuation, narrowing already-shown cards, count/currency-only follow-ups). Those paths can complete without a new Gemini call.
+2. Other ordinary text messages enter `ConversationSearchEngine.handle_message` and call `decide_conversation_turn` once when the AI service is available. This is the main per-message interpretation cost, including natural `respond` turns.
+3. A validated `respond` action exits before retrieval and candidate selection. Compare/alternatives over already-shown products are also resolved from the ledger/cache and do not call AliExpress retrieval.
+4. A retrieval turn builds one strategy and invokes the existing provider path. If it returns a non-empty `RESULTS` decision, `_apply_ai_candidate_selection` may call `select_conversation_candidates` once. The default 30-card view reviews up to 70 candidates and asks the model for at most 20; up to 10 deterministic-safe tail cards are appended only if the model returns the full 20.
+5. If the completed search ends in `NO_CANDIDATES` or `NO_ELIGIBLE`, `compose_no_results_reply` may make one more call. It is skipped after selector timeout/error/unavailable or an exhausted turn budget. Its output is wording only; it receives no product rows.
+6. The separate `decide_chat_action` helper can run only on the short, strategy-less clarification path (up to four words). It is not a second interpretation call on every turn and is not automatically redundant with `conversation_turn`; it is conditional on the engine reaching that branch.
+
+#### Product-assistant call counts (conditional)
+
+- «Стоит ли покупать?» calls `analyze_product` once when AI is available; deterministic advice is the fallback.
+- «Найти похожий / дешевле / лучше» can call `plan_product_search` once to formulate the query, perform a real AliExpress candidate search, then call `select_candidates` once after deterministic goal-specific filtering. This is a distinct, potentially two-LLM-call workflow plus provider retrieval.
+- Explicit «сравни» uses `extract_paired_listing_evidence` once for the top two distinct shown products, then the application renders the comparison. It does not need a second generic product-question call.
+- Other product questions first run `deterministic_answer`; only if that cannot answer does `answer_product_question` make one model request. Preserve this deterministic-first gate.
+
+#### Photo-search duplicate-call path — confirmed issue to evaluate
+
+The active Telegram photo handler is `handlers.discovery.photo_message` → `handlers.photo_search.photo_message_handler`. It first calls `analyze_photo_with_vision` from `services/vision_search.py` (operation currently labelled generic `generate`). If that call returns no usable `query`, the handler invokes `handlers.discovery._legacy_photo_message` with the already-downloaded image bytes. That fallback then calls `AIService.analyze_image` (another Gemini request) when the real AIService is present.
+
+Therefore a single photo upload can make **two sequential vision requests when the first request fails or returns unusable output**. The comment calls the second path a legacy fallback, but the active photo handler reaches it in production. This is not a confirmed defect to remove yet: structured analysis may recover a useful result after the first prompt fails. It is, however, a real retry/fallback cost path that must be measured separately, and quota/auth failure should be distinguished from a genuinely unrecognized image before deciding whether a second request adds value. The older `describe_image_query` method is not used by this fallback when the production AIService exposes `analyze_image`.
+
+#### Feed and legacy reachability boundaries
+
+- The normal «✨ Находки» `show_feed` handler calls `find_feed_page`; its source explicitly preserves AliExpress order and does not invoke Gemini selection.
+- `select_feed_candidates` is reached through `SearchService.apply_feed_selection` for non-raw search outcomes and for the merged photo-search pool. It is separate from the core Option C selector.
+- `rank_candidates` is called by `SearchService.find_discovery`. No caller from the inspected active Telegram handlers was found yet; keep it out of the live consultant cost model until reachability is proven.
+- `parse_query` is called by `SearchService.find_products_from_text`, the legacy structured-text entry point. The authoritative `handlers.search.search_message` path binds and calls `ConversationSearchEngine` directly, not this parser. The legacy method then calls `parse_query_intent`, which can make a further model request; do not count this as a normal conversation flow without a production caller.
+- `decide_chat_action` has the conditional engine clarification caller described above; do not treat the method as globally dead.
+
+#### Telemetry gaps now verified more narrowly
+
+- The `turn_scope` class exists, but no production `with turn_scope(...)` use was found in the inspected active engine, Telegram handlers, ProductAssistant, SearchService or startup wiring. The per-turn aggregate is therefore not currently a dependable production metric; per-attempt INFO logs remain the reliable application-level records.
+- Telemetry is in-memory/context-local and emitted to logs; no durable token/cost ledger or per-user/per-scenario roll-up is implemented in `gemini_telemetry.py`.
+- The operation label is still too coarse: the four named labels cover the core conversation and product-question paths, while photo understanding, product advice, search planning, feed selection, legacy parsing and several other helpers use `generate`. A stable operation taxonomy is needed before cost-per-operation reports can be trusted.
+- `_generate` wraps the SDK call once and records one application attempt. SDK-internal retries, if any, are not separately represented in the current telemetry; this needs verification against the pinned SDK's retry configuration before treating application attempts as exact HTTP request counts.
+- No `max_output_tokens` limit is passed by `_generate`. Prompts impose textual limits, but those are not a hard provider-side output-token cap. The only per-operation generation config currently set in `_generate` is JSON MIME type plus low thinking level for `conversation_selection`.
+- The 6 November startup warning about direct AFC use must not be interpreted as evidence that the bot is performing ten model/tool rounds. Inspected `_generate` requests do not pass `tools` or function declarations; the SDK warning is not proof of repeated remote calls. No function-calling workflow is part of the Option C architecture.
+- The project pins `google-genai==2.24.0`. Automatic continuation for `generate_content` was introduced in a later SDK release (2.30.0); do not attribute hidden continuation hops to the currently pinned 2.24.0 runtime based on current upstream documentation. Reassess if the SDK is upgraded. Sources: https://pypi.org/project/google-genai/2.24.0/ and https://github.com/googleapis/python-genai/releases (v2.30.0 release notes).
+
+#### Audit disposition
+
+- Confirmed optimisation lead: photo-search failure can trigger a second sequential vision request; quantify success/failure categories and marginal recovery before changing it.
+- Confirmed observability gap: production turn aggregation is not wired; operation labels are incomplete; there is no monetary cost calculation or durable spend ledger.
+- Confirmed output-control gap: no provider-side max output token cap is set centrally; evaluate safe per-operation limits against the required structured contracts.
+- Not a confirmed optimisation: the separate short-message clarification call. It is conditional and may add conversational value; benchmark it rather than deleting it.
+- Not active core consultant calls unless further caller tracing proves otherwise: legacy `parse_query` / `find_products_from_text` and discovery `rank_candidates`.
+- No source code, model routing, prompts, search retrieval, ranking, product validation, or provider configuration was changed. No tests were run for this documentation-only audit update. No live bot, Telegram, Gemini or AliExpress calls were made.
