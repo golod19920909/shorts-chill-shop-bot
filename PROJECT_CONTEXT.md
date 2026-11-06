@@ -3311,3 +3311,37 @@ The following matrix describes possible application-level Gemini operations from
 - The sample 6 November log gives token examples for two conversation turns, one successful selector fallback and one generic helper call. It is not enough to extrapolate token counts for all rows in this matrix.
 - The 20/50/100/500 active-user forecast cannot be made honestly until average active turns/user/day, scenario mix, selector invocation rate, prompt-size distribution, fallback rate and timeout unknown-cost rate are measured or explicitly declared as scenario assumptions.
 - Stage II remains open. Build a representative 13-scenario evaluation/replay set and capture per-operation usage before presenting a financial forecast. Any forecast must show assumptions and a range, not a single invented monthly bill.
+
+
+### Stage II — preliminary core-text cost sensitivity (illustrative, not production forecast)
+
+A small transparent sensitivity model can be calculated from the two successful conversation-turn samples and one successful candidate-selection sample in the user's 2026-11-06 live log. It is intentionally limited to the core text-search route.
+
+Observed unit samples, using Google's current Standard API rates through 2026-12-31:
+- Mean of two successful conversation turns on gemini-3.8-flash: **$0.002368 per turn** (mean of $0.0020895 and $0.00264675).
+- Successful conversation selector on gemini-3.1-flash-lite: **$0.00534775** (12,367 input + 1,504 billable output/thought tokens).
+- Sensitivity case for the same selector token volume on gemini-3.8-flash: **$0.01491525**. This is a price-only model, not an observed successful 3.8 selector response.
+- Google currently lists gemini-3.8-flash at $0.75/M input and $3.75/M output through 2026-12-31, rising to $1.50/M and $7.50/M on 2027-01-01. Gemini 3.1 Flash-Lite is listed at $0.25/M input and $1.50/M output. Official pricing page: https://ai.google.dev/gemini-api/docs/pricing
+
+Declared activity assumptions for this sensitivity only:
+- “Active user” means one daily active user (DAU), not a monthly active user.
+- 3 ordinary text messages per DAU/day reach conversation_turn.
+- 1.5 candidate-selection calls per DAU/day (one selector for every two interpreted messages on average).
+- 30 active days per month.
+- No product-menu actions, photo searches, no-results replies, category selections, SDK/provider retries, unknown timeout charges, taxes, cache discounts, or inactive days are included.
+
+| DAU | Monthly cost if selectors use observed Flash-Lite unit rate | Monthly cost if selectors use 3.8 Flash unit rate |
+|---:|---:|---:|
+| 20 | $9.08 | $17.69 |
+| 50 | $22.69 | $44.22 |
+| 100 | $45.38 | $88.43 |
+| 500 | $226.89 | $442.16 |
+
+Formula per DAU/month: 30 × (3 × $0.002368125 + 1.5 × selector_unit_cost).
+
+Interpretation:
+- This is a core-text workload sensitivity, not a forecast of the bot's actual monthly bill. It uses two turn observations and one selector observation; those are too few to represent token distributions or model-selection success rates.
+- The low column assumes the selector uses Flash-Lite at the observed token volume; the high column assumes the same volume is billed at Flash pricing. Neither column captures the unknown provider-side cost of the timed-out primary selector attempt in the live log.
+- For the first observed search, the successful turn plus successful Flash-Lite fallback selector subtotal is $0.00743725. If the timed-out primary selector consumed the full input volume, that would add at least about $0.00927525 at the current Flash input rate; if it also generated output comparable to the successful fallback, it would add about $0.01491525. Those are sensitivity examples only; actual timeout usage is unavailable.
+- The current 3.8 introductory rate expires at year-end. From 2027-01-01, the 3.8-based column's per-turn and selector unit costs approximately double if token volumes remain unchanged. Recalculate before that date.
+- These figures should not be presented as the 20/50/100/500-user final model until actual DAU definition, activity distribution, selector frequency, operation-specific token percentiles, and timeout billing are measured. Stage II remains open.
