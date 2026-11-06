@@ -399,6 +399,11 @@ def _safe_error(exc: BaseException) -> dict[str, Any]:
     }
 
 
+def validate_provider_roster(providers: list[Provider]) -> None:
+    if len({provider.provider for provider in providers}) < 2:
+        raise SystemExit("Configure credentials for at least two distinct providers; two Google models alone are not a cross-provider comparison.")
+
+
 async def run_benchmark(
     providers: list[Provider],
     *,
@@ -409,8 +414,7 @@ async def run_benchmark(
     seed: int,
     rates: dict[str, dict[str, float]],
 ) -> None:
-    if len(providers) < 2:
-        raise SystemExit("Configure at least two provider credentials to run a blind comparison.")
+    validate_provider_roster(providers)
 
     rng = random.Random(seed)
     shuffled = providers[:]
