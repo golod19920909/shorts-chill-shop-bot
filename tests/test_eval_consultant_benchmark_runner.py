@@ -1,7 +1,13 @@
 """Offline unit checks for the blind consultant benchmark runner."""
 
+import asyncio
+import json
+
+from tests import eval_consultant_benchmark_runner as benchmark
 from tests.eval_consultant_benchmark_runner import (
     TURN_SCHEMA,
+    ModelResponse,
+    Provider,
     _cost_usd,
     _extract_openai_text,
     _google_request,
@@ -140,3 +146,62 @@ def test_gemini_baseline_uses_the_same_prompt_only_json_mode_as_production():
 
     assert body == {"contents": [{"parts": [{"text": "exact prompt"}]}]}
     assert "generationConfig" not in body
+
+
+def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch):
+    async def fake_call_provider(provider, prompt, timeout_seconds):
+        return ModelResponse(
+            text=json.dumps({
+                "action": "clarify",
+                "confidence": 0.9,
+                "product_type": None,
+                "marketplace_terms": [],
+                "question": "Какой именно товар вам нужен?",
+                "response": None,
+                "slot_updates": [],
+            }, ensure_ascii=False),
+            usage={
+                "input_tokens": 10,
+                "output_tokens": 20,
+                "reasoning_tokens": 0,
+                "cached_input_tokens": 0,
+            },
+            duration_ms=5.0,
+            http_status=200,
+            resolved_model=provider.model,
+        )
+
+    monkeypatch.setattr(benchmark, "call_provider", fake_call_provider)
+    providers = [
+        Provider("provider_a", "openai", "model-a", "key-a"),
+        Provider("provider_b", "anthropic", "model-b", "key-b"),
+    ]
+    results_path = tmp_path / "blind-results.json"
+    map_path = tmp_path / "private-map.json"
+
+    asyncio.run(benchmark.run_benchmark(
+        providers,
+        output_path=results_path,
+        map_path=map_path,
+        repeat=1,
+        timeout_seconds=4.0,
+        seed=123,
+        rates={
+            "model-a": {"input_per_million": 0.1, "output_per_million": 0.5},
+            "model-b": {"input_per_million": 0.1, "output_per_million": 0.5},
+        },
+    ))
+
+    results = json.loads(results_path.read_text(encoding="utf-8"))
+    private_map = json.loads(map_path.read_text(encoding="utf-8"))
+    assert "seed" not in results["manifest"]
+    assert "rates_by_model" not in results["manifest"]
+    assert results["results"]
+    for row in results["results"]:
+        assert "provider" not in row
+        assert "model" not in row
+        assert "resolved_model" not in row
+        assert "billing_model_id" not in row
+    assert set(private_map["providers"]) == {"A", "B"}
+    assert private_map["rates_by_model"]
+    assert private_map["seed"] == 123
