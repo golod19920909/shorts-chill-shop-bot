@@ -3635,3 +3635,40 @@ No model routing, timeout, retry, or production behavior was changed.
 Added `tests/eval_gemini_cost_sensitivity.md` with low/base/high daily activity assumptions and tables for 20/50/100/500 DAU, both current rates and the 2027 Gemini 3.8 price increase. The document clearly defines DAU, shows the formula, and lists excluded operations and unknown timeout charges.
 
 This remains a core-text sensitivity model based on two observed conversation turns and one successful selector fallback. It is not a final production forecast. The full 13-scenario cost model still needs actual per-operation token distributions, activity mix, selector rate, fallback rate and timeout usage.
+
+
+### Stage I follow-up — verified scenario call graph and redundancy candidates (2026-11-06)
+
+Re-read the active handler registration and traced the relevant methods through `bot/__init__.py`, `handlers/search.py`, `handlers/ai_assistant.py`, `handlers/photo_search.py`, `handlers/discovery.py`, `services/convsearch/engine.py`, `services/search_service.py`, `services/product_assistant.py`, `services/ai_service.py`, and `services/query_intent.py`.
+
+Important path correction:
+- The current branch does not contain `services/consultant.py` or `services/consultant_answers.py`. The active Option C interpreter is `services/convsearch/engine.py` + `services/ai_service.py`; product-card advice and questions are in `services/product_assistant.py`.
+- The active photo handler is `handlers.discovery.photo_message` → `handlers.photo_search.photo_message_handler` → `services.vision_search.analyze_photo_with_vision`. If that first vision result is unusable, it delegates to `handlers.discovery._legacy_photo_message`, which can make a second request through `AIService.analyze_image`. The fallback then applies feed selection once to the merged hypothesis pool. This is sequential fallback, not parallel duplicate traffic.
+- The first successful photo-vision path uses `broaden=False` and does not invoke the AI feed selector; Telegram curation on that path is deterministic.
+
+Call graph / logical operation counts are now documented in `tests/eval_gemini_operation_inventory.md`. Key confirmed patterns:
+- Ordinary Option C search/refinement with eligible results: one `conversation_turn` and one `conversation_selection`; each may issue a primary plus one fallback attempt.
+- A no-safe-results turn may add `no_results_reply`; it is skipped after selector timeout/error/unavailable or exhausted turn budget.
+- Explicit shown-product comparison calls paired listing-evidence extraction before deterministic rendering. Ordinary product questions first use deterministic evidence and call Gemini only if that cannot answer.
+- Product-card similar/cheaper/better can make three sequential operations: search phrase planning, generic SearchService feed selection, then goal-specific ProductAssistant selection. This is a real candidate-recall/cost investigation item: the generic selection may prune listings before the goal-specific selector sees them. No change made.
+- ProductAssistant explicit comparison always requests paired evidence before the deterministic renderer. The incremental value of that call when structured product fields already suffice is not measured. No change made.
+- Category browse can call feed selection once. Ordinary «✨ Находки» pagination makes zero Gemini calls.
+- Short clarify helper is conditional and is not called when the main interpreter already returned a validated clarification.
+- Legacy/unverified paths: `SearchService.find_products_from_text` → `parse_query` + `parse_query_intent`; `SearchService.find_discovery` → `rank_candidates`; `AIService.describe_image_query`; `services.conversation.resolve_request`. They are not included in normal Option C scenario totals without a live caller.
+
+Fallback policy confirmed from `AIService._generate`:
+- Only `conversation_turn` and `conversation_selection` retry the fallback model after a client timeout.
+- Generic helpers, `no_results_reply` and `product_question` may fallback on model-unavailable errors; generic timeouts do not trigger a second attempt. Quota/rate-limit errors stop immediately.
+- `conversation_turn`: 4s per attempt, 8.5s outer bound. `conversation_selection`: 6.5s per attempt, 15s outer bound. `no_results_reply`: 3s AIService bound / 3.2s engine wrapper. Feed selection has an 8s caller wall bound.
+
+Benchmark harness hardening:
+- It no longer initializes the Google SDK with a fake placeholder key. It sets only the availability sentinel needed by the production validator and injects the isolated provider transport.
+- Each result records HTTP status and the provider-resolved model. Billing uses the resolved model ID when returned; the run manifest records the exact rate table and its hash.
+- The UTC run timestamp is captured before requests, not after completion.
+- The benchmark protocol now explicitly states that the current runner tests interpreter decisions only; it does not execute post-search no-results, selector, product-question, comparison, or vision behavior. Separate operation-specific corpora are required before routing those operations.
+- Added a blind human-review rubric for language naturalness, clarification quality, constraint preservation, unsupported claims and marketplace-term usefulness.
+
+CI for the current benchmark/protocol changes:
+- Commit `628e0ea99e3de25d5a4eed7888682243427247e1`: **305 passed, 2 failed, 65 subtests passed**.
+- The same two known baseline failures remain: stale literal selector-prompt wording assertion and legacy `AIService._with_result_limit` missing-method failure. The workflow skips the filtered repository-wide suite after the focused command fails. No full-suite pass is claimed.
+- No model API calls, provider credentials, production prompt changes, search-core changes or live Telegram tests were made.
