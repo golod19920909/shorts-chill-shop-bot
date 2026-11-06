@@ -149,9 +149,11 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
             response = await client.post(
                 url,
                 headers={"x-goog-api-key": provider.api_key},
+                # Match production conversation_turn exactly: the live
+                # Gemini path relies on the JSON-only prompt + application
+                # parser and does not set responseMimeType/responseSchema.
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"responseMimeType": "application/json"},
                 },
             )
         elif provider.provider == "openai":
@@ -453,7 +455,7 @@ async def run_benchmark(
             "requested_model": p.model,
             "provider_key": p.key,
             "output_mode": {
-                "google": "json_mime_type",
+                "google": "prompt_json_only_production",
                 "openai": "strict_json_schema",
                 "anthropic": "json_schema",
                 "deepseek": "json_object",
