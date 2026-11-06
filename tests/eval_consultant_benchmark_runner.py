@@ -452,6 +452,12 @@ async def run_benchmark(
     rng.shuffle(shuffled)
     aliases = {provider.key: chr(ord("A") + index) for index, provider in enumerate(shuffled)}
     alias_map = {
+        "seed": seed,
+        "rates_sha256": hashlib.sha256(
+            json.dumps(rates, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest(),
+        "rates_by_model": rates,
+        "providers": {
         aliases[p.key]: {
             "provider": p.provider,
             "requested_model": p.model,
@@ -480,6 +486,7 @@ async def run_benchmark(
             "resolved_models": [],
         }
         for p in providers
+        },
     }
 
     tasks = []
@@ -558,10 +565,8 @@ async def run_benchmark(
             "wall_duration_ms": round(wall_ms, 2),
             "provider_duration_ms": round(call_record.get("duration_ms", wall_ms), 2),
             "usage": usage,
-            "billing_model_id": billing_model_id,
             "estimated_cost_usd": _cost_usd(usage, rates.get(billing_model_id)),
             "http_status": call_record.get("http_status"),
-            "resolved_model": call_record.get("resolved_model"),
             "finish_reason": call_record.get("finish_reason"),
             "error": error,
             "raw_output": call_record.get("raw_text"),
@@ -626,15 +631,12 @@ async def run_benchmark(
     manifest = {
         "started_at_utc": run_started_at_utc,
         "dataset_version": DATASET_VERSION,
-        "seed": seed,
         "repeat": repeat,
         "primary_attempt_timeout_seconds": timeout_seconds,
         "retries": 0,
         "fallbacks": 0,
         "prompt_sha256": sha256(CONVERSATION_TURN_PROMPT),
         "dataset_sha256": sha256(json.dumps(DIALOGUE_CASES, ensure_ascii=False, sort_keys=True)),
-        "rates_sha256": sha256(json.dumps(rates, ensure_ascii=False, sort_keys=True)),
-        "rates_by_model": rates,
         "provider_aliases": sorted(set(aliases.values())),
         "note": "Model names are in the separate blind-map file. This is interpreter-only; no selector candidate pools are included.",
     }
