@@ -3831,3 +3831,58 @@ CI on commit `0ead7a7c13e1379ec50e365183ed8af1a56f79f4`: focused offline test st
 - File/commit: `smoke_conversational_search.py` — `79db47ea3920888875bcbaf9b85b56fb41ddde31`.
 - Checks: the GitHub workflow compiles the manual smoke scripts; CI for this commit is pending. The live smoke has not yet been run, so real multi-page retrieval through the complete consultant remains unverified.
 - Remaining TЗ work: run the live smoke with configured page depth; review real candidate funnel diagnostics across product families; manually verify multi-turn refinements/corrections/product switches; exercise provider and Gemini failure paths. PR #7 remains draft/open/unmerged; `main` is untouched.
+
+## 2026-11-06 — Shared Gemini conversation contract and product-identity guard
+
+Live Telegram testing exposed a conversation-continuity failure: after the user
+started a laser-level search, a recommendation/budget follow-up was interpreted
+as a new product identity ("бы посоветовал"), and the engine started a search
+for irrelevant listings. This was not simply a missing prompt on the fallback
+model: both primary and fallback already use the same `decide_conversation_turn`
+path and the same prompt/context. The failure was in the deterministic
+product-identity extraction used by the engine to override intent.
+
+Changes on `work/consultant-reliability`:
+
+- `services/ai_service.py`: introduced `CONVERSATION_TURN_SCHEMA` and now
+  sends JSON response mode plus this structured schema for
+  `conversation_turn`. Because this configuration is built inside the shared
+  `_generate` request path, every model in the configured primary/fallback
+  chain receives the same output contract. The existing semantic validation
+  after generation remains mandatory; structured output guarantees shape, not
+  correctness of the model's decision.
+- `services/convsearch/engine.py`: expanded the general request/question
+  scaffolding vocabulary used by product-identity extraction to exclude common
+  Russian recommendation verb forms and pronouns, plus generic English
+  recommendation framing. This prevents such conversational framing from
+  becoming a fake product type while preserving extraction of a genuinely
+  named new product.
+- `tests/test_convsearch_engine.py`: added offline regression coverage for
+  generic recommendation questions in Russian and English and for preserving
+  extraction of an explicitly named new product.
+
+Commits:
+- `a27be7617e6fd1c05006674aa910cc972f0c098b` — shared structured Gemini
+  conversation-turn schema.
+- `7e762e6fd6cb6ba056624fab335750061f9cd3e0` — Russian recommendation
+  wording excluded from product identity.
+- `41f1643ee8b07810af70558fff2cc457accf3fc9` — regression tests.
+- `7d24a035ade6142bb773336fcebad8317db21a00` — English recommendation
+  framing normalization.
+
+Verification status:
+- Source changes are committed to the feature branch; no production/main
+  branch change and no PR merge.
+- Offline tests have NOT yet been run against these commits. The new tests
+  therefore remain unverified until CI or a local focused pytest run completes.
+- Live Telegram behavior after these changes has NOT yet been tested.
+- No Gemini/AliExpress live benchmark or additional paid API run was performed.
+
+Remaining work:
+- Run the focused offline regression tests and correct any failures.
+- Verify the schema is accepted by both configured Gemini models using the
+  same shared call path.
+- Repeat the live multi-turn Telegram scenario and broader natural-language
+  refinement/product-switch scenarios.
+- Continue the main consultant TЗ; this fix alone does not establish readiness.
+
