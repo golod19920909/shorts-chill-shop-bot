@@ -187,13 +187,15 @@ _COMPARE_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: Budget wording: «до 500 гривен», «under $30», «бюджет 2000».
+#: Budget wording: «до 500 гривен», «under $30», «бюджет 2000»,
+#: and an explicitly framed amount without currency («до 2000»).
 _BUDGET_RE = re.compile(
-    r"(?:(?:до|under|up to|не более|меньше|less than|max|максимум)\s*)?"
+    r"(?:(?:до|under|up\s+to|не более|меньше|less than|max|максимум|"
+    r"бюджет(?:ом)?|budget)\s*)?"
     r"(\d+(?:[.,]\d+)?)\s*"
     r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\s*"
     r"(грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
-    r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
+    r"евро|eur|€|руб[а-я]*|₽| грн)?",
     re.IGNORECASE,
 )
 _BUDGET_RESET_RE = re.compile(
@@ -1060,29 +1062,44 @@ def _negation_values(message: str) -> list[str]:
 
 
 def _budget(message: str) -> dict:
-    """Numeric budget + currency from one message; {} when none."""
+    """Numeric budget + optional currency from one message; {} when none.
 
-    match = _BUDGET_RE.search(message or "")
-    if not match:
-        return {}
-    raw = match.group(1).replace(",", ".").replace(" ", "")
-    try:
-        amount = float(raw)
-    except ValueError:
-        return {}
-    scale = (match.group(2) or "").lower()
-    if scale:
-        # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
-        amount *= 1000
-    # Match offsets are relative to the full input, not group(0). Slicing
-    # group(0) with an absolute offset loses the currency after framing text.
-    tail = (message[match.start():match.end()] or "").lower()
-    currency = None
-    for word, code in _CURRENCY_BY_WORD.items():
-        if word in tail:
-            currency = code
-            break
-    return {"max": amount, "currency": currency}
+    A bare amount is a budget only when it is explicitly framed («до 2000»,
+    «бюджет 2000»). An amount followed by a currency is self-identifying.
+    This avoids treating product dimensions/model numbers as price limits.
+    """
+
+    raw_message = message or ""
+    for match in _BUDGET_RE.finditer(raw_message):
+        # The regex also scans ordinary numbers (lengths, model numbers).
+        # Accept a match only when it has a currency suffix or an explicit
+        # budget marker immediately before the amount.
+        tail = raw_message[match.start():match.end()]
+        currency = None
+        lowered_tail = tail.lower()
+        for word, code in _CURRENCY_BY_WORD.items():
+            if word in lowered_tail:
+                currency = code
+                break
+        explicit_marker = bool(re.match(
+            r"(?i)\s*(?:до|under|up\s+to|не более|меньше|less than|max|"
+            r"максимум|бюджет(?:ом)?|budget)\b",
+            tail,
+        ))
+        if currency is None and not explicit_marker:
+            continue
+
+        raw = match.group(1).replace(",", ".").replace(" ", "")
+        try:
+            amount = float(raw)
+        except ValueError:
+            continue
+        scale = (match.group(2) or "").lower()
+        if scale:
+            # "2 тысячи гривен" and "2 тыс. грн" mean 2,000 UAH.
+            amount *= 1000
+        return {"max": amount, "currency": currency}
+    return {}
 
 
 def _is_short_refinement(message: str) -> bool:
