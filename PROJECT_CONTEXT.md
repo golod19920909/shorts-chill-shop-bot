@@ -3020,3 +3020,78 @@ The user has approved a separate, comprehensive workstream to reduce the cost of
 - Stage XV observability: partially present at per-attempt token/duration level; operation attribution, actual cost, reliable dialogue aggregation, provider/user cohorts, and financial alerts remain to be designed.
 - No tests were run for this documentation-only update. No live bot, Gemini, AliExpress, or Telegram calls were made.
 - Update this section after each material audit finding or implementation, recording exact files, commit SHA, verification evidence, and unresolved risks. Keep the existing PR #7 draft and `main` unchanged.
+
+### Stage I — deeper source-level AI call inventory (2026-11-06)
+
+The following is a source-traced preliminary inventory. A method existing in `AIService` is not automatically counted as a production consultant call; caller reachability is being separated from legacy/feed/photo paths.
+
+| Operation / method | Current operation label | Main role / caller evidence | Initial importance |
+|---|---|---|---|
+| `decide_conversation_turn` | `conversation_turn` | Active `ConversationSearchEngine.handle_message` turn interpretation | Critical: decides conversational action and context |
+| `select_conversation_candidates` | `conversation_selection` | Active engine's post-retrieval semantic review | Critical: bounded review of real candidates; deterministic safety gates remain authoritative |
+| `compose_no_results_reply` | `no_results_reply` | Active engine's empty-result follow-up path | Medium: natural wording only; no product facts |
+| `extract_paired_listing_evidence` | `product_question` | ProductAssistant explicit comparison path | Medium/high: evidence extraction for two already-ranked real products |
+| `answer_product_question` | `product_question` | ProductAssistant only after deterministic factual answer cannot answer | Medium/high: evidence selection; app constructs final claims |
+| `analyze_product` | generic `generate` | ProductAssistant «Стоит ли покупать?» | Optional advice; factual fallback exists |
+| `plan_product_search` | generic `generate` | ProductAssistant similar/cheaper/better search planning | Optional search wording; deterministic intent fallback exists |
+| `select_candidates` | generic `generate` | ProductAssistant selection from an already-retrieved candidate pool | Optional selection; deterministic fallback exists |
+| `parse_query` | generic `generate` | Legacy/non-raw SearchService path; not used by the authoritative convsearch request builder | Reachability needs a caller-level check before inclusion in consultant scenario costs |
+| `rank_candidates` | generic `generate` | Feed curation / discovery ranking | Feed-only, not the core conversational search turn |
+| `select_feed_candidates` | generic `generate` | Feed selection helper | Caller reachability and overlap with `rank_candidates` still need confirmation |
+| `analyze_image` / `describe_image_query` | generic `generate` | Discovery photo search; current discovery handler chooses structured analysis OR legacy query description, not both in that path | Photo-only |
+| `analyze_photo_with_vision` | generic `generate` | Separate `handlers/photo_search.py` / `services/vision_search.py` path calls the shared `_generate` method | Photo-only; verify whether this path overlaps with discovery's photo flow |
+| `decide_chat_action` | generic `generate` | Narrow older clarification helper; active engine now uses `decide_conversation_turn` | Likely legacy/compatibility; confirm no active caller |
+| `AIService._generate` | N/A | Central remote call wrapper | Every attempt, including fallback attempts, is instrumented here |
+
+Important attribution defect: only four named operation values are currently explicit in the main paths (`conversation_turn`, `conversation_selection`, `no_results_reply`, `product_question`). Many semantically different calls share `generate`. Next instrumentation change should assign stable operation names at each real call site, but only after completing caller reachability and regression impact review.
+
+### Current per-scenario call shape (source-derived, not measured average)
+
+- Ordinary new/refined search: one `conversation_turn`; if the bounded pool reaches semantic review, one `conversation_selection` (which may be two provider attempts if primary times out and fallback is tried); no-results composition may add one `no_results_reply` call when the engine reaches that path.
+- Explicit comparison of shown cards: one `product_question` paired-evidence request; deterministic renderer creates the comparison. It is not supposed to search AliExpress again.
+- A factual product question: deterministic answer first; only if insufficient evidence, one `product_question` call. Do not count the deterministic fast path as an LLM call.
+- «Стоит ли покупать?» on a product: optional `analyze_product` call, with deterministic advice fallback.
+- Similar/cheaper/better product follow-up: ProductAssistant may ask `plan_product_search` for a search phrase, then retrieve candidates and call `select_candidates`; this path needs full handler tracing to establish exact production call count and latency.
+- Photo search: one of the structured or legacy discovery vision paths, or the separate photo-search vision adapter; do not assume both are called in one photo request.
+
+### Telemetry and accounting caveats confirmed in source
+
+- `services/gemini_telemetry.py` records one `gemini_attempt` per actual `_generate` attempt. Primary and fallback model calls are distinct attempts; no higher-level duplicate counting is intended.
+- Available usage fields are prompt tokens, candidate/output tokens, total tokens, cached-content tokens, and thoughts tokens. Thinking tokens are included within Gemini output pricing; do not add them on top of candidate tokens when calculating cost.
+- Token metadata is accepted only from the SDK response. A failed or timed-out call has unknown usage, not zero. Any total derived from logged usage is therefore incomplete when `partial=true` or an attempt has unavailable tokens.
+- The ContextVar `turn_scope` collector is implemented and unit-tested, but no production use was found in the inspected handler/engine/product-assistant paths. Do not rely on its aggregate until the full call graph confirms or adds the scope around the complete Telegram turn.
+- The admin AI screen currently reports lifetime-since-process-start counters and the configured primary model; it does not report per-operation token totals, actual USD cost, daily/weekly/monthly spend, provider split, user cohorts, or financial alerts.
+- The current logs include per-attempt model/duration/outcome/usage but not a verified monetary cost, pricing version, request class/region, or persistent scenario/user aggregation. The log does not expose prompts or secrets, which must remain true.
+- Gemini selection explicitly requests JSON and low thinking level; most other calls currently do not pass a per-operation response configuration and inherit provider defaults. The cost and latency impact of thinking configuration therefore needs to be measured per operation rather than assumed.
+- `AIService._generate` appends the configured fallback model to each call chain. A model-unavailable response may trigger fallback for all operations; client-timeout fallback is restricted to `conversation_turn` and `conversation_selection`; quota/rate-limit failures stop without trying another model. This policy itself can materially affect per-dialogue spend and tail latency.
+
+### Stage III — initial official pricing/provider research (checked 2026-11-06)
+
+This is a shortlist for deeper evaluation, not a migration decision. Prices are USD per 1M tokens unless noted, and must be rechecked before implementation because aliases, promotions, regional endpoints and billing terms can change.
+
+| Provider / candidate | Officially surfaced price | Notes for our workload |
+|---|---:|---|
+| Google Gemini 3.8 Flash (`gemini-3.8-flash`) | Standard: input $0.75, output including thinking $3.75; cached input $0.075; Flex input $0.375/output $1.875 through 2026-12-31 | Current project primary model. Google pricing page states higher prices from 2027-01-01; Flex is a separate service tier and must not be assumed equivalent in latency/availability. |
+| OpenAI GPT-6 Luna (`gpt-6-luna`) | Input $0.10, cached input $0.01, output $0.50; Flex/Batch 50% of Standard; Fast 2x | Official model page describes it as high-volume/focused; supports reasoning effort and structured API features. Candidate for controlled evaluation, not yet proven equivalent on Russian dialogue/candidate review. |
+| Anthropic Claude Haiku 5.5 (`claude-haiku-5-5`) | From $0.10 input / $0.50 output | Official model overview positions it for high-volume, latency-sensitive classification/extraction/routing. Confirm exact tier, availability and structured-output behavior before testing. |
+| Anthropic Claude Sonnet 5.5 (`claude-sonnet-5-5`) | Input $2 / output $10; cache reads $0.10 per MTok | More expensive than current Gemini standard for tokens; likely not a cost-saving default, but may be useful as a quality reference. |
+| DeepSeek V4.1 Flash (`deepseek-flash`) | Off-peak input miss $0.15 / cache hit $0.003 / output $0.60; peak input miss $0.30 / cache hit $0.006 / output $1.20 | Official docs confirm 1M context, JSON output, tool calls, OpenAI-compatible and Anthropic-compatible endpoints. Time-of-day pricing doubles during stated weekday peak hours. |
+| Qwen 3.5 Flash (`qwen3.5-flash`) | International/EU scope: input $0.10 / output $0.40; explicit cache create $0.125 / read $0.01 | Official Alibaba docs list 1M context and multiple regional endpoints. Germany/Frankfurt has a Global/EU deployment scope; exact account region, endpoint and eligibility need confirmation. |
+| Qwen 3.8 Flash (`qwen3.8-flash`) | International/global pricing surfaced at input $0.113 / output $0.382; EU scope $0.15 / $0.47 | Newly surfaced in the official pricing table; verify current model availability, stable API model ID, JSON/tool support and region before treating as an evaluation candidate. |
+
+Ukraine availability check (official region pages): OpenAI API lists Ukraine with certain exceptions; Anthropic lists Ukraine but excludes certain occupied regions; Alibaba Model Studio publishes international/EU scopes and region-specific endpoints, but account eligibility and billing need confirmation. Do not infer that every API product/model is enabled for every account. Google Gemini API supported-region check remains outstanding.
+
+Official sources consulted:
+- Google Gemini API pricing: https://ai.google.dev/gemini-api/docs/pricing
+- OpenAI API pricing: https://developers.openai.com/api/docs/pricing
+- OpenAI GPT-6 Luna model page: https://developers.openai.com/api/docs/models/gpt-6-luna
+- Anthropic pricing: https://platform.claude.com/docs/en/about-claude/pricing
+- Anthropic model overview: https://platform.claude.com/docs/en/models/overview
+- Anthropic supported regions: https://platform.claude.com/docs/en/api/supported-regions
+- DeepSeek official models and pricing: https://api-docs.deepseek.com/quick_start/pricing/
+- Alibaba Model Studio pricing: https://www.alibabacloud.com/help/en/model-studio/model-pricing
+- Alibaba Qwen 3.5 Flash model/pricing: https://www.alibabacloud.com/help/en/model-studio/qwen3-5-flash
+- Alibaba Model Studio regions: https://www.alibabacloud.com/help/en/model-studio/regions
+- OpenAI supported countries: https://help.openai.com/en/articles/5347006-openai-api-supported-countries-and-territories
+
+No provider or model has been selected for production. No benchmark, real user cost, or saving percentage is claimed from list prices alone.
