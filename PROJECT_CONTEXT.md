@@ -4127,3 +4127,42 @@ Remaining main-TЗ work:
 - Continue focused evaluation of multi-turn context, feature/compatibility enforcement, comparison of shown cards, alternative searches, and provider/model failure behavior.
 - After the branch passes the focused gate, perform controlled live Telegram chains across several unrelated product categories, not a single product example.
 - Keep PR #7 open and do not merge without explicit instruction.
+
+## 2026-11-06 — Ongoing GitHub Actions CI monitoring for PR #7
+
+### Monitoring instruction (user-authorized, ongoing)
+Check GitHub Actions CI daily for repository golod19920909/shorts-chill-shop-bot, primarily open draft PR #7 and branch work/consultant-reliability. On every check:
+1. Fetch the current PR head SHA first; never assume yesterday's SHA is still current.
+2. Fetch workflow runs associated with that exact SHA. Distinguish runs for the current head from runs on earlier commits and do not report stale runs as current.
+3. For each relevant run, report status accurately: in-progress is neither pass nor failure; completed runs must include their conclusion.
+4. For failures, identify the failed job, inspect job logs, and report the concrete exception and affected checks.
+5. For success, report exact SHA, successful jobs and exact test counts from logs.
+6. If no new run exists for the current head, say so explicitly.
+7. Deliver a concise Russian daily report, including SHA and concrete evidence.
+8. Never modify source, files, CI settings, PRs, branches or main; never merge PR #7. Never access, request or expose .env or secrets. Never claim live Telegram, AliExpress or Gemini checks unless actually performed. Do not stop monitoring after one successful run.
+
+### Verified CI snapshot — 2026-11-06
+PR metadata fetched directly from GitHub:
+- PR: https://github.com/golod19920909/shorts-chill-shop-bot/pull/7
+- Title: Draft: Improve conversational product identity and relevance
+- State: open; Draft: true; merged: false.
+- Base: main; head branch: work/consultant-reliability.
+- Current head SHA at this check: 6bb1a1c528c163fb2cf90183469f5d3da1c42414.
+
+Current-head workflow query returned PR-triggered run:
+- Run 42199294173, workflow Conversational regression tests, status completed, conclusion failure.
+- Job 127830317853, conversational-regressions: completed / failure.
+- Steps setup, checkout, Python setup, dependency install, manual smoke-script compilation and focused offline tests all succeeded.
+- Failed step: Run repository suite excluding stale legacy modules.
+- Exact summary from job log: 551 failed, 1,749 passed, 1 deselected, 1 warning, 591 subtests passed in 65.67s.
+- Focused offline conversational regression step passed (the current log confirms step success; the earlier report recorded 434 passed and 76 subtests; verify exact counts from this run's log before repeating them in a future report).
+- Concrete recurring failures include AttributeError: 'AIService' object has no attribute '_with_result_limit' at services/ai_service.py:1345, plus tests expecting removed AIService._fallback_parse and AIService._merge_is_safe. Failures appear in legacy test modules, including tests/test_stage3d_currency_detection.py, tests/test_stage35_generic_container.py, tests/test_stage3g1_relevance_fixes.py, tests/test_stage3g3_relevance_fixes.py, tests/test_stage43_short_token.py, tests/test_stage44b4_capture_safety.py, tests/test_stage44b6_negation.py, tests/test_stage44b7_negation_intent.py, tests/test_stage51_context.py, and tests/test_stage53_context_anaphora.py.
+- Interpretation: the focused current conversational gate passed, but the broader configured suite failed because stale tests still call removed legacy AIService APIs. This is not a repository-wide pass. Do not reintroduce deleted helpers solely to satisfy obsolete tests without first establishing whether those tests should be migrated or excluded with documented evidence.
+- A second push-triggered run 42199283693 was also reported for the same SHA in the immediately preceding audit, with failure; current fetch_commit_workflow_runs wrapper only returned the PR-triggered run above. Treat the PR run as the verified detailed run unless a future query confirms the push run and its details.
+- No live Telegram, Gemini or AliExpress checks were performed. No source or workflow changes were made by the monitoring audit. No .env access. PR remains draft/open/unmerged; main untouched.
+
+### Next monitoring / engineering handoff
+- Re-fetch PR #7 head before every report.
+- Check all available workflow runs on that exact SHA, and inspect failed job logs when applicable.
+- The immediate CI issue to resolve in the project work is the stale legacy test boundary/configuration, not restoring old APIs by default.
+- After a green focused gate and an appropriate broader offline gate, manual live Telegram scenarios remain a separate user-controlled step. CI does not prove provider-backed Gemini/AliExpress behavior.
