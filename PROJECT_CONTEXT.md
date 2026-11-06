@@ -2945,3 +2945,16 @@ Remaining work:
 - Verify the new tests and the filtered regression workflow.
 - Re-run the two observed live scenarios: «Спиннинг до 2000» must not show any item over 2000 in the active search currency; «Спиннинг до 1000 грн» must allow a coherent rod/spinning-rod title to reach semantic review without accepting separate accessories.
 - Continue auditing automatic alternate-query recovery when the semantic selector returns a valid empty selection. This log showed one retrieval route after the turn interpreter timed out; the no-results path must make a bounded retry with another grounded seller phrase before asking the user to clarify.
+
+
+## Conversation-turn Gemini timeout fallback (2026-11-06)
+
+The same live log showed the turn interpreter timing out and falling straight to deterministic intent. That also removed the interpreter's opportunity to provide the bounded alternate seller-language phrase, leaving the follow-up search with only one route.
+
+- `AIService._generate` now allows a client-timeout fallback for `conversation_turn`, as it already did for `conversation_selection`. The primary turn-model attempt is capped at 4 seconds; the configured fallback model gets its own bounded attempt, while `decide_conversation_turn` keeps an 8.5-second outer deadline.
+- Quota/rate-limit errors still stop immediately; other operations keep their existing no-retry behavior.
+- Added an offline fake-client regression proving a primary turn-model timeout advances to the configured fallback model.
+- Changed files: `services/ai_service.py`, `tests/test_ai_conversation_turn_fallback.py`.
+- Commits: `826d96ba31158f3d718312d98485965cf28031d0` (implementation), `193820ee3beb9b2b1b02ae024889be6befa05cf3` (regression), `65fdbc5bb65275a6a8e6ae9487ba38c03112d3de` (policy documentation).
+
+Verification remains pending: the new offline tests have not been run in this session, and no live Gemini/AliExpress/Telegram calls were made. This is intended to preserve seller-language query expansion during transient primary-model timeouts; it does not guarantee the fallback model will always respond before the outer deadline.
