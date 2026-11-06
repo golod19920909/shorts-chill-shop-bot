@@ -1291,7 +1291,7 @@ class AIService:
 
 
         prompt = QUERY_PARSING_PROMPT.format(user_text=text)
-        raw = await self._generate(prompt, models=(self.fast_model,))
+        raw = await self._generate(prompt, models=(self.fast_model,), operation="legacy_query_parse")
         if raw is None:
             self.parse_fallback += 1
             return self._with_result_limit(text, self._fallback_parse(text))
@@ -1360,6 +1360,7 @@ class AIService:
                 products_json=products_json,
             ),
             models=(self.fast_model,),
+            operation="discovery_ranking",
         )
         if raw is None:
             self.rank_fallback += 1
@@ -1411,6 +1412,7 @@ class AIService:
                 IMAGE_QUERY_PROMPT,
             ],
             models=(self.vision_model,),
+            operation="photo_query_description",
         )
         if described is None:
             logger.warning("Photo recognition produced no answer")
@@ -1461,6 +1463,7 @@ class AIService:
                 IMAGE_ANALYSIS_PROMPT,
             ],
             models=(self.vision_model,),
+            operation="photo_image_analysis",
         )
         if raw is None:
             logger.warning("Image analysis produced no answer")
@@ -1502,6 +1505,7 @@ class AIService:
                 product_json=json.dumps(facts, ensure_ascii=False, indent=2)
             ),
             models=(self.smart_model,),
+            operation="product_advice",
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -1568,6 +1572,7 @@ class AIService:
                 products_json=products_json,
             ),
             models=(self.fast_model,),
+            operation="product_candidate_selection",
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -1633,6 +1638,7 @@ class AIService:
                 products_json=products_json,
             ),
             models=(self.fast_model,),
+            operation="feed_candidate_selection",
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -1929,6 +1935,7 @@ seller_terms: {seller_terms_json}
                 product_json=json.dumps(facts, ensure_ascii=False),
             ),
             models=(self.fast_model,),
+            operation="product_search_plan",
         )
         if not raw:
             return None
@@ -1979,7 +1986,7 @@ seller_terms: {seller_terms_json}
                         ),
                     ),
                     models=(self.smart_model,),
-                    operation="product_question",
+                    operation="product_comparison_evidence",
                 )
         except TimeoutError:
             logger.info("Gemini product-comparison evidence timed out; using factual fallback")
@@ -2076,7 +2083,7 @@ seller_terms: {seller_terms_json}
                         products_json=json.dumps(payloads, ensure_ascii=False, indent=2),
                     ),
                     models=(self.smart_model,),
-                    operation="product_question",
+                    operation="product_question_answer",
                 )
         except TimeoutError:
             logger.info("Gemini product-question answer timed out; using safe fallback")
@@ -2485,6 +2492,7 @@ seller_terms: {seller_terms_json}
         raw = await self._generate(
             CHAT_ACTION_PROMPT.format(message=user_text.strip()[:300]),
             models=(self.fast_model,),
+            operation="chat_action",
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
