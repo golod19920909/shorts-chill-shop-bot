@@ -114,3 +114,21 @@ def test_benchmark_requires_two_distinct_providers_not_two_google_models():
         assert "two distinct providers" in str(exc)
     else:
         raise AssertionError("Google-only model comparison must not count as cross-provider")
+
+
+def test_cost_formula_prices_cache_writes_as_a_separate_input_class():
+    cost = _cost_usd(
+        {
+            "input_tokens": 1000,
+            "cached_input_tokens": 400,
+            "cache_write_tokens": 100,
+            "output_tokens": 200,
+        },
+        {
+            "input_per_million": 0.75,
+            "cached_input_per_million": 0.075,
+            "cache_write_per_million": 0.125,
+            "output_per_million": 3.75,
+        },
+    )
+    assert cost == 0.0011675
