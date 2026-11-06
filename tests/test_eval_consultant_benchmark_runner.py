@@ -4,6 +4,7 @@ from tests.eval_consultant_benchmark_runner import (
     TURN_SCHEMA,
     _cost_usd,
     _extract_openai_text,
+    _google_request,
     _qwen_url,
     score_decision,
     validate_provider_roster,
@@ -132,3 +133,10 @@ def test_cost_formula_prices_cache_writes_as_a_separate_input_class():
         },
     )
     assert cost == 0.0011675
+
+
+def test_gemini_baseline_uses_the_same_prompt_only_json_mode_as_production():
+    body = _google_request("exact prompt")
+
+    assert body == {"contents": [{"parts": [{"text": "exact prompt"}]}]}
+    assert "generationConfig" not in body
