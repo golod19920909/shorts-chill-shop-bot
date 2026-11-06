@@ -2778,3 +2778,46 @@ Verification:
 This is a correction to a real deterministic-fallback safety gap, not a
 relaxation of product matching. The candidate remains hidden until semantic
 review confirms it. PR #7 remains draft/open/unmerged; main is untouched.
+
+
+### Fix stale budget constraints across refinement turns (2026-11-06)
+
+A state-lifecycle audit found that an updated numeric budget replaced the
+previous budget only when the deterministic intent was CORRECTION. A normal
+REFINE turn such as «а теперь до 3000 грн» could therefore leave the old
+2000 UAH ceiling active alongside the new one. The same lifecycle also had
+no explicit way to clear a budget when the user said that price did not
+matter, so an obsolete ceiling could continue constraining later searches.
+
+Changed:
+- services/convsearch/state.py — budget supersession now happens for every
+  turn containing a newly parsed numeric budget, regardless of whether the
+  turn is classified as REFINE or CORRECTION. Added conservative explicit
+  no-budget phrases in Russian and English; these supersede the old budget
+  without adding a replacement ceiling. Other constraints and product
+  identity remain untouched.
+- tests/test_convsearch_engine.py — added regressions for changing 2000 UAH
+  to 3000 UAH during a REFINE turn and clearing the budget using five
+  explicit no-limit phrasings.
+- PROJECT_CONTEXT.md — records the finding, change and verification status.
+
+Commits:
+- State lifecycle fix: 610f98854cf7f8c69e5042920d4b286825724670.
+- Regex escaping correction: a0e75f1c6177bc7f30142923c50ae68d51e9d7b6.
+- Regression tests: 305f902a3e4dfe772f5dbcb6a98670f21fd1a1ba.
+- PROJECT_CONTEXT update: pending.
+
+Verification:
+- Source and test changes were fetched back from GitHub and inspected.
+- The budget-reset regular expression is stored with the intended Python
+  word-boundary and whitespace escapes.
+- No local test runner is available in this remote editing session; these
+  regressions have NOT YET BEEN EXECUTED. GitHub CI status is not yet
+  available for these commits. No test pass is claimed.
+- These are offline state-ledger tests; they do not call AliExpress, Gemini
+  or Telegram.
+
+Remaining: execute the focused budget/state tests and filtered conversational
+suite on the branch. The live Telegram check will be requested only after
+offline verification is complete. PR #7 remains draft/open/unmerged; main
+is untouched.
