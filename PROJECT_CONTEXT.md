@@ -3787,3 +3787,15 @@ Added `tests/eval_gemini_rates_2026-11-06.json` with standard paid-tier and cach
 Commits: `b5cca7a23a2c256f29063ea841a0ea23e8414adf` (runner), `0c3bb708325de985e7f26e55ba4fab6f9e5c6090` (tests), `75211a14429dfc6fbccd5790c83c95c1e33e27e7` (protocol), `77d4fc6a24a6fa847fddf68fa5392614aff15091` (Gemini rate file).
 
 No provider API calls have been made. The benchmark still needs a real local run; no production model or route has changed.
+### Anthropic benchmark schema compatibility (2026-11-06)
+
+Official Anthropic Structured Outputs documentation explicitly lists numeric JSON Schema constraints (`minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`) as unsupported. The benchmark's shared interpreter schema contains `confidence.minimum` and `confidence.maximum`; sending it unchanged to Claude would cause a schema rejection rather than a fair model comparison.
+
+Added `_anthropic_compatible_schema()` in the benchmark runner. It recursively removes only unsupported numeric-bound keywords from the Anthropic request schema. The production `AIService` application validator remains unchanged and still enforces the confidence range after the model response. The blind manifest labels this mode `json_schema_without_numeric_bounds`; other providers keep their documented native schema mode.
+
+Files/commits:
+- `tests/eval_consultant_benchmark_runner.py` — provider-specific Anthropic schema sanitizer and mode label (`e6a660cc858e13f30b38d7dfbf03646749a8a0fe`).
+- `tests/test_eval_consultant_benchmark_runner.py` — recursive schema compatibility regression test (`33fc2547f012749127d0b9baebd4280d503cd60e`).
+- `tests/eval_consultant_benchmark_protocol.md` — provider-specific schema behavior recorded (`57eedc2674ec0562eb9f7d71ffa65b3b551b640a`).
+
+Official source checked 2026-11-06: https://platform.claude.com/docs/en/build-with-claude/structured-outputs. No provider API calls have been made; the change prevents a known invalid request configuration in the benchmark only.
