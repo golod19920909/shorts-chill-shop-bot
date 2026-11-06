@@ -146,6 +146,10 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         "любая", "то", "useful", "interesting", "unusual", "random",
         "какие", "какого", "какую", "каким", "зачем", "где", "когда",
         "втором", "первом", "второй",
+        # Generic English recommendation/question scaffolding.
+        "one", "would", "you", "recommend", "recommendation", "choose",
+        "pick", "suggest", "suggested", "suggestion", "under", "below",
+        "within", "budget", "price",
         "первый", "третий",
         # Pronouns referring to the current product/result set are not item names.
         "его", "нее", "неё", "него", "них", "ней", "ним", "ими",
