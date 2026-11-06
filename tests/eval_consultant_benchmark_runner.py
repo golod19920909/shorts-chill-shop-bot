@@ -225,10 +225,16 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
         parts = (candidates[0].get("content", {}).get("parts", []) if candidates else [])
         text = "\n".join(p.get("text", "") for p in parts if isinstance(p, dict) and isinstance(p.get("text"), str))
         meta = payload.get("usageMetadata", {}) or {}
+        candidate_tokens = meta.get("candidatesTokenCount")
+        thought_tokens = meta.get("thoughtsTokenCount")
         usage = _usage(
             input_tokens=meta.get("promptTokenCount"),
-            output_tokens=meta.get("candidatesTokenCount"),
-            reasoning_tokens=meta.get("thoughtsTokenCount"),
+            # Gemini reports candidate and thought tokens separately. Both
+            # are billable output; keep the split for analysis but count the
+            # sum exactly once in output_tokens.
+            output_tokens=(candidate_tokens or 0) + (thought_tokens or 0),
+            candidate_output_tokens=candidate_tokens,
+            reasoning_tokens=thought_tokens,
             cached_input_tokens=meta.get("cachedContentTokenCount"),
         )
         finish = candidates[0].get("finishReason") if candidates else None
@@ -251,11 +257,15 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
             if isinstance(block, dict) and block.get("type") == "text"
         )
         meta = payload.get("usage", {}) or {}
+        cache_read = meta.get("cache_read_input_tokens") or 0
+        cache_write = meta.get("cache_creation_input_tokens") or 0
         usage = _usage(
-            input_tokens=meta.get("input_tokens"),
+            # Anthropic reports uncached, cache-read and cache-write input
+            # categories separately; normalize input_tokens to their total.
+            input_tokens=(meta.get("input_tokens") or 0) + cache_read + cache_write,
             output_tokens=meta.get("output_tokens"),
-            cached_input_tokens=meta.get("cache_read_input_tokens"),
-            cache_write_tokens=meta.get("cache_creation_input_tokens"),
+            cached_input_tokens=cache_read,
+            cache_write_tokens=cache_write,
         )
         finish = payload.get("stop_reason")
     else:
@@ -341,12 +351,19 @@ def _cost_usd(usage: dict[str, int | None], rate: dict[str, float] | None) -> fl
         return None
     total_input = int(usage["input_tokens"] or 0)
     cached = min(total_input, int(usage.get("cached_input_tokens") or 0))
-    uncached = total_input - cached
+    remaining = total_input - cached
+    cache_write = min(remaining, int(usage.get("cache_write_tokens") or 0))
+    uncached = remaining - cache_write
     input_rate = float(rate["input_per_million"])
     output_rate = float(rate["output_per_million"])
+    if cached and "cached_input_per_million" not in rate:
+        return None
+    if cache_write and "cache_write_per_million" not in rate:
+        return None
     cached_rate = float(rate.get("cached_input_per_million", input_rate))
+    write_rate = float(rate.get("cache_write_per_million", input_rate))
     return (
-        uncached * input_rate + cached * cached_rate
+        uncached * input_rate + cached * cached_rate + cache_write * write_rate
         + int(usage["output_tokens"] or 0) * output_rate
     ) / 1_000_000
 
