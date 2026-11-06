@@ -2958,3 +2958,10 @@ The same live log showed the turn interpreter timing out and falling straight to
 - Commits: `826d96ba31158f3d718312d98485965cf28031d0` (implementation), `193820ee3beb9b2b1b02ae024889be6befa05cf3` (regression), `65fdbc5bb65275a6a8e6ae9487ba38c03112d3de` (policy documentation).
 
 Verification remains pending: the new offline tests have not been run in this session, and no live Gemini/AliExpress/Telegram calls were made. This is intended to preserve seller-language query expansion during transient primary-model timeouts; it does not guarantee the fallback model will always respond before the outer deadline.
+
+
+## Runtime dependency warning from the 2026-11-06 log
+
+The startup warning says Telegram client-side rate limiting is disabled. This is not a missing repository dependency: `requirements.txt` already declares `python-telegram-bot[job-queue,rate-limiter]==22.8`. The active local `.venv` appears not to have the optional rate-limiter extra installed (or has not been refreshed from the current requirements). After pulling the branch, install/synchronize runtime dependencies with `python -m pip install -r requirements.txt`; do not change the dependency declaration solely to silence this warning.
+
+The same log shows the scheduled `price_tracking` job executed successfully and no AliExpress transport/API failure during the displayed search. The Google GenAI AFC message is an SDK usage advisory, not by itself evidence of a failed search. End-to-end search latency (about 25.3 seconds on the first turn) remains a performance issue to measure after the correctness fixes.
