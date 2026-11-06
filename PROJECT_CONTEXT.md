@@ -3519,3 +3519,26 @@ Observed GitHub Actions result for commit `b969cdc6b3ded0f0f72c578ced9f934f7fb5a
 - The corrected import and all five corpus structural tests are confirmed to pass by the 297-pass result; the two baseline failures remain.
 
 The CI workflow change only adds `tests/test_eval_consultant_dialogue_dataset.py` to the focused offline command. It does not change runtime bot behavior.
+
+
+### Stage VIII — blind benchmark protocol and direct API compatibility verified (2026-11-06)
+
+Added `tests/eval_consultant_benchmark_protocol.md`. It defines:
+- identical active production interpreter prompt/context across providers;
+- common application validation as the final gate;
+- model aliases randomized for blind review, with mapping stored separately;
+- repeated randomized request order, p50/p95 latency, token/cache/thinking usage and exact tariff capture;
+- per-scenario and per-language scores with hard safety gates, not one aggregate score;
+- separate selector evaluation using identical authentic AliExpress candidate snapshots only;
+- a first single-attempt capability pass and a separate production-timeout/fallback resilience pass.
+
+Direct API documentation checked for the initial candidate roster:
+- OpenAI GPT-6 Luna: model ID `gpt-6-luna`; Responses API supports strict JSON Schema via `text.format`. Official docs: https://developers.openai.com/api/docs/models/gpt-6-luna and https://developers.openai.com/api/docs/guides/structured-outputs
+- Anthropic Haiku 5.5: model ID `claude-haiku-5-5`; Messages API supports JSON Schema output through `output_config.format`. Official docs: https://platform.claude.com/docs/en/models/haiku-5-5/overview and https://platform.claude.com/docs/en/api/http/messages
+- DeepSeek V4.1 Flash: model ID `deepseek-flash`; OpenAI-compatible base URL `https://api.deepseek.com`; documented JSON Output is JSON-object mode, not strict JSON Schema. Official docs: https://api-docs.deepseek.com/quick_start/pricing/ and https://api-docs.deepseek.com/guides/json_mode/
+- Alibaba Qwen 3.5 Flash: model ID `qwen3.5-flash`; supports structured output. International and Frankfurt deployment availability are documented, but access uses a workspace-specific endpoint; the runner must take the exact base URL from environment/config and must not guess a workspace ID. Official docs: https://help.aliyun.com/zh/model-studio/qwen3-5-flash and https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
+- Gemini remains the production baseline: `gemini-3.8-flash` and `gemini-3.1-flash-lite`.
+
+Fairness note: the APIs expose different levels of structured-output guarantees. Record each mode explicitly. OpenAI and Anthropic can use JSON Schema; DeepSeek's documented JSON Output guarantees valid JSON only; Qwen's documented structured-output support must be verified against the exact regional endpoint and request mode. The same application validator remains mandatory for every provider.
+
+No model request was made and no provider credentials were added. The protocol is design documentation, not a completed benchmark. The next implementation item is a provider-neutral, no-retry replay runner that reuses the real interpreter prompt and validation path while capturing each provider's native usage metadata. Authentic selector snapshots remain a separate prerequisite.
