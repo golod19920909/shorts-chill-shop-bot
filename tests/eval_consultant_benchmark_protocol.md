@@ -176,3 +176,8 @@ The benchmark accepts two distinct provider/model combinations, not only two pro
 ## Gemini-only first-run command
 
 The runner can compare `gemini-3.8-flash` and `gemini-3.1-flash-lite` using the same `GEMINI_API_KEY`; the manifest marks this as `same_provider_model_comparison`. A dated rate file is available at `tests/eval_gemini_rates_2026-11-06.json` (valid for the published rates through 2026-12-31). The runner itself does not read `.env`; the user may run it through the installed `python-dotenv` CLI so keys are injected into the child process without printing them. Example from the repository root: `python -m dotenv run -- .venv/Scripts/python.exe tests/eval_consultant_benchmark_runner.py --repeat 3 --rates-file tests/eval_gemini_rates_2026-11-06.json`.
+
+
+## Provider-specific schema compatibility
+
+Anthropic's current structured-output JSON Schema subset does not support numeric constraints such as `minimum` and `maximum`. The benchmark removes those constraints from the Anthropic request schema only; the same production application validator still enforces the confidence range after parsing. Other providers retain the original schema where their API supports those keywords. This avoids treating an unsupported schema keyword as a model failure.
