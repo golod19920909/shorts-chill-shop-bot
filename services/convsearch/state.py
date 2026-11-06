@@ -569,6 +569,7 @@ class ConversationEngineState:
             ) or (
                 intent is MessageIntent.COMPARE
                 and intent_override != MessageIntent.COMPARE
+                and bool(self.shown_product_ids)
             ) or (
                 intent is MessageIntent.REFINE
                 and intent_override is MessageIntent.NEW_SEARCH
