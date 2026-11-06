@@ -3971,3 +3971,41 @@ Remaining:
   about already-shown cards.
 - Main consultant TЗ remains in progress; this is not a readiness sign-off.
 
+## 2026-11-06 — Recommendation follow-up vs. comparison boundary
+
+Further CI evidence isolated why the recommendation follow-up still returned
+CLARIFY after the earlier continuity fixes: the deterministic state classifier
+recognized a question word («какой») and classified the turn as COMPARE even
+though no products had yet been shown. The engine's recommendation follow-up
+decision was therefore blocked by a comparison safeguard intended for
+questions about delivered cards.
+
+- services/convsearch/engine.py: added a general recommendation-follow-up
+  signal (Russian recommendation/advice/choosing verbs and English
+  recommend/suggest/choose/pick forms) to the active-product refinement
+  decision when the model over-calls new_search and no new product identity
+  is present.
+- services/convsearch/state.py: COMPARE is now protected from a lower-priority
+  refinement override only when there are actually shown product IDs. Before
+  any cards are shown, a grounded recommendation/refinement decision may
+  proceed to retrieval; questions about displayed cards remain COMPARE.
+- Commit 8b5278fd1750bf5ae37705ea0c34d3cb24005523 — recommendation wording
+  recognized as a follow-up.
+- Commit 417e55f1295d4c218fa39507d6bab0ecae11ef89 — do not force COMPARE
+  when no products have been shown.
+
+Verification:
+- CI run 42196116005 on commit 417e55f1295d4c218fa39507d6bab0ecae11ef89:
+  manual smoke scripts compile successfully; focused offline test step passes.
+- The wider repository test step is still running at the time of this note.
+- Earlier CI failures are retained above as history; they are not represented
+  as passing checks.
+- Live Telegram behavior with the updated branch is still unverified.
+
+Remaining:
+- Await the wider repository test result.
+- Once the branch is green at the focused gate, update local working copy and
+  perform a controlled Telegram test of recommendation follow-up, explicit
+  product switch and comparison of shown cards.
+- Do not merge PR #7 or change main without explicit instruction.
+
