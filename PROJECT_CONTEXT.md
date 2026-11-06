@@ -3345,3 +3345,39 @@ Interpretation:
 - For the first observed search, the successful turn plus successful Flash-Lite fallback selector subtotal is $0.00743725. If the timed-out primary selector consumed the full input volume, that would add at least about $0.00927525 at the current Flash input rate; if it also generated output comparable to the successful fallback, it would add about $0.01491525. Those are sensitivity examples only; actual timeout usage is unavailable.
 - The current 3.8 introductory rate expires at year-end. From 2027-01-01, the 3.8-based column's per-turn and selector unit costs approximately double if token volumes remain unchanged. Recalculate before that date.
 - These figures should not be presented as the 20/50/100/500-user final model until actual DAU definition, activity distribution, selector frequency, operation-specific token percentiles, and timeout billing are measured. Stage II remains open.
+
+### Stage I — token-payload structure and avoidable repetition (2026-11-06)
+
+Further inspection of the exact prompt builders identified several measurable optimization candidates. None has been changed.
+
+#### Conversation-turn input
+
+- The interpreter receives both recent_turns (up to six user-only messages) and recent_dialogue (up to twelve role-labelled user/assistant messages). User utterances therefore overlap between these two fields. The prompt explicitly says they complement one another, so removing one without a dialogue-quality benchmark is not approved; measure whether the duplicate user history adds accuracy.
+- The context builder also sends active slots, pending question, last outcome, shown-product count and up to 30 shown-product summaries (ID, title truncated to 48 characters, price and currency). This grounding is relevant to follow-up references but can contribute materially to input size as the conversation grows.
+- The serialized context is bounded to 6,000 characters and compacted structurally; the current message is separately capped at 500 characters. This is already a useful guard and should be preserved.
+- Candidate study: compare the current context against a compact variant that removes only duplicated user-history material while preserving the newest user/assistant exchange, active slots, pending question and shown-card references. Evaluate all 13 scenarios, especially corrections, clarification answers, pronouns and product switches.
+
+#### Candidate-selection input
+
+- Each candidate payload contains ID, full title, description truncated to 1,500 characters, category path, price, currency, discount, rating, order count and availability. Product URLs are not sent.
+- The current Affiliate API mapper does not populate Product.description; in ordinary live search this field is generally empty. The serializer still emits an empty description field for every candidate. Omitting only empty description values is a low-risk token-saving candidate because it removes no evidence; preserve non-empty descriptions if a future authorized provider source supplies them.
+- The full category path is useful weak context, but the prompt correctly says it is not proof of identity or a required feature. Its token cost versus quality contribution should be measured before shortening or removing it.
+- The query string repeats active use-case, compatibility, feature, preference, exclusion and budget information. The prompt separately includes a required-feature JSON list and a detailed budget rule. Some repetition is deliberate (high-priority constraints are restated in explicit fields), but it is a concrete place to measure marginal quality per token rather than delete blindly.
+- The output contract asks for identity_evidence and requirement_evidence fields on every selected row, even when a row has no semantic identity review and there are no active required features. A future schema could request evidence only where required and IDs alone for already deterministic-safe rows; this is only a candidate because the current exact-evidence contract is a key safety boundary.
+- The 70-candidate input pool remains the dominant measured prompt. Do not reduce the review window or remove listing fields before blinded tests prove the same cross-category identity/feature quality and no worse recall.
+
+#### Output configuration
+
+- _generate does not set a central max_output_tokens. The candidate selector sets response_mime_type=application/json and thinking_level=low; other structured operations such as feed selection, product selection, conversation-turn interpretation and product questions rely on prompt-level JSON instructions plus local parsing/validation.
+- No per-operation token cap or universal JSON Schema is enforced at the provider boundary. This is a reliability/cost trade-off to evaluate separately: a too-low cap can truncate evidence and cause a deterministic fallback or hide a valid result.
+- The product-question payload can contain up to 30 product records at the AIService boundary; ProductAssistant's menu-originated product-question helper commonly limits its session set to eight, while the conversation handler can pass the products actually shown. Explicit paired comparison sends only two records.
+
+#### Prioritized token-efficiency hypotheses (not approved changes)
+
+1. Omit empty description keys from candidate JSON; preserve every non-empty source field.
+2. Measure whether the duplicated recent user history in recent_turns + recent_dialogue is useful; remove overlap only if blind quality tests remain equivalent.
+3. Measure the value of repeated constraints across the free-form query and explicit requirement/budget fields; retain explicit hard-constraint representation regardless.
+4. Consider conditional evidence output for only the candidates/requirements that actually require semantic review; do not weaken exact quote validation.
+5. Evaluate reusable static prompt-prefix/context caching only after checking cache minimums, cache creation/storage charges, cache-hit telemetry and latency. No explicit cache resource is configured today.
+
+No code, prompt, model, or search behavior was changed. No tests or live calls were run for this documentation-only audit.
