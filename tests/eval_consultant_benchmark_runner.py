@@ -204,8 +204,18 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                 json={
                     "model": provider.model,
                     "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                    "max_tokens": 2048,
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "conversation_turn",
+                            "strict": True,
+                            "schema": TURN_SCHEMA,
+                        },
+                    },
+                    # Qwen3.5 Flash supports JSON Schema output in
+                    # non-thinking mode. Its docs warn not to set max_tokens
+                    # when structured output is enabled.
+                    "enable_thinking": False,
                 },
             )
         else:  # pragma: no cover - closed provider registry
@@ -431,7 +441,7 @@ async def run_benchmark(
                 "openai": "strict_json_schema",
                 "anthropic": "json_schema",
                 "deepseek": "json_object",
-                "qwen": "json_object",
+                "qwen": "strict_json_schema_non_thinking",
             }[p.provider],
             "resolved_models": [],
         }
