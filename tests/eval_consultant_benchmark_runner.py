@@ -50,10 +50,10 @@ TURN_SCHEMA: dict[str, Any] = {
             "enum": ["new_search", "refine", "correction", "alternatives", "compare", "clarify", "respond"],
         },
         "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-        "product_type": {"type": ["string", "null"]},
+        "product_type": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "marketplace_terms": {"type": "array", "items": {"type": "string"}},
-        "question": {"type": ["string", "null"]},
-        "response": {"type": ["string", "null"]},
+        "question": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        "response": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         "slot_updates": {
             "type": "array",
             "items": {
@@ -63,8 +63,8 @@ TURN_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "operation": {"type": "string", "enum": ["add", "replace", "remove"]},
                     "kind": {"type": "string", "enum": ["use_case", "compatibility", "feature", "exclusion", "preference"]},
-                    "target": {"type": ["string", "null"]},
-                    "value": {"type": ["string", "null"]},
+                    "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "value": {"anyOf": [{"type": "string"}, {"type": "null"}]},
                 },
             },
         },
