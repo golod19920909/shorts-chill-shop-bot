@@ -346,7 +346,6 @@ DIALOGUE_CASES = [
                     recent_dialogue=(
                         ("user", "Подбери компрессор для гаража"),
                         ("assistant", "Для какой задачи нужен компрессор?"),
-                        ("assistant", "Для какой задачи нужен компрессор?"),
                     ),
                     pending_question="Для какой задачи нужен компрессор?",
                     last_outcome="clarify",
