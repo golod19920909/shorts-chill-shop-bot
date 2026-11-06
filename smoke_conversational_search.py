@@ -3,6 +3,10 @@
 Run manually from the project root (uses the local .env):
 
     .venv/Scripts/python.exe smoke_conversational_search.py
+    .venv/Scripts/python.exe smoke_conversational_search.py --max-search-pages 1
+
+By default, the smoke uses the SearchService's configured page depth. The
+optional flag overrides it for a deliberately shallow run.
 
 Requires both ALIEXPRESS_APP_KEY/SECRET and GEMINI_API_KEY. It runs eight
 broad Russian-language searches across different product families through
@@ -19,6 +23,7 @@ cross-category regression matrix remains in the offline test suite.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import sys
 
@@ -58,6 +63,17 @@ def _sample_products(products) -> str:
 
 
 async def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--max-search-pages",
+        type=int,
+        default=None,
+        help="override the configured AliExpress page depth (default: runtime setting)",
+    )
+    args = parser.parse_args()
+    if args.max_search_pages is not None and args.max_search_pages < 1:
+        parser.error("--max-search-pages must be at least 1")
+
     settings = load_settings()
     if not settings.aliexpress.is_configured:
         print("SMOKE SKIPPED: ALIEXPRESS_APP_KEY/SECRET not configured")
@@ -67,10 +83,12 @@ async def main() -> int:
         return 0
 
     search_service, ai_service = build_search_service(settings)
-    # Keep this manual check bounded: one marketplace page per grounded phrase.
-    # The production page depth remains configured separately and is covered
-    # by the offline multi-page route regressions plus smoke_aliexpress.py.
-    search_service.max_search_pages = 1
+    if args.max_search_pages is not None:
+        search_service.max_search_pages = args.max_search_pages
+    print(
+        "AliExpress conversational page depth: "
+        f"{search_service.max_search_pages}"
+    )
     engine = ConversationSearchEngine()
     engine.bind_search_service(search_service)
     engine.bind_ai_service(ai_service)
