@@ -2861,14 +2861,22 @@ Verification:
 - The changed source and test files were fetched back from GitHub and
   inspected. The engine passes the request's active currency; explicit
   budget currency remains authoritative.
-- CI for this change is pending; no test pass is claimed yet.
-- The previous budget-lifecycle change has now passed GitHub Actions run
+- First CI attempt exposed a compatibility issue: several established
+  engine fixtures use minimal request objects without a currency attribute.
+  The new direct attribute access caused 27 failures across otherwise
+  unrelated scenarios. The engine call was corrected to read the optional
+  currency with getattr; absent currency therefore remains None and the
+  filter continues to fail closed. This fix is in
+  3dd1d2e216d3902d44023e0c379a3a312f81927c.
+- CI after the compatibility correction is pending; no passing result for
+  this change is claimed yet.
+- The previous budget-lifecycle change has passed GitHub Actions run
   42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
   tests + 745 subtests. Seventeen stale legacy modules were excluded.
 - These new currency regressions are offline and do not call AliExpress,
   Gemini or Telegram.
 
-Remaining: confirm the new focused regressions and filtered suite in CI,
+Remaining: confirm the currency regression tests and filtered suite in CI,
 then continue checking budget/currency handling in real Telegram flows.
 Do not request live testing until this offline run is complete. PR #7
 remains draft/open/unmerged; main is untouched.
