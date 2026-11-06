@@ -56,7 +56,7 @@ class FakeAI:
         self._exc = exc
         self._delay = delay
 
-    async def _generate(self, contents, *, models=None):
+    async def _generate(self, contents, *, models=None, operation="generate"):
         self.calls += 1
         if self._delay:
             await asyncio.sleep(self._delay)
