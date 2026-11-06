@@ -116,6 +116,11 @@ def _usage(**values: Any) -> dict[str, int | None]:
     return result
 
 
+def _google_request(prompt: str) -> dict[str, Any]:
+    """Exact production conversation_turn body: prompt-only JSON contract."""
+    return {"contents": [{"parts": [{"text": prompt}]}]}
+
+
 def _extract_openai_text(payload: dict[str, Any]) -> str:
     chunks: list[str] = []
     for item in payload.get("output", []) or []:
@@ -152,9 +157,7 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
                 # Match production conversation_turn exactly: the live
                 # Gemini path relies on the JSON-only prompt + application
                 # parser and does not set responseMimeType/responseSchema.
-                json={
-                    "contents": [{"parts": [{"text": prompt}]}],
-                },
+                json=_google_request(prompt),
             )
         elif provider.provider == "openai":
             response = await client.post(
