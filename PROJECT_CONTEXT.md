@@ -3278,3 +3278,36 @@ Additional reachability clarifications:
 - Category and ProductAssistant searches use the non-raw path and therefore have a different cost profile from the main conversational text-search route.
 
 No implementation or runtime settings were changed. No tests or live API calls were made. This is source-level call-graph evidence only; observed call frequency and actual costs still require telemetry or controlled replay.
+
+### Stage II preparation — source-derived scenario call-count matrix (not yet a cost benchmark)
+
+The following matrix describes possible application-level Gemini operations from the current source. It is **not** a measured average, and fallback-model attempts are additional provider attempts. One _generate operation may use the primary and then the fallback model under the existing error policy.
+
+| Scenario | Source-derived Gemini operations | Conditional branches / notes |
+|---|---|---|
+| 1. New product search | conversation_turn + optional conversation_selection | Selector only when deterministic evaluation leaves a non-empty RESULTS pool. |
+| 2. Add or change budget | conversation_turn + optional conversation_selection | Same core route; no separate budget-specific model call. |
+| 3. Add mandatory feature / compatibility | conversation_turn + optional conversation_selection | Semantic review may be needed for unproven listing evidence; deterministic gates remain first. |
+| 4. Add exclusion / preference | conversation_turn + optional conversation_selection | No separate model call for deterministic slot extraction. |
+| 5. Switch to a different product | conversation_turn + optional conversation_selection | Explicit product switch is resolved inside the same interpretation/ledger route. |
+| 6. Ask for alternatives | conversation_turn + optional conversation_selection | Retrieval is conditional on the engine resolving an alternatives strategy. |
+| 7. Compare already-shown cards | conversation_turn + optional product_question | Explicit comparison uses paired evidence extraction; deterministic comparison rendering follows. |
+| 8. Ask a factual question about a shown product | conversation_turn + optional product_question | The product assistant tries deterministic evidence first. Menu-originated pending questions can bypass the general turn interpreter. |
+| 9. Ask about compatibility / a feature | conversation_turn + optional product_question | If title matching or deterministic facts answer it, the second call is skipped. |
+| 10. Short ambiguous / incomplete message | conversation_turn + conditional decide_chat_action | The second operation is only for the short, strategy-less clarification branch (≤4 words); do not assume it runs on every short message. |
+| 11. No candidates / no eligible candidates | conversation_turn + optional conversation_selection + optional no_results_reply | Selector only if there was a non-empty pool; no-results wording is skipped after selector timeout/error/unavailable. |
+| 12. AliExpress provider failure | Usually conversation_turn only | Provider-error outcomes do not enter the no-results wording path and do not invoke candidate selection. |
+| 13. Long multi-turn conversation | One conversation_turn per non-shortcut text message, plus conditional selector/no-results/question calls | Context is bounded; cumulative spend depends on turns, shown-card payload, active slots and how often the user asks follow-ups. |
+| Photo search (separate flow) | One vision call normally; a second vision call if the first produces no usable query; optional one merged-pool feed selection | The two vision prompts are different, but this is a sequential retry after first-stage failure. |
+| Product menu: similar / cheaper / better | Up to three calls: plan_product_search, select_feed_candidates, select_candidates | The generic selector is currently applied inside SearchService before the goal-specific ProductAssistant selector. This is a candidate for controlled optimization, not an approved change. |
+| Category browsing | Optional one select_feed_candidates | find_by_category delegates to non-raw find_products with feed selection enabled. |
+| Ordinary «✨ Находки» feed | Zero | show_feed uses find_feed_page; no Gemini call. |
+
+#### What this matrix does and does not establish
+
+- It establishes source-level upper/lower call shapes and conditional gates; it does not establish frequency, average tokens, average provider attempts, or dollars per scenario.
+- The same source-level scenario may make zero calls when the user message is consumed by a cache/local shortcut or Gemini is unavailable.
+- A model-unavailable response can cause a fallback attempt for any operation. Client-timeout fallback is currently limited to conversation_turn and conversation_selection. Quota/rate-limit errors stop immediately.
+- The sample 6 November log gives token examples for two conversation turns, one successful selector fallback and one generic helper call. It is not enough to extrapolate token counts for all rows in this matrix.
+- The 20/50/100/500 active-user forecast cannot be made honestly until average active turns/user/day, scenario mix, selector invocation rate, prompt-size distribution, fallback rate and timeout unknown-cost rate are measured or explicitly declared as scenario assumptions.
+- Stage II remains open. Build a representative 13-scenario evaluation/replay set and capture per-operation usage before presenting a financial forecast. Any forecast must show assumptions and a range, not a single invented monthly bill.
