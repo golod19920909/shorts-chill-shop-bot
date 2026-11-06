@@ -39,6 +39,7 @@ jobs:
           tests/test_eval_consultant_benchmark_runner.py
           tests/test_eval_consultant_auxiliary_dataset.py
           tests/test_ai_service.py::OperationAttributionTests
+          tests/test_ai_service.py::ConversationSelectionEvidenceTests
           tests/test_query_intent.py
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
