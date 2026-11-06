@@ -3447,3 +3447,21 @@ The earlier audit note left SDK-internal HTTP retries unresolved. This has now b
 Pinned-version source: https://github.com/googleapis/python-genai/blob/v2.24.0/google/genai/_api_client.py (retry_args; async request path). Client construction: services/ai_service.py, AIService.__init__.
 
 This resolves the previous "SDK-internal retries, if any" uncertainty for the current pinned configuration. Provider-side work after a client timeout can still have unknown billing; that is separate from client retries.
+
+
+### Stage I — default thinking level and output-limit implications (2026-11-06)
+
+Google's current official thinking documentation confirms:
+- gemini-3.8-flash defaults to thinking_level=medium; supported levels are low, medium and high.
+- gemini-3.1-flash-lite defaults to minimal thinking.
+- The current candidate selector explicitly sets low thinking for its Gemini request.
+- The active conversation-turn interpreter and most other structured operations do not set a thinking level, so the 3.8 primary uses the medium default. This includes the per-message interpreter, no-results reply, product questions, product advice, search planning, feed selection and ProductAssistant selection.
+- The live sample's two successful conversation turns generated 132 and 188 thought tokens respectively, against 47 and 44 candidate/output tokens. This makes thinking effort a material cost/latency hypothesis, not a cosmetic setting.
+- A controlled low-vs-medium experiment on conversation_turn and the simpler helper operations is worth prioritizing. It must compare action/slot correctness, clarification quality, product-switch detection, candidate quality and latency before any default changes.
+- Google's documentation warns that max_output_tokens is a hard cap over both thought and candidate tokens and can truncate a response while still billing the generated thought tokens. A small global cap is therefore not a safe cost shortcut. Prefer evaluating a lower thinking level per operation, then set generous operation-specific output caps only if truncation behavior is understood.
+
+Official sources:
+- https://ai.google.dev/gemini-api/docs/thinking
+- https://ai.google.dev/gemini-api/docs/generate-content/thinking
+
+No thinking level, output cap or prompt configuration has been changed. These are benchmark hypotheses only.
