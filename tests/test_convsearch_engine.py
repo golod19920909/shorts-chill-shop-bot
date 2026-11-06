@@ -1783,3 +1783,59 @@ class UncertainTypeVerdictQuarantineTests(unittest.TestCase):
                     state, [candidate], requested_type,
                 )
                 self.assertEqual(shaped, [])
+
+
+class BudgetLifecycleAcrossRefinementsTests(unittest.TestCase):
+    def _state_with_budget(self, user_key):
+        state = ConversationEngineState(user_key=user_key)
+        state.record_product_type("шуруповёрт")
+        state.slots.append(Slot(
+            kind="budget", value="2000.0 UAH", source_turn=1, raw_text=""
+        ))
+        return state
+
+    def test_new_budget_replaces_previous_even_when_turn_is_refine(self):
+        state = self._state_with_budget("budget-replacement-refine")
+
+        observation = state.observe(
+            "А теперь до 3000 грн",
+            intent_override=MessageIntent.REFINE,
+        )
+        state.record_slots(observation)
+
+        self.assertEqual(state.active_values("budget"), ["3000.0 UAH"])
+        self.assertEqual(
+            [
+                slot.status for slot in state.slots
+                if slot.kind == "budget" and slot.value == "2000.0 UAH"
+            ],
+            ["superseded"],
+        )
+
+    def test_explicit_no_budget_removes_old_ceiling(self):
+        for message in (
+            "Бюджет не важен",
+            "Цена не имеет значения",
+            "Без ограничений по цене",
+            "По цене ограничений нет",
+            "No budget",
+        ):
+            with self.subTest(message=message):
+                state = self._state_with_budget(
+                    "budget-reset-" + str(len(message))
+                )
+
+                observation = state.observe(
+                    message,
+                    intent_override=MessageIntent.REFINE,
+                )
+                state.record_slots(observation)
+
+                self.assertEqual(state.active_values("budget"), [])
+                self.assertEqual(
+                    [
+                        slot.status for slot in state.slots
+                        if slot.kind == "budget"
+                    ],
+                    ["superseded"],
+                )
