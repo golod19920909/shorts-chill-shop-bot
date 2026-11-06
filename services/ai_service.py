@@ -799,6 +799,61 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
     return payload
 
 
+# Shared structured contract for conversation-turn interpretation.
+# _generate applies this same schema to the primary and fallback model chain.
+CONVERSATION_TURN_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "action": {
+            "type": "STRING",
+            "enum": [
+                "new_search", "refine", "correction", "alternatives",
+                "compare", "clarify", "respond",
+            ],
+        },
+        "confidence": {"type": "NUMBER"},
+        "product_type": {"type": "STRING", "nullable": True},
+        "marketplace_terms": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+        },
+        "question": {"type": "STRING", "nullable": True},
+        "response": {"type": "STRING", "nullable": True},
+        "slot_updates": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "operation": {
+                        "type": "STRING",
+                        "enum": ["add", "replace", "remove"],
+                    },
+                    "kind": {
+                        "type": "STRING",
+                        "enum": [
+                            "use_case", "compatibility", "feature",
+                            "exclusion", "preference",
+                        ],
+                    },
+                    "target": {"type": "STRING", "nullable": True},
+                    "value": {"type": "STRING", "nullable": True},
+                },
+                "required": ["operation", "kind", "target", "value"],
+                "propertyOrdering": ["operation", "kind", "target", "value"],
+            },
+        },
+    },
+    "required": [
+        "action", "confidence", "product_type", "marketplace_terms",
+        "question", "response", "slot_updates",
+    ],
+    "propertyOrdering": [
+        "action", "confidence", "product_type", "marketplace_terms",
+        "question", "response", "slot_updates",
+    ],
+}
+
+
 CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
 
 Поле recent_dialogue содержит последние реплики ОБЕИХ сторон с role=user/assistant.
@@ -2589,7 +2644,16 @@ seller_terms: {seller_terms_json}
             try:
                 async with asyncio.timeout(attempt_timeout):
                     request_kwargs = {"model": model, "contents": contents}
-                    if operation == "conversation_selection":
+                    if operation == "conversation_turn":
+                        # The same machine-readable dialogue contract is sent
+                        # to every model in the chain (primary and fallback).
+                        # Schema validation guarantees shape, while the caller
+                        # still performs semantic validation before trusting it.
+                        request_kwargs["config"] = {
+                            "response_mime_type": "application/json",
+                            "response_schema": CONVERSATION_TURN_SCHEMA,
+                        }
+                    elif operation == "conversation_selection":
                         # Candidate review is a bounded classification/ranking
                         # step after deterministic safety checks. Keep reasoning
                         # effort deliberately low and require JSON, rather than
