@@ -20,7 +20,7 @@ Pin exact IDs and provider endpoints in the run manifest. Initial candidates to 
 - OpenAI: `gpt-6-luna`.
 - Anthropic: `claude-haiku-5-5`.
 - DeepSeek: `deepseek-flash` (DeepSeek-V4.1-Flash-1017).
-- Alibaba Model Studio: `qwen3.5-flash`.
+- Alibaba Model Studio: `qwen3.5-flash` as the default JSON-Object candidate; optionally test `qwen3.7-flash` / `qwen3.8-flash` for documented JSON-Schema support when the exact workspace endpoint exposes them.
 
 Do not silently substitute a model alias if a pinned ID is unavailable. Record exact returned model/version and region/endpoint. Do not use a gateway in the first quality comparison: it adds another variable. Gateways can be benchmarked after direct-provider baselines.
 
@@ -29,7 +29,7 @@ Do not silently substitute a model alias if a pinned ID is unavailable. Record e
 - Reuse the exact production `CONVERSATION_TURN_PROMPT` and exact corpus context; do not rewrite or translate prompts for individual vendors.
 - Use the same user message, context, output contract, temperature policy (where supported), timeout, and maximum output budget.
 - Provider-native JSON/JSON-Schema output may be enabled only when documented for that exact model/API. Record the mode per provider. Do not count a plain JSON-object guarantee as strict JSON-Schema compliance.
-- The current runner's output modes are deliberately recorded in the separate blind map: Gemini JSON MIME mode; OpenAI strict JSON Schema; Anthropic JSON Schema; DeepSeek JSON Object; Qwen 3.5 Flash strict JSON Schema with thinking disabled (the documented requirement for that model family). OpenAI and Anthropic effort are set to medium; Gemini and DeepSeek use provider defaults. This is not a claim that the reasoning configurations are identical; the exact settings are part of the run manifest/map and must be considered when interpreting results.
+- The runner's output modes are recorded in the separate blind map: Gemini production prompt-only JSON; OpenAI strict JSON Schema; Anthropic JSON Schema; DeepSeek JSON Object; Qwen 3.5/3.6 Flash JSON Object with thinking disabled; Qwen 3.7/3.8 families may use JSON Schema where the exact model supports it. OpenAI and Anthropic effort are set to medium; Gemini and DeepSeek use provider defaults. This is not a claim that reasoning configurations are identical; the exact settings are part of the run manifest/map and must be considered when interpreting results.
 - Preserve the current application validator as the common final gate. A valid JSON response that fails the bot's semantic/grounding validation is a rejected decision.
 - Do not include product URLs, credentials, user identifiers, or unneeded PII in benchmark payloads.
 
@@ -109,20 +109,21 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 - Anthropic Haiku 5.5 model: https://platform.claude.com/docs/en/models/haiku-5-5/overview
 - DeepSeek model/pricing and OpenAI-compatible endpoint: https://api-docs.deepseek.com/quick_start/pricing/ and https://api-docs.deepseek.com/api/create-chat-completion/
 - DeepSeek JSON mode: https://api-docs.deepseek.com/guides/json_mode/
-- Alibaba Qwen 3.5 Flash model/regions/structured output: https://help.aliyun.com/zh/model-studio/qwen3-5-flash
+- Alibaba Qwen 3.5 Flash model/regions/structured output: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen3-5-flash
+- Alibaba current Model Studio pricing (updated 2026-11-05): https://www.alibabacloud.com/help/en/model-studio/model-pricing
 - Alibaba structured output modes and Qwen3.5 non-thinking restriction: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
 - Alibaba OpenAI-compatible API: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
 
 
 ## 11. Human blind review and scope boundaries
 
-The current runner measures the interpreter decision only. It does **not** execute the post-search portions stored in the corpus metadata:
-- it does not call the live AliExpress provider;
-- it does not benchmark candidate selection (blocked until authentic candidate snapshots exist);
-- it does not call no-results wording, product advice, paired comparison evidence, or factual product-question helpers;
-- it does not score the final Telegram answer or real product relevance.
+The current runner measures three bounded language operations: the conversation-turn interpreter, the short chat-action helper, and the no-results reply helper. The auxiliary chat-action and no-results cases are synthetic contract fixtures; no product evidence is fabricated or used for selector scoring. It still:
+- does not call the live AliExpress provider;
+- does not benchmark candidate selection (blocked until authentic candidate snapshots exist);
+- does not call product advice, paired comparison evidence, factual product-question helpers, or photo vision;
+- does not score the final Telegram answer or real product relevance.
 
-Therefore D11's no-results and D12's provider-failure metadata are not themselves exercised by the interpreter runner. Their first-turn intent decisions are measured; their downstream behavior requires separate operation-specific replay sets.
+The no-results helper is exercised on a separate artificial auxiliary corpus and scored for its production format/validation contract; its naturalness still requires blind human review and eventual anonymized real-outcome replay. D12's provider-failure behavior remains downstream and is not exercised by the no-results helper corpus.
 
 After automated scoring, reviewers must score the raw outputs under the random aliases without opening the alias map:
 - language naturalness and clarity (1–5);
@@ -153,9 +154,9 @@ The Gemini interpreter baseline now sends the exact production request body: pro
 
 ### Provider-native output and reasoning controls
 
-The current Gemini production interpreter has no explicit output-token cap or thinking-level setting; the baseline runner preserves that behavior. OpenAI and DeepSeek are also left without an explicit output cap. Anthropic's Messages API requires `max_tokens`, so the runner uses 2048 there; Qwen's strict structured-output mode omits `max_tokens` as required by its documented request contract. The exact limit is recorded per blind alias.
+The current Gemini production interpreter has no explicit output-token cap or thinking-level setting; the baseline runner preserves that behavior. OpenAI and DeepSeek are also left without an explicit output cap. Anthropic's Messages API requires `max_tokens`, so the runner uses 2048 there. Qwen structured-output requests omit `max_tokens` as required by its documented request contract. The exact limit is recorded per blind alias.
 
-Reasoning settings are likewise recorded rather than falsely treated as equivalent: Gemini and DeepSeek use provider defaults, OpenAI and Anthropic use medium effort, and Qwen structured-schema mode disables thinking. This means the first run is a practical provider-capability comparison under valid native API modes, not a mathematically identical inference configuration. If one model is a finalist, run a second effort/latency sweep for that model before selecting its production settings.
+Reasoning settings are likewise recorded rather than falsely treated as equivalent: Gemini and DeepSeek use provider defaults, OpenAI and Anthropic use medium effort; Qwen 3.5/3.6 Flash disables thinking for JSON Object mode, while Qwen 3.7/3.8 structured-schema candidates use the selected provider-supported reasoning mode. This is a practical provider-capability comparison, not a mathematically identical inference configuration. If one model is a finalist, run a second effort/latency sweep before selecting production settings.
 
 
 ### Strict separation of blind review from performance data
