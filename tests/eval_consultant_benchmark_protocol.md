@@ -172,3 +172,7 @@ Do not give the private artifact to reviewers until all quality scores and disag
 ## Same-provider model comparison
 
 The benchmark accepts two distinct provider/model combinations, not only two provider families. This allows the first real run to compare Gemini 3.8 Flash with Gemini 3.1 Flash-Lite using the existing Gemini API key. The manifest marks such a run as `same_provider_model_comparison`; runs spanning multiple provider families are marked `cross_provider`. Duplicate identical provider/model pairs are rejected. This first Gemini-only run is useful for Stage IV Option A and must not be misrepresented as a cross-provider comparison.
+
+## Gemini-only first-run command
+
+The runner can compare `gemini-3.8-flash` and `gemini-3.1-flash-lite` using the same `GEMINI_API_KEY`; the manifest marks this as `same_provider_model_comparison`. A dated rate file is available at `tests/eval_gemini_rates_2026-11-06.json` (valid for the published rates through 2026-12-31). The runner itself does not read `.env`; the user may run it through the installed `python-dotenv` CLI so keys are injected into the child process without printing them. Example from the repository root: `python -m dotenv run -- .venv/Scripts/python.exe tests/eval_consultant_benchmark_runner.py --repeat 3 --rates-file tests/eval_gemini_rates_2026-11-06.json`.
