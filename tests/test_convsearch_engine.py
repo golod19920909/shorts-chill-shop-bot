@@ -1530,6 +1530,70 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             {"uah-over", "usd-unknown", "price-unknown", "currency-unknown"},
         )
 
+    def test_budget_without_currency_uses_active_search_currency(self) -> None:
+        from services.convsearch.retrieval import filter_by_budget
+
+        state = ConversationEngineState(user_key="budget-default-currency")
+        state.slots.append(Slot(
+            kind="budget", value="2000.0", source_turn=1,
+            raw_text="до 2000",
+        ))
+        products = [
+            self._product("uah-ok", "Товар", price=1800, currency="UAH"),
+            self._product("uah-over", "Товар", price=2200, currency="UAH"),
+            self._product("usd-ambiguous", "Товар", price=20, currency="USD"),
+            self._product("unknown-currency", "Товар", price=100, currency=None),
+        ]
+
+        survivors, rejected = filter_by_budget(
+            products, state, default_currency="UAH",
+        )
+
+        self.assertEqual([p.product_id for p in survivors], ["uah-ok"])
+        self.assertEqual(
+            {p.product_id for p in rejected},
+            {"uah-over", "usd-ambiguous", "unknown-currency"},
+        )
+
+    def test_explicit_budget_currency_overrides_search_currency(self) -> None:
+        from services.convsearch.retrieval import filter_by_budget
+
+        state = ConversationEngineState(user_key="budget-explicit-currency")
+        state.slots.append(Slot(
+            kind="budget", value="20.0 USD", source_turn=1,
+            raw_text="до 20 долларов",
+        ))
+        products = [
+            self._product("usd-ok", "Товар", price=18, currency="USD"),
+            self._product("uah-wrong-currency", "Товар", price=500, currency="UAH"),
+        ]
+
+        survivors, rejected = filter_by_budget(
+            products, state, default_currency="UAH",
+        )
+
+        self.assertEqual([p.product_id for p in survivors], ["usd-ok"])
+        self.assertEqual(
+            [p.product_id for p in rejected],
+            ["uah-wrong-currency"],
+        )
+
+    def test_budget_without_currency_fails_closed_without_search_currency(self) -> None:
+        from services.convsearch.retrieval import filter_by_budget
+
+        state = ConversationEngineState(user_key="budget-no-default-currency")
+        state.slots.append(Slot(
+            kind="budget", value="2000.0", source_turn=1, raw_text="до 2000",
+        ))
+        products = [
+            self._product("uah", "Товар", price=1800, currency="UAH"),
+        ]
+
+        survivors, rejected = filter_by_budget(products, state)
+
+        self.assertEqual(survivors, [])
+        self.assertEqual([p.product_id for p in rejected], ["uah"])
+
     def test_partial_mandatory_feature_evidence_is_not_treated_as_verified(self) -> None:
         from services.convsearch.retrieval import (
             _feature_is_evidenced,
