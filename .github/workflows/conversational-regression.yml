@@ -35,6 +35,7 @@ jobs:
           tests/test_convsearch_engine.py
           tests/test_convsearch_type_validation.py
           tests/test_search_service.py
+          tests/test_eval_consultant_dialogue_dataset.py
       - name: Run repository suite excluding stale legacy modules
         run: >
           python -m pytest -q tests/
