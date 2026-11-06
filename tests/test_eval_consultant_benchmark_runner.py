@@ -6,6 +6,8 @@ from tests.eval_consultant_benchmark_runner import (
     _extract_openai_text,
     _qwen_url,
     score_decision,
+    validate_provider_roster,
+    Provider,
 )
 
 
@@ -99,3 +101,16 @@ def test_openai_responses_text_extractor_collects_output_text_blocks():
         ]
     }
     assert _extract_openai_text(payload) == "{\"action\":\"respond\"}"
+
+
+def test_benchmark_requires_two_distinct_providers_not_two_google_models():
+    google_models = [
+        Provider("gemini", "google", "gemini-3.8-flash", "test-key"),
+        Provider("gemini_lite", "google", "gemini-3.1-flash-lite", "test-key"),
+    ]
+    try:
+        validate_provider_roster(google_models)
+    except SystemExit as exc:
+        assert "two distinct providers" in str(exc)
+    else:
+        raise AssertionError("Google-only model comparison must not count as cross-provider")
