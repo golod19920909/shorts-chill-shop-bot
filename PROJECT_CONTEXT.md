@@ -2909,3 +2909,39 @@ a bounded live Telegram run covering currency-aware budgets and the existing
 multi-category search scenarios. Live testing is still not requested in this
 pass because the latest verified code has not yet been pulled into the user's
 local bot. PR #7 remains draft/open/unmerged; main is untouched.
+
+
+## Live-log fixes: currency-free budgets and title identity review (2026-11-06)
+
+The 2026-11-06 Telegram log exposed two systemic issues:
+
+- A first-turn request such as «Спиннинг до 2000» did not create a budget slot because the deterministic budget regex required a currency suffix. The parser now accepts an amount without currency only when it is explicitly framed as a ceiling/budget (for example, «до 2000», «бюджет 2000», «до 2 тыс»). Unframed numbers remain ignored to avoid treating dimensions/model numbers as budgets. The resulting slot keeps currency empty; the hard budget filter inherits the active `SearchRequest.currency` and remains fail-closed when neither currency is known.
+- The semantic selector previously instructed Gemini to reject a product type found after a comma whenever the title began with another product name, without adequately distinguishing a synonym/descriptor of the same physical item from a second cross-sold product. The prompt now says a comma alone is not proof of a second item: the full title must be interpreted; a coherent same-item synonym/variant may be confirmed with an exact title quote, while a distinct accessory/part/second item must still be rejected and ambiguous cases remain unselected.
+- A currency-free budget is now normalized with the active search currency before it is sent to Gemini's semantic selector and included in the selector query. This keeps the AI's budget rule aligned with the deterministic hard filter (for example, `2000.0 UAH`, not a currency-less ceiling).
+
+Changed files:
+- `services/convsearch/state.py`
+- `services/convsearch/engine.py`
+- `services/ai_service.py`
+- `tests/test_convsearch_budget_parsing.py`
+- `tests/test_convsearch_budget_selection.py`
+- `tests/test_convsearch_semantic_identity_prompt.py`
+
+Implementation commits:
+- `4f36ca4f7fc025fab94913f289afd2b2124629a3` — currency-free budget parsing.
+- `919fb2681c4eb25ff62c7c75459481a8df35bd55` — parser regression tests.
+- `368b1c4d2f275437729ef7f4a21d5f32b34d580c` — inherit request currency for AI budget review.
+- `f32603ccda87b9884b17db21fe25c105ddfa785a` — selector budget-currency regression.
+- `804f365e581d75d7fda8e98759e6fb4bfc3d3da3` — refine comma-separated title identity prompt.
+- `a9eff40f8fe380aedf4b3640fca1368af44af03d` and `80dc5416fa03e2dddc66a48391ca8d5656161284` — semantic prompt regression and assertion correction.
+
+Verification status at this update:
+- Offline tests have been added but have **not yet been run** in this session.
+- The GitHub workflow is configured for pushes to `work/consultant-reliability`; no workflow run or commit status was visible through the available Actions results at the time of this update. Do not claim a CI pass.
+- No live Gemini, AliExpress or Telegram calls were made by these changes.
+- The branch remains `work/consultant-reliability`; PR #7 remains draft/open/unmerged; `main` is untouched.
+
+Remaining work:
+- Verify the new tests and the filtered regression workflow.
+- Re-run the two observed live scenarios: «Спиннинг до 2000» must not show any item over 2000 in the active search currency; «Спиннинг до 1000 грн» must allow a coherent rod/spinning-rod title to reach semantic review without accepting separate accessories.
+- Continue auditing automatic alternate-query recovery when the semantic selector returns a valid empty selection. This log showed one retrieval route after the turn interpreter timed out; the no-results path must make a bounded retry with another grounded seller phrase before asking the user to clarify.
