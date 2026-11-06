@@ -590,6 +590,11 @@ class ConversationSearchEngine:
             intent_override=intent_override,
             slot_updates=model_slot_updates,
             allow_product_switch=explicit_product_switch,
+            preserve_active_product=bool(
+                current_type is not None
+                and not explicit_product_switch
+                and intent_override is MessageIntent.REFINE
+            ),
         )
         # The empty-ledger first-turn shortcut in the generic state machine
         # intentionally assumes a new product request. The conversational
