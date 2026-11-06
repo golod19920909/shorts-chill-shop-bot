@@ -529,8 +529,8 @@ async def run_benchmark(
                 "resolved_model": response.resolved_model,
             })
             resolved = response.resolved_model
-            if resolved and resolved not in alias_map[aliases[provider.key]]["resolved_models"]:
-                alias_map[aliases[provider.key]]["resolved_models"].append(resolved)
+            if resolved and resolved not in alias_map["providers"][aliases[provider.key]]["resolved_models"]:
+                alias_map["providers"][aliases[provider.key]]["resolved_models"].append(resolved)
             return response.text
 
         # Reuse the exact production prompt builder and the exact application
