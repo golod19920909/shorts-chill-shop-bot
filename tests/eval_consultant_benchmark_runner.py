@@ -498,7 +498,7 @@ async def run_benchmark(
     rng.shuffle(tasks)
 
     results: list[dict[str, Any]] = []
-    private_cost_rows: list[dict[str, Any]] = []
+    private_performance_rows: list[dict[str, Any]] = []
     for provider, case, turn_index, turn, repetition in tasks:
         # Do not initialize any provider SDK client or use a dummy API key.
         # The production validator only checks whether _client is present;
@@ -556,10 +556,24 @@ async def run_benchmark(
         resolved_model = call_record.get("resolved_model")
         billing_model_id = resolved_model or provider.model
         estimated_cost = _cost_usd(usage, rates.get(billing_model_id))
-        private_cost_rows.append({
+        private_performance_rows.append({
             "alias": aliases[provider.key],
             "case_id": case["id"],
             "scenario": case["scenario"],
+            "language": case["language"],
+            "turn": turn_index,
+            "repetition": repetition,
+            "status": status,
+            "wall_duration_ms": round(wall_ms, 2),
+            "provider_duration_ms": (
+                round(float(call_record["duration_ms"]), 2)
+                if call_record.get("duration_ms") is not None else None
+            ),
+            "usage": usage,
+            "http_status": call_record.get("http_status"),
+            "finish_reason": call_record.get("finish_reason"),
+            "error": error,
+            "billing_model_id": billing_model_id,
             "estimated_cost_usd": estimated_cost,
         })
         results.append({
@@ -570,12 +584,6 @@ async def run_benchmark(
             "turn": turn_index,
             "repetition": repetition,
             "status": status,
-            "wall_duration_ms": round(wall_ms, 2),
-            "provider_duration_ms": round(call_record.get("duration_ms", wall_ms), 2),
-            "usage": usage,
-            "http_status": call_record.get("http_status"),
-            "finish_reason": call_record.get("finish_reason"),
-            "error": error,
             "raw_output": call_record.get("raw_text"),
             "accepted_decision": decision,
             "gold": turn["expected"],
@@ -596,17 +604,12 @@ async def run_benchmark(
     for alias in sorted(set(aliases.values())):
         rows = [row for row in results if row["alias"] == alias]
         accepted = [row for row in rows if row["status"] == "accepted"]
-        durations = [float(row["provider_duration_ms"]) for row in rows if row.get("provider_duration_ms") is not None]
         summary_by_alias[alias] = {
             "requests": len(rows),
             "accepted_by_application_validator": len(accepted),
             "acceptance_rate": round(len(accepted) / len(rows), 4) if rows else None,
             "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4) if rows else None,
             "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4) if rows else None,
-            "latency_p50_ms": percentile(durations, 0.50),
-            "latency_p95_ms": percentile(durations, 0.95),
-            "input_tokens_total_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
-            "output_tokens_total_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
         }
 
     def grouped_summary(group_key: str) -> dict[str, Any]:
@@ -617,31 +620,66 @@ async def run_benchmark(
         summaries: dict[str, Any] = {}
         for key, rows in groups.items():
             accepted = [row for row in rows if row["status"] == "accepted"]
-            durations = [float(row["provider_duration_ms"]) for row in rows if row.get("provider_duration_ms") is not None]
             summaries[key] = {
                 "requests": len(rows),
                 "accepted": len(accepted),
                 "acceptance_rate": round(len(accepted) / len(rows), 4),
                 "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4),
                 "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4),
-                "latency_p50_ms": percentile(durations, 0.50),
-                "latency_p95_ms": percentile(durations, 0.95),
-                "input_tokens_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
-                "output_tokens_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
             }
         return summaries
 
-    private_cost_summary: dict[str, Any] = {}
-    for alias in sorted(set(aliases.values())):
-        rows = [row for row in private_cost_rows if row["alias"] == alias]
-        known = [float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None]
-        private_cost_summary[alias] = {
+    def performance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        durations = [
+            float(row["provider_duration_ms"])
+            for row in rows if row.get("provider_duration_ms") is not None
+        ]
+        costs = [
+            float(row["estimated_cost_usd"])
+            for row in rows if row.get("estimated_cost_usd") is not None
+        ]
+        token_fields = (
+            "input_tokens", "output_tokens", "reasoning_tokens",
+            "cached_input_tokens", "cache_write_tokens",
+        )
+        token_summary = {}
+        for field in token_fields:
+            known_values = [
+                row["usage"].get(field) for row in rows
+                if row.get("usage", {}).get(field) is not None
+            ]
+            token_summary[field] = {
+                "requests_known": len(known_values),
+                "total_known": sum(int(value) for value in known_values),
+            }
+        return {
             "requests": len(rows),
-            "cost_requests_covered": len(known),
-            "cost_usd_total_known": round(sum(known), 8) if known else None,
+            "successes": sum(row["status"] == "accepted" for row in rows),
+            "failures_or_rejections": sum(row["status"] != "accepted" for row in rows),
+            "latency_p50_ms": percentile(durations, 0.50),
+            "latency_p95_ms": percentile(durations, 0.95),
+            "provider_latency_samples": len(durations),
+            "token_usage": token_summary,
+            "cost_requests_covered": len(costs),
+            "cost_usd_total_known": round(sum(costs), 8) if costs else None,
         }
-    alias_map["cost_summary_by_alias"] = private_cost_summary
-    alias_map["cost_by_request"] = private_cost_rows
+
+    private_performance_by_alias = {}
+    for alias in sorted(set(aliases.values())):
+        rows = [row for row in private_performance_rows if row["alias"] == alias]
+        private_performance_by_alias[alias] = performance_summary(rows)
+
+    def private_grouped_summary(group_key: str) -> dict[str, Any]:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in private_performance_rows:
+            key = f"{row['alias']}:{row[group_key]}"
+            groups.setdefault(key, []).append(row)
+        return {key: performance_summary(rows) for key, rows in groups.items()}
+
+    alias_map["performance_by_alias"] = private_performance_by_alias
+    alias_map["performance_by_alias_scenario"] = private_grouped_summary("scenario")
+    alias_map["performance_by_alias_language"] = private_grouped_summary("language")
+    alias_map["performance_by_request"] = private_performance_rows
 
     manifest = {
         "started_at_utc": run_started_at_utc,
