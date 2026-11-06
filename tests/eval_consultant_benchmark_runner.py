@@ -480,15 +480,17 @@ async def run_benchmark(
 
     results: list[dict[str, Any]] = []
     for provider, case, turn_index, turn, repetition in tasks:
+        # Do not initialize any provider SDK client or use a dummy API key.
+        # The production validator only checks whether _client is present;
+        # the transport is replaced below with this one-provider adapter.
         ai = AIService(
-            api_key="benchmark-placeholder",
+            api_key=None,
             model=provider.model,
             fast_model=provider.model,
             fallback_model=provider.model,
-            # Match the production 8.5s turn deadline while the adapter below
-            # enforces one primary attempt with the configured 4s default.
             timeout_seconds=8.5,
         )
+        ai._client = object()
         call_record: dict[str, Any] = {}
 
         async def injected_generate(contents, *, models=None, operation="generate"):
@@ -543,6 +545,8 @@ async def run_benchmark(
             "provider_duration_ms": round(call_record.get("duration_ms", wall_ms), 2),
             "usage": usage,
             "estimated_cost_usd": _cost_usd(usage, rates.get(provider.model)),
+            "http_status": call_record.get("http_status"),
+            "resolved_model": call_record.get("resolved_model"),
             "finish_reason": call_record.get("finish_reason"),
             "error": error,
             "raw_output": call_record.get("raw_text"),
