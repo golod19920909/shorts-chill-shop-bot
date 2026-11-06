@@ -153,8 +153,15 @@ def _product_text_for_match(product: Product) -> str:
 def filter_by_budget(
     products: list[Product],
     state: ConversationEngineState,
+    *,
+    default_currency: str | None = None,
 ) -> tuple[list[Product], list[Product]]:
-    """Enforce a hard budget; unknown price/currency never passes."""
+    """Enforce a hard budget; unknown price/currency never passes.
+
+    If the user gave a numeric ceiling without naming a currency, use the
+    active search currency (for example the bot's UAH display currency).
+    An explicitly stated budget currency always takes precedence.
+    """
 
     budget = state.active_by_kind("budget")
     if budget is None:
@@ -165,7 +172,10 @@ def filter_by_budget(
     except (ValueError, IndexError):
         # An unparseable active budget is unsafe: do not silently disable it.
         return [], list(products)
-    budget_currency = parts[1].strip().upper() if len(parts) > 1 else ""
+    budget_currency = (
+        parts[1].strip().upper() if len(parts) > 1
+        else str(default_currency or "").strip().upper()
+    )
     survivors, rejected = [], []
     for product in products:
         product_currency = str(product.currency or "").strip().upper()
