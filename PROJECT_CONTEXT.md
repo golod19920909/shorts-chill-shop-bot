@@ -2877,8 +2877,14 @@ Verification:
   currency with getattr; absent currency therefore remains None and the
   filter continues to fail closed. This fix is in
   3dd1d2e216d3902d44023e0c379a3a312f81927c.
-- CI after the compatibility correction is pending; no passing result for
-  this change is claimed yet.
+- The compatibility correction has passed GitHub Actions run
+  42158404800: 292 focused tests + 65 subtests, and 2,229 filtered-suite
+  tests + 745 subtests, with one google-genai deprecation warning. Seventeen
+  stale legacy modules remain excluded.
+- The subsequent explicit-budget-currency request change and its two new
+  strategy tests are in separate CI runs 42158456293 and 42158469493; those
+  runs are still in progress at this context update. No pass is claimed for
+  those latest changes yet.
 - The previous budget-lifecycle change has passed GitHub Actions run
   42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
   tests + 745 subtests. Seventeen stale legacy modules were excluded.
