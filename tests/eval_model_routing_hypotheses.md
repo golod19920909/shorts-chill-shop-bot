@@ -39,3 +39,9 @@ A model is eligible for a cheaper route only if it preserves the current applica
 - No model may invent product facts, prices, specs, stock, compatibility or search outcomes.
 - Preserve current fallback/timeout behavior until a separate reliability pass proves an alternative.
 - No model route is changed by this document. All items are hypotheses, not implementation approvals.
+
+## Gateway decision update — 2026-11-06
+
+Detailed current comparison: `tests/eval_gateway_comparison_2026-11-06.md`.
+
+Preliminary result remains: do not add a gateway during the current benchmark. Direct provider adapters have the fewest dependencies for the current small shortlist. LiteLLM is the strongest later self-hosted control plane if multiple production providers, shared spend controls and failover justify its infrastructure. OpenRouter is useful for temporary model discovery but adds credit-purchase/BYOK fees and requires pinned routing. Vercel AI Gateway has no token markup and useful failover/observability, but introduces Vercel credits and another production dependency. No latency claim is accepted without a same-host measurement.
