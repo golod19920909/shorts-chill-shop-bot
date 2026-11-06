@@ -2885,16 +2885,21 @@ Verification:
   change: 292 focused tests + 65 subtests, and 2,229 filtered-suite tests
   + 745 subtests, with one google-genai deprecation warning. This run was
   created before the two new strategy regressions were added.
-- CI run 42158469493, which includes the two new strategy regressions, is
-  still in progress at this context update; no pass is claimed for those
-  two new tests until that run completes.
+- CI run 42158469493 completed successfully with both new strategy
+  regressions included: 294 focused tests + 65 subtests, and 2,231 filtered
+  repository tests + 745 subtests, with one google-genai deprecation warning.
+  The workflow also compiled both manual live smoke scripts successfully.
+- The filtered suite excludes 17 stale legacy modules; this is not an
+  unfiltered full-repository test run. No live AliExpress, Gemini or Telegram
+  calls were made by CI.
 - The previous budget-lifecycle change has passed GitHub Actions run
   42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
   tests + 745 subtests. Seventeen stale legacy modules were excluded.
 - These new currency regressions are offline and do not call AliExpress,
   Gemini or Telegram.
 
-Remaining: confirm the currency regression tests and filtered suite in CI,
-then continue checking budget/currency handling in real Telegram flows.
-Do not request live testing until this offline run is complete. PR #7
-remains draft/open/unmerged; main is untouched.
+Remaining: audit the remaining dialogue and retrieval lifecycle, then request
+a bounded live Telegram run covering currency-aware budgets and the existing
+multi-category search scenarios. Live testing is still not requested in this
+pass because the latest verified code has not yet been pulled into the user's
+local bot. PR #7 remains draft/open/unmerged; main is untouched.
