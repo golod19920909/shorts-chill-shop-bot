@@ -4044,3 +4044,23 @@ Next:
 - Then update the local working copy and conduct controlled live Telegram
   checks. Do not claim overall consultant readiness from the focused CI pass.
 
+
+
+## 2026-11-06 — Latest branch CI audit after conversational reliability work
+
+PR #7 head was checked directly: `2cfffff06c1b29d96f27005d58f5c1661606fed3`.
+GitHub Actions run `42196374083` completed with a mixed result:
+
+- Manual smoke-script compilation: PASS.
+- Focused offline conversational regression step: PASS.
+- Repository suite step: FAIL — 551 failed, 1,749 passed, 1 deselected, 591 subtests passed.
+- The failures are concentrated in 42 older test modules that still call removed legacy methods such as `AIService._fallback_parse` and `AIService._with_result_limit`. The active focused acceptance step passed. Do not restore removed legacy methods merely to make those tests pass; first decide whether the obsolete tests should be migrated to the active Option C interfaces or explicitly retired with evidence.
+- This is not a green repository-wide run. The filtered suite configuration currently still includes several stale modules, so its label must not be interpreted as proof that all included tests are current.
+- Source audit confirms the shared `conversation_turn` structured schema is configured inside the common Gemini request path, and both primary/fallback attempts receive the same schema. Engine-level and state-ledger continuity guards are present. Budget filtering can inherit the active request currency when the user omits a currency, while remaining fail-closed for unknown product price/currency.
+
+Live Telegram, Gemini and AliExpress behavior after the latest branch changes remains unverified. No live API calls were made during this audit. PR #7 remains draft/open/unmerged; `main` is untouched.
+
+Next actions:
+- Keep the main consultant TЗ as the acceptance target; do not spend effort restoring removed legacy parser APIs.
+- Review whether the remaining active dialogue/search lifecycle has uncovered functional defects, and add narrowly scoped regressions for any confirmed defect.
+- Once the branch is stable enough, pull it locally and repeat controlled Telegram tests for: a new search, budget recommendation follow-up, feature refinement, explicit product switch, comparison of actually delivered cards, and model fallback.
