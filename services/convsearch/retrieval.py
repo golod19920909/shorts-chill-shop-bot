@@ -577,12 +577,24 @@ def build_retrieval_strategy(
     if not phrase:
         return None
 
+    # An explicitly stated budget currency must also become the
+    # marketplace request currency. Otherwise a user asking «до 50 USD»
+    # while the bot's display default is UAH would retrieve UAH prices and
+    # then correctly reject every row as a currency mismatch.
+    request_currency = currency
+    if budget is not None:
+        budget_parts = str(budget.value or "").split(maxsplit=1)
+        if len(budget_parts) > 1:
+            explicit_budget_currency = budget_parts[1].strip().upper()
+            if explicit_budget_currency in {"UAH", "USD", "EUR", "RUB"}:
+                request_currency = explicit_budget_currency
+
     request = SearchRequest(
         original_query=text or phrase,
         normalized_query=phrase,
         mode=SearchMode.SEARCH,
         result_limit=result_limit,
-        currency=currency,
+        currency=request_currency,
         required_features=[*list(state.active_values("feature")), *list(state.active_values("compatibility")), *constraint_words],
         excluded_features=list(exclusions),
     )
