@@ -110,17 +110,25 @@ def test_openai_responses_text_extractor_collects_output_text_blocks():
     assert _extract_openai_text(payload) == "{\"action\":\"respond\"}"
 
 
-def test_benchmark_requires_two_distinct_providers_not_two_google_models():
+def test_benchmark_allows_two_models_from_one_provider():
     google_models = [
         Provider("gemini", "google", "gemini-3.8-flash", "test-key"),
         Provider("gemini_lite", "google", "gemini-3.1-flash-lite", "test-key"),
     ]
+    validate_provider_roster(google_models)
+
+
+def test_benchmark_rejects_duplicate_provider_model_pair():
+    duplicate = [
+        Provider("first", "google", "gemini-3.8-flash", "test-key"),
+        Provider("second", "google", "gemini-3.8-flash", "test-key"),
+    ]
     try:
-        validate_provider_roster(google_models)
+        validate_provider_roster(duplicate)
     except SystemExit as exc:
-        assert "two distinct providers" in str(exc)
+        assert "provider/model combinations" in str(exc)
     else:
-        raise AssertionError("Google-only model comparison must not count as cross-provider")
+        raise AssertionError("Duplicate provider/model pair must be rejected")
 
 
 def test_cost_formula_prices_cache_writes_as_a_separate_input_class():
