@@ -3771,3 +3771,10 @@ Verified highlights:
 Ukraine access checked against official provider lists: Gemini, OpenAI and Anthropic document Ukraine support (OpenAI with certain exceptions; Anthropic excludes Crimea, Donetsk and Luhansk). DeepSeek's checked API documentation does not publish an equivalent supported-country list. Alibaba documents EU Frankfurt and Global Qwen deployment scopes, but the user's actual workspace/account access still needs verification.
 
 These are published tariffs, not measured cost comparisons. Tokenization, reasoning, cache-hit rates, region, context tier and request timing differ. No alternative model has been called through a live API and no production route has changed.
+### Gateway comparison update (2026-11-06)
+
+Created `tests/eval_gateway_comparison_2026-11-06.md` with current official terms for LiteLLM, OpenRouter and Vercel AI Gateway. Preliminary decision: do not add a gateway during the current benchmark. Direct provider adapters remain the simplest/lowest-dependency approach for the present shortlist. LiteLLM is the strongest later self-hosted candidate if centralized multi-provider budgets and fallback justify operating another service; OpenRouter is mainly useful for model discovery but has credit/BYOK fees; Vercel AI Gateway has no inference markup but adds Vercel credit/account dependency. No universal latency overhead is assumed; it must be measured from the bot host.
+
+Files: `tests/eval_gateway_comparison_2026-11-06.md`, `tests/eval_model_routing_hypotheses.md`.
+
+Gateway research is advisory only; no gateway was installed, no API keys were added, and no production request was routed through a gateway.
