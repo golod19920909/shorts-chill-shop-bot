@@ -3542,3 +3542,36 @@ Direct API documentation checked for the initial candidate roster:
 Fairness note: the APIs expose different levels of structured-output guarantees. Record each mode explicitly. OpenAI and Anthropic can use JSON Schema; DeepSeek's documented JSON Output guarantees valid JSON only; Qwen's documented structured-output support must be verified against the exact regional endpoint and request mode. The same application validator remains mandatory for every provider.
 
 No model request was made and no provider credentials were added. The protocol is design documentation, not a completed benchmark. The next implementation item is a provider-neutral, no-retry replay runner that reuses the real interpreter prompt and validation path while capturing each provider's native usage metadata. Authentic selector snapshots remain a separate prerequisite.
+
+
+### Stage VIII — provider-neutral blind interpreter runner implemented (2026-11-06)
+
+Added `tests/eval_consultant_benchmark_runner.py`, an opt-in direct-provider replay tool. It is separate from production runtime routing and never runs automatically against paid APIs in CI.
+
+Verified design/implementation:
+- Reuses the actual `AIService.decide_conversation_turn` prompt builder and application validation path. Only the transport call is replaced in-memory for each isolated request.
+- Uses the same corpus message/context for every model; request order is shuffled with a recorded seed.
+- Randomizes blind aliases A/B/C... per run. Model/provider mapping and resolved model versions are written to a separate map file; the result file contains aliases only.
+- Captures raw model text, accepted validated decision, exact gold decision, per-dimension scores, finish reason, provider/wall latency and usage metadata.
+- Captures p50/p95 and acceptance/exact-decision/action accuracy by model alias, scenario and language.
+- No retry or fallback is made in the first capability pass. The run manifest explicitly records zero retries/fallbacks and the primary attempt timeout.
+- API keys are read only from process environment variables. The runner does not load `.env`, does not use Telegram/AliExpress/database connections, and never writes credentials to outputs/logs.
+- Requires at least two distinct provider APIs; two Google models under one API key alone do not count as a cross-provider comparison.
+- Optional dated rate JSON enables per-request cost estimates. If token usage or the relevant cached/cache-write tariff is unknown, cost stays unknown rather than being reported as zero.
+- Gemini output-token accounting includes both candidate and thought tokens exactly once. Anthropic input usage is normalized across uncached, cache-read and cache-write token categories. Cached input is priced separately; cache-write pricing must be supplied where applicable.
+
+Initial adapter roster and modes:
+- Google Gemini 3.8 Flash and Gemini 3.1 Flash-Lite: REST generateContent, JSON MIME mode, provider-default thinking (model defaults differ).
+- OpenAI GPT-6 Luna: Responses API, strict JSON Schema, reasoning effort medium.
+- Anthropic Claude Haiku 5.5: Messages API, JSON Schema output, effort medium.
+- DeepSeek Flash: Chat Completions, JSON Object mode, provider-default thinking.
+- Alibaba Qwen 3.5 Flash: workspace-specific OpenAI-compatible endpoint from `QWEN_BASE_URL`, strict JSON Schema with thinking disabled. Official Qwen docs state Qwen3.5 Flash supports schema output in non-thinking mode; the adapter deliberately disables thinking and omits max_tokens in this mode. This setting difference is recorded in the blind map and must be considered in scoring. Source: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
+
+Offline tests added for schema contract, decision scoring, Qwen endpoint normalization, cached-input/cached-write billing, OpenAI response extraction and distinct-provider roster validation. The tests are included in the focused CI workflow.
+
+CI evidence:
+- The latest completed focused run before the final follow-up commits reported **304 passed, 2 failed, 65 subtests passed**. The seven new benchmark-runner unit tests and five corpus tests were included in the passing count.
+- The same two pre-existing failures remain: old selector-prompt wording assertion («после запятой») and missing `AIService._with_result_limit` in the legacy text-search path. They were present before the evaluation work began. The repository-wide filtered suite remains skipped because the focused step fails first.
+- Subsequent changes added cache-write billing coverage, exact model-version capture, UTC run timestamp, per-scenario/per-language summaries, Qwen strict schema mode, and normalized effort settings. Their latest CI run is pending/needs verification; do not claim those newest changes passed until a completed run confirms them.
+
+No provider API calls have been made; no model benchmark results exist yet. No production code, prompts, search/retrieval/ranking behavior, provider routing or credentials were changed. Selector benchmarking remains blocked until authentic, permitted AliExpress candidate-pool snapshots are captured.
