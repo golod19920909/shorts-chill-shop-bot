@@ -3249,3 +3249,32 @@ Therefore a single photo upload can make **two sequential vision requests when t
 - Not a confirmed optimisation: the separate short-message clarification call. It is conditional and may add conversational value; benchmark it rather than deleting it.
 - Not active core consultant calls unless further caller tracing proves otherwise: legacy `parse_query` / `find_products_from_text` and discovery `rank_candidates`.
 - No source code, model routing, prompts, search retrieval, ranking, product validation, or provider configuration was changed. No tests were run for this documentation-only audit update. No live bot, Telegram, Gemini or AliExpress calls were made.
+
+
+### Stage I — final clarification of feed-selection reachability and ProductAssistant cost (2026-11-06)
+
+A deeper trace of `SearchService.find_products` corrected and expanded the earlier ProductAssistant call estimate:
+
+- `ProductAssistant.candidate_products()` calls `search_intent()`; when AI is available this can call `plan_product_search`.
+- It then calls `SearchService.find_products(request)` with the default `broaden=True` and `feed_selection=True`.
+- The normal non-raw `find_products` path can call `SearchService.apply_feed_selection` → `AIService.select_feed_candidates` once after building its broad candidate pool.
+- After that result returns, `ProductAssistant._select()` applies goal-specific deterministic filtering and can call `AIService.select_candidates` once more.
+- Therefore a ProductAssistant «похожий / дешевле / лучше» action can issue **up to three Gemini requests** (search-plan wording + generic feed selection + goal-specific selection), with the latter two both selecting from real candidates. The exact count is lower when a stage is skipped due to no candidates, no AI service, or failure.
+- The two selectors have different contracts: generic feed selection applies shared broad quality rules; the later ProductAssistant selector applies the user's goal. This is not yet proven redundant, but the generic selector may pre-trim the candidate set before the goal-specific comparison and may spend a request that could be unnecessary. Candidate optimization for later evaluation: test calling `find_products(..., feed_selection=False)` from ProductAssistant while retaining the same retrieval depth and deterministic safety/goal filters, then compare candidate recall, selected quality and latency. Do not implement before a controlled evaluation; inspect `pool_target` and candidate limits to ensure disabling selection does not silently narrow retrieval.
+- The previous source-derived estimate of two calls for this action is superseded by this verified upper bound of three.
+
+Additional reachability clarifications:
+- Category browsing (`handlers.discovery.category_callback`) calls `SearchService.find_by_category`, which delegates to `find_products` with its default `feed_selection=True`; category browsing can therefore make one `select_feed_candidates` call after retrieval.
+- The ordinary «✨ Находки» feed is different: `show_feed` calls `find_feed_page` and intentionally makes no Gemini selection request.
+- The active photo handler uses `find_products(..., broaden=False)` for its individual image hypotheses and then applies the feed selector once to the merged photo pool. The per-hypothesis searches do not each invoke the generic selector because the `broaden=False` path bypasses inline feed selection.
+- The separate `SearchService.find_discovery` / `rank_candidates` method remains without a confirmed caller in the inspected Telegram handlers; keep it classified as unverified/legacy rather than active consultant traffic.
+
+### Runtime configuration facts confirmed in source
+
+- Default AIService request timeout is 20 seconds. The active conversation-turn wrapper uses an 8.5-second outer deadline and a 4-second per-model attempt; candidate selection uses a 15-second outer deadline and a 6.5-second per-model attempt. The no-results composer has a 3-second outer bound. Product-question helpers use the separate `PRODUCT_QUESTION_TIMEOUT_SECONDS` bound.
+- Primary model defaults for fast, smart and vision roles are all `gemini-3.8-flash`; fallback defaults to `gemini-3.1-flash-lite`. Environment overrides exist as `GEMINI_FAST_MODEL`, `GEMINI_SMART_MODEL` (plus legacy `GEMINI_MODEL`), `GEMINI_VISION_MODEL` and `GEMINI_FALLBACK_MODEL`.
+- The settings comments describe role intent, but no separate per-operation model routing table exists: callers pass a model tuple to `_generate`; fallback is appended centrally. Any future router should map operations explicitly rather than merely mapping the three role names.
+- The default search service uses a deep pool when its feed selector is available. For non-raw requests it may perform one AI selection; the raw conversational adapter returns before that feed-selection step and leaves semantic selection to `ConversationSearchEngine`. This avoids double selection on the core text-search route.
+- Category and ProductAssistant searches use the non-raw path and therefore have a different cost profile from the main conversational text-search route.
+
+No implementation or runtime settings were changed. No tests or live API calls were made. This is source-level call-graph evidence only; observed call frequency and actual costs still require telemetry or controlled replay.
