@@ -597,7 +597,6 @@ async def run_benchmark(
         rows = [row for row in results if row["alias"] == alias]
         accepted = [row for row in rows if row["status"] == "accepted"]
         durations = [float(row["provider_duration_ms"]) for row in rows if row.get("provider_duration_ms") is not None]
-        known_costs = [float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None]
         summary_by_alias[alias] = {
             "requests": len(rows),
             "accepted_by_application_validator": len(accepted),
