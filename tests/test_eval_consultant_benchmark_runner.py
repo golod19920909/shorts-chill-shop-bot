@@ -213,6 +213,11 @@ def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch
         row["operation"] == "no_results_reply" and row["score"]["accepted"]
         for row in results["results"]
     )
+    assert set(results["summary_by_alias_operation"]) == {
+        "A:conversation_turn", "A:chat_action", "A:no_results_reply",
+        "B:conversation_turn", "B:chat_action", "B:no_results_reply",
+    }
+    assert "chat_action_exact_rate" in results["summary_by_alias"]["A"]
     for row in results["results"]:
         assert "provider" not in row
         assert "model" not in row
