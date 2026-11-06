@@ -4009,3 +4009,38 @@ Remaining:
   product switch and comparison of shown cards.
 - Do not merge PR #7 or change main without explicit instruction.
 
+## 2026-11-06 — CI result for recommendation continuity work
+
+The focused CI gate on code commit 417e55f1295d4c218fa39507d6bab0ecae11ef89
+completed successfully, including the new recommendation-follow-up continuity
+regression, Gemini conversation schema tests, and primary/fallback schema
+equality test. The smoke scripts also compiled successfully.
+
+The wider repository suite then completed with:
+- 1,749 passed
+- 551 failed
+- 1 deselected
+- 591 subtests passed
+
+The failures are concentrated in stale legacy test modules that still invoke
+removed AIService._fallback_parse and AIService._with_result_limit methods.
+This is the known legacy-suite incompatibility documented earlier, not a green
+repository-wide run. Do not restore those removed helpers as a workaround:
+the active Option C architecture uses the conversational engine and
+deterministic retrieval path. The focused acceptance gate for this change is
+green, while the full legacy suite remains non-green.
+
+Current code change status:
+- Focused offline gate: PASS on 417e55f.
+- Smoke-script compilation: PASS on 417e55f.
+- Wider legacy suite: FAIL, 551 legacy failures / 1,749 passes as above.
+- Live Telegram after these changes: NOT YET TESTED.
+- Latest branch tip includes documentation commit
+  e97c5669f293b61de5b298cba3b4099788a69dcd.
+- PR #7 remains draft/open/unmerged; main is untouched.
+
+Next:
+- Verify PR checks on the latest documentation tip.
+- Then update the local working copy and conduct controlled live Telegram
+  checks. Do not claim overall consultant readiness from the focused CI pass.
+
