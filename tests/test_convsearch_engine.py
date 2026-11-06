@@ -1578,6 +1578,42 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             ["uah-wrong-currency"],
         )
 
+    def test_explicit_budget_currency_controls_marketplace_request_currency(self) -> None:
+        from services.convsearch.retrieval import build_retrieval_strategy
+
+        state = ConversationEngineState(user_key="budget-request-currency")
+        state.record_product_type("power bank")
+        state.slots.append(Slot(
+            kind="budget", value="50.0 USD", source_turn=1,
+            raw_text="до 50 долларов",
+        ))
+
+        strategy = build_retrieval_strategy(
+            state, "до 50 долларов", currency="UAH",
+        )
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.request.currency, "USD")
+        self.assertEqual(strategy.request.max_price, 50.0)
+
+    def test_budget_without_currency_keeps_active_search_currency(self) -> None:
+        from services.convsearch.retrieval import build_retrieval_strategy
+
+        state = ConversationEngineState(user_key="budget-default-request-currency")
+        state.record_product_type("power bank")
+        state.slots.append(Slot(
+            kind="budget", value="2000.0", source_turn=1,
+            raw_text="до 2000",
+        ))
+
+        strategy = build_retrieval_strategy(
+            state, "до 2000", currency="UAH",
+        )
+
+        self.assertIsNotNone(strategy)
+        self.assertEqual(strategy.request.currency, "UAH")
+        self.assertEqual(strategy.request.max_price, 2000.0)
+
     def test_budget_without_currency_fails_closed_without_search_currency(self) -> None:
         from services.convsearch.retrieval import filter_by_budget
 
