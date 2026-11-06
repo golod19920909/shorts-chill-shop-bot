@@ -36,6 +36,11 @@ import httpx
 
 from services.ai_service import AIService, CONVERSATION_TURN_PROMPT
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
+from tests.eval_consultant_auxiliary_dataset import (
+    CHAT_ACTION_CASES,
+    NO_RESULTS_CASES,
+    DATASET_VERSION as AUXILIARY_DATASET_VERSION,
+)
 
 
 TURN_SCHEMA: dict[str, Any] = {
@@ -506,13 +511,23 @@ async def run_benchmark(
             "provider": p.provider,
             "requested_model": p.model,
             "provider_key": p.key,
-            "output_mode": {
-                "google": "prompt_json_only_production",
-                "openai": "strict_json_schema",
-                "anthropic": "json_schema",
-                "deepseek": "json_object",
-                "qwen": "strict_json_schema_non_thinking",
-            }[p.provider],
+            "output_modes": {
+                "conversation_turn": {
+                    "google": "prompt_json_only_production",
+                    "openai": "strict_json_schema",
+                    "anthropic": "json_schema",
+                    "deepseek": "json_object",
+                    "qwen": "strict_json_schema_non_thinking",
+                }[p.provider],
+                "chat_action": {
+                    "google": "prompt_json_only",
+                    "openai": "strict_json_schema",
+                    "anthropic": "json_schema",
+                    "deepseek": "json_object",
+                    "qwen": "strict_json_schema_non_thinking",
+                }[p.provider],
+                "no_results_reply": "plain_text",
+            },
             "reasoning_mode": {
                 "google": "provider_default",
                 "openai": "medium",
@@ -538,12 +553,23 @@ async def run_benchmark(
         for case in DIALOGUE_CASES:
             for turn_index, turn in enumerate(case["turns"], start=1):
                 for repetition in range(1, repeat + 1):
-                    tasks.append((provider, case, turn_index, turn, repetition))
+                    tasks.append((provider, "conversation_turn", case, turn_index, turn, repetition))
+        for case in CHAT_ACTION_CASES:
+            for repetition in range(1, repeat + 1):
+                tasks.append((provider, "chat_action", case, 1, case, repetition))
+        for case in NO_RESULTS_CASES:
+            for repetition in range(1, repeat + 1):
+                tasks.append((provider, "no_results_reply", case, 1, case, repetition))
     rng.shuffle(tasks)
 
     results: list[dict[str, Any]] = []
     private_performance_rows: list[dict[str, Any]] = []
-    for provider, case, turn_index, turn, repetition in tasks:
+    for provider, operation, case, turn_index, turn, repetition in tasks:
+        operation_timeout = (
+            timeout_seconds if operation == "conversation_turn"
+            else 20.0 if operation == "chat_action"
+            else 3.0
+        )
         # Do not initialize any provider SDK client or use a dummy API key.
         # The production validator only checks whether _client is present;
         # the transport is replaced below with this one-provider adapter.
@@ -552,14 +578,19 @@ async def run_benchmark(
             model=provider.model,
             fast_model=provider.model,
             fallback_model=provider.model,
-            timeout_seconds=8.5,
+            timeout_seconds=(
+                8.5 if operation == "conversation_turn"
+                else operation_timeout
+            ),
         )
         ai._client = object()
         call_record: dict[str, Any] = {}
 
         async def injected_generate(contents, *, models=None, operation="generate"):
             try:
-                response = await call_provider(provider, str(contents), timeout_seconds)
+                response = await call_provider(
+                    provider, str(contents), operation_timeout, operation=operation
+                )
             except Exception as exc:
                 call_record["duration_ms"] = getattr(exc, "duration_ms", None)
                 call_record["http_status"] = getattr(exc, "status", None)
