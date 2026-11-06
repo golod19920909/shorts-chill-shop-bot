@@ -118,6 +118,8 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         "посоветовала", "посоветуешь", "посоветую", "рекомендовал",
         "рекомендовала", "рекомендую", "рекомендуешь", "рекомендуете",
         "выбрать", "выбрал", "выбрала", "выберешь", "взять", "взял", "взяла",
+        "помоги", "помогите", "подскажи", "подскажите", "можешь", "можете",
+        "сможешь", "сможете", "стоит", "можно", "пожалуйста", "я", "мы",
         "бы", "ты", "вы", "мне",
         "еще", "ещё", "вариант", "варианта", "вариантов", "варианты",
         "штук", "штуки", "товар", "товара", "товары", "please", "show",
@@ -149,7 +151,8 @@ _REQUEST_FILLER: frozenset[str] = frozenset(
         # Generic English recommendation/question scaffolding.
         "one", "would", "you", "recommend", "recommendation", "choose",
         "pick", "suggest", "suggested", "suggestion", "under", "below",
-        "within", "budget", "price",
+        "within", "budget", "price", "can", "could", "should", "help", "me",
+        "my", "please", "which", "what", "do", "think",
         "первый", "третий",
         # Pronouns referring to the current product/result set are not item names.
         "его", "нее", "неё", "него", "них", "ней", "ним", "ими",
