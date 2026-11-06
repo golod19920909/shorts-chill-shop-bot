@@ -29,6 +29,7 @@ Do not silently substitute a model alias if a pinned ID is unavailable. Record e
 - Reuse the exact production `CONVERSATION_TURN_PROMPT` and exact corpus context; do not rewrite or translate prompts for individual vendors.
 - Use the same user message, context, output contract, temperature policy (where supported), timeout, and maximum output budget.
 - Provider-native JSON/JSON-Schema output may be enabled only when documented for that exact model/API. Record the mode per provider. Do not count a plain JSON-object guarantee as strict JSON-Schema compliance.
+- The current runner's output modes are deliberately recorded in the separate blind map: Gemini JSON MIME mode; OpenAI strict JSON Schema; Anthropic JSON Schema; DeepSeek JSON Object; Qwen 3.5 Flash strict JSON Schema with thinking disabled (the documented requirement for that model family). OpenAI and Anthropic effort are set to medium; Gemini and DeepSeek use provider defaults. This is not a claim that the reasoning configurations are identical; the exact settings are part of the run manifest/map and must be considered when interpreting results.
 - Preserve the current application validator as the common final gate. A valid JSON response that fails the bot's semantic/grounding validation is a rejected decision.
 - Do not include product URLs, credentials, user identifiers, or unneeded PII in benchmark payloads.
 
@@ -109,4 +110,5 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 - DeepSeek model/pricing and OpenAI-compatible endpoint: https://api-docs.deepseek.com/quick_start/pricing/ and https://api-docs.deepseek.com/api/create-chat-completion/
 - DeepSeek JSON mode: https://api-docs.deepseek.com/guides/json_mode/
 - Alibaba Qwen 3.5 Flash model/regions/structured output: https://help.aliyun.com/zh/model-studio/qwen3-5-flash
+- Alibaba structured output modes and Qwen3.5 non-thinking restriction: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
 - Alibaba OpenAI-compatible API: https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-responses
