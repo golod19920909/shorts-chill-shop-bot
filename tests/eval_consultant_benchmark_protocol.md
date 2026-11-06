@@ -156,3 +156,12 @@ The Gemini interpreter baseline now sends the exact production request body: pro
 The current Gemini production interpreter has no explicit output-token cap or thinking-level setting; the baseline runner preserves that behavior. OpenAI and DeepSeek are also left without an explicit output cap. Anthropic's Messages API requires `max_tokens`, so the runner uses 2048 there; Qwen's strict structured-output mode omits `max_tokens` as required by its documented request contract. The exact limit is recorded per blind alias.
 
 Reasoning settings are likewise recorded rather than falsely treated as equivalent: Gemini and DeepSeek use provider defaults, OpenAI and Anthropic use medium effort, and Qwen structured-schema mode disables thinking. This means the first run is a practical provider-capability comparison under valid native API modes, not a mathematically identical inference configuration. If one model is a finalist, run a second effort/latency sweep for that model before selecting its production settings.
+
+
+### Strict separation of blind review from performance data
+
+The runner writes two artifacts:
+- blind results: alias, scenario/language, raw output, application-validated decision, gold label and quality score only;
+- private map/performance artifact: alias-to-provider/model mapping, resolved model versions, seed, tariff table, per-request token/latency/error/cost records and per-alias summaries.
+
+Do not give the private artifact to reviewers until all quality scores and disagreements are locked. Token counts, latency, cost and HTTP/provider errors are intentionally excluded from the blind quality artifact so they cannot reveal a likely provider or bias human scoring.
