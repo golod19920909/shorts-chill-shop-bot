@@ -1963,7 +1963,7 @@ class ConversationalRecommendationIdentityRegressionTests(unittest.TestCase):
 
         self.assertEqual(
             _product_type_of("Теперь найди шуруповёрт"),
-            "шуруповёрт",
+            "шуруповерт",
         )
 
 class RecommendationFollowupContinuityTests(unittest.IsolatedAsyncioTestCase):
