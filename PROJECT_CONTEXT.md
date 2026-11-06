@@ -4064,3 +4064,29 @@ Next actions:
 - Keep the main consultant TЗ as the acceptance target; do not spend effort restoring removed legacy parser APIs.
 - Review whether the remaining active dialogue/search lifecycle has uncovered functional defects, and add narrowly scoped regressions for any confirmed defect.
 - Once the branch is stable enough, pull it locally and repeat controlled Telegram tests for: a new search, budget recommendation follow-up, feature refinement, explicit product switch, comparison of actually delivered cards, and model fallback.
+
+
+## 2026-11-06 — Structured output extended to candidate selection
+
+The main TЗ requires one consistent model contract across primary and fallback Gemini models. A source audit found that `conversation_turn` already used a shared structured schema, but the second AI stage — `conversation_selection` — only requested `application/json` without a response schema. That left the product-selection output less constrained than the dialogue-decision output.
+
+Change:
+- `services/ai_service.py`: `select_conversation_candidates` now builds a per-turn response schema from the exact active mandatory feature/compatibility requirements. Each required evidence key is explicitly declared and required. The schema is passed into the shared `_generate` method, whose primary/fallback model loop applies the same schema to every attempt.
+- `tests/test_ai_service.py`: added a regression asserting the generated schema includes every active mandatory evidence field; the test also verifies a candidate missing one required quote is rejected by the existing semantic validator.
+
+Commits:
+- `08c5628b14b8f0f5eb0740aee2265e7062aad8bd` — shared structured schema for candidate selection.
+- `3d08c0f8001a816215a8bcc79263b110da67aa5f` — regression test for requirement-specific evidence schema.
+
+Verification status:
+- Source edits committed to `work/consultant-reliability`.
+- Automated tests have NOT yet run for these two commits.
+- Live Gemini/Telegram behavior has NOT yet been tested.
+- The previous focused CI pass applies to earlier code, not these new commits.
+- The full repository suite remains non-green due to the previously documented legacy test failures; do not claim otherwise.
+
+Remaining TЗ work:
+- Obtain CI results for the new commits and correct any failures.
+- Continue validating context continuity, comparison of shown cards, feature/compatibility enforcement, multi-page retrieval, and the 20-AI-selection / 30-card presentation contract.
+- Run controlled live Telegram scenarios only after the latest branch passes the focused gate.
+- PR #7 remains draft/open/unmerged; `main` is untouched.
