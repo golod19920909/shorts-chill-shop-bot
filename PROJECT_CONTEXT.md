@@ -3381,3 +3381,26 @@ Further inspection of the exact prompt builders identified several measurable op
 5. Evaluate reusable static prompt-prefix/context caching only after checking cache minimums, cache creation/storage charges, cache-hit telemetry and latency. No explicit cache resource is configured today.
 
 No code, prompt, model, or search behavior was changed. No tests or live calls were run for this documentation-only audit.
+
+
+### Correction — Gemini implicit context caching (2026-11-06)
+
+The earlier statement that no cache configuration was found is accurate only for **explicit** cache objects. It must not be read as “Gemini caching is disabled.”
+
+Google's current Gemini API documentation states:
+- Implicit caching is enabled by default for Gemini 2.5 and newer models, including the project's gemini-3.8-flash and gemini-3.1-flash-lite.
+- The documented minimum input size for implicit caching on Gemini 3.8 Flash is 4,096 tokens.
+- To improve hit probability, large common content should be placed at the beginning of the prompt and repeated requests should have similar prefixes.
+- The response usage metadata exposes cached-token counts; the current telemetry extractor already attempts to read cached_content_token_count.
+- Explicit caching is a separate, manually managed mechanism with cache storage charges and TTL; it is not currently configured in this project.
+
+Official source: https://ai.google.dev/gemini-api/docs/caching
+
+Current code implications:
+- Conversation-turn prompts start with a large static instruction, but the supplied live turn usage was below the 4,096-token minimum overall (1,891 and 2,369 input tokens), so those examples could not have met the documented minimum for an implicit cache hit.
+- Conversation-selection prompts exceed 4,096 tokens, but dynamic query/identity/seller fields occur before the large candidate payload and much of the dynamic content changes between searches. A large total prompt alone does not guarantee a reusable common prefix.
+- No cached-token hit was visible in the supplied live log sample. This is absence of evidence in that sample, not proof that implicit caching never hits in production.
+- The telemetry must report cached tokens distinctly and cost calculations must price those tokens at the applicable cached-input rate rather than regular input. Do not subtract cached tokens twice.
+- A prompt-order/cache experiment is a later optimization candidate. First measure real cached-token hit rates from repeated production-like calls; do not add explicit cache objects until the stable prefix size, hit rate, storage TTL and savings justify their complexity.
+
+This corrects and supersedes any interpretation of the earlier cache note that implied Gemini had no caching enabled by default.
