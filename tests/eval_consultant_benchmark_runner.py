@@ -442,6 +442,7 @@ async def run_benchmark(
 ) -> None:
     validate_provider_roster(providers)
 
+    run_started_at_utc = datetime.now(timezone.utc).isoformat()
     rng = random.Random(seed)
     shuffled = providers[:]
     rng.shuffle(shuffled)
@@ -533,6 +534,8 @@ async def run_benchmark(
             error = _safe_error(exc)
 
         usage = call_record.get("usage", {})
+        resolved_model = call_record.get("resolved_model")
+        billing_model_id = resolved_model or provider.model
         results.append({
             "alias": aliases[provider.key],
             "case_id": case["id"],
@@ -544,7 +547,8 @@ async def run_benchmark(
             "wall_duration_ms": round(wall_ms, 2),
             "provider_duration_ms": round(call_record.get("duration_ms", wall_ms), 2),
             "usage": usage,
-            "estimated_cost_usd": _cost_usd(usage, rates.get(provider.model)),
+            "billing_model_id": billing_model_id,
+            "estimated_cost_usd": _cost_usd(usage, rates.get(billing_model_id)),
             "http_status": call_record.get("http_status"),
             "resolved_model": call_record.get("resolved_model"),
             "finish_reason": call_record.get("finish_reason"),
@@ -609,7 +613,7 @@ async def run_benchmark(
         return summaries
 
     manifest = {
-        "started_at_utc": datetime.now(timezone.utc).isoformat(),
+        "started_at_utc": run_started_at_utc,
         "dataset_version": DATASET_VERSION,
         "seed": seed,
         "repeat": repeat,
@@ -618,6 +622,8 @@ async def run_benchmark(
         "fallbacks": 0,
         "prompt_sha256": sha256(CONVERSATION_TURN_PROMPT),
         "dataset_sha256": sha256(json.dumps(DIALOGUE_CASES, ensure_ascii=False, sort_keys=True)),
+        "rates_sha256": sha256(json.dumps(rates, ensure_ascii=False, sort_keys=True)),
+        "rates_by_model": rates,
         "provider_aliases": sorted(set(aliases.values())),
         "note": "Model names are in the separate blind-map file. This is interpreter-only; no selector candidate pools are included.",
     }
