@@ -27,6 +27,7 @@ import random
 import re
 import statistics
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -572,6 +573,7 @@ async def run_benchmark(
         return summaries
 
     manifest = {
+        "started_at_utc": datetime.now(timezone.utc).isoformat(),
         "dataset_version": DATASET_VERSION,
         "seed": seed,
         "repeat": repeat,
