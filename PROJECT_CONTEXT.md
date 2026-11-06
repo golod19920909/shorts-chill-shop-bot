@@ -3815,3 +3815,10 @@ Files/commits:
 - `.github/workflows/conversational-regression.yml` — active product-advice and circuit-breaker tests added to the focused suite (`8a2c7f2baae57ada01676e21e5c2e0564d67b1ac`).
 
 CI on commit `0ead7a7c13e1379ec50e365183ed8af1a56f79f4`: focused offline test step completed successfully. The repository-wide step is still being evaluated; its prior run exposed hundreds of old tests that invoke removed legacy AIService parser helpers. Do not restore `_fallback_parse` or `_with_result_limit` solely to satisfy those legacy tests: active Option C uses `services/query_intent.py`, `services/consultant.py` and deterministic SearchService paths. Keep the legacy-suite status explicit.
+### CI status and branch state — 2026-11-06 07:27 UTC
+
+- The focused offline regression step passed on commit `16fb34beded01387c221926276525a8cb1e48d5b`, including the new product-advice and circuit-breaker tests. The same code was rerun after the latest protocol documentation commit; focused tests again completed successfully.
+- The last completed repository-wide run before the final fake-signature corrections reported 1,742 passed, 553 failed, 1 deselected. The dominant failures were legacy tests invoking removed `AIService._fallback_parse`, `_with_result_limit` and `_merge_is_safe` methods. The old full suite is not green. Operation-keyword test fakes found in the same run have since been updated; a subsequent full-suite run was still in progress when this note was written.
+- Do not restore removed legacy parser helpers merely to satisfy those tests. Keep the current active-architecture focused suite as the acceptance gate for these changes, and continue documenting the legacy full-suite gap until its test fixtures are migrated separately.
+- Existing PR #7 remains open against `main`, head `b0d892f3bfda316424d3f913a1cf91282c501728`. No changes were made to `main`, and no merge was performed.
+- No live provider API calls were made. No `.env` was read or modified; no credentials were copied into logs or files.
