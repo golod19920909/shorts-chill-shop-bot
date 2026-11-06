@@ -2827,3 +2827,48 @@ Remaining: review the wider conversation lifecycle and search-quality gaps,
 then prepare a bounded live Telegram check. The live check is not yet
 requested because this pass has only verified offline behavior. PR #7
 remains draft/open/unmerged; main is untouched.
+
+
+### Apply the active search currency to budgets without an explicit currency (2026-11-06)
+
+A retrieval-path audit found a mismatch between budget parsing and budget
+enforcement. When a user wrote «до 2000» without naming a currency, the state
+ledger correctly stored a numeric ceiling but had no currency in that slot.
+The search request already carried the bot's active currency (for example
+UAH), yet the hard budget filter ignored it and rejected every product
+because the budget currency was blank. Explicitly named currencies did work.
+
+Changed:
+- services/convsearch/retrieval.py — filter_by_budget accepts an optional
+  default_currency. It uses that only when the user did not specify a budget
+  currency; an explicit USD/EUR/UAH value takes precedence. Missing product
+  price or product currency still fails closed.
+- services/convsearch/engine.py — the active evaluation path now passes
+  strategy.request.currency to the hard budget filter. The compatibility
+  shape_pool helper remains fail-closed when no search currency is available.
+- tests/test_convsearch_engine.py — added regressions for an unspecified
+  budget using UAH search currency, explicit USD overriding UAH, and
+  unspecified budget with no available default currency.
+- PROJECT_CONTEXT.md — records this retrieval/budget consistency correction.
+
+Commits:
+- Filter fallback currency: 3f7ca22722a008f5d4c2de8044c25230d5d4e076.
+- Engine wiring: 782442a8eb53189aee78263970bc943af78cfad5.
+- Regression tests: 6a0ec089098b4b7952cefc01fb1b2b81c06c153f.
+- PROJECT_CONTEXT update: pending.
+
+Verification:
+- The changed source and test files were fetched back from GitHub and
+  inspected. The engine passes the request's active currency; explicit
+  budget currency remains authoritative.
+- CI for this change is pending; no test pass is claimed yet.
+- The previous budget-lifecycle change has now passed GitHub Actions run
+  42158103054: 289 focused tests + 65 subtests, and 2,226 filtered-suite
+  tests + 745 subtests. Seventeen stale legacy modules were excluded.
+- These new currency regressions are offline and do not call AliExpress,
+  Gemini or Telegram.
+
+Remaining: confirm the new focused regressions and filtered suite in CI,
+then continue checking budget/currency handling in real Telegram flows.
+Do not request live testing until this offline run is complete. PR #7
+remains draft/open/unmerged; main is untouched.
