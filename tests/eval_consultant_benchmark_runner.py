@@ -88,6 +88,7 @@ class ModelResponse:
     duration_ms: float
     http_status: int | None = None
     finish_reason: str | None = None
+    resolved_model: str | None = None
 
 
 def configured_providers() -> list[Provider]:
@@ -298,6 +299,9 @@ async def call_provider(provider: Provider, prompt: str, timeout_seconds: float)
         duration_ms=duration_ms,
         http_status=response.status_code,
         finish_reason=str(finish) if finish is not None else None,
+        resolved_model=str(
+            payload.get("model") or payload.get("modelVersion") or provider.model
+        ),
     )
 
 
@@ -413,7 +417,19 @@ async def run_benchmark(
     rng.shuffle(shuffled)
     aliases = {provider.key: chr(ord("A") + index) for index, provider in enumerate(shuffled)}
     alias_map = {
-        aliases[p.key]: {"provider": p.provider, "model": p.model, "provider_key": p.key}
+        aliases[p.key]: {
+            "provider": p.provider,
+            "requested_model": p.model,
+            "provider_key": p.key,
+            "output_mode": {
+                "google": "json_mime_type",
+                "openai": "strict_json_schema",
+                "anthropic": "json_schema",
+                "deepseek": "json_object",
+                "qwen": "json_object",
+            }[p.provider],
+            "resolved_models": [],
+        }
         for p in providers
     }
 
@@ -451,7 +467,11 @@ async def run_benchmark(
                 "duration_ms": response.duration_ms,
                 "http_status": response.http_status,
                 "finish_reason": response.finish_reason,
+                "resolved_model": response.resolved_model,
             })
+            resolved = response.resolved_model
+            if resolved and resolved not in alias_map[aliases[provider.key]]["resolved_models"]:
+                alias_map[aliases[provider.key]]["resolved_models"].append(resolved)
             return response.text
 
         # Reuse the exact production prompt builder and the exact application
