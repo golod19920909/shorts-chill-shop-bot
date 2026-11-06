@@ -320,6 +320,7 @@ class ConversationEngineState:
         intent_override: str | None = None,
         slot_updates: list[dict] | None = None,
         allow_product_switch: bool = False,
+        preserve_active_product: bool = False,
     ) -> dict:
         """Record one user message and return its classified intent.
 
@@ -574,6 +575,17 @@ class ConversationEngineState:
                 and connector_led_refinement
                 and not allow_product_switch
             )
+            # The conversational engine has already checked whether the
+            # current message contains a grounded, different product identity.
+            # If it explicitly asks to keep the active product, that decision
+            # must outrank this lower-level span heuristic: request wording such
+            # as «какой бы ты посоветовал» is not a product switch.
+            if (
+                preserve_active_product
+                and intent_override is MessageIntent.REFINE
+                and not allow_product_switch
+            ):
+                protected_transition = False
             if not protected_transition:
                 intent = intent_override
 
