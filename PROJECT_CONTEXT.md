@@ -3628,3 +3628,10 @@ Added:
 - `tests/eval_gemini_latency_baseline.md` — the limited live timings from the supplied 6 November session plus source-level per-attempt/outer bounds. It explicitly refuses to infer p50/p95 from a handful of observations or attribute the full 19.9s no-eligible route to Gemini alone.
 
 No model routing, timeout, retry, or production behavior was changed.
+
+
+### Stage II — expanded DAU cost sensitivity scenarios (2026-11-06)
+
+Added `tests/eval_gemini_cost_sensitivity.md` with low/base/high daily activity assumptions and tables for 20/50/100/500 DAU, both current rates and the 2027 Gemini 3.8 price increase. The document clearly defines DAU, shows the formula, and lists excluded operations and unknown timeout charges.
+
+This remains a core-text sensitivity model based on two observed conversation turns and one successful selector fallback. It is not a final production forecast. The full 13-scenario cost model still needs actual per-operation token distributions, activity mix, selector rate, fallback rate and timeout usage.
