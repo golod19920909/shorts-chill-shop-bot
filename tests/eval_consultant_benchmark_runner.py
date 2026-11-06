@@ -498,6 +498,7 @@ async def run_benchmark(
     rng.shuffle(tasks)
 
     results: list[dict[str, Any]] = []
+    private_cost_rows: list[dict[str, Any]] = []
     for provider, case, turn_index, turn, repetition in tasks:
         # Do not initialize any provider SDK client or use a dummy API key.
         # The production validator only checks whether _client is present;
@@ -554,6 +555,13 @@ async def run_benchmark(
         usage = call_record.get("usage", {})
         resolved_model = call_record.get("resolved_model")
         billing_model_id = resolved_model or provider.model
+        estimated_cost = _cost_usd(usage, rates.get(billing_model_id))
+        private_cost_rows.append({
+            "alias": aliases[provider.key],
+            "case_id": case["id"],
+            "scenario": case["scenario"],
+            "estimated_cost_usd": estimated_cost,
+        })
         results.append({
             "alias": aliases[provider.key],
             "case_id": case["id"],
@@ -565,7 +573,6 @@ async def run_benchmark(
             "wall_duration_ms": round(wall_ms, 2),
             "provider_duration_ms": round(call_record.get("duration_ms", wall_ms), 2),
             "usage": usage,
-            "estimated_cost_usd": _cost_usd(usage, rates.get(billing_model_id)),
             "http_status": call_record.get("http_status"),
             "finish_reason": call_record.get("finish_reason"),
             "error": error,
@@ -601,8 +608,6 @@ async def run_benchmark(
             "latency_p95_ms": percentile(durations, 0.95),
             "input_tokens_total_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
             "output_tokens_total_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
-            "cost_usd_total_known": round(sum(known_costs), 8) if known_costs else None,
-            "cost_requests_covered": len(known_costs),
         }
 
     def grouped_summary(group_key: str) -> dict[str, Any]:
@@ -624,9 +629,20 @@ async def run_benchmark(
                 "latency_p95_ms": percentile(durations, 0.95),
                 "input_tokens_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
                 "output_tokens_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
-                "cost_usd_known": round(sum(float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None), 8) if any(row.get("estimated_cost_usd") is not None for row in rows) else None,
             }
         return summaries
+
+    private_cost_summary: dict[str, Any] = {}
+    for alias in sorted(set(aliases.values())):
+        rows = [row for row in private_cost_rows if row["alias"] == alias]
+        known = [float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None]
+        private_cost_summary[alias] = {
+            "requests": len(rows),
+            "cost_requests_covered": len(known),
+            "cost_usd_total_known": round(sum(known), 8) if known else None,
+        }
+    alias_map["cost_summary_by_alias"] = private_cost_summary
+    alias_map["cost_by_request"] = private_cost_rows
 
     manifest = {
         "started_at_utc": run_started_at_utc,
