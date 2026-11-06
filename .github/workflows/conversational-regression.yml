@@ -40,6 +40,8 @@ jobs:
           tests/test_eval_consultant_auxiliary_dataset.py
           tests/test_ai_service.py::OperationAttributionTests
           tests/test_query_intent.py
+          tests/test_ai_operations.py
+          tests/test_intent_circuit_recovery.py
           -k "not test_text_query_is_parsed_and_searched"
       - name: Run repository suite excluding stale legacy modules
         run: >
