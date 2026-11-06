@@ -580,3 +580,36 @@ class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         generate.assert_awaited_once()
+
+class GeminiConversationTurnFallbackSchemaTests(unittest.IsolatedAsyncioTestCase):
+    async def test_primary_and_fallback_receive_the_same_conversation_schema(self):
+        from services.ai_service import CONVERSATION_TURN_SCHEMA
+
+        generate = AsyncMock(side_effect=[
+            TimeoutError("primary timed out"),
+            SimpleNamespace(text='{"action":"refine"}'),
+        ])
+        service = AIService(
+            api_key=None,
+            timeout_seconds=30.0,
+            fast_model="primary-model",
+            fallback_model="fallback-model",
+        )
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "conversation prompt",
+            models=(service.fast_model,),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(result, '{"action":"refine"}')
+        self.assertEqual(generate.await_count, 2)
+        first_config = generate.await_args_list[0].kwargs["config"]
+        fallback_config = generate.await_args_list[1].kwargs["config"]
+        self.assertEqual(first_config, fallback_config)
+        self.assertEqual(first_config["response_mime_type"], "application/json")
+        self.assertIs(first_config["response_schema"], CONVERSATION_TURN_SCHEMA)
+
