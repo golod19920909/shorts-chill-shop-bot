@@ -3757,3 +3757,17 @@ Commits:
 - 0dff561f6f904332cac807d5f751860b367da594 — chat-action telemetry test.
 
 Per-attempt `gemini_attempt op=...` logs can now be grouped by operation. The existing `turn_scope` collector is not yet wired into active Telegram handlers, so request-level aggregate totals and durable per-dialogue cost accounting remain incomplete. This is the next measurement-infrastructure gap; no user IDs or prompts should be added to logs.
+### Provider pricing and Ukraine access matrix (2026-11-06)
+
+Created tests/eval_provider_pricing_2026-11-06.md with current official list prices, cache/peak-hour rules, model-specific Qwen deployment tiers and documented API availability from Ukraine.
+
+Verified highlights:
+- Gemini 3.8 Flash: $0.75/M input and $3.75/M output through 2026-12-31; both double from 2027-01-01. Output pricing includes thinking tokens.
+- OpenAI GPT-6 Luna: standard $0.10/M input and $0.50/M output; cached input $0.01/M.
+- Claude Haiku 5.5: $0.10/M input and $0.50/M output up to 100K prompt tokens; higher rates above 100K. Cache read/write rates are separate.
+- DeepSeek V4.1 Flash: input cache miss $0.15/M off-peak or $0.30/M peak; cache hit $0.003/M or $0.006/M; output $0.60/M or $1.20/M. UTC peak hours make its actual price time-dependent.
+- Qwen pricing is deployment-scope and context-tier dependent. Qwen3.7 Flash Global has a low first-tier rate ($0.028/M input, $0.110/M output up to 32K); Qwen3.5 and Qwen3.8 have different EU/Global rates. The actual workspace base URL/scope must be confirmed before cost calculation.
+
+Ukraine access checked against official provider lists: Gemini, OpenAI and Anthropic document Ukraine support (OpenAI with certain exceptions; Anthropic excludes Crimea, Donetsk and Luhansk). DeepSeek's checked API documentation does not publish an equivalent supported-country list. Alibaba documents EU Frankfurt and Global Qwen deployment scopes, but the user's actual workspace/account access still needs verification.
+
+These are published tariffs, not measured cost comparisons. Tokenization, reasoning, cache-hit rates, region, context tier and request timing differ. No alternative model has been called through a live API and no production route has changed.
