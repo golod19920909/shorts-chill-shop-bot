@@ -201,6 +201,9 @@ def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch
         assert "model" not in row
         assert "resolved_model" not in row
         assert "billing_model_id" not in row
+        assert "estimated_cost_usd" not in row
     assert set(private_map["providers"]) == {"A", "B"}
     assert private_map["rates_by_model"]
+    assert private_map["cost_by_request"]
+    assert private_map["cost_summary_by_alias"]
     assert private_map["seed"] == 123
