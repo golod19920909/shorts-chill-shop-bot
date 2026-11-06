@@ -34,7 +34,7 @@ from typing import Any
 
 import httpx
 
-from services.ai_service import AIService, CONVERSATION_TURN_PROMPT
+from services.ai_service import AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
 from tests.eval_consultant_auxiliary_dataset import (
     CHAT_ACTION_CASES,
@@ -160,6 +160,59 @@ def _qwen_url(base_url: str) -> str:
     return base + "/compatible-mode/v1/chat/completions"
 
 
+def _qwen_supports_json_schema(model: str) -> bool:
+    """Qwen 3.7/3.8 families document JSON Schema output."""
+    return (model or "").strip().lower().startswith(("qwen3.7-", "qwen3.8-"))
+
+
+def _qwen_requires_non_thinking_json_object(model: str) -> bool:
+    """Qwen 3.5/3.6 families require non-thinking mode for structured output."""
+    return (model or "").strip().lower().startswith(("qwen3.5-", "qwen3.6-"))
+
+
+def _qwen_structured_output_config(model: str, operation: str) -> dict[str, Any]:
+    schema = (
+        TURN_SCHEMA if operation == "conversation_turn"
+        else CHAT_ACTION_SCHEMA if operation == "chat_action"
+        else None
+    )
+    if schema is None:
+        return {}
+    if _qwen_supports_json_schema(model):
+        return {
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": operation,
+                    "strict": True,
+                    "schema": schema,
+                },
+            }
+        }
+    config: dict[str, Any] = {"response_format": {"type": "json_object"}}
+    if _qwen_requires_non_thinking_json_object(model):
+        config["enable_thinking"] = False
+    return config
+
+
+def _qwen_output_mode(model: str, operation: str) -> str:
+    if operation == "no_results_reply":
+        return "plain_text"
+    if _qwen_supports_json_schema(model):
+        return "strict_json_schema"
+    if _qwen_requires_non_thinking_json_object(model):
+        return "json_object_non_thinking"
+    return "json_object"
+
+
+def _qwen_reasoning_mode(model: str) -> str:
+    return (
+        "disabled_required_for_json_object"
+        if _qwen_requires_non_thinking_json_object(model)
+        else "provider_default"
+    )
+
+
 async def call_provider(
     provider: Provider,
     prompt: str,
@@ -253,23 +306,8 @@ async def call_provider(
                 "model": provider.model,
                 "messages": [{"role": "user", "content": prompt}],
             }
-            schema = (
-                TURN_SCHEMA if operation == "conversation_turn"
-                else CHAT_ACTION_SCHEMA if operation == "chat_action"
-                else None
-            )
-            if schema is not None:
-                body["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": operation,
-                        "strict": True,
-                        "schema": schema,
-                    },
-                }
-                # Qwen3.5 Flash supports JSON Schema output in non-thinking
-                # mode; its docs warn not to set max_tokens in this mode.
-                body["enable_thinking"] = False
+            body.update(_qwen_structured_output_config(provider.model, operation))
+            # Do not set max_tokens for Qwen structured-output requests.
             response = await client.post(
                 _qwen_url(provider.base_url or ""),
                 headers={"Authorization": f"Bearer {provider.api_key}"},
@@ -483,6 +521,41 @@ def validate_provider_roster(providers: list[Provider]) -> None:
         raise SystemExit("Configure credentials for at least two distinct providers; two Google models alone are not a cross-provider comparison.")
 
 
+def score_chat_action(expected_action: str, actual: Any) -> dict[str, Any]:
+    """Score the narrow chat-action helper using its production return contract."""
+    action = actual.get("action") if isinstance(actual, dict) else None
+    valid = (
+        action == "search"
+        or (
+            action == "clarify"
+            and isinstance(actual.get("question"), str)
+            and bool(actual["question"].strip())
+        )
+    )
+    return {
+        "accepted": valid,
+        "action_exact": valid and action == expected_action,
+        "expected_action": expected_action,
+        "actual_action": action,
+    }
+
+
+def score_no_results_reply(actual: Any) -> dict[str, Any]:
+    """Check the production no-results plain-text contract; wording is human-reviewed."""
+    text = actual if isinstance(actual, str) else ""
+    one_question = text.count("?") == 1
+    length_ok = 0 < len(text) <= 450
+    link_free = not re.search(r"https?://|www\.", text, re.IGNORECASE)
+    markup_free = not re.search(r"<[^>]+>|\{", text)
+    return {
+        "accepted": bool(text) and one_question and length_ok and link_free and markup_free,
+        "one_question": one_question,
+        "length_ok": length_ok,
+        "link_free": link_free,
+        "markup_free": markup_free,
+    }
+
+
 async def run_benchmark(
     providers: list[Provider],
     *,
@@ -517,14 +590,14 @@ async def run_benchmark(
                     "openai": "strict_json_schema",
                     "anthropic": "json_schema",
                     "deepseek": "json_object",
-                    "qwen": "strict_json_schema_non_thinking",
+                    "qwen": _qwen_output_mode(p.model, "conversation_turn"),
                 }[p.provider],
                 "chat_action": {
                     "google": "prompt_json_only",
                     "openai": "strict_json_schema",
                     "anthropic": "json_schema",
                     "deepseek": "json_object",
-                    "qwen": "strict_json_schema_non_thinking",
+                    "qwen": _qwen_output_mode(p.model, "chat_action"),
                 }[p.provider],
                 "no_results_reply": "plain_text",
             },
@@ -533,7 +606,7 @@ async def run_benchmark(
                 "openai": "medium",
                 "anthropic": "medium",
                 "deepseek": "provider_default_thinking",
-                "qwen": "disabled_required_for_schema",
+                "qwen": _qwen_reasoning_mode(p.model),
             }[p.provider],
             "output_token_limit": {
                 "google": None,
@@ -566,10 +639,11 @@ async def run_benchmark(
     private_performance_rows: list[dict[str, Any]] = []
     for provider, operation, case, turn_index, turn, repetition in tasks:
         operation_timeout = (
-            timeout_seconds if operation == "conversation_turn"
+            min(timeout_seconds, 4.0) if operation == "conversation_turn"
             else 20.0 if operation == "chat_action"
             else 3.0
         )
+        benchmark_operation = operation
         # Do not initialize any provider SDK client or use a dummy API key.
         # The production validator only checks whether _client is present;
         # the transport is replaced below with this one-provider adapter.
@@ -587,9 +661,13 @@ async def run_benchmark(
         call_record: dict[str, Any] = {}
 
         async def injected_generate(contents, *, models=None, operation="generate"):
+            effective_operation = (
+                benchmark_operation if operation == "generate" else operation
+            )
             try:
                 response = await call_provider(
-                    provider, str(contents), operation_timeout, operation=operation
+                    provider, str(contents), operation_timeout,
+                    operation=effective_operation,
                 )
             except Exception as exc:
                 call_record["duration_ms"] = getattr(exc, "duration_ms", None)
@@ -613,17 +691,45 @@ async def run_benchmark(
         ai._generate = injected_generate  # type: ignore[method-assign]
         started = time.perf_counter()
         try:
-            decision = await ai.decide_conversation_turn(
-                turn["user_text"], context=turn["context"]
-            )
+            if operation == "conversation_turn":
+                expected = turn["expected"]
+                decision = await ai.decide_conversation_turn(
+                    turn["user_text"], context=turn["context"]
+                )
+                score = score_decision(expected, decision)
+            elif operation == "chat_action":
+                expected = {"action": turn["expected_action"]}
+                decision = await ai.decide_chat_action(turn["text"])
+                score = score_chat_action(turn["expected_action"], decision)
+            else:
+                expected = {
+                    "reason": turn["reason"],
+                    "reply_contract": "one_short_question_without_product_claims",
+                }
+                decision = await ai.compose_no_results_reply(
+                    turn["user_text"],
+                    active_slots=turn["active_slots"],
+                    reason=turn["reason"],
+                )
+                score = score_no_results_reply(decision)
             wall_ms = (time.perf_counter() - started) * 1000
-            score = score_decision(turn["expected"], decision)
-            status = "accepted" if decision is not None else "rejected_by_application_validator"
+            status = "accepted" if score.get("accepted") else "rejected_by_application_validator"
             error = None
         except Exception as exc:  # noqa: BLE001 - one provider failure must not stop the corpus
             wall_ms = (time.perf_counter() - started) * 1000
             decision = None
-            score = score_decision(turn["expected"], None)
+            if operation == "conversation_turn":
+                expected = turn["expected"]
+                score = score_decision(expected, None)
+            elif operation == "chat_action":
+                expected = {"action": turn["expected_action"]}
+                score = score_chat_action(turn["expected_action"], None)
+            else:
+                expected = {
+                    "reason": turn["reason"],
+                    "reply_contract": "one_short_question_without_product_claims",
+                }
+                score = score_no_results_reply(None)
             status = "provider_error"
             error = _safe_error(exc)
 
@@ -633,8 +739,9 @@ async def run_benchmark(
         estimated_cost = _cost_usd(usage, rates.get(billing_model_id))
         private_performance_rows.append({
             "alias": aliases[provider.key],
+            "operation": operation,
             "case_id": case["id"],
-            "scenario": case["scenario"],
+            "scenario": case.get("scenario", operation),
             "language": case["language"],
             "turn": turn_index,
             "repetition": repetition,
@@ -653,15 +760,16 @@ async def run_benchmark(
         })
         results.append({
             "alias": aliases[provider.key],
+            "operation": operation,
             "case_id": case["id"],
-            "scenario": case["scenario"],
+            "scenario": case.get("scenario", operation),
             "language": case["language"],
             "turn": turn_index,
             "repetition": repetition,
             "status": status,
             "raw_output": call_record.get("raw_text"),
             "accepted_decision": decision,
-            "gold": turn["expected"],
+            "gold": expected,
             "score": score,
         })
 
@@ -679,12 +787,20 @@ async def run_benchmark(
     for alias in sorted(set(aliases.values())):
         rows = [row for row in results if row["alias"] == alias]
         accepted = [row for row in rows if row["status"] == "accepted"]
+        turn_rows = [row for row in rows if row["operation"] == "conversation_turn"]
+        action_rows = [row for row in rows if row["operation"] in {"conversation_turn", "chat_action"}]
         summary_by_alias[alias] = {
             "requests": len(rows),
             "accepted_by_application_validator": len(accepted),
             "acceptance_rate": round(len(accepted) / len(rows), 4) if rows else None,
-            "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4) if rows else None,
-            "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4) if rows else None,
+            "conversation_turn_exact_rate": (
+                round(sum(bool(row["score"].get("all_exact")) for row in turn_rows) / len(turn_rows), 4)
+                if turn_rows else None
+            ),
+            "action_exact_rate": (
+                round(sum(bool(row["score"].get("action_exact")) for row in action_rows) / len(action_rows), 4)
+                if action_rows else None
+            ),
         }
 
     def grouped_summary(group_key: str) -> dict[str, Any]:
@@ -695,12 +811,20 @@ async def run_benchmark(
         summaries: dict[str, Any] = {}
         for key, rows in groups.items():
             accepted = [row for row in rows if row["status"] == "accepted"]
+            turn_rows = [row for row in rows if row["operation"] == "conversation_turn"]
+            action_rows = [row for row in rows if row["operation"] in {"conversation_turn", "chat_action"}]
             summaries[key] = {
                 "requests": len(rows),
                 "accepted": len(accepted),
                 "acceptance_rate": round(len(accepted) / len(rows), 4),
-                "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4),
-                "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4),
+                "conversation_turn_exact_rate": (
+                    round(sum(bool(row["score"].get("all_exact")) for row in turn_rows) / len(turn_rows), 4)
+                    if turn_rows else None
+                ),
+                "action_exact_rate": (
+                    round(sum(bool(row["score"].get("action_exact")) for row in action_rows) / len(action_rows), 4)
+                    if action_rows else None
+                ),
             }
         return summaries
 
@@ -759,14 +883,24 @@ async def run_benchmark(
     manifest = {
         "started_at_utc": run_started_at_utc,
         "dataset_version": DATASET_VERSION,
+        "auxiliary_dataset_version": AUXILIARY_DATASET_VERSION,
         "repeat": repeat,
-        "primary_attempt_timeout_seconds": timeout_seconds,
+        "operation_timeouts_seconds": {
+            "conversation_turn": min(timeout_seconds, 4.0),
+            "chat_action": 20.0,
+            "no_results_reply": 3.0,
+        },
         "retries": 0,
         "fallbacks": 0,
         "prompt_sha256": sha256(CONVERSATION_TURN_PROMPT),
+        "chat_action_prompt_sha256": sha256(CHAT_ACTION_PROMPT),
         "dataset_sha256": sha256(json.dumps(DIALOGUE_CASES, ensure_ascii=False, sort_keys=True)),
+        "auxiliary_dataset_sha256": sha256(json.dumps(
+            {"chat_action": CHAT_ACTION_CASES, "no_results_reply": NO_RESULTS_CASES},
+            ensure_ascii=False, sort_keys=True,
+        )),
         "provider_aliases": sorted(set(aliases.values())),
-        "note": "Model names are in the separate blind-map file. This is interpreter-only; no selector candidate pools are included.",
+        "note": "Model names are in the separate blind-map file. This benchmark covers conversation interpretation, short chat-action and no-results reply; it does not benchmark candidate selection or product factual answers.",
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
