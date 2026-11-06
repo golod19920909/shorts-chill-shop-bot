@@ -548,6 +548,29 @@ async def run_benchmark(
             "cost_requests_covered": len(known_costs),
         }
 
+    def grouped_summary(group_key: str) -> dict[str, Any]:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in results:
+            key = f"{row['alias']}:{row[group_key]}"
+            groups.setdefault(key, []).append(row)
+        summaries: dict[str, Any] = {}
+        for key, rows in groups.items():
+            accepted = [row for row in rows if row["status"] == "accepted"]
+            durations = [float(row["provider_duration_ms"]) for row in rows if row.get("provider_duration_ms") is not None]
+            summaries[key] = {
+                "requests": len(rows),
+                "accepted": len(accepted),
+                "acceptance_rate": round(len(accepted) / len(rows), 4),
+                "exact_decision_rate": round(sum(bool(row["score"]["all_exact"]) for row in rows) / len(rows), 4),
+                "action_exact_rate": round(sum(bool(row["score"]["action_exact"]) for row in rows) / len(rows), 4),
+                "latency_p50_ms": percentile(durations, 0.50),
+                "latency_p95_ms": percentile(durations, 0.95),
+                "input_tokens_known": sum(int(row["usage"].get("input_tokens") or 0) for row in rows),
+                "output_tokens_known": sum(int(row["usage"].get("output_tokens") or 0) for row in rows),
+                "cost_usd_known": round(sum(float(row["estimated_cost_usd"]) for row in rows if row.get("estimated_cost_usd") is not None), 8) if any(row.get("estimated_cost_usd") is not None for row in rows) else None,
+            }
+        return summaries
+
     manifest = {
         "dataset_version": DATASET_VERSION,
         "seed": seed,
@@ -562,7 +585,13 @@ async def run_benchmark(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps({"manifest": manifest, "summary_by_alias": summary_by_alias, "results": results}, ensure_ascii=False, indent=2),
+        json.dumps({
+            "manifest": manifest,
+            "summary_by_alias": summary_by_alias,
+            "summary_by_alias_scenario": grouped_summary("scenario"),
+            "summary_by_alias_language": grouped_summary("language"),
+            "results": results,
+        }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     map_path.write_text(json.dumps(alias_map, ensure_ascii=False, indent=2), encoding="utf-8")
