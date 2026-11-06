@@ -582,6 +582,8 @@ class ConversationEngineState:
             # as «какой бы ты посоветовал» is not a product switch.
             if (
                 preserve_active_product
+                and intent is MessageIntent.NEW_SEARCH
+                and names_other_product
                 and intent_override is MessageIntent.REFINE
                 and not allow_product_switch
             ):
