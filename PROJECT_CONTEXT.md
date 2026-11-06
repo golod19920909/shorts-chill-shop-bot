@@ -3465,3 +3465,40 @@ Official sources:
 - https://ai.google.dev/gemini-api/docs/generate-content/thinking
 
 No thinking level, output cap or prompt configuration has been changed. These are benchmark hypotheses only.
+
+
+### Stage VIII — initial active Option C dialogue corpus created (2026-11-06)
+
+Added:
+- `tests/eval_consultant_dialogue_dataset.py` — versioned `consultant-dialogue-v1` corpus with exactly 13 distinct scenario groups and 18 turn-level examples.
+- `tests/test_eval_consultant_dialogue_dataset.py` — structural tests for scenario count/uniqueness, RU/UK/EN coverage, role-labelled assistant clarification context, and the distinction between a successful empty search and total AliExpress provider failure.
+
+Coverage:
+1. New product search.
+2. Budget refinement.
+3. Mandatory feature + use-case context.
+4. Exclusion + preference.
+5. Targeted correction replacing one active feature without dropping another.
+6. Explicit product switch with stale prior constraints in context.
+7. Alternatives within the same product family.
+8. Comparison of already-shown cards.
+9. Factual question about a shown card.
+10. Short ambiguous message requiring clarification.
+11. Search that succeeds technically but returns no eligible products, followed by the no-results path.
+12. AliExpress total provider failure, kept separate from an empty catalogue outcome.
+13. Four-turn dialogue with an assistant clarification, its answer, a budget refinement and a later preference.
+
+Languages: Russian, Ukrainian and English. Every turn includes a bounded context snapshot and gold action/product-type/slot-update/retrieval expectations. The D13 first turn deliberately expects clarification for "compressor for garage": that purpose alone does not distinguish tire inflation, painting or other compressor tasks. Its later answer is evaluated in the context of the assistant's actual prior question.
+
+Limitations / next work:
+- This is an initial gold corpus, not yet a blind model benchmark. Gold labels and edge cases require review against actual anonymized user dialogues before using scores to select a provider.
+- It has not yet been replayed through the live model or active engine. Existing mocked unit tests do not establish live multilingual model quality.
+- No authentic AliExpress candidate-pool snapshots were found in the repository. Therefore no synthetic product listings were fabricated for selector benchmarking. A separate selection corpus must be built from anonymized, permitted real API result snapshots, preserving the exact title/description/price/currency/category evidence that the selector receives.
+- A provider-neutral, blind replay runner is still required. It must send identical prompts/context to each candidate model, capture raw output and usage/latency, run the same application validation contract, randomize model labels for scoring, and report per-scenario results. Do not change production routing while building it.
+- No production code, model config, prompts, retrieval, ranking or validation behavior was changed. The new corpus and its structural tests were committed, but no test command or live model/API run was executed in this session. GitHub combined status currently returned no status entries; this is not a test pass.
+
+Latest corpus commits:
+- `95804e0d23ada55e28611f228cf30629ff0d2a1a` — initial corpus.
+- `4c69724861708e92ac7ec01f3aa495b72918b178` — clarify ambiguous compressor scenario.
+- `887947092fa86d58e2c667282797e7e000c4b21f` — remove duplicated assistant turn in D13.
+- `15307450ea73e4b11460b36823384ba1c70f2419` — structural test file.
