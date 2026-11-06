@@ -144,3 +144,8 @@ Create and review separate gold sets before testing these operations across prov
 5. Photo analysis: consented/anonymized image set with image-type, visible text, uncertainty and search-hypothesis gold labels. No user images or identifiers in public repository fixtures.
 
 These replay sets are separate from the 13-scenario interpreter corpus. The interpreter results alone cannot authorize a model switch for product selection, factual answers, comparisons or vision.
+
+
+### Production-baseline output mode correction
+
+The Gemini interpreter baseline now sends the exact production request body: prompt-only JSON instructions, with no `responseMimeType` or `responseSchema`. The current live `conversation_turn` path does not enable Gemini structured-output mode. Other providers use their documented native structured-output modes where available; these modes are recorded in the blind map. This is an intentional capability comparison, not an identical transport constraint. The same production application parser/validator remains the final gate for every model.
