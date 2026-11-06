@@ -490,8 +490,10 @@ class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config["response_mime_type"], "application/json")
         self.assertEqual(config["thinking_config"]["thinking_level"], "low")
 
-    async def test_other_gemini_operations_keep_the_default_generation_config(self):
-        generate = AsyncMock(return_value=SimpleNamespace(text="ok"))
+    async def test_conversation_turn_uses_shared_json_schema(self):
+        from services.ai_service import CONVERSATION_TURN_SCHEMA
+
+        generate = AsyncMock(return_value=SimpleNamespace(text='{"action":"refine"}'))
         service = AIService(api_key=None)
         service._client = SimpleNamespace(
             aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
@@ -501,6 +503,24 @@ class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
             "conversation prompt",
             models=(service.fast_model,),
             operation="conversation_turn",
+        )
+
+        self.assertEqual(result, '{"action":"refine"}')
+        config = generate.await_args.kwargs["config"]
+        self.assertEqual(config["response_mime_type"], "application/json")
+        self.assertIs(config["response_schema"], CONVERSATION_TURN_SCHEMA)
+
+    async def test_other_gemini_operations_keep_the_default_generation_config(self):
+        generate = AsyncMock(return_value=SimpleNamespace(text="ok"))
+        service = AIService(api_key=None)
+        service._client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
+        )
+
+        result = await service._generate(
+            "unrelated prompt",
+            models=(service.fast_model,),
+            operation="unrelated_operation",
         )
 
         self.assertEqual(result, "ok")
