@@ -3124,3 +3124,35 @@ These figures demonstrate why thinking tokens and fallback attempts matter. They
 - The legacy `SearchService.find_products_from_text` path calls `AIService.parse_query` and then `parse_query_intent`, whose `_ai_intent` helper can also call the same AIService's `_generate`. The authoritative conversational engine does not use this legacy text parser, so first establish whether any production handler still reaches this path before including it in active consultant costs or changing it.
 - `services/vision_search.py` calls the shared `AIService._generate` directly without a specific operation label; this is another reason operation-level accounting is currently incomplete.
 - No code or model-routing change has been made based on these leads. Each candidate optimization must be assessed against actual caller reachability, quality, and latency first.
+
+### Prompt-size and call-path audit (2026-11-06)
+
+Static prompt source sizes measured from `services/ai_service.py` (characters, not tokens):
+
+| Prompt | Source characters | Current use |
+|---|---:|---|
+| `CONVERSATION_TURN_PROMPT` | 7,444 | Every active engine message when Gemini is available |
+| `QUERY_PARSING_PROMPT` | 2,311 | Legacy structured text parser |
+| `QUESTION_PROMPT` | 1,859 | Product questions |
+| `COMPARISON_PROMPT` | 1,661 | Paired listing comparison evidence |
+| `IMAGE_ANALYSIS_PROMPT` | 1,304 | Structured photo recognition |
+| `RANK_PROMPT` | 728 | Feed ranking |
+| `CHAT_ACTION_PROMPT` | 698 | Narrow clarification helper |
+| `ANALYSIS_PROMPT` | 627 | Single-product advice |
+| `SELECT_PROMPT` | 536 | Feed/product-assistant selection |
+| `SEARCH_PLAN_PROMPT` | 363 | Alternative product search wording |
+| `IMAGE_QUERY_PROMPT` | 360 | Legacy photo query recognition |
+
+Dynamic payload facts:
+- The turn interpreter serializes a bounded context snapshot (up to 6,000 characters before JSON encoding), with recent turns/dialogue, active slots, shown cards and pending question. The latest user message is capped at 500 characters.
+- The live selector log shows 70 candidate records, a 31,862-character rendered prompt and 12,367 input tokens on one fallback-model attempt. The current candidate payload includes ID, full title, description up to 1,500 chars, category path, price/currency, discount, rating, orders and availability; no product URL is sent. Do not remove product evidence fields just to shrink tokens without a blinded quality test.
+- Product-question prompts may include up to 30 products (`MAX_PRODUCTS_IN_PROMPT`); the product-assistant candidate picker separately caps its candidate pool at 12 and final shown alternatives at 5.
+- The selector's large prompt is currently the clearest measured input-token hotspot. The conversation-turn prompt is comparatively compact in the supplied log but is called on every turn, so its cumulative cost still matters.
+- No explicit provider context-cache object/configuration was found in the inspected `AIService._generate` request construction. Telemetry can read cached-token metadata, but that alone does not mean caching is enabled or producing hits.
+- The default `_generate` call does not set a universal thinking budget. The conversation selector explicitly requests JSON and `thinking_level=low`; other operations rely on prompt-level output requirements and provider defaults. A change to thinking settings requires operation-specific quality/latency tests.
+
+Call-path observations:
+- Active text search binds `ConversationSearchEngine` directly in `handlers/search.py`; it does not call the legacy `SearchService.find_products_from_text` method on this path.
+- The legacy `find_products_from_text` method does call `parse_query` and then `parse_query_intent`, whose helper can make another `_generate` request. This path is not part of the authoritative Option C search engine; no production caller has yet been established, so do not include it in active user-dialogue cost counts unless a caller is found.
+- The engine's `_clarification_question` helper can make a separate `decide_chat_action` request for short (≤4-word) messages that cannot produce a retrieval strategy. This is not automatically a duplicate: it runs only after the turn interpreter did not return the validated `clarify` action (which already returns early). Its marginal quality benefit and added wait/cost need measurement before any removal.
+- ProductAssistant's explicit comparison path uses paired evidence extraction; ordinary product questions first try deterministic evidence and only call Gemini when that cannot answer. This conditional structure should be preserved in any cost optimization.
