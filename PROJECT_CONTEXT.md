@@ -3156,3 +3156,42 @@ Call-path observations:
 - The legacy `find_products_from_text` method does call `parse_query` and then `parse_query_intent`, whose helper can make another `_generate` request. This path is not part of the authoritative Option C search engine; no production caller has yet been established, so do not include it in active user-dialogue cost counts unless a caller is found.
 - The engine's `_clarification_question` helper can make a separate `decide_chat_action` request for short (≤4-word) messages that cannot produce a retrieval strategy. This is not automatically a duplicate: it runs only after the turn interpreter did not return the validated `clarify` action (which already returns early). Its marginal quality benefit and added wait/cost need measurement before any removal.
 - ProductAssistant's explicit comparison path uses paired evidence extraction; ordinary product questions first try deterministic evidence and only call Gemini when that cannot answer. This conditional structure should be preserved in any cost optimization.
+
+### Stage III/IV — gateway and structured-output capability research (2026-11-06)
+
+This is a source-based technical comparison, not a selection or integration decision.
+
+| Gateway | Published cost model | Relevant capabilities | Trade-offs for this bot |
+|---|---|---|---|
+| LiteLLM Proxy | Open-source self-hosted gateway: $0; enterprise features are quote-based | OpenAI-compatible interface for 100+ providers; spend tracking by key/user/team/tag; budgets/rate limits; retries and fallbacks; logs/metrics | No per-token gateway fee for self-hosted OSS, but we operate the proxy, database/metrics, security, upgrades and availability. Adds another service and a network hop. |
+| OpenRouter | Standard: 5.5% fee when buying credits; Business: 8%; no inference markup. BYOK: no fee on first $25k/month of list-price inference, then 5% | Large model/provider catalogue; usage/activity export; automatic routing/fallback options on paid plans | Convenient for experiments and provider substitution, but credit-purchase fee, external dependency and account/provider policy need consideration. Free model tier has strict daily limits and is not a production cost assumption. |
+| Vercel AI Gateway | Provider list prices with no token markup; pay-as-you-go credits; published $5/month free team credit | One API key; unified spend/observability; provider/model routing and fallbacks; supports OpenAI Chat Completions/Responses and Anthropic Messages formats | No stated inference markup, but introduces a third-party gateway, prepaid-credit/account dependency and another runtime hop. Need verify exact provider availability, data policy, SLA and failover behavior for our candidate models. |
+
+Official sources:
+- LiteLLM self-hosted gateway: https://docs.litellm.ai/docs/simple_proxy
+- LiteLLM pricing: https://www.litellm.ai/pricing
+- LiteLLM routing/retries: https://docs.litellm.ai/docs/routing
+- OpenRouter pricing/fees: https://openrouter.ai/pricing
+- Vercel AI Gateway pricing: https://vercel.com/docs/ai-gateway/pricing
+- Vercel AI Gateway capabilities: https://vercel.com/ai-gateway
+
+Structured output support surfaced in official API documentation:
+- OpenAI Structured Outputs: strict JSON Schema, including typed fields/enums, for supported current models; stronger contract than plain JSON mode.
+- Anthropic Claude: JSON Schema structured outputs and strict tool use are available across current models on the Messages API.
+- DeepSeek: JSON Object mode is supported; the Responses API documents JSON Schema output for current V4 series. JSON Object mode guarantees valid JSON but not a specific schema.
+- Qwen: JSON Object mode supports most Qwen models; JSON Schema mode is available only on selected model families. Current docs list newer Qwen 3.7/3.8 Flash families for schema mode, while Qwen 3.5 Flash is listed as JSON Object rather than strict schema.
+- Gemini: the current bot already requests JSON MIME type for candidate selection, but most other AI calls rely on prompt instructions and application-side validation. A cross-provider adapter must preserve the exact validated contract, not assume all providers' JSON modes behave identically.
+
+Official sources:
+- OpenAI structured outputs: https://developers.openai.com/api/docs/guides/structured-outputs
+- Claude structured outputs: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
+- DeepSeek JSON mode: https://api-docs.deepseek.com/guides/json_mode/
+- DeepSeek Responses API: https://api-docs.deepseek.com/api/create-response/
+- Qwen structured output: https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-structured-output
+
+Preliminary architecture implications (not a recommendation yet):
+- For only two or three providers, a small project-owned adapter/router may be cheaper and easier to operate than adding a gateway, provided usage logging, retry policy, and provider-specific structured output are implemented correctly.
+- LiteLLM is the strongest self-hosted candidate if unified spend tracking, provider fallback and multiple model groups become a real operational need; it is not free in engineering/hosting cost.
+- Vercel AI Gateway has no published token markup and is worth keeping on the comparison list, but it is an external dependency rather than a required feature.
+- OpenRouter is useful for broad model experimentation, but its standard credit purchase fee makes it less attractive as a permanent production path when direct provider accounts are available.
+- No gateway has been connected, and no provider key/configuration has been added.
