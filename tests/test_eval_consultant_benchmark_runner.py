@@ -49,7 +49,12 @@ def test_score_decision_rejects_wrong_product_switch_and_slot_loss():
     expected = {
         "action": "new_search",
         "product_type": "wireless headphones",
-        "slot_updates": [],
+        "slot_updates": [{
+            "operation": "add",
+            "kind": "feature",
+            "target": None,
+            "value": "noise cancelling",
+        }],
         "retrieval": True,
     }
     actual = {
@@ -61,7 +66,8 @@ def test_score_decision_rejects_wrong_product_switch_and_slot_loss():
     score = score_decision(expected, actual)
     assert score["action_exact"] is False
     assert score["product_type_exact"] is False
-    assert score["retrieval_exact"] is False
+    assert score["slot_updates_exact"] is False
+    assert score["retrieval_exact"] is True
     assert score["all_exact"] is False
 
 
