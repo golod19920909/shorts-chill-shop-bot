@@ -90,3 +90,68 @@ The highest-confidence cost leads are:
 5. Conversation-turn reasoning tokens are material relative to visible candidate output.
 
 None of these observations alone authorizes deleting a call, shrinking the candidate window, lowering reasoning, or changing model routing. Each requires the blinded quality/latency benchmark and the TЗ's quality-first decision rule.
+
+## 8. Call-count matrix from the current handler graph
+
+Counts below are logical operation calls, not HTTP attempts. A single _generate call can issue the primary model and then the configured fallback. The fallback policy is described separately in §9.
+
+| User flow | Logical AI operations in current source | Calls per normal flow | Conditions that add/avoid calls |
+|---|---|---:|---|
+| New text search with eligible results | conversation_turn → conversation_selection | 2 | Each operation can have a primary + fallback attempt. |
+| Budget / multi-feature / exclusion refinement | conversation_turn → conversation_selection | 2 | Same as new search when the turn reaches retrieval and eligible candidates remain. Local count/currency/narrowing shortcuts can bypass the interpreter and/or retrieval. |
+| Explicit category change | conversation_turn → conversation_selection | 2 | The engine owns the category switch; retrieval/ranking stays deterministic before semantic selection. |
+| Successful search with no safe candidates | conversation_turn → optional conversation_selection → no_results_reply | 2–3 | Selection is absent if there is no eligible pool. The no-results composer is skipped after selector timeout/error/unavailable or exhausted turn budget. |
+| Search returns a few products | conversation_turn → conversation_selection | 2 | There is no separate “few results” helper. A short valid selection is not padded. |
+| Compare two shown products | conversation_turn → product_question (extract_paired_listing_evidence) | usually 2 | The comparison evidence call runs for explicit comparisons with at least two shown products; the final comparison text is deterministic and grounded. |
+| Factual question about a shown product | conversation_turn → optional product_question (answer_product_question) | 1–2 | Deterministic title/field evidence answers first; Gemini is called only when deterministic evidence cannot answer. |
+| Product-card “worth buying?” action | analyze_product | 1 | Deterministic advice is the fallback. |
+| Product-card similar/cheaper/better action | plan_product_search → select_feed_candidates → select_candidates | up to 3 | Planning runs before retrieval; generic feed selection runs on the broad SearchService pool; goal-specific selection runs after ProductAssistant's deterministic goal filter. Calls may be skipped when no candidates remain. |
+| Category browse | select_feed_candidates | 1 | SearchService runs the normal category retrieval and then one feed-selection pass when the pool is non-empty. |
+| Ordinary «✨ Находки» pagination | none | 0 | find_feed_page uses AliExpress' own order and does not call Gemini. |
+| Active photo search, first vision result usable | analyze_photo_with_vision | 1 | The active handler then runs one or two bounded photo searches with broaden=False; this primary path does not call the AI feed selector. |
+| Active photo search, first vision result unusable | analyze_photo_with_vision → analyze_image → optional feed selection | 2–3 | The fallback photo pipeline can make one second vision request, compose several grounded hypotheses, and call apply_feed_selection once on the merged pool. |
+| Short ambiguous text (≤4 words) without a validated interpreter clarification | conversation_turn → decide_chat_action | 1–2 | The second call is a narrow optional clarification helper; it is not run if the main interpreter already returned a validated clarify action. |
+
+These are source-derived flow counts, not measured averages. They do not include provider-side attempts hidden by client timeouts, and they do not imply that every flow reaches every listed operation.
+
+## 9. Retry/fallback policy by operation
+
+| Operation family | Primary model | Fallback behavior | Timeout behavior |
+|---|---|---|---|
+| conversation_turn | fast role, normally Gemini 3.8 Flash | One fallback model (normally 3.1 Flash-Lite) on model-unavailable errors and client timeout | 4s per attempt; engine/AIService outer limit 8.5s |
+| conversation_selection | fast role, normally Gemini 3.8 Flash | One fallback on model-unavailable errors and client timeout | 6.5s per attempt; engine outer limit 15s |
+| no_results_reply | fast role | Fallback only on model-unavailable errors; quota stops; timeout does not trigger a second attempt | AIService limit 3s, engine wrapper 3.2s |
+| product_question | smart role, normally Gemini 3.8 Flash | Fallback on model-unavailable errors; timeout is constrained by the product-question outer deadline and does not get a full second attempt | Caller uses PRODUCT_QUESTION_TIMEOUT_SECONDS; exact wall time depends on that constant |
+| Generic generate helpers | role-specific fast/smart/vision model | Fallback on model-unavailable errors; quota stops | Normally AIService's 20s timeout unless a caller applies a shorter wrapper (feed selector has an 8s wall bound) |
+
+The current code does not retry quota/rate-limit failures: the key/account quota is shared, so trying another Gemini model would not help. Generic helper timeouts do not automatically trigger fallback. This distinction matters when counting billable attempts: a client timeout has unknown provider-side usage even when no successful response/usage metadata is returned.
+
+## 10. Confirmed repeated or potentially redundant AI work
+
+1. **ProductAssistant has two sequential candidate-selection passes after planning.** The broad SearchService.find_products path can run select_feed_candidates; then ProductAssistant._select applies goal-specific deterministic filters and calls select_candidates again. These are not identical criteria, but the first pass may discard a listing useful for “cheaper/better/similar” before the goal-specific decision. Candidate for a controlled A/B replay; do not remove either pass without measuring recall and final suitability.
+2. **Explicit comparison always calls Gemini before deterministic rendering.** ProductAssistant.answer calls extract_paired_listing_evidence for an explicit comparison, then deterministic_comparison renders prices, ratings, orders, delivery and verified quotes. When structured facts already give a useful comparison, the marginal value of the evidence call may be low. Candidate for evidence-coverage analysis; do not bypass it yet.
+3. **Photo fallback may analyze the same image twice.** The active photo handler first calls analyze_photo_with_vision; if it cannot produce a usable hypothesis, it delegates to the legacy fallback, which calls AIService.analyze_image. The second prompt is richer and is a fallback, not a parallel duplicate. Measure failure rate and marginal recovery before changing.
+4. **Conversation interpreter and candidate selector are not duplicates.** The first decides intent/action and the second reviews real retrieved listings against identity/requirements. Removing either would collapse distinct safety/quality stages and is outside safe optimization absent benchmark proof.
+5. **The short clarification helper is conditional, not an unconditional duplicate.** It is reached only when the interpreter did not return a validated clarify action and the deterministic path still needs a question.
+
+## 11. Reachability and file-name correction
+
+The current branch does not contain services/consultant.py or services/consultant_answers.py. The active Option C implementation is in services/convsearch/engine.py, services/convsearch/state.py, services/convsearch/retrieval.py, and services/ai_service.py; product-specific advice and question handling are in services/product_assistant.py.
+
+The following methods exist but are not on the current authoritative Telegram text-search path:
+- SearchService.find_products_from_text / AIService.parse_query / parse_query_intent — legacy text parsing path; handlers.search.search_message binds the Option C engine instead.
+- SearchService.find_discovery / AIService.rank_candidates — no current Telegram handler caller was found in the inspected registration/call graph.
+- AIService.describe_image_query — the active photo handler uses analyze_photo_with_vision; its fallback uses analyze_image.
+- services.conversation.resolve_request — legacy merge helper; no active caller was found in the current text handler graph.
+
+Do not include these unverified/legacy paths in normal user-scenario cost totals unless a live caller is established.
+
+## 12. Audit conclusions updated
+
+The highest-confidence opportunities to evaluate next are:
+- determine whether ProductAssistant can safely bypass the generic feed selector for its goal-specific candidate search, retaining the broad raw pool for the single goal-specific selection;
+- determine when explicit comparison evidence adds useful listing facts beyond deterministic product fields;
+- attribute every generic generate request to its actual helper so future usage logs can separate plan/select/advice/vision calls;
+- measure no-results and photo-fallback invocation rates before changing their prompts or model roles.
+
+No production call, retrieval breadth, ranking, filtering, validation, product evidence, or Telegram delivery behavior was changed by this audit.
