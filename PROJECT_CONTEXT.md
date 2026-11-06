@@ -3822,3 +3822,12 @@ CI on commit `0ead7a7c13e1379ec50e365183ed8af1a56f79f4`: focused offline test st
 - Do not restore removed legacy parser helpers merely to satisfy those tests. Keep the current active-architecture focused suite as the acceptance gate for these changes, and continue documenting the legacy full-suite gap until its test fixtures are migrated separately.
 - Existing PR #7 remains open against `main`, head `b0d892f3bfda316424d3f913a1cf91282c501728`. No changes were made to `main`, and no merge was performed.
 - No live provider API calls were made. No `.env` was read or modified; no credentials were copied into logs or files.
+
+## Conversational live smoke now exercises configured pagination (2026-11-06)
+
+- Found a verification gap: `smoke_conversational_search.py` explicitly forced `SearchService.max_search_pages = 1`. It therefore checked live Gemini/AliExpress results and comparisons, but bypassed the production multi-page conversational retrieval depth.
+- Removed the forced one-page override. The smoke now uses the page depth configured by the built `SearchService` (currently the default is 3) and prints that depth before running. Added an optional `--max-search-pages N` override for an intentionally shallower manual run.
+- This is a live-test harness correction only. No production search, ranking, candidate validation, Gemini routing, page limit or timeout behavior was changed.
+- File/commit: `smoke_conversational_search.py` — `79db47ea3920888875bcbaf9b85b56fb41ddde31`.
+- Checks: the GitHub workflow compiles the manual smoke scripts; CI for this commit is pending. The live smoke has not yet been run, so real multi-page retrieval through the complete consultant remains unverified.
+- Remaining TЗ work: run the live smoke with configured page depth; review real candidate funnel diagnostics across product families; manually verify multi-turn refinements/corrections/product switches; exercise provider and Gemini failure paths. PR #7 remains draft/open/unmerged; `main` is untouched.
