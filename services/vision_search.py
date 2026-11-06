@@ -88,6 +88,7 @@ async def analyze_photo_with_vision(
                     VISION_SEARCH_PROMPT,
                 ],
                 models=(vision_model,),
+                operation="photo_vision_search",
             )
         else:
             raw = None
