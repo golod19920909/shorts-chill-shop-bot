@@ -1482,6 +1482,29 @@ class AIService:
     # -- product assistant operations (§7-§13) ------------------------------
 
 
+    @staticmethod
+    def _validated_ai_text(text: str, facts: dict[str, object]) -> str | None:
+        """Allow concise advice only when every numeric claim exists in real facts."""
+        if not isinstance(text, str):
+            return None
+        cleaned = " ".join(text.split()).strip()
+        if not cleaned or len(cleaned) > 240:
+            return None
+        if re.search(r"https?://|www\\.|<[^>]+>", cleaned, re.IGNORECASE):
+            return None
+
+        allowed_numbers: set[str] = set()
+        for key, value in facts.items():
+            if key == "id":
+                continue
+            allowed_numbers.update(
+                numeric_tokens(json.dumps(value, ensure_ascii=False))
+            )
+        if not numeric_tokens(cleaned).issubset(allowed_numbers):
+            return None
+        return cleaned
+
+
     async def analyze_product(self, product: Product) -> dict | None:
         """Validated analysis items for ONE real product, or ``None``.
 
