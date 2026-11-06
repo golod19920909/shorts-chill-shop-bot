@@ -2518,9 +2518,9 @@ seller_terms: {seller_terms_json}
           account-wide and trying more models would only waste quota;
         - a **model-unavailable** error (404/503) moves on to the fallback
           model;
-        - a **client timeout** also moves to the fallback model ONLY for
-          bounded conversation-candidate selection, where two short attempts
-          fit inside the engine's stricter total deadline;
+        - a **client timeout** also moves to the fallback model for bounded
+          conversation-turn interpretation and candidate selection; both use
+          short per-attempt limits and an outer wall-clock deadline;
         - quota/rate limits stop immediately, and timeouts in other operations
           keep the existing no-retry policy. All failures are swallowed so the
           bot never crashes because Gemini is down.
@@ -2798,12 +2798,3 @@ seller_terms: {seller_terms_json}
         def number(value: object) -> float | None:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
-            number_value = float(value)
-            return number_value if number_value == number_value else None  # NaN
-
-        update: dict[str, object] = {}
-        if isinstance(payload.get("normalized_query"), str) and payload[
-            "normalized_query"
-        ].strip():
-            model_phrase = " ".join(payload["normalized_query"].split())
-            cleaned = _strip_constraint_phrases(model_phrase)
