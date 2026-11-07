@@ -52,7 +52,8 @@ def estimate_cost_usd(
     moment = (when or datetime.now(timezone.utc)).astimezone(timezone.utc)
     rates = _rates_for(model, moment.date())
     if rates is None:
-        return None, "unknown_model", None
+        known_models = {"gemini-3.8-flash", "gemini-3.1-flash-lite"}
+        return None, "unknown_pricing" if model in known_models else "unknown_model", None
     pricing_version = (
         "google-gemini-standard-paid-2026-11-07"
         if moment.date() < date(2027, 1, 1)
