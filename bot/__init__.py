@@ -90,6 +90,11 @@ BOT_COMMANDS: tuple[BotCommand, ...] = (
     BotCommand("favorites", "Saved products"),
     BotCommand("tracking", "Price tracking"),
     BotCommand("stats", "Status"),
+    BotCommand("stats_today", "Gemini costs today (admin)"),
+    BotCommand("stats_week", "Gemini costs 7 days (admin)"),
+    BotCommand("stats_month", "Gemini costs 30 days (admin)"),
+    BotCommand("stats_models", "Gemini model costs (admin)"),
+    BotCommand("stats_requests", "Recent Gemini requests (admin)"),
     BotCommand("admin", "Admin statistics"),
 )
 
@@ -222,6 +227,11 @@ def _register_handlers(application: Application) -> None:
         CommandHandler("tracking", settings_handlers.tracking_command)
     )
     application.add_handler(CommandHandler("stats", settings_handlers.stats_command))
+    application.add_handler(CommandHandler("stats_today", admin.stats_today_command))
+    application.add_handler(CommandHandler("stats_week", admin.stats_week_command))
+    application.add_handler(CommandHandler("stats_month", admin.stats_month_command))
+    application.add_handler(CommandHandler("stats_models", admin.stats_models_command))
+    application.add_handler(CommandHandler("stats_requests", admin.stats_requests_command))
     application.add_handler(CommandHandler("admin", admin.admin_command))
 
     application.add_handler(
