@@ -264,5 +264,59 @@ class AgentLoopTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(usage.attempts[0].outcome, "timeout")
 
 
+class PersistenceTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncTearDown(self):
+        await gemini_telemetry.flush_pending_attempts()
+        gemini_telemetry.configure_persistence(None)
+
+    async def test_attempt_is_persisted_once_with_request_id_and_cost(self):
+        written = []
+
+        async def writer(record):
+            written.append(record)
+
+        gemini_telemetry.configure_persistence(writer)
+        with turn_scope("search") as usage:
+            attempt = record_attempt(
+                operation="conversation_turn",
+                model="gemini-3.1-flash-lite",
+                duration_ms=12.0,
+                outcome="ok",
+                response=_response(
+                    prompt_token_count=1_000,
+                    candidates_token_count=100,
+                    thoughts_token_count=20,
+                    total_token_count=1_120,
+                ),
+            )
+        await gemini_telemetry.flush_pending_attempts()
+
+        self.assertEqual(len(written), 1)
+        self.assertEqual(written[0]["attempt_id"], attempt.attempt_id)
+        self.assertEqual(written[0]["request_id"], usage.request_id)
+        self.assertEqual(written[0]["cost_status"], "estimated")
+        self.assertAlmostEqual(written[0]["cost_usd"], 0.00028)
+
+    async def test_failed_attempt_is_persisted_with_unknown_cost(self):
+        written = []
+
+        async def writer(record):
+            written.append(record)
+
+        gemini_telemetry.configure_persistence(writer)
+        record_attempt(
+            operation="conversation_turn",
+            model="gemini-3.8-flash",
+            duration_ms=4000.0,
+            outcome="timeout",
+            error=True,
+        )
+        await gemini_telemetry.flush_pending_attempts()
+
+        self.assertEqual(len(written), 1)
+        self.assertIsNone(written[0]["cost_usd"])
+        self.assertEqual(written[0]["cost_status"], "unknown_usage")
+
+
 if __name__ == "__main__":
     unittest.main()
