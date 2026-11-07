@@ -22,9 +22,11 @@ class ModelRates:
 
 def _rates_for(model: str, when: date) -> ModelRates | None:
     if model == "gemini-3.8-flash":
+        # Rates are verified only for the current published pricing period.
+        # Do not extrapolate future price changes.
         if when < date(2027, 1, 1):
             return ModelRates(0.75, 3.75, 0.075)
-        return ModelRates(1.50, 7.50, 0.15)
+        return None
     if model == "gemini-3.1-flash-lite":
         return ModelRates(0.25, 1.50, 0.025)
     return None
