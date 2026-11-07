@@ -140,7 +140,7 @@ class _GenerateInstrumentationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fake.calls, 2)
         self.assertEqual(len(usage.attempts), 2)
         self.assertEqual(
-            [a.model for a in usage.attempts], ["primary", "gemini-3.1-flash-lite"]
+            [a.model for a in usage.attempts], ["primary", "gemini-3.8-flash"]
         )
         self.assertEqual(usage.attempts[0].outcome, "error")
         self.assertEqual(usage.attempts[0].operation, "parse_query")
