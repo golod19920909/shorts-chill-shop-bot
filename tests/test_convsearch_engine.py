@@ -1004,10 +1004,67 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(selector.await_count, 2)
+        self.assertEqual(
+            len(selector.await_args_list[0].args[0]),
+            AI_CONVERSATION_SELECTION_LIMIT,
+        )
+        self.assertEqual(
+            len(selector.await_args_list[1].args[0]),
+            AI_CONVERSATION_SELECTION_LIMIT - 1,
+        )
         self.assertEqual([item.product_id for item in decision.products], ["p0"])
         self.assertEqual(decision.report["ai_selected"], 1)
+        self.assertEqual(decision.report["ai_second_pass"], "completed")
         self.assertEqual(decision.report["ai_tail_added"], 0)
+
+    async def test_short_ai_selection_is_completed_from_remaining_candidates(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-continuation")
+        candidates = [product(f"continue-{i}", "Рыболовная катушка") for i in range(30)]
+        calls = []
+
+        async def select_batch(pool, **kwargs):
+            calls.append({
+                "ids": [item.product_id for item in pool],
+                "wanted": kwargs["wanted"],
+            })
+            if len(calls) == 1:
+                return [f"continue-{i}" for i in range(4)]
+            return [item.product_id for item in pool[:kwargs["wanted"]]]
+
+        selector = AsyncMock(side_effect=select_batch)
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(selector.await_count, 2)
+        self.assertEqual(calls[0]["wanted"], 20)
+        self.assertEqual(calls[1]["wanted"], 16)
+        self.assertEqual(len(calls[1]["ids"]), 16)
+        self.assertFalse(set(calls[0]["ids"][:4]) & set(calls[1]["ids"]))
+        self.assertEqual(decision.report["ai_first_pass_selected"], 4)
+        self.assertEqual(decision.report["ai_second_pass_selected"], 16)
+        self.assertEqual(decision.report["ai_selected"], 20)
+        self.assertEqual(len(decision.products), 30)
+        self.assertEqual(
+            [item.product_id for item in decision.products[:20]],
+            [f"continue-{i}" for i in range(20)],
+        )
 
     async def test_full_selector_window_keeps_default_thirty_card_tail(self):
         engine = ConversationSearchEngine()
