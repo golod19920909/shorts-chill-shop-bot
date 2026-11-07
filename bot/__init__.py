@@ -136,10 +136,10 @@ def build_providers(settings: Settings) -> list[MarketplaceProvider]:
 def build_search_service(settings: Settings) -> tuple[SearchService, AIService]:
     """Create the AI service and the search service around the providers.
 
-    Each AI role gets its own configured model (fast / smart / vision /
-    fallback). Nothing here contacts Gemini: availability is only ever
-    discovered at request time, and a missing model never stops the bot
-    (see ``AIService`` and ``services.product_assistant``).
+    The primary generation is shared by fast / smart / vision roles; one
+    reserve model is used only after eligible failures. Nothing here contacts
+    Gemini: availability is discovered at request time, and a missing model
+    never stops the bot (see ``AIService`` and ``services.product_assistant``).
     """
 
     ai_service = AIService(
