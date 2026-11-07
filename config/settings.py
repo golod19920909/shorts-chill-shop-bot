@@ -254,7 +254,7 @@ def load_settings() -> Settings:
         #: real API calls, so both are clamped to a hard maximum: a mistaken
         #: .env value must not turn one search or one photo into a crawl.
         search_max_pages=_get_int(
-            "SEARCH_MAX_PAGES", default=3, minimum=1, maximum=10
+            "SEARCH_MAX_PAGES", default=5, minimum=1, maximum=10
         ),
         photo_search_pages=_get_int(
             "PHOTO_SEARCH_PAGES", default=2, minimum=1, maximum=5
