@@ -1903,8 +1903,18 @@ seller_terms: {seller_terms_json}
             operation="conversation_selection",
             response_schema=selection_schema,
         )
+        response_parse_started = time.perf_counter()
         payload = self._extract_json_object(raw) if raw else None
-        if not isinstance(payload, dict) or not isinstance(payload.get("selections"), list):
+        valid_selection_shape = (
+            isinstance(payload, dict) and isinstance(payload.get("selections"), list)
+        )
+        logger.info(
+            "Gemini response processed: op=conversation_selection parse_ms=%.0f "
+            "valid_shape=%s",
+            (time.perf_counter() - response_parse_started) * 1000,
+            valid_selection_shape,
+        )
+        if not valid_selection_shape:
             return None
 
         allowed = {
@@ -2404,7 +2414,13 @@ seller_terms: {seller_terms_json}
         except TimeoutError:
             logger.info("Gemini turn interpretation timed out; using deterministic intent")
             return None
+        response_parse_started = time.perf_counter()
         payload = self._extract_json_object(raw) if raw else None
+        logger.info(
+            "Gemini response processed: op=conversation_turn parse_ms=%.0f valid_json=%s",
+            (time.perf_counter() - response_parse_started) * 1000,
+            isinstance(payload, dict),
+        )
         if not isinstance(payload, dict):
             return None
 
