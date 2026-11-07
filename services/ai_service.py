@@ -77,10 +77,10 @@ logger = logging.getLogger(__name__)
 #: Default model per ROLE. ``DEFAULT_MODEL`` is the "smart" model (the
 #: reasoning-heavy one) and stays the first constructor argument, so every
 #: existing caller keeps working unchanged.
-DEFAULT_MODEL = "gemini-3.8-flash"
-DEFAULT_FAST_MODEL = "gemini-3.8-flash"
-DEFAULT_VISION_MODEL = "gemini-3.8-flash"
-DEFAULT_FALLBACK_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_FAST_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_VISION_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_FALLBACK_MODEL = "gemini-3.8-flash"
 
 
 #: How many candidates ONE selection may keep - the "строго 20 лучших" rule of
@@ -2775,12 +2775,12 @@ seller_terms: {seller_terms_json}
                     error=True,
                 )
                 kind = _classify_gemini_error(exc)
+                consultant_operation = operation in {
+                    "conversation_selection", "conversation_turn"
+                }
                 will_fallback = index + 1 < len(chain) and (
-                    kind == "model"
-                    or (
-                        kind == "timeout"
-                        and operation in {"conversation_selection", "conversation_turn"}
-                    )
+                    kind in {"model", "server", "transport"}
+                    or (kind == "timeout" and consultant_operation)
                 )
                 detail = _format_gemini_error(
                     exc,
@@ -2844,8 +2844,70 @@ seller_terms: {seller_terms_json}
                     outcome="empty",
                     response=response,
                 )
+                if (
+                    operation in {"conversation_turn", "conversation_selection"}
+                    and index + 1 < len(chain)
+                ):
+                    logger.warning(
+                        "Gemini returned an empty structured response: op=%s model=%s; "
+                        "trying reserve model %s",
+                        operation, model, chain[index + 1],
+                    )
+                    continue
                 self.generate_failed += 1
                 return None
+
+            # Reject malformed consultant JSON before accepting an attempt.
+            # The reserve receives the identical prompt/schema; semantic and
+            # grounding checks remain in the existing caller validators.
+            if operation in {"conversation_turn", "conversation_selection"}:
+                structured = self._extract_json_object(text)
+                if operation == "conversation_turn":
+                    valid_shape = (
+                        isinstance(structured, dict)
+                        and isinstance(structured.get("action"), str)
+                        and isinstance(structured.get("confidence"), (int, float))
+                        and not isinstance(structured.get("confidence"), bool)
+                    )
+                else:
+                    selections = (
+                        structured.get("selections")
+                        if isinstance(structured, dict) else None
+                    )
+                    valid_shape = (
+                        isinstance(selections, list)
+                        and all(
+                            isinstance(item, dict)
+                            and isinstance(item.get("id"), str)
+                            and isinstance(item.get("identity_evidence"), str)
+                            and isinstance(item.get("requirement_evidence"), dict)
+                            for item in selections
+                        )
+                    )
+                if not valid_shape:
+                    attempt_ms = (time.perf_counter() - attempt_started) * 1000
+                    has_reserve = index + 1 < len(chain)
+                    logger.warning(
+                        "Gemini structured response rejected: op=%s model=%s "
+                        "reason=invalid_shape fallback=%s dur_ms=%.0f",
+                        operation, model, "yes" if has_reserve else "no", attempt_ms,
+                    )
+                    record_attempt(
+                        operation=operation,
+                        model=model,
+                        duration_ms=attempt_ms,
+                        outcome="invalid_shape",
+                        response=response,
+                        error=True,
+                    )
+                    if has_reserve:
+                        logger.warning(
+                            "Gemini structured response unusable; trying reserve model %s",
+                            chain[index + 1],
+                        )
+                        continue
+                    self.generate_failed += 1
+                    return None
 
             attempt_ms = (time.perf_counter() - attempt_started) * 1000
             logger.info(
