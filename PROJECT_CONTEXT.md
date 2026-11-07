@@ -4529,3 +4529,12 @@ Verification:
 - README model configuration table now documents GEMINI_PRIMARY_MODEL=gemini-3.1-flash-lite and GEMINI_RESERVE_MODEL=gemini-3.8-flash; legacy model-role variables are marked deprecated/ignored.
 - Added an offline regression proving a structurally invalid conversation-selection response advances once to the reserve and accepts a correctly shaped response.
 - The first CI attempt (#95) exposed one stale expected fallback model and was corrected from 3.1 to 3.8. Subsequent commits were made through the GitHub connector; a fresh workflow result is not yet visible through the available run lookup. Do not claim the corrected head has passed CI until verified.
+
+
+### Latest migration checkpoint — 2026-11-07
+- Latest code commit at this checkpoint: 32348a30cb733444dea3df32be11cf3dd2ac7cc9 on feat/gemini-usage-analytics.
+- Added required-field presence checks and defensive type guards to the conversation-turn structured response gate; malformed list/object values must be rejected, not raise from set membership.
+- README and .env.example now describe the new primary/reserve variables.
+- Focused workflow now includes tests/test_settings.py. Tests were updated for the new 3.8 reserve and complete conversation-turn schema. Added offline tests for invalid turn JSON, invalid selection shape and transport failover.
+- CI status for the latest head is not verified: the only retrieved run (#95) was on an earlier commit and failed on one stale telemetry expectation, which was corrected. The GitHub connector's commit-run lookup currently returns no run for the latest push commits. Do not claim the latest head passed.
+- Current branch remains feat/gemini-usage-analytics, PR #8 open/draft/unmerged, base work/consultant-reliability. main and PR #7 remain untouched.
