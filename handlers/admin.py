@@ -712,16 +712,27 @@ async def _set_sale_enabled(context: ContextTypes.DEFAULT_TYPE, event_id: str, e
 async def _screen_ai(
     context: ContextTypes.DEFAULT_TYPE, period: str, page: int
 ) -> tuple[str, Any]:
-    """§48: AI diagnostics - statuses and counters, never keys."""
+    """§48: AI diagnostics and durable Gemini usage, never keys."""
 
     settings = common.get_settings(context)
+    database = common.get_database(context)
     ai_service = context.application.bot_data.get("ai_service")
+    since = analytics.period_start(period)
+    usage = await database.get_gemini_usage_stats(since)
+    totals = usage.get("totals") or {}
 
     key_configured = bool(getattr(settings, "gemini_api_key", None))
     available = ai_service is not None and ai_service.is_available
 
+    def _number(value: object) -> str:
+        try:
+            return f"{int(value or 0):,}".replace(",", " ")
+        except (TypeError, ValueError):
+            return "0"
+
     lines = [
         "\U0001F916 <b>AI</b>",
+        f"Период статистики: {common.escape(analytics.period_label(period))}",
         "",
         "• Провайдер: Gemini (google-genai)",
         "• Ключ GEMINI_API_KEY: " + ("задан" if key_configured else "не задан"),
@@ -730,7 +741,7 @@ async def _screen_ai(
     if ai_service is not None:
         lines.extend(
             [
-                f"• Модель: {common.escape(str(ai_service.model))}",
+                f"• Модель по умолчанию: {common.escape(str(ai_service.model))}",
                 "",
                 "<b>Счётчики (с момента запуска)</b>:",
                 f"• Успешных generate: {ai_service.generate_ok}",
@@ -745,7 +756,50 @@ async def _screen_ai(
     else:
         lines.append("• AI-сервис не сконфигурирован в этом процессе")
 
-    lines.extend(["", "Ключ и содержимое промптов здесь не отображаются."])
+    lines.extend(
+        [
+            "",
+            "<b>Gemini Usage (сохранённая история)</b>:",
+            f"• Вызовов: <b>{_number(totals.get('attempts'))}</b>",
+            f"• Входящие токены: {_number(totals.get('prompt_tokens'))}",
+            f"• Выходящие + thinking: {_number(max(0, int(totals.get('total_tokens') or 0) - int(totals.get('prompt_tokens') or 0)))}",
+            f"• Thinking tokens: {_number(totals.get('thoughts_tokens'))}",
+            f"• Расчётная стоимость: <b>${float(totals.get('estimated_cost_usd') or 0.0):.8f}</b>",
+            f"• Вызовов с неизвестной стоимостью: {_number(totals.get('unknown_costs'))}",
+            "",
+            "<b>По моделям:</b>",
+        ]
+    )
+    if usage.get("models"):
+        for row in usage["models"]:
+            lines.append(
+                f"• {common.escape(str(row['model']))}: "
+                f"{_number(row['attempts'])} выз., "
+                f"${float(row['estimated_cost_usd'] or 0.0):.8f}; "
+                f"input {_number(row['prompt_tokens'])}, "
+                f"output+thinking {_number(max(0, int(row['total_tokens'] or 0) - int(row['prompt_tokens'] or 0)))}"
+            )
+    else:
+        lines.append("• Пока нет сохранённых вызовов")
+
+    if usage.get("operations"):
+        lines.extend(["", "<b>По операциям:</b>"])
+        for row in usage["operations"]:
+            lines.append(
+                f"• {common.escape(str(row['operation']))}: "
+                f"{_number(row['attempts'])} выз., "
+                f"${float(row['estimated_cost_usd'] or 0.0):.8f}"
+            )
+
+    lines.extend(
+        [
+            "",
+            "Стоимость — оценка по стандартному платному тарифу Google, "
+            "не прямое подтверждение биллинга.",
+            "Тайм-ауты и вызовы без usage_metadata сохраняются с неизвестной стоимостью, не с нулевой.",
+            "Ключ и содержимое промптов здесь не отображаются.",
+        ]
+    )
     return "\n".join(lines), admin_screen_keyboard("ai", period)
 
 
