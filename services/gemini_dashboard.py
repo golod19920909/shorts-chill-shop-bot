@@ -68,6 +68,7 @@ th{color:#9ba8ba;font-weight:600}td.num,th.num{text-align:right;font-variant-num
 <script>
 const fmt = n => Number(n||0).toLocaleString("ru-RU");
 const money = n => "$"+Number(n||0).toFixed(8);
+const esc = s => String(s??"—").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
 function table(rows, columns, costBar=false){
  if(!rows || !rows.length) return '<p class="muted">Пока нет данных</p>';
  const head='<thead><tr>'+columns.map(c=>'<th class="'+(c.num?'num':'')+'">'+c.label+'</th>').join('')+'</tr></thead>';
@@ -77,6 +78,8 @@ function table(rows, columns, costBar=false){
   if(c.key==='estimated_cost_usd' && costBar){
    const w=max?Math.max(2,Number(r.estimated_cost_usd||0)/max*100):2;
    v=money(r.estimated_cost_usd)+'<div class="bar" style="width:'+w+'%"></div>';
+  } else {
+   v=esc(v);
   }
   return '<td class="'+(c.num?'num':'')+'">'+String(v??'—')+'</td>';
  }).join('')+'</tr>').join('')+'</tbody>';
