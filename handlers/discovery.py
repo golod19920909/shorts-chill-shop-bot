@@ -38,6 +38,7 @@ from keyboards.main import (
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest
 from services import analytics, feed_curation
+from services.gemini_telemetry import track_usage
 from services.comparison_service import sort_products
 from services.product_identity import deduplicate_products, identity_pair
 from services.relevance import MIN_TERM_LENGTH, tokenize
@@ -482,6 +483,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+@track_usage("category_search")
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Run a search inside the selected category."""
 
