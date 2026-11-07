@@ -175,11 +175,9 @@ python main.py
 | --- | --- | --- | --- |
 | `BOT_TOKEN` | да | — | токен от [@BotFather](https://t.me/BotFather) |
 | `GEMINI_API_KEY` | нет | — | Google Gemini; без ключа работает локальный парсер, а фильтрация/сортировка считаются детерминированно (лента «✨ Находки» от Gemini не зависит вообще) |
-| `GEMINI_SMART_MODEL` | нет | `gemini-3.8-flash` | модель для анализа товара, сравнения и вопросов о товаре |
-| `GEMINI_FAST_MODEL` | нет | `gemini-3.8-flash` | модель для разбора запроса, уточнений и отбора/сортировки кандидатов |
-| `GEMINI_VISION_MODEL` | нет | `gemini-3.8-flash` | модель для распознавания товара на фотографии |
-| `GEMINI_FALLBACK_MODEL` | нет | `gemini-3.1-flash-lite` | резервная модель: используется один раз, если основная ответила «недоступна» |
-| `GEMINI_MODEL` | нет | — | переопределение «умной» роли для старых `.env`; при пустом значении берётся `GEMINI_SMART_MODEL` |
+| `GEMINI_PRIMARY_MODEL` | нет | `gemini-3.1-flash-lite` | основная модель для диалога, AI-подбора, сравнения, вопросов о товарах и распознавания фото |
+| `GEMINI_RESERVE_MODEL` | нет | `gemini-3.8-flash` | резервная модель: один вызов после допустимой ошибки основной модели; не используется при account-wide quota/rate-limit |
+| Старые `GEMINI_MODEL`, `GEMINI_SMART_MODEL`, `GEMINI_FAST_MODEL`, `GEMINI_VISION_MODEL`, `GEMINI_FALLBACK_MODEL` | — | — | больше не читаются; используйте две переменные выше |
 | `FEED_OPEN_SIZE` | нет | `20` | «✨ Находки»: сколько товаров максимум загружается в одну feed session — объём RAM-pool, из которого карточки выдаются без повторных API-запросов (1..100) |
 | `FEED_MAX_PAGES_PER_OPEN` | нет | `2` | «✨ Находки»: максимум страниц AliExpress (`page_no`, `page_size=50`), запрашиваемых за одно новое открытие ленты (1..10) |
 | `ALIEXPRESS_APP_KEY` | нет | — | ключ AliExpress Open Platform |
