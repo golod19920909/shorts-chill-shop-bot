@@ -2872,6 +2872,10 @@ seller_terms: {seller_terms_json}
                     )
                     valid_shape = (
                         isinstance(structured, dict)
+                        and {
+                            "action", "confidence", "product_type", "marketplace_terms",
+                            "question", "response", "slot_updates",
+                        }.issubset(structured)
                         and isinstance(structured.get("action"), str)
                         and structured.get("action") in {
                             "new_search", "refine", "correction",
@@ -2897,7 +2901,9 @@ seller_terms: {seller_terms_json}
                         and isinstance(slot_updates, list)
                         and all(
                             isinstance(item, dict)
+                            and isinstance(item.get("operation"), str)
                             and item.get("operation") in {"add", "replace", "remove"}
+                            and isinstance(item.get("kind"), str)
                             and item.get("kind") in {
                                 "use_case", "compatibility", "feature",
                                 "exclusion", "preference",
