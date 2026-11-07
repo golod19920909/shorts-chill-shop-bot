@@ -98,19 +98,11 @@ class Settings:
     feed_open_size: int = 20
     feed_max_pages_per_open: int = 2
 
-    #: Gemini models per ROLE. The names below are configuration, not a
-    #: verified availability statement: checking which models a key may
-    #: really call costs quota, so it is a separate, intentional step.
-    #:
-    #: * ``fast``    - query parsing, candidate ranking, refinement;
-    #: * ``smart``   - product analysis, comparison, free-form questions;
-    #: * ``vision``  - looking at a photo;
-    #: * ``fallback``- tried once when a primary model answers "unavailable"
-    #:   (never for a quota error, which is account-wide).
-    #: All three PRIMARY roles run the same generation: one model means one
-    #: quality bar (and one set of prompt behaviours) for parsing, selection
-    #: and photo reading; the distinct role variables stay so a deployment can
-    #: still pin a cheaper model to one role without touching any code.
+    #: All roles use the same configured primary generation to keep one
+    #: consistent quality bar across dialogue, selection, product answers and
+    #: photo understanding. GEMINI_PRIMARY_MODEL is the only primary override;
+    #: GEMINI_RESERVE_MODEL selects the one reserve used after eligible errors.
+    #: Account-wide quota/rate-limit errors never trigger the reserve.
     gemini_fast_model: str = "gemini-3.1-flash-lite"
     gemini_smart_model: str = "gemini-3.1-flash-lite"
     gemini_vision_model: str = "gemini-3.1-flash-lite"
