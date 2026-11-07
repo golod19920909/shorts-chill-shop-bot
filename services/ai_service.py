@@ -91,9 +91,12 @@ DEFAULT_FALLBACK_MODEL = "gemini-3.1-flash-lite"
 #: with invented or repeated items.
 TOP_CANDIDATES = 20
 
-#: Per-model budget inside the 15-second conversational selector deadline.
-#: Leaves room for the configured fallback model after a slow primary attempt.
-CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS = 6.5;
+#: Per-attempt and whole-operation budgets include both the primary model and
+#: one configured fallback attempt. Keep enough headroom for ordinary provider
+#: latency without allowing either conversational stage to wait indefinitely.
+CONVERSATION_TURN_ATTEMPT_TIMEOUT_SECONDS = 5.5
+CONVERSATION_TURN_OUTER_TIMEOUT_SECONDS = 12.0
+CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS = 8.0
 
 
 #: The rules every selection prompt shares (the assistant's candidate picker and
@@ -1771,6 +1774,7 @@ class AIService:
                 len(requirements),
             )
             return None
+        prompt_build_started = time.perf_counter()
         identity_ids = {
             str(value) for value in (identity_review_ids or []) if value
         }
@@ -1885,11 +1889,13 @@ seller_terms: {seller_terms_json}
         }
         logger.info(
             "Gemini conversation selection request: candidates=%d requirements=%d "
-            "identity_review=%d prompt_chars=%d",
+            "identity_review=%d payload_chars=%d prompt_chars=%d build_ms=%.0f",
             len(candidates),
             len(requirements),
             len(identity_ids),
+            len(products_json),
             len(prompt),
+            (time.perf_counter() - prompt_build_started) * 1000,
         )
         raw = await self._generate(
             prompt,
@@ -2364,6 +2370,7 @@ seller_terms: {seller_terms_json}
         if not self.is_available or not (user_text or "").strip():
             return None
 
+        prompt_build_started = time.perf_counter()
         # Build a bounded, valid JSON snapshot. Slicing serialized JSON at
         # an arbitrary character offset can leave a broken document (and
         # silently hide the pending question or the active constraints).
@@ -2375,11 +2382,20 @@ seller_terms: {seller_terms_json}
             context=context_json,
             message=(user_text or "").strip()[:500],
         )
+        logger.info(
+            "Gemini prompt prepared: op=conversation_turn prompt_chars=%d "
+            "context_chars=%d build_ms=%.0f",
+            len(prompt),
+            len(context_json),
+            (time.perf_counter() - prompt_build_started) * 1000,
+        )
         try:
             # This is the decision that governs whether retrieval is
             # appropriate at all. Give it a bounded but realistic window;
             # candidate selection has its own independent window afterwards.
-            async with asyncio.timeout(min(self.timeout_seconds, 8.5)):
+            async with asyncio.timeout(
+                min(self.timeout_seconds, CONVERSATION_TURN_OUTER_TIMEOUT_SECONDS)
+            ):
                 raw = await self._generate(
                     prompt,
                     models=(self.fast_model,),
@@ -2671,6 +2687,7 @@ seller_terms: {seller_terms_json}
             # request contents or credentials.
             attempt_started = time.perf_counter()
             attempt_timeout = self.timeout_seconds
+            prompt_chars = len(contents) if isinstance(contents, str) else None
             if operation == "conversation_selection":
                 attempt_timeout = min(
                     attempt_timeout, CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS
@@ -2680,7 +2697,11 @@ seller_terms: {seller_terms_json}
                 # primary attempt plus one fast fallback is more useful than
                 # abandoning seller-language query expansion on the first
                 # transient client timeout.
-                attempt_timeout = min(attempt_timeout, 4.0)
+                attempt_timeout = min(
+                    attempt_timeout, CONVERSATION_TURN_ATTEMPT_TIMEOUT_SECONDS
+                )
+            sdk_started = None
+            request_setup_ms = 0.0
             try:
                 async with asyncio.timeout(attempt_timeout):
                     request_kwargs = {"model": model, "contents": contents}
@@ -2695,7 +2716,7 @@ seller_terms: {seller_terms_json}
                         }
                     elif operation == "conversation_selection":
                         # Candidate review is a bounded classification/ranking
-                        # step after deterministic safety checks. The caller
+                        # step after deterministic safety filters. The caller
                         # supplies a requirement-specific schema; the exact same
                         # schema is used for primary and fallback models.
                         request_kwargs["config"] = {
@@ -2703,15 +2724,26 @@ seller_terms: {seller_terms_json}
                             "response_schema": response_schema,
                             "thinking_config": {"thinking_level": "low"},
                         }
+                    request_setup_ms = (time.perf_counter() - attempt_started) * 1000
+                    sdk_started = time.perf_counter()
                     response = await self._client.aio.models.generate_content(
                         **request_kwargs
                     )
             except Exception as exc:
+                sdk_wait_ms = (
+                    (time.perf_counter() - sdk_started) * 1000
+                    if sdk_started is not None else 0.0
+                )
                 attempt_ms = (time.perf_counter() - attempt_started) * 1000
                 logger.info(
-                    "Gemini attempt failed: model=%s dur_ms=%.0f limit_s=%.1f",
+                    "Gemini attempt failed: op=%s model=%s dur_ms=%.0f "
+                    "setup_ms=%.0f sdk_wait_ms=%.0f prompt_chars=%s limit_s=%.1f",
+                    operation,
                     model,
                     attempt_ms,
+                    request_setup_ms,
+                    sdk_wait_ms,
+                    prompt_chars if prompt_chars is not None else "n/a",
                     attempt_timeout,
                 )
                 # Measurement only: per-attempt record + turn aggregate.
@@ -2772,9 +2804,22 @@ seller_terms: {seller_terms_json}
                 self.generate_failed += 1
                 return None
 
+            response_received_at = time.perf_counter()
             text = getattr(response, "text", None)
+            response_extract_ms = (time.perf_counter() - response_received_at) * 1000
+            sdk_wait_ms = (
+                (response_received_at - sdk_started) * 1000
+                if sdk_started is not None else 0.0
+            )
             if not text:
                 attempt_ms = (time.perf_counter() - attempt_started) * 1000
+                logger.info(
+                    "Gemini attempt empty: op=%s model=%s dur_ms=%.0f "
+                    "setup_ms=%.0f sdk_wait_ms=%.0f response_ms=%.0f prompt_chars=%s",
+                    operation, model, attempt_ms, request_setup_ms, sdk_wait_ms,
+                    response_extract_ms,
+                    prompt_chars if prompt_chars is not None else "n/a",
+                )
                 logger.warning("Gemini returned an empty response")
                 record_attempt(
                     operation=operation,
@@ -2788,9 +2833,15 @@ seller_terms: {seller_terms_json}
 
             attempt_ms = (time.perf_counter() - attempt_started) * 1000
             logger.info(
-                "Gemini attempt ok: model=%s dur_ms=%.0f",
+                "Gemini attempt ok: op=%s model=%s dur_ms=%.0f "
+                "setup_ms=%.0f sdk_wait_ms=%.0f response_ms=%.0f prompt_chars=%s",
+                operation,
                 model,
                 attempt_ms,
+                request_setup_ms,
+                sdk_wait_ms,
+                response_extract_ms,
+                prompt_chars if prompt_chars is not None else "n/a",
             )
             # Measurement only: per-attempt record + turn aggregate. Token
             # counts come only from response.usage_metadata; when the SDK
