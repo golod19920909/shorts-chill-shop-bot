@@ -4579,6 +4579,10 @@ existing Gemini migration PR without the user's explicit approval.
   to inspect all candidates and return all genuinely suitable items up to the
   limit. Evidence quotes, real candidate IDs, and deterministic hard gates
   remain mandatory.
+- Semantic review IDs passed to Gemini are now intersected with the exact
+  candidate IDs in that AI request. The live trace had 70 submitted candidates
+  but 99 identity-review IDs; off-pool IDs were unnecessary prompt data and
+  could confuse the model.
 - Selection telemetry records input, requested, returned, validated and final
   card counts plus selection duration.
 
