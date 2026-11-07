@@ -74,9 +74,8 @@ HARD_MERGE_FIELDS = (
 logger = logging.getLogger(__name__)
 
 
-#: Default model per ROLE. ``DEFAULT_MODEL`` is the "smart" model (the
-#: reasoning-heavy one) and stays the first constructor argument, so every
-#: existing caller keeps working unchanged.
+#: Default primary model. DEFAULT_MODEL stays the first constructor
+#: argument, so every existing caller keeps working unchanged.
 DEFAULT_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_FAST_MODEL = "gemini-3.1-flash-lite"
 DEFAULT_VISION_MODEL = "gemini-3.1-flash-lite"
