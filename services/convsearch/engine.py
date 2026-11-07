@@ -1180,7 +1180,7 @@ class ConversationSearchEngine:
             ],
             "identity_review_ids": [
                 product_id for product_id in semantic_review_ids
-                if product_id
+                if product_id in selector_ids
             ],
             "marketplace_terms": getattr(
                 strategy.request, "intent_marketplace_terms", []
