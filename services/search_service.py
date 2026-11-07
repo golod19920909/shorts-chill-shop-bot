@@ -1147,6 +1147,27 @@ class SearchService:
                     len(route_rankings), len(fused),
                 )
             if broaden:
+                raw_candidates = sum(
+                    len(result)
+                    for route in raw_route_pairs.values()
+                    for _provider, result in route
+                    if isinstance(result, list)
+                )
+                logger.info(
+                    "RAW conversational retrieval metrics pages_requested=%d "
+                    "pages_completed=%d pages_failed=%d routes_requested=%d "
+                    "routes_completed=%d routes_failed=%d raw_candidates=%d "
+                    "unique_candidates=%d retrieval_duration_ms=%.0f",
+                    pages_requested,
+                    pages_completed,
+                    pages_failed,
+                    routes_requested,
+                    routes_completed,
+                    routes_failed,
+                    raw_candidates,
+                    len(outcome.products),
+                    (time.perf_counter() - t_search_started) * 1000.0,
+                )
                 logger.info(
                     "RAW conversational retrieval used %d provider route(s) "
                     "across %d page(s) (pool=%d cap=%d)",
