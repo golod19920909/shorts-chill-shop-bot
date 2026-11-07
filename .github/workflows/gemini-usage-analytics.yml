@@ -1,4 +1,5 @@
 name: Gemini usage analytics
+# Re-run after extending the Telegram reporting and grouped-request tests.
 
 on:
   push:
