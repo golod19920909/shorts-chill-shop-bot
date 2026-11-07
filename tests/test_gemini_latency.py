@@ -62,6 +62,68 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, ["primary-model", "fallback-model"])
         self.assertEqual(result, '{"action":"refine","confidence":0.9}')
 
+    async def test_invalid_structured_turn_response_advances_to_reserve(self) -> None:
+        calls: list[str] = []
+
+        class FakeModels:
+            async def generate_content(self, **kwargs):
+                model = kwargs["model"]
+                calls.append(model)
+                if model == "primary-model":
+                    return SimpleNamespace(text='{"action":', usage_metadata=None)
+                return SimpleNamespace(
+                    text='{"action":"refine","confidence":0.9}',
+                    usage_metadata=None,
+                )
+
+        service = AIService(
+            api_key=None,
+            timeout_seconds=20.0,
+            fast_model="primary-model",
+            fallback_model="reserve-model",
+        )
+        service._client = SimpleNamespace(aio=SimpleNamespace(models=FakeModels()))
+
+        result = await service._generate(
+            "offline structured prompt",
+            models=("primary-model",),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(calls, ["primary-model", "reserve-model"])
+        self.assertEqual(result, '{"action":"refine","confidence":0.9}')
+
+    async def test_transport_error_advances_to_reserve_for_conversation(self) -> None:
+        calls: list[str] = []
+
+        class FakeModels:
+            async def generate_content(self, **kwargs):
+                model = kwargs["model"]
+                calls.append(model)
+                if model == "primary-model":
+                    raise ConnectionError("simulated network failure")
+                return SimpleNamespace(
+                    text='{"action":"refine","confidence":0.9}',
+                    usage_metadata=None,
+                )
+
+        service = AIService(
+            api_key=None,
+            timeout_seconds=20.0,
+            fast_model="primary-model",
+            fallback_model="reserve-model",
+        )
+        service._client = SimpleNamespace(aio=SimpleNamespace(models=FakeModels()))
+
+        result = await service._generate(
+            "offline transport prompt",
+            models=("primary-model",),
+            operation="conversation_turn",
+        )
+
+        self.assertEqual(calls, ["primary-model", "reserve-model"])
+        self.assertEqual(result, '{"action":"refine","confidence":0.9}')
+
     async def test_attempt_log_separates_local_setup_from_sdk_wait(self) -> None:
         class FakeModels:
             async def generate_content(self, **kwargs):
