@@ -54,6 +54,13 @@ class Settings:
     #: instead of granting access to anyone.
     admin_ids: tuple[int, ...] = ()
 
+    #: Optional read-only Gemini analytics web dashboard. It is disabled
+    #: unless a non-empty password is configured.
+    analytics_dashboard_password: str | None = None
+    analytics_dashboard_username: str = "admin"
+    analytics_dashboard_host: str = "127.0.0.1"
+    analytics_dashboard_port: int = 8765
+
     #: How often the price-tracking scheduler checks tracked products
     #: (``TRACKING_INTERVAL_MINUTES``). ``0`` disables automatic checks
     #: entirely (the tracking list then says so honestly). The default of
@@ -129,6 +136,10 @@ class Settings:
     @property
     def is_gemini_configured(self) -> bool:
         return bool(self.gemini_api_key)
+
+    @property
+    def is_analytics_dashboard_enabled(self) -> bool:
+        return bool(self.analytics_dashboard_password)
 
     @property
     def has_admins(self) -> bool:
@@ -238,6 +249,12 @@ def load_settings() -> Settings:
             app_secret=_get("ALIEXPRESS_APP_SECRET"),
         ),
         admin_ids=_get_int_list("ADMIN_IDS"),
+        analytics_dashboard_password=_get("ANALYTICS_DASHBOARD_PASSWORD"),
+        analytics_dashboard_username=_get("ANALYTICS_DASHBOARD_USERNAME") or "admin",
+        analytics_dashboard_host=_get("ANALYTICS_DASHBOARD_HOST") or "127.0.0.1",
+        analytics_dashboard_port=_get_int(
+            "ANALYTICS_DASHBOARD_PORT", default=8765, minimum=1, maximum=65535
+        ),
         tracking_interval_minutes=_get_int(
             "TRACKING_INTERVAL_MINUTES", default=1440, minimum=0
         ),
