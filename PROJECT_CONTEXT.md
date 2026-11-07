@@ -4586,6 +4586,20 @@ existing Gemini migration PR without the user's explicit approval.
 - Selection telemetry records input, requested, returned, validated and final
   card counts plus selection duration.
 
+### Why the first AI pass could return only four
+
+The selection schema has no `maxItems=4` restriction, and the application
+caps accepted IDs at the requested maximum of 20. Therefore the observed four
+IDs were not caused by a four-item schema limit. The model was allowed to
+return a shorter semantically conservative list, and the engine previously
+accepted that list as final without asking it to inspect the remaining
+candidates. The live count mismatch (70 candidates versus 99 identity-review
+IDs) is separately confirmed in the engine's data flow and is now corrected.
+The exact relevance of the other 66 listings cannot be proven from aggregate
+logs alone; the full candidate payload/raw model answer was not retained.
+The new bounded continuation is intended to recover suitable candidates
+without weakening hard gates or pretending every remaining item is relevant.
+
 ### AliExpress 405 interpretation
 
 The existing client deliberately treats `resp_code=405` with
