@@ -1613,9 +1613,6 @@ class DeduplicationAndRelevanceTests(SearchServiceTestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class SearchDepthDefaultTests(unittest.TestCase):
     def test_conversational_product_search_defaults_to_five_pages(self) -> None:
         import os
@@ -1630,3 +1627,5 @@ class SearchDepthDefaultTests(unittest.TestCase):
         self.assertEqual(MAX_SEARCH_PAGES, 5)
         self.assertEqual(configured.search_max_pages, 5)
 
+if __name__ == "__main__":
+    unittest.main()
