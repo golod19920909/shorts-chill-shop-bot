@@ -4365,7 +4365,7 @@ No changes are permitted to Gemini prompts, model routing/fallback policy, conve
 
 ### Implemented on the feature branch
 1. Added `services/gemini_pricing.py` with versioned Standard paid-tier estimates:
-   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; $1.50 / $7.50 from 2027-01-01.
+   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; from 2027-01-01 the estimator returns `unknown_pricing` until a verified new rate is configured.
    - `gemini-3.1-flash-lite`: $0.25 / 1M input and $1.50 / 1M output.
    - Cached input uses the published cached-input rates.
    - Billable output is derived from `total_token_count - prompt_token_count`, which includes candidate and thinking tokens once; `thoughts_token_count` is separately displayed but is not added a second time.
@@ -4399,5 +4399,31 @@ No changes are permitted to Gemini prompts, model routing/fallback policy, conve
 - Verify the new table is created against an existing local database and that persisted rows survive a bot restart.
 - Manually verify that the VS Code terminal shows per-attempt token counts and estimated USD cost, and that the admin AI screen reflects persisted totals. This requires the user's local environment and credentials; do not run live provider calls from CI.
 - Add a safe recent-attempt detail view if useful.
-- Web dashboard, PostgreSQL migration, Telegram slash commands and server deployment are later stages; they are NOT implemented in this first local-persistence increment.
+- Web dashboard, PostgreSQL migration and server deployment remain later stages. Telegram slash commands were subsequently added in the continuation noted below.
 - Confirm all other Gemini call entry points that may run outside the four decorated handlers; per-attempt persistence still works, but those attempts may have no request_id until their handler is scoped.
+
+### Continuation update — 2026-11-07
+
+The implementation was continued on the same PR #8 branch after the first local-persistence increment.
+
+Additional changes:
+- Added request-grouped history query `Database.list_gemini_usage_requests()`; it aggregates attempts by request ID and exposes only models, operation names, token totals, timestamps and estimated costs.
+- Added admin-only Telegram commands: `/stats_today`, `/stats_week`, `/stats_month`, `/stats_models`, `/stats_requests`. Existing user-facing `/stats` remains unchanged.
+- Updated Telegram command menu registration for the new admin commands.
+- Corrected pricing behavior: do not invent or extrapolate future Flash rates. When the known model's verified rate period expires, return `unknown_pricing`; unknown model IDs return `unknown_model`.
+- Added a database test for request grouping and updated the pricing test for unverified future rates.
+- The existing admin AI screen already provides persisted model/operation aggregates and period filtering; it is reused rather than creating a duplicate admin screen.
+
+Files additionally changed in this continuation:
+- `services/gemini_pricing.py`
+- `database/database.py`
+- `handlers/admin.py`
+- `bot/__init__.py`
+- `tests/test_database.py`
+- `tests/test_gemini_pricing.py`
+
+Verification:
+- Focused GitHub Actions workflow was running on commit `2e1f4924dfa545d871a755bdb4322ee2722c0e4d` when checked. Newer commits followed; check the latest head's workflow run before claiming a pass.
+- No local Python execution or live provider calls were performed.
+- Web dashboard, PostgreSQL migration and server deployment remain unimplemented.
+- Manual local verification is still required for VS Code output, persistence across restart, and the Telegram commands.
