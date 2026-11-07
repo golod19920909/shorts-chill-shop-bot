@@ -37,7 +37,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
                 if model == "primary-model":
                     await asyncio.sleep(0.05)
                 return SimpleNamespace(
-                    text='{"action":"refine","confidence":0.9}',
+                    text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}',
                     usage_metadata=None,
                 )
 
@@ -60,7 +60,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(calls, ["primary-model", "fallback-model"])
-        self.assertEqual(result, '{"action":"refine","confidence":0.9}')
+        self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
 
     async def test_invalid_structured_turn_response_advances_to_reserve(self) -> None:
         calls: list[str] = []
@@ -72,7 +72,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
                 if model == "primary-model":
                     return SimpleNamespace(text='{"action":', usage_metadata=None)
                 return SimpleNamespace(
-                    text='{"action":"refine","confidence":0.9}',
+                    text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}',
                     usage_metadata=None,
                 )
 
@@ -91,7 +91,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(calls, ["primary-model", "reserve-model"])
-        self.assertEqual(result, '{"action":"refine","confidence":0.9}')
+        self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
 
     async def test_transport_error_advances_to_reserve_for_conversation(self) -> None:
         calls: list[str] = []
@@ -103,7 +103,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
                 if model == "primary-model":
                     raise ConnectionError("simulated network failure")
                 return SimpleNamespace(
-                    text='{"action":"refine","confidence":0.9}',
+                    text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}',
                     usage_metadata=None,
                 )
 
@@ -122,13 +122,13 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(calls, ["primary-model", "reserve-model"])
-        self.assertEqual(result, '{"action":"refine","confidence":0.9}')
+        self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
 
     async def test_attempt_log_separates_local_setup_from_sdk_wait(self) -> None:
         class FakeModels:
             async def generate_content(self, **kwargs):
                 return SimpleNamespace(
-                    text='{"action":"refine","confidence":0.9}',
+                    text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}',
                     usage_metadata=None,
                 )
 
