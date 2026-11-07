@@ -300,6 +300,58 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
             ["completed-before-deadline"],
         )
 
+    def test_one_slow_route_does_not_block_other_grounded_routes(self) -> None:
+        completed = make_product(
+            Marketplace.ALIEXPRESS, "alternate-survives-slow-route", 19.0,
+            title="Wireless sport headphones",
+        )
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            if phrase == "wireless headphones":
+                await asyncio.sleep(0.05)
+                return []
+            return [completed] if request.page_no == 1 else []
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_search_pages=3)
+        request = SearchRequest(
+            original_query="wireless headphones for running",
+            normalized_query="wireless headphones",
+        )
+        with (
+            patch(
+                "services.query_variants.product_query_variants",
+                return_value=["wireless headphones", "bluetooth sport headphones"],
+            ),
+            patch(
+                "services.search_service.RAW_CONVERSATION_ROUTE_TIMEOUT_SECONDS",
+                0.01,
+            ),
+        ):
+            outcome = self.run_async(
+                service.find_products(
+                    request, raw=True, broaden=True, raw_broaden=True,
+                    raw_continue=lambda _products: True,
+                )
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                (1, "wireless headphones"),
+                (1, "bluetooth sport headphones"),
+                (2, "bluetooth sport headphones"),
+            ],
+        )
+        self.assertEqual(
+            [item.product_id for item in outcome.products],
+            ["alternate-survives-slow-route"],
+        )
+
     def test_raw_conversation_paginates_every_nonempty_grounded_route(self) -> None:
         primary_page_one = make_product(
             Marketplace.ALIEXPRESS, "primary-page-one", 19.0,
