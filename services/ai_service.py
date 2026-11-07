@@ -2872,6 +2872,7 @@ seller_terms: {seller_terms_json}
                     )
                     valid_shape = (
                         isinstance(structured, dict)
+                        and isinstance(structured.get("action"), str)
                         and structured.get("action") in {
                             "new_search", "refine", "correction",
                             "alternatives", "compare", "clarify", "respond",
