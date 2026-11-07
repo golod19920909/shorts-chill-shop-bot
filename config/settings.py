@@ -71,10 +71,10 @@ class Settings:
 
     #: How deep one PRODUCT search may walk the documented result pages of the
     #: marketplace (``SEARCH_MAX_PAGES``). Page 1 is the ordinary answer; the
-    #: SAME phrase is asked for its next page only while the relevant pool is
-    #: still short of the result cap. Configurable because the number is a
-    #: direct trade between breadth and API usage.
-    search_max_pages: int = 3
+    #: SAME phrase is asked for its next page only while the eligible pool is
+    #: still short of the AI/browse target. The default is five documented
+    #: pages; deployments may tune it through SEARCH_MAX_PAGES.
+    search_max_pages: int = 5
 
     #: Photo-search breadth. ``PHOTO_SEARCH_PAGES`` is how many documented
     #: result pages ONE grounded image hypothesis may be asked for, and
