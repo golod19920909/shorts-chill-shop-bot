@@ -34,3 +34,5 @@ jobs:
           tests/test_gemini_telemetry.py::ConcurrencyTests
           tests/test_gemini_telemetry.py::PersistenceTests
           tests/test_gemini_dashboard.py
+          tests/test_gemini_latency.py
+          tests/test_ai_conversation_turn_fallback.py
