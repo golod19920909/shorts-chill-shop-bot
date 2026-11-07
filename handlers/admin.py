@@ -99,6 +99,107 @@ API_CAPABILITIES: tuple[str, ...] = (
 )
 
 
+async def _send_gemini_usage_report(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    period: str,
+    by_models: bool = False,
+    requests: bool = False,
+) -> None:
+    """Send a compact, admin-only Gemini cost report."""
+
+    if not await _guard(update, context, answer_callback=False):
+        return
+
+    database = common.get_database(context)
+    since = analytics.period_start(period)
+    usage = await database.get_gemini_usage_stats(since)
+    totals = usage.get("totals") or {}
+
+    def number(value: object) -> str:
+        try:
+            return f"{int(value or 0):,}".replace(",", " ")
+        except (TypeError, ValueError):
+            return "0"
+
+    title = {
+        "today": "сегодня",
+        "7": "за 7 дней",
+        "30": "за 30 дней",
+        "all": "за всё время",
+    }.get(period, period)
+    lines = [
+        f"<b>Gemini — расходы {title}</b>",
+        f"Вызовов: <b>{number(totals.get('attempts'))}</b>",
+        f"Входящие токены: {number(totals.get('prompt_tokens'))}",
+        "Выходящие + thinking: "
+        + number(max(0, int(totals.get("total_tokens") or 0) - int(totals.get("prompt_tokens") or 0))),
+        f"Thinking tokens: {number(totals.get('thoughts_tokens'))}",
+        f"Расчётная стоимость: <b>${float(totals.get('estimated_cost_usd') or 0.0):.8f}</b>",
+        f"Стоимость неизвестна для вызовов: {number(totals.get('unknown_costs'))}",
+    ]
+
+    if by_models:
+        lines.extend(["", "<b>По моделям:</b>"])
+        for row in usage.get("models") or []:
+            lines.append(
+                f"• {common.escape(str(row['model']))}: {number(row['attempts'])} выз., "
+                f"${float(row['estimated_cost_usd'] or 0.0):.8f}; "
+                f"input {number(row['prompt_tokens'])}, "
+                f"output+thinking {number(max(0, int(row['total_tokens'] or 0) - int(row['prompt_tokens'] or 0)))}"
+            )
+        if not usage.get("models"):
+            lines.append("• Пока нет данных")
+
+    if requests:
+        rows = await database.list_gemini_usage_requests(since, limit=12)
+        lines.extend(["", "<b>Последние пользовательские запросы:</b>"])
+        if rows:
+            for row in rows:
+                cost = (
+                    f"${float(row['estimated_cost_usd'] or 0.0):.8f}"
+                    if not row["unknown_costs"]
+                    else f"${float(row['estimated_cost_usd'] or 0.0):.8f} + неизвестно"
+                )
+                lines.append(
+                    f"• <code>{common.escape(str(row['request_id'])[:10])}</code> "
+                    f"{number(row['attempts'])} выз.; {cost}; "
+                    f"{number(row['total_tokens'])} ток.; "
+                    f"{common.escape(str(row['models'] or '—'))}"
+                )
+        else:
+            lines.append("• Пока нет сгруппированных запросов")
+
+    lines.extend(
+        [
+            "",
+            "<i>Стоимость расчётная по сохранённым тарифам, не прямая сверка с биллингом Google.</i>",
+        ]
+    )
+    await _edit_or_reply(update, context, "\n".join(lines), parse_mode="HTML")
+
+
+async def stats_today_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_gemini_usage_report(update, context, period="today")
+
+
+async def stats_week_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_gemini_usage_report(update, context, period="7")
+
+
+async def stats_month_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_gemini_usage_report(update, context, period="30")
+
+
+async def stats_models_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_gemini_usage_report(update, context, period="30", by_models=True)
+
+
+async def stats_requests_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_gemini_usage_report(update, context, period="30", requests=True)
+
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``/admin`` - open the panel's main screen (§39)."""
 
