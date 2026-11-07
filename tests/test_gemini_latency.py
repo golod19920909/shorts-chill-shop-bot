@@ -93,6 +93,44 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, ["primary-model", "reserve-model"])
         self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
 
+    async def test_invalid_structured_selection_response_advances_to_reserve(self) -> None:
+        calls: list[str] = []
+
+        class FakeModels:
+            async def generate_content(self, **kwargs):
+                model = kwargs["model"]
+                calls.append(model)
+                if model == "primary-model":
+                    return SimpleNamespace(
+                        text='{"selections":[{"id":"candidate-1"}]}',
+                        usage_metadata=None,
+                    )
+                return SimpleNamespace(
+                    text='{"selections":[{"id":"candidate-1","identity_evidence":"title quote","requirement_evidence":{}}]}',
+                    usage_metadata=None,
+                )
+
+        service = AIService(
+            api_key=None,
+            timeout_seconds=20.0,
+            fast_model="primary-model",
+            fallback_model="reserve-model",
+        )
+        service._client = SimpleNamespace(aio=SimpleNamespace(models=FakeModels()))
+
+        result = await service._generate(
+            "offline candidate selection prompt",
+            models=("primary-model",),
+            operation="conversation_selection",
+            response_schema={"type": "OBJECT"},
+        )
+
+        self.assertEqual(calls, ["primary-model", "reserve-model"])
+        self.assertEqual(
+            result,
+            '{"selections":[{"id":"candidate-1","identity_evidence":"title quote","requirement_evidence":{}}]}',
+        )
+
     async def test_transport_error_advances_to_reserve_for_conversation(self) -> None:
         calls: list[str] = []
 
