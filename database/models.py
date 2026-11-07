@@ -223,6 +223,27 @@ CREATE TABLE IF NOT EXISTS bot_config (
 );
 """
 
+CREATE_GEMINI_USAGE_TABLE = """
+CREATE TABLE IF NOT EXISTS gemini_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id TEXT NOT NULL UNIQUE,
+    request_id TEXT,
+    operation TEXT NOT NULL,
+    model TEXT NOT NULL,
+    duration_ms REAL NOT NULL,
+    outcome TEXT NOT NULL,
+    prompt_token_count INTEGER,
+    candidates_token_count INTEGER,
+    total_token_count INTEGER,
+    cached_content_token_count INTEGER,
+    thoughts_token_count INTEGER,
+    cost_usd REAL,
+    cost_status TEXT NOT NULL,
+    pricing_version TEXT,
+    created_at TEXT NOT NULL
+);
+"""
+
 ALL_TABLES = (
     CREATE_USERS_TABLE,
     CREATE_SEARCH_HISTORY_TABLE,
@@ -235,6 +256,7 @@ ALL_TABLES = (
     CREATE_POPULAR_STATE_TABLE,
     CREATE_USER_VIEW_HISTORY_TABLE,
     CREATE_BOT_CONFIG_TABLE,
+    CREATE_GEMINI_USAGE_TABLE,
 )
 
 #: Indexes added together with the tables. Created after the tables in
@@ -266,4 +288,10 @@ ALL_INDEXES = (
     # the newest rows, which is exactly this index.
     "CREATE INDEX IF NOT EXISTS idx_user_view_history_user "
     "ON user_view_history (user_id, id DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_gemini_usage_created "
+    "ON gemini_usage (created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_gemini_usage_model_created "
+    "ON gemini_usage (model, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_gemini_usage_operation_created "
+    "ON gemini_usage (operation, created_at);",
 )
