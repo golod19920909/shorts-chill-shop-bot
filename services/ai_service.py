@@ -2901,6 +2901,7 @@ seller_terms: {seller_terms_json}
                         and isinstance(slot_updates, list)
                         and all(
                             isinstance(item, dict)
+                            and {"operation", "kind", "target", "value"}.issubset(item)
                             and isinstance(item.get("operation"), str)
                             and item.get("operation") in {"add", "replace", "remove"}
                             and isinstance(item.get("kind"), str)
