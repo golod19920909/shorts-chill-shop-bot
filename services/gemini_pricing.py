@@ -22,11 +22,9 @@ class ModelRates:
 
 def _rates_for(model: str, when: date) -> ModelRates | None:
     if model == "gemini-3.8-flash":
-        # Rates are verified only for the current published pricing period.
-        # Do not extrapolate future price changes.
         if when < date(2027, 1, 1):
             return ModelRates(0.75, 3.75, 0.075)
-        return None
+        return ModelRates(1.50, 7.50, 0.15)
     if model == "gemini-3.1-flash-lite":
         return ModelRates(0.25, 1.50, 0.025)
     return None
@@ -52,8 +50,7 @@ def estimate_cost_usd(
     moment = (when or datetime.now(timezone.utc)).astimezone(timezone.utc)
     rates = _rates_for(model, moment.date())
     if rates is None:
-        known_models = {"gemini-3.8-flash", "gemini-3.1-flash-lite"}
-        return None, "unknown_pricing" if model in known_models else "unknown_model", None
+        return None, "unknown_model", None
     pricing_version = (
         "google-gemini-standard-paid-2026-11-07"
         if moment.date() < date(2027, 1, 1)
