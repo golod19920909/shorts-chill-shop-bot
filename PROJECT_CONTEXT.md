@@ -4365,7 +4365,7 @@ No changes are permitted to Gemini prompts, model routing/fallback policy, conve
 
 ### Implemented on the feature branch
 1. Added `services/gemini_pricing.py` with versioned Standard paid-tier estimates:
-   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; from 2027-01-01 the estimator returns `unknown_pricing` until a verified new rate is configured.
+   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; $1.50 / $7.50 from 2027-01-01, per Google's published rate schedule.
    - `gemini-3.1-flash-lite`: $0.25 / 1M input and $1.50 / 1M output.
    - Cached input uses the published cached-input rates.
    - Billable output is derived from `total_token_count - prompt_token_count`, which includes candidate and thinking tokens once; `thoughts_token_count` is separately displayed but is not added a second time.
@@ -4410,7 +4410,7 @@ Additional changes:
 - Added request-grouped history query `Database.list_gemini_usage_requests()`; it aggregates attempts by request ID and exposes only models, operation names, token totals, timestamps and estimated costs.
 - Added admin-only Telegram commands: `/stats_today`, `/stats_week`, `/stats_month`, `/stats_models`, `/stats_requests`. Existing user-facing `/stats` remains unchanged.
 - Updated Telegram command menu registration for the new admin commands.
-- Corrected pricing behavior: do not invent or extrapolate future Flash rates. When the known model's verified rate period expires, return `unknown_pricing`; unknown model IDs return `unknown_model`.
+- Rechecked the official Google pricing schedule: Flash's published rate increase from 2027-01-01 is explicitly listed, so the estimator applies the documented $1.50 / $7.50 rates rather than guessing. Unknown model IDs still return `unknown_model`.
 - Added a database test for request grouping and updated the pricing test for unverified future rates.
 - The existing admin AI screen already provides persisted model/operation aggregates and period filtering; it is reused rather than creating a duplicate admin screen.
 
