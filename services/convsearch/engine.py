@@ -27,6 +27,7 @@ import asyncio
 import inspect
 import logging
 import re
+import time
 
 from models.product import Product
 from services.convsearch import ranking as ranking_mod
@@ -52,11 +53,10 @@ AI_CONVERSATION_SELECTION_LIMIT = 20
 AI_CONVERSATION_CANDIDATE_POOL_LIMIT = 80
 AI_CONVERSATION_REVIEW_POOL_LIMIT = 80
 # A 20-listing semantic review is materially heavier than turn routing.
-# Live telemetry showed the 8-second window repeatedly expired after the
-# interpreter had already succeeded, silently replacing Gemini's whole-pool
-# understanding with a deterministic fallback. Keep this bounded, but allow
-# a realistic window for the selector to inspect real listing evidence.
-AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0
+# Live telemetry showed the 6.5-second per-model attempt cap expiring just
+# before the primary model could finish. The AIService now budgets 8 seconds
+# per attempt; this outer deadline leaves room for both primary and fallback.
+AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 17.0
 
 # Every validator verdict that is explicitly marked uncertain must be
 # quarantined until Gemini confirms it. Keep this list shared by the active
@@ -898,9 +898,17 @@ class ConversationSearchEngine:
                 decision.report.get("type_rejections", [])[:8],
             )
 
+        selection_started = time.perf_counter()
         decision = await self._apply_ai_candidate_selection(
             decision, strategy, state,
             timeout_seconds=AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
+        )
+        logger.info(
+            "convsearch semantic selection finished elapsed_ms=%.0f budget_s=%.1f "
+            "status=%s",
+            (time.perf_counter() - selection_started) * 1000,
+            AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
+            decision.report.get("ai_selection", "not_used"),
         )
         # When the catalogue search completed but yielded no safe match,
         # let Gemini phrase one grounded follow-up question. This call is

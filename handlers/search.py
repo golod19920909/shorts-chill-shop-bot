@@ -38,6 +38,7 @@ from keyboards.products import (
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest
 from services import analytics
+from services.gemini_telemetry import track_usage
 from services.conversation import ConversationState, is_count_only_follow_up
 from services.product_identity import identity_pair
 from services.text_matching import (
@@ -696,6 +697,7 @@ def _apply_user_result_count(
         return request
     return request.model_copy(update={"result_limit": count})
 
+@track_usage("text_search")
 async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle any non-command text message as a product search query."""
 

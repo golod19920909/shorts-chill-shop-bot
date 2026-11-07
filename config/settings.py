@@ -54,6 +54,13 @@ class Settings:
     #: instead of granting access to anyone.
     admin_ids: tuple[int, ...] = ()
 
+    #: Optional read-only Gemini analytics web dashboard. It is disabled
+    #: unless a non-empty password is configured.
+    analytics_dashboard_password: str | None = None
+    analytics_dashboard_username: str = "admin"
+    analytics_dashboard_host: str = "127.0.0.1"
+    analytics_dashboard_port: int = 8765
+
     #: How often the price-tracking scheduler checks tracked products
     #: (``TRACKING_INTERVAL_MINUTES``). ``0`` disables automatic checks
     #: entirely (the tracking list then says so honestly). The default of
@@ -91,23 +98,15 @@ class Settings:
     feed_open_size: int = 20
     feed_max_pages_per_open: int = 2
 
-    #: Gemini models per ROLE. The names below are configuration, not a
-    #: verified availability statement: checking which models a key may
-    #: really call costs quota, so it is a separate, intentional step.
-    #:
-    #: * ``fast``    - query parsing, candidate ranking, refinement;
-    #: * ``smart``   - product analysis, comparison, free-form questions;
-    #: * ``vision``  - looking at a photo;
-    #: * ``fallback``- tried once when a primary model answers "unavailable"
-    #:   (never for a quota error, which is account-wide).
-    #: All three PRIMARY roles run the same generation: one model means one
-    #: quality bar (and one set of prompt behaviours) for parsing, selection
-    #: and photo reading; the distinct role variables stay so a deployment can
-    #: still pin a cheaper model to one role without touching any code.
-    gemini_fast_model: str = "gemini-3.8-flash"
-    gemini_smart_model: str = "gemini-3.8-flash"
-    gemini_vision_model: str = "gemini-3.8-flash"
-    gemini_fallback_model: str = "gemini-3.1-flash-lite"
+    #: All roles use the same configured primary generation to keep one
+    #: consistent quality bar across dialogue, selection, product answers and
+    #: photo understanding. GEMINI_PRIMARY_MODEL is the only primary override;
+    #: GEMINI_RESERVE_MODEL selects the one reserve used after eligible errors.
+    #: Account-wide quota/rate-limit errors never trigger the reserve.
+    gemini_fast_model: str = "gemini-3.1-flash-lite"
+    gemini_smart_model: str = "gemini-3.1-flash-lite"
+    gemini_vision_model: str = "gemini-3.1-flash-lite"
+    gemini_fallback_model: str = "gemini-3.8-flash"
 
     @property
     def gemini_model(self) -> str:
@@ -129,6 +128,10 @@ class Settings:
     @property
     def is_gemini_configured(self) -> bool:
         return bool(self.gemini_api_key)
+
+    @property
+    def is_analytics_dashboard_enabled(self) -> bool:
+        return bool(self.analytics_dashboard_password)
 
     @property
     def has_admins(self) -> bool:
@@ -238,6 +241,12 @@ def load_settings() -> Settings:
             app_secret=_get("ALIEXPRESS_APP_SECRET"),
         ),
         admin_ids=_get_int_list("ADMIN_IDS"),
+        analytics_dashboard_password=_get("ANALYTICS_DASHBOARD_PASSWORD"),
+        analytics_dashboard_username=_get("ANALYTICS_DASHBOARD_USERNAME") or "admin",
+        analytics_dashboard_host=_get("ANALYTICS_DASHBOARD_HOST") or "127.0.0.1",
+        analytics_dashboard_port=_get_int(
+            "ANALYTICS_DASHBOARD_PORT", default=8765, minimum=1, maximum=65535
+        ),
         tracking_interval_minutes=_get_int(
             "TRACKING_INTERVAL_MINUTES", default=1440, minimum=0
         ),
@@ -259,15 +268,19 @@ def load_settings() -> Settings:
         feed_max_pages_per_open=_get_int(
             "FEED_MAX_PAGES_PER_OPEN", default=2, minimum=1, maximum=10
         ),
-        gemini_fast_model=_get("GEMINI_FAST_MODEL") or "gemini-3.8-flash",
-        #: ``GEMINI_MODEL`` stays supported as the single-model override for
-        #: the "smart" role, so existing .env files keep working unchanged.
-        gemini_smart_model=(
-            _get("GEMINI_MODEL") or _get("GEMINI_SMART_MODEL") or "gemini-3.8-flash"
+        gemini_fast_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
         ),
-        gemini_vision_model=_get("GEMINI_VISION_MODEL") or "gemini-3.8-flash",
+        # The new primary/reserve names intentionally supersede legacy
+        # role-specific variables so an old .env cannot leave 3.8 primary.
+        gemini_smart_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+        ),
+        gemini_vision_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+        ),
         gemini_fallback_model=(
-            _get("GEMINI_FALLBACK_MODEL") or "gemini-3.1-flash-lite"
+            _get("GEMINI_RESERVE_MODEL") or "gemini-3.8-flash"
         ),
     )
 

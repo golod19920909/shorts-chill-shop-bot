@@ -61,7 +61,7 @@ ADMIN_SECTIONS: tuple[tuple[str, str], ...] = (
 )
 
 #: Sections that make sense with the period row (§40/§42/§43/§44).
-PERIOD_SECTIONS = frozenset({"stats", "searches", "favs", "track"})
+PERIOD_SECTIONS = frozenset({"stats", "searches", "favs", "track", "ai"})
 
 
 def _label_for(key: str) -> str:

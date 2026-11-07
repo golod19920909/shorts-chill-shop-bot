@@ -175,16 +175,18 @@ python main.py
 | --- | --- | --- | --- |
 | `BOT_TOKEN` | да | — | токен от [@BotFather](https://t.me/BotFather) |
 | `GEMINI_API_KEY` | нет | — | Google Gemini; без ключа работает локальный парсер, а фильтрация/сортировка считаются детерминированно (лента «✨ Находки» от Gemini не зависит вообще) |
-| `GEMINI_SMART_MODEL` | нет | `gemini-3.8-flash` | модель для анализа товара, сравнения и вопросов о товаре |
-| `GEMINI_FAST_MODEL` | нет | `gemini-3.8-flash` | модель для разбора запроса, уточнений и отбора/сортировки кандидатов |
-| `GEMINI_VISION_MODEL` | нет | `gemini-3.8-flash` | модель для распознавания товара на фотографии |
-| `GEMINI_FALLBACK_MODEL` | нет | `gemini-3.1-flash-lite` | резервная модель: используется один раз, если основная ответила «недоступна» |
-| `GEMINI_MODEL` | нет | — | переопределение «умной» роли для старых `.env`; при пустом значении берётся `GEMINI_SMART_MODEL` |
+| `GEMINI_PRIMARY_MODEL` | нет | `gemini-3.1-flash-lite` | основная модель для диалога, AI-подбора, сравнения, вопросов о товарах и распознавания фото |
+| `GEMINI_RESERVE_MODEL` | нет | `gemini-3.8-flash` | резервная модель: один вызов после допустимой ошибки основной модели; не используется при account-wide quota/rate-limit |
+| Старые `GEMINI_MODEL`, `GEMINI_SMART_MODEL`, `GEMINI_FAST_MODEL`, `GEMINI_VISION_MODEL`, `GEMINI_FALLBACK_MODEL` | — | — | больше не читаются; используйте две переменные выше |
 | `FEED_OPEN_SIZE` | нет | `20` | «✨ Находки»: сколько товаров максимум загружается в одну feed session — объём RAM-pool, из которого карточки выдаются без повторных API-запросов (1..100) |
 | `FEED_MAX_PAGES_PER_OPEN` | нет | `2` | «✨ Находки»: максимум страниц AliExpress (`page_no`, `page_size=50`), запрашиваемых за одно новое открытие ленты (1..10) |
 | `ALIEXPRESS_APP_KEY` | нет | — | ключ AliExpress Open Platform |
 | `ALIEXPRESS_APP_SECRET` | нет | — | секрет AliExpress Open Platform |
 | `ADMIN_IDS` | нет | пусто | Telegram id администраторов через запятую; пусто = панель `/admin` недоступна никому |
+| `ANALYTICS_DASHBOARD_PASSWORD` | нет | выключено | включает read-only веб-панель расходов Gemini; задайте длинный уникальный пароль |
+| `ANALYTICS_DASHBOARD_USERNAME` | нет | `admin` | логин HTTP Basic для веб-панели |
+| `ANALYTICS_DASHBOARD_HOST` | нет | `127.0.0.1` | адрес привязки; по умолчанию доступ только с этой машины |
+| `ANALYTICS_DASHBOARD_PORT` | нет | `8765` | порт веб-панели |
 | `TRACKING_INTERVAL_MINUTES` | нет | `1440` | период автопроверки цен (JobQueue) в минутах: по умолчанию 24 часа; `0` отключает автоматическую проверку |
 | `DATABASE_PATH` | нет | `database/shop_bot.db` | путь к SQLite; относительный — от корня проекта |
 | `LOG_LEVEL` | нет | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
@@ -207,6 +209,31 @@ AI-парсинг запросов: не настроен — используе
 Маркетплейсы:
 • AliExpress — нет API-ключей
 ```
+
+## Учёт расходов Gemini
+
+При каждом вызове Gemini бот сохраняет usage metadata (входящие, выходящие,
+thinking и cached tokens), модель, операцию, длительность и результат вызова.
+История хранится в той же SQLite базе, указанной в `DATABASE_PATH`; тексты
+промптов и сообщения пользователей в эту таблицу не записываются.
+
+Стоимость — оценка по опубликованным тарифам Google Standard paid tier, а не
+прямая выгрузка из биллинга AI Studio. Для нераспознанной модели или отсутствующих
+usage metadata стоимость остаётся неизвестной, а не подменяется нулём.
+
+Администратору доступны команды Telegram:
+- `/stats_today` — расходы за сегодня (UTC);
+- `/stats_week` — последние 7 дней;
+- `/stats_month` — последние 30 дней;
+- `/stats_models` — разбивка по моделям;
+- `/stats_requests` — последние сгруппированные запросы.
+
+Для read-only веб-панели задайте `ANALYTICS_DASHBOARD_PASSWORD` в локальном
+`.env`. После запуска откройте `http://127.0.0.1:8765` и войдите по HTTP
+Basic с указанными логином и паролем. По умолчанию сервер слушает только
+loopback-интерфейс. На сервере оставляйте его за HTTPS reverse proxy; не
+публикуйте Basic Auth напрямую через открытый HTTP. Панель не меняет настройки
+бота и не вызывает Gemini.
 
 ## Тестирование
 

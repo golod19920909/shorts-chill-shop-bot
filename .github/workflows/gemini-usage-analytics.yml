@@ -1,0 +1,41 @@
+name: Gemini usage analytics
+# Re-run after extending the Telegram reporting and grouped-request tests.
+
+on:
+  push:
+    branches:
+      - feat/gemini-usage-analytics
+  pull_request:
+    branches:
+      - work/consultant-reliability
+
+jobs:
+  gemini-usage-analytics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile changed application packages
+        run: python -m compileall -q bot database handlers services
+      - name: Run focused Gemini pricing, telemetry and database tests
+        run: >
+          python -m pytest -q
+          tests/test_gemini_pricing.py
+          tests/test_database.py
+          tests/test_settings.py
+          tests/test_gemini_telemetry.py::ExtractUsageTests
+          tests/test_gemini_telemetry.py::TurnScopeTests
+          tests/test_gemini_telemetry.py::_GenerateInstrumentationTests
+          tests/test_gemini_telemetry.py::ConcurrencyTests
+          tests/test_gemini_telemetry.py::PersistenceTests
+          tests/test_gemini_dashboard.py
+          tests/test_gemini_latency.py
+          tests/test_ai_conversation_turn_fallback.py
+          tests/test_ai_conversation_turn.py
+          tests/test_convsearch_engine.py

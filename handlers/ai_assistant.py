@@ -32,6 +32,7 @@ from keyboards.products import (
 )
 from models.search_request import SearchMode, SearchRequest
 from services.search_service import SearchOutcome, SearchService
+from services.gemini_telemetry import track_usage
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +179,7 @@ async def ai_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         logger.debug("Could not switch the card to the AI menu", exc_info=True)
 
 
+@track_usage("product_ai_action")
 async def ai_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``paia:<action>:<session>:<index>``: run one AI menu action."""
 

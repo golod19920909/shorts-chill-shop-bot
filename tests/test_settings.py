@@ -27,6 +27,8 @@ CLEAN_ENV = {
     "GEMINI_FAST_MODEL": "",
     "GEMINI_VISION_MODEL": "",
     "GEMINI_FALLBACK_MODEL": "",
+    "GEMINI_PRIMARY_MODEL": "",
+    "GEMINI_RESERVE_MODEL": "",
     # Retrieval-depth budgets are limits on REAL API calls: a developer's
     # .env must not decide what these tests assert.
     "SEARCH_MAX_PAGES": "",
@@ -59,7 +61,8 @@ class LoadSettingsTests(unittest.TestCase):
         # The default is the model the Gemini API recommends for this key:
         # ``gemini-2.5-flash`` is rejected live with 404 "no longer available
         # to new users", so a stale default would silently disable the AI.
-        self.assertEqual(settings.gemini_model, "gemini-3.8-flash")
+        self.assertEqual(settings.gemini_model, "gemini-3.1-flash-lite")
+        self.assertEqual(settings.gemini_fallback_model, "gemini-3.8-flash")
 
     def test_defaults_for_database_and_log_level(self) -> None:
         with patch.dict(os.environ, CLEAN_ENV, clear=False):
@@ -78,7 +81,7 @@ class LoadSettingsTests(unittest.TestCase):
                 "LOG_LEVEL": "DEBUG",
                 "ALIEXPRESS_APP_KEY": "ali-key",
                 "ALIEXPRESS_APP_SECRET": "ali-secret",
-                "GEMINI_MODEL": "gemini-3.6-flash",
+                "GEMINI_PRIMARY_MODEL": "primary-x",
             }
         )
         with patch.dict(os.environ, env, clear=False):
@@ -88,59 +91,50 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(settings.bot_token, "123456:TEST-TOKEN")
         self.assertTrue(settings.is_bot_token_configured)
         self.assertTrue(settings.is_gemini_configured)
-        self.assertEqual(settings.gemini_model, "gemini-3.6-flash")
+        self.assertEqual(settings.gemini_model, "primary-x")
+        self.assertEqual(settings.gemini_fast_model, "primary-x")
+        self.assertEqual(settings.gemini_vision_model, "primary-x")
         self.assertEqual(settings.database_path, "tmp/test.db")
         self.assertEqual(settings.logging_level, 10)  # logging.DEBUG
         self.assertTrue(settings.aliexpress.is_configured)
 
-    def test_each_gemini_role_reads_its_own_env_model(self) -> None:
-        # The four roles are independent: FAST/SMART/VISION/FALLBACK must
-        # each honour their own variable, so one .env can tune them apart.
+    def test_primary_and_reserve_models_have_explicit_overrides(self) -> None:
         env = dict(CLEAN_ENV)
-        env.update(
+        env.update({
+            "GEMINI_PRIMARY_MODEL": "primary-x",
+            "GEMINI_RESERVE_MODEL": "reserve-x",
+        })
+        with patch.dict(os.environ, env, clear=False):
+            settings = load_settings()
+
+        self.assertEqual(
             {
-                "GEMINI_FAST_MODEL": "fast-x",
-                "GEMINI_SMART_MODEL": "smart-x",
-                "GEMINI_VISION_MODEL": "vision-x",
-                "GEMINI_FALLBACK_MODEL": "fallback-x",
-            }
+                settings.gemini_fast_model,
+                settings.gemini_smart_model,
+                settings.gemini_vision_model,
+            },
+            {"primary-x"},
         )
-        with patch.dict(os.environ, env, clear=False):
-            settings = load_settings()
+        self.assertEqual(settings.gemini_fallback_model, "reserve-x")
 
-        self.assertEqual(settings.gemini_fast_model, "fast-x")
-        self.assertEqual(settings.gemini_smart_model, "smart-x")
-        self.assertEqual(settings.gemini_vision_model, "vision-x")
-        self.assertEqual(settings.gemini_fallback_model, "fallback-x")
-        # Legacy alias keeps pointing at the smart role.
-        self.assertEqual(settings.gemini_model, "smart-x")
-
-    def test_legacy_gemini_model_wins_over_smart_for_old_env_files(self) -> None:
+    def test_legacy_role_variables_cannot_restore_gemini_38_as_primary(self) -> None:
         env = dict(CLEAN_ENV)
-        env.update({"GEMINI_MODEL": "legacy-x", "GEMINI_SMART_MODEL": "smart-x"})
+        env.update({
+            "GEMINI_MODEL": "gemini-3.8-flash",
+            "GEMINI_SMART_MODEL": "gemini-3.8-flash",
+            "GEMINI_FAST_MODEL": "gemini-3.8-flash",
+            "GEMINI_VISION_MODEL": "gemini-3.8-flash",
+            "GEMINI_FALLBACK_MODEL": "gemini-3.1-flash-lite",
+        })
         with patch.dict(os.environ, env, clear=False):
             settings = load_settings()
 
-        self.assertEqual(settings.gemini_smart_model, "legacy-x")
+        self.assertEqual(settings.gemini_fast_model, "gemini-3.1-flash-lite")
+        self.assertEqual(settings.gemini_smart_model, "gemini-3.1-flash-lite")
+        self.assertEqual(settings.gemini_vision_model, "gemini-3.1-flash-lite")
+        self.assertEqual(settings.gemini_fallback_model, "gemini-3.8-flash")
 
-    def test_model_roles_fall_back_to_documented_defaults(self) -> None:
-        with patch.dict(os.environ, CLEAN_ENV, clear=False):
-            settings = load_settings()
-
-        self.assertEqual(settings.gemini_fast_model, "gemini-3.8-flash")
-        self.assertEqual(settings.gemini_smart_model, "gemini-3.8-flash")
-        self.assertEqual(settings.gemini_vision_model, "gemini-3.8-flash")
-        self.assertEqual(settings.gemini_fallback_model, "gemini-3.1-flash-lite")
-
-    def test_every_primary_role_runs_the_same_generation(self) -> None:
-        """fast/smart/vision share one model; only the fallback differs.
-
-        The three roles are separate VARIABLES (a deployment may still pin a
-        cheaper model to one of them), but their documented default is one and
-        the same generation: parsing, selection and photo reading are then held
-        to a single quality bar.
-        """
-
+    def test_all_primary_roles_use_31_and_reserve_uses_38(self) -> None:
         with patch.dict(os.environ, CLEAN_ENV, clear=False):
             settings = load_settings()
 
@@ -149,8 +143,8 @@ class LoadSettingsTests(unittest.TestCase):
             settings.gemini_smart_model,
             settings.gemini_vision_model,
         }
-        self.assertEqual(primary, {"gemini-3.8-flash"})
-        self.assertNotIn(settings.gemini_fallback_model, primary)
+        self.assertEqual(primary, {"gemini-3.1-flash-lite"})
+        self.assertEqual(settings.gemini_fallback_model, "gemini-3.8-flash")
 
     def test_retrieval_depth_defaults_are_the_documented_ones(self) -> None:
         with patch.dict(os.environ, CLEAN_ENV, clear=False):

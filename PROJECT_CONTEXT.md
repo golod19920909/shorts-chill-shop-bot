@@ -4346,3 +4346,205 @@ This section is the durable engineering handoff and acceptance summary.
 - New partner click tracking: NOT YET IMPLEMENTED; attribution compatibility is an open prerequisite.
 - Existing promo/product-card, sales-event, hot-discount and admin mechanisms must be preserved.
 - Next action: re-fetch the current PR #7 head/branch and review the remaining relevant files/tests in full; then produce the Stage A audit inventory and confirm any API permission limitations before implementation.
+
+
+## 2026-11-07 — Gemini usage persistence and cost analytics (PR #8)
+
+### Scope and preserved boundaries
+The user approved implementation of durable Gemini token/cost analytics. Work is isolated on branch `feat/gemini-usage-analytics`, based on the current `work/consultant-reliability` head. Draft PR: https://github.com/golod19920909/shorts-chill-shop-bot/pull/8, targeting `work/consultant-reliability`.
+
+PR #7 remains draft/open/unmerged. Do not merge PR #7 or PR #8 without the user's explicit instruction. `main` remains untouched.
+
+No changes are permitted to Gemini prompts, model routing/fallback policy, conversation state decisions, AliExpress retrieval, product validation/ranking, product limits, Telegram card rendering, or credentials. No live Gemini, Telegram or AliExpress calls were made.
+
+### Audit findings
+- The existing `services/gemini_telemetry.py` already extracted real `usage_metadata` fields and logged individual attempts. It recorded prompt, candidate, total, cached and thinking token counts, but had no durable history or price calculation.
+- The existing `turn_scope` collector was not wired into the main Telegram search/AI handler entry points.
+- The project already uses `aiosqlite` and has a single SQLite `Database` layer, plus an existing admin AI diagnostics screen. Reuse these rather than adding a second local database or a separate Telegram admin system.
+- Existing analytics events are user/product activity events; Gemini request accounting uses a dedicated `gemini_usage` table to avoid mixing unrelated metrics.
+
+### Implemented on the feature branch
+1. Added `services/gemini_pricing.py` with versioned Standard paid-tier estimates:
+   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; $1.50 / $7.50 from 2027-01-01, per Google's published rate schedule.
+   - `gemini-3.1-flash-lite`: $0.25 / 1M input and $1.50 / 1M output.
+   - Cached input uses the published cached-input rates.
+   - Billable output is derived from `total_token_count - prompt_token_count`, which includes candidate and thinking tokens once; `thoughts_token_count` is separately displayed but is not added a second time.
+   - Unknown model or incomplete usage metadata produces unknown cost, never a fabricated zero.
+   - Rates are based on Google's published Standard paid-tier Gemini API pricing. They are estimates, not a direct billing export; compare against AI Studio Usage.
+2. Extended `services/gemini_telemetry.py`:
+   - Unique attempt IDs and per-handler request IDs.
+   - Per-attempt token/cost/status/pricing-version logging.
+   - Async best-effort persistence callback and pending-write flush at shutdown.
+   - A `track_usage` decorator for request-level correlation.
+   - No prompt, user text, Telegram ID, key, cookie or authorization data is stored.
+3. Added `gemini_usage` table and indexes in `database/models.py`.
+4. Added idempotent persistence and aggregate-by-model/operation queries in `database/database.py`.
+5. Wired the telemetry writer after database initialization and flush before shutdown in `bot/__init__.py`.
+6. Added request scopes to text search, category search, discovery feed, photo search and product AI action handlers.
+7. Extended the existing admin AI screen with period filters and persisted token/cost breakdowns by model and operation.
+8. Added offline tests:
+   - `tests/test_gemini_pricing.py`
+   - persistence tests in `tests/test_gemini_telemetry.py`
+   - database idempotency/aggregation test in `tests/test_database.py`
+9. Added focused workflow `.github/workflows/gemini-usage-analytics.yml` to compile application packages and run pricing, telemetry and database tests on the feature branch and PRs targeting `work/consultant-reliability`.
+
+### Verification state at handoff
+- Latest feature branch head at this handoff: `19516d3d3a330a68ae99d8ebd1a4499b2a00c77a`.
+- GitHub status query returned no check runs/statuses yet. Do not claim tests passed until the new workflow has completed and its logs have been inspected.
+- No local Python test execution was performed in this environment.
+- PR #8 is draft/open; no merge performed.
+
+### Remaining work
+- Inspect CI results and fix any failures.
+- Verify the new table is created against an existing local database and that persisted rows survive a bot restart.
+- Manually verify that the VS Code terminal shows per-attempt token counts and estimated USD cost, and that the admin AI screen reflects persisted totals. This requires the user's local environment and credentials; do not run live provider calls from CI.
+- Add a safe recent-attempt detail view if useful.
+- Web dashboard, PostgreSQL migration and server deployment remain later stages. Telegram slash commands were subsequently added in the continuation noted below.
+- Confirm all other Gemini call entry points that may run outside the four decorated handlers; per-attempt persistence still works, but those attempts may have no request_id until their handler is scoped.
+
+### Continuation update — 2026-11-07
+
+The implementation was continued on the same PR #8 branch after the first local-persistence increment.
+
+Additional changes:
+- Added request-grouped history query `Database.list_gemini_usage_requests()`; it aggregates attempts by request ID and exposes only models, operation names, token totals, timestamps and estimated costs.
+- Added admin-only Telegram commands: `/stats_today`, `/stats_week`, `/stats_month`, `/stats_models`, `/stats_requests`. Existing user-facing `/stats` remains unchanged.
+- Updated Telegram command menu registration for the new admin commands.
+- Rechecked the official Google pricing schedule: Flash's published rate increase from 2027-01-01 is explicitly listed, so the estimator applies the documented $1.50 / $7.50 rates rather than guessing. Unknown model IDs still return `unknown_model`.
+- Added a database test for request grouping and updated the pricing test for unverified future rates.
+- The existing admin AI screen already provides persisted model/operation aggregates and period filtering; it is reused rather than creating a duplicate admin screen.
+
+Files additionally changed in this continuation:
+- `services/gemini_pricing.py`
+- `database/database.py`
+- `handlers/admin.py`
+- `bot/__init__.py`
+- `tests/test_database.py`
+- `tests/test_gemini_pricing.py`
+
+Verification:
+- Focused GitHub Actions workflow was running on commit `2e1f4924dfa545d871a755bdb4322ee2722c0e4d` when checked. Newer commits followed; check the latest head's workflow run before claiming a pass.
+- No local Python execution or live provider calls were performed.
+- Web dashboard, PostgreSQL migration and server deployment remain unimplemented.
+- Manual local verification is still required for VS Code output, persistence across restart, and the Telegram commands.
+
+### Verification update — 2026-11-07 10:05 UTC
+- Latest successful focused workflow: run #44, commit `6dc7d1829db03ce3f5868c6eb894404984932f2b`.
+- Compile step passed; focused suite passed: **31 passed, 1 warning, 7 subtests passed**.
+- The preceding run #24 had 30 passed and one failed pricing-boundary assertion because the test expected `0.0000045` instead of the correct `0.0045`. The test expectation was fixed; the implementation matched Google's published pricing.
+- The successful run includes the grouped request-history and admin Telegram command code, because both were present before commit #44.
+- PR #8 remains draft/open/unmerged. PR #7 remains draft/open/unmerged. `main` is untouched.
+- The branch is ready for local integration verification; the local database migration, actual VS Code logs and Telegram commands have not yet been manually tested on the user's PC.
+### Dashboard and latest CI update — 2026-11-07
+- The optional read-only web dashboard is implemented in `services/gemini_dashboard.py` and wired into `_post_init` / `_post_shutdown` in `bot/__init__.py`.
+- It is disabled by default. Set `ANALYTICS_DASHBOARD_PASSWORD` in `.env`; optional `ANALYTICS_DASHBOARD_USERNAME`, `ANALYTICS_DASHBOARD_HOST` (default `127.0.0.1`) and `ANALYTICS_DASHBOARD_PORT` (default `8765`) configure access. It uses HTTP Basic auth, no-store/security headers, read-only endpoints, and never exposes prompt text. Keep it loopback-bound behind HTTPS reverse proxy on a server; do not expose Basic Auth over public plain HTTP.
+- Local dashboard URL with defaults: `http://127.0.0.1:8765`.
+- README and `.env.example` now document dashboard settings and the admin usage commands.
+- Gemini call instrumentation is at `AIService`'s remote generation boundary (`record_attempt`), so retries/fallbacks are individually recorded. Request scopes cover text search, category search, discovery feed, photo search and product AI actions.
+- Latest CI run #60 on commit `47e88457e715a27e3f539f71c71a4db21812be82` passed: compile changed packages; **35 passed, 1 warning, 7 subtests passed**. Dashboard auth/API tests are included.
+- PR #8 is still open and draft. No local machine or live Telegram/Gemini/marketplace calls were used. Manual local verification is the remaining step before merge.
+
+## 2026-11-07 — Gemini 3.8 Flash conversational timeout investigation
+
+### Live evidence and diagnosis
+- The user's local live log showed conversation_turn timing out at **4,008 ms** against a **4.0 s** limit, then the fallback model succeeding in 1,533 ms.
+- The same request showed conversation_selection timing out at **6,506 ms** against a **6.5 s** limit, then the fallback succeeding in 3,563 ms.
+- Those durations align almost exactly with the application's own asyncio.timeout limits. This establishes that the immediate timeout trigger is the local per-attempt deadline, not a confirmed Google HTTP/API error.
+- The selector prompt in that run was **27,981 characters** for 64 candidates. The successful fallback processed 8,888 prompt tokens. Prompt size is a plausible contributor to model latency, but this single sample does not prove causation.
+- The existing duration surrounded the SDK call as a whole. It could not separate local prompt/request preparation from time spent awaiting the SDK's HTTP/API operation. SDK wait itself still combines network transport and remote provider processing; it must not be mislabeled as pure model inference time.
+
+### Implemented on PR #8 branch feat/gemini-usage-analytics
+- services/ai_service.py:
+  - Raised the primary/fallback per-attempt budget for conversation_turn from 4.0 s to **5.5 s**.
+  - Raised the whole turn-interpretation deadline from 8.5 s to **12.0 s**, leaving room for both bounded attempts.
+  - Raised the per-attempt budget for conversation_selection from 6.5 s to **8.0 s**.
+  - Added privacy-safe timing fields to per-attempt logs: operation, local request setup, SDK wait, response-text extraction, total duration and prompt character count. No prompt text or credentials are logged.
+  - Added prompt-construction timing and bounded context/prompt character counts for turn interpretation and prompt/payload character counts for candidate selection.
+- services/convsearch/engine.py:
+  - Raised the complete semantic-selection deadline from 15.0 s to **17.0 s**, enough for two 8-second attempts plus small local overhead.
+  - Added total semantic-selection elapsed time and outcome logging.
+- tests/test_gemini_latency.py:
+  - Added an actual fake-client cancellation test proving a primary client timeout advances to the configured fallback.
+  - Added assertions that whole-operation deadlines cover both attempts.
+  - Added a log regression proving local setup and SDK wait are reported separately without logging prompt contents.
+- .github/workflows/gemini-usage-analytics.yml now runs the latency regression and the existing turn-fallback regression.
+
+### Boundaries preserved
+- Option C hybrid architecture, Gemini 3.8 Flash primary, Gemini 3.1 Flash-Lite fallback, quota handling, deterministic validation/ranking, candidate evidence fields, 20-item AI selection cap and 30-card presentation cap remain unchanged.
+- No candidate evidence fields or prompt context were removed; no model, thinking level, retrieval, ranking, or product validation behavior was changed.
+- No .env, credentials, local database or user-local files were accessed or modified.
+- PR #8 remains draft/open/unmerged; PR #7 and main remain untouched.
+
+### Verification status
+- Changes are committed on feat/gemini-usage-analytics; latest implementation commit before this context update: 6b6a01e5ecda9a7aefbfd61bc597e35a0a961b9b.
+- Focused CI and local Python tests are pending at this handoff. No live Gemini/Telegram call has yet tested the new budgets.
+- Do not describe the timeout issue as fully resolved until CI passes and the user runs representative Telegram searches against this updated branch. Compare primary-model success rate, timeout/fallback rate, per-attempt SDK wait, prompt size, and end-to-end response time.
+
+### Verification update — 2026-11-07
+- Latest successful workflow run **#82** on code commit `22a0b29f69d29a25309ab687dea1016bf5a74e15`: compileall passed; focused suite **140 passed, 1 warning, 61 subtests passed**.
+- The focused CI now includes `tests/test_gemini_latency.py`, `tests/test_ai_conversation_turn_fallback.py`, `tests/test_ai_conversation_turn.py`, and `tests/test_convsearch_engine.py`, alongside the Gemini analytics/pricing/persistence/dashboard tests.
+- An intermediate expanded run failed because `tests/test_ai_service.py` contains stale legacy tests that call removed `_with_result_limit` / `_fallback_parse` methods. In accordance with AGENTS.md, the stale module was excluded from this focused workflow; its tests were not modified. The active conversation-turn and engine suites pass.
+- This verifies offline timeout cancellation/fallback behavior, timeout-budget arithmetic, instrumentation logs, conversation-turn behavior and engine regressions. It does **not** establish live Gemini 3.8 latency or prove the issue is fully resolved in production.
+- Local runtime and live Telegram verification remain pending. User should pull the updated feature branch and run representative new searches/refinements; compare primary-model success, fallback frequency, prompt_build_ms, setup_ms, sdk_wait_ms, parse_ms, selection elapsed time and end-to-end response time.
+- Latest implementation commit: `22a0b29f69d29a25309ab687dea1016bf5a74e15`. PR #8 remains draft/open/unmerged; PR #7 and `main` remain untouched.
+
+
+## 2026-11-07 — Gemini 3.1 primary / Gemini 3.8 reserve migration (in progress)
+
+### User-approved direction
+- Move the full Option C consultant workload to gemini-3.1-flash-lite as the primary generation.
+- Keep gemini-3.8-flash configured as the reserve model; do not remove it.
+- Do not merge PR #8 or touch main without explicit approval.
+- Preserve Option C, dialogue context, candidate evidence, deterministic AliExpress retrieval/validation/ranking and Telegram delivery. Browse remains 30 cards; AI candidate selection remains capped at 20.
+
+### Implementation started on feat/gemini-usage-analytics
+- Primary/reserve defaults are being migrated in services/ai_service.py and config/settings.py.
+- New environment overrides are GEMINI_PRIMARY_MODEL (default 3.1 Flash-Lite) and GEMINI_RESERVE_MODEL (default 3.8 Flash). Old GEMINI_MODEL, GEMINI_SMART_MODEL, GEMINI_FAST_MODEL, GEMINI_VISION_MODEL and GEMINI_FALLBACK_MODEL variables are intentionally ignored by the new loader so an existing local .env cannot silently keep 3.8 as primary. The user's actual .env is not accessed or modified.
+- The generation boundary is being updated so malformed consultant structured output, empty structured responses, model-unavailable errors, server errors, transport failures and bounded consultant timeouts can advance once to the reserve model. Account-wide quota/rate-limit, authentication and invalid-request errors must not trigger a reserve call.
+- Structured turn/selection schemas and semantic grounding validators remain intact. The reserve receives the same prompt and schema; there is no parallel dual-model call.
+- Offline regressions are being added for malformed structured output and transport failure. No live Gemini, Telegram or AliExpress calls are part of this work.
+
+### Handoff / verification
+- Current PR #8 head before this migration: 1c4e8cd0b289ac761939d9fad2bc8d9dc60a05cf.
+- The migration is not complete until code changes are committed to this feature branch, CI passes, and the user performs manual Telegram tests with one bot poller.
+- Preserve local uncommitted files and user evaluation artifacts. Never overwrite eval-consultant-blind-map.json, eval-consultant-blind-results.json, or local-backup-2026-11-06/.
+
+
+### Migration implementation update — 2026-11-07
+- Changes are committed directly to PR #8 head branch feat/gemini-usage-analytics; no merge or main-branch update.
+- Primary defaults in AIService and Settings are now 3.1 Flash-Lite for fast/smart/vision roles. Reserve defaults are 3.8 Flash.
+- The new GEMINI_PRIMARY_MODEL and GEMINI_RESERVE_MODEL variables are the only model overrides. Legacy role variables are intentionally ignored so an existing local .env does not leave 3.8 as primary. .env itself was not read or modified.
+- _generate now tries the reserve after model-unavailable, server (5xx), transport and bounded conversation timeouts; quota/rate-limit, auth and invalid-request errors still stop without a second call. Malformed or empty structured conversation_turn / conversation_selection responses now receive one reserve attempt with the same prompt/schema. Semantic grounding remains with existing validators.
+- First CI run #95: compileall passed; focused tests initially had 1 failure because a telemetry test still expected the former 3.1 fallback. 141 tests passed; this expectation is being updated to 3.8 and settings tests are being added to the focused workflow. Re-run CI after this correction.
+- No live API calls were made. Manual Telegram validation is still pending; stop duplicate pollers before running the bot.
+
+
+### Structured contract hardening — 2026-11-07
+- The pre-fallback shape gate for conversation_turn now checks the complete required field set, action enum, confidence range, nullable string fields, marketplace_terms and slot_updates field shapes. This catches schema-invalid model output before accepting the attempt; the same prompt is then sent once to the reserve.
+- Conversation-selection shape gate checks the required selection object fields and non-empty candidate IDs. Existing quote/ID grounding validation remains downstream and unchanged.
+- Offline latency fixtures were updated to emit the full required conversation-turn schema rather than abbreviated JSON.
+
+
+### Documentation and selector regression update — 2026-11-07
+- README model configuration table now documents GEMINI_PRIMARY_MODEL=gemini-3.1-flash-lite and GEMINI_RESERVE_MODEL=gemini-3.8-flash; legacy model-role variables are marked deprecated/ignored.
+- Added an offline regression proving a structurally invalid conversation-selection response advances once to the reserve and accepts a correctly shaped response.
+- The first CI attempt (#95) exposed one stale expected fallback model and was corrected from 3.1 to 3.8. Subsequent commits were made through the GitHub connector; a fresh workflow result is not yet visible through the available run lookup. Do not claim the corrected head has passed CI until verified.
+
+
+### Latest migration checkpoint — 2026-11-07
+- Latest code commit at this checkpoint: 32348a30cb733444dea3df32be11cf3dd2ac7cc9 on feat/gemini-usage-analytics.
+- Added required-field presence checks and defensive type guards to the conversation-turn structured response gate; malformed list/object values must be rejected, not raise from set membership.
+- README and .env.example now describe the new primary/reserve variables.
+- Focused workflow now includes tests/test_settings.py. Tests were updated for the new 3.8 reserve and complete conversation-turn schema. Added offline tests for invalid turn JSON, invalid selection shape and transport failover.
+- CI status for the latest head is not verified: the only retrieved run (#95) was on an earlier commit and failed on one stale telemetry expectation, which was corrected. The GitHub connector's commit-run lookup currently returns no run for the latest push commits. Do not claim the latest head passed.
+- Current branch remains feat/gemini-usage-analytics, PR #8 open/draft/unmerged, base work/consultant-reliability. main and PR #7 remain untouched.
+
+
+### Final handoff at current checkpoint — 2026-11-07
+- Latest implementation commit before this context entry: a98570da32766e808609d927647e49aa3d6576c1.
+- The structured turn validator now requires every schema-required top-level field and all four slot-update fields, and validates action/operation/kind types before enum membership. This avoids malformed model JSON raising TypeError inside validation.
+- Latest changed files across this migration: services/ai_service.py, config/settings.py, .env.example, README.md, bot/__init__.py, tests/test_settings.py, tests/test_gemini_latency.py, tests/test_ai_conversation_turn_fallback.py, tests/test_gemini_telemetry.py, .github/workflows/gemini-usage-analytics.yml, PROJECT_CONTEXT.md.
+- Verification limitation: no runner or repository checkout is available in this session. GitHub Actions run #95 on the earlier migration commit passed compileall but had 1 failed stale telemetry expectation (141 passed, 1 failed, 61 subtests); the expectation was corrected and settings/selection fallback tests were added afterward. The current head has NOT been verified by CI or local pytest yet.
+- Next required verification: user fetches this branch in their existing Windows working tree without discarding local modifications, then runs the focused workflow command from .github/workflows/gemini-usage-analytics.yml (including tests/test_settings.py). If tests fail, fix them before manual Telegram testing.
+- Do not edit .env. Because the loader intentionally ignores the old model-role variables, the code defaults now select 3.1 primary and 3.8 reserve even if those old values remain in the user's local .env.
+- Keep PR #8 draft/open/unmerged. Do not merge, do not touch main or PR #7.

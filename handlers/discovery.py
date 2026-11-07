@@ -38,6 +38,7 @@ from keyboards.main import (
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest
 from services import analytics, feed_curation
+from services.gemini_telemetry import track_usage
 from services.comparison_service import sort_products
 from services.product_identity import deduplicate_products, identity_pair
 from services.relevance import MIN_TERM_LENGTH, tokenize
@@ -482,6 +483,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+@track_usage("category_search")
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Run a search inside the selected category."""
 
@@ -590,6 +592,7 @@ def _merge_feed_outcome(target: SearchOutcome, page_outcome: SearchOutcome) -> N
     target.comparisons.extend(page_outcome.comparisons)
 
 
+@track_usage("discovery_feed")
 async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """«✨ Находки»: AliExpress' own feed, straight to the FIRST product card.
 
@@ -874,6 +877,7 @@ async def feed_reset_callback(
     await show_feed(update, context)
 
 
+@track_usage("photo_search")
 async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """A photo was sent: find products that REALLY are the pictured item."""
     from handlers.photo_search import photo_message_handler

@@ -45,9 +45,86 @@ class DatabaseTests(unittest.TestCase):
             "saved_products",
             "tracked_products",
             "price_history",
+            "gemini_usage",
         ):
             with self.subTest(table=expected):
                 self.assertIn(expected, tables)
+
+    def test_gemini_usage_attempts_are_persisted_idempotently_and_aggregated(self) -> None:
+        self.run_async(self.db.initialize())
+        attempt = {
+            "attempt_id": "attempt-1",
+            "request_id": "request-1",
+            "operation": "conversation_selection",
+            "model": "gemini-3.1-flash-lite",
+            "duration_ms": 1234.0,
+            "outcome": "ok",
+            "prompt_token_count": 1000,
+            "candidates_token_count": 100,
+            "total_token_count": 1120,
+            "cached_content_token_count": 0,
+            "thoughts_token_count": 20,
+            "cost_usd": 0.00043,
+            "cost_status": "estimated",
+            "pricing_version": "test-pricing",
+            "created_at": "2026-11-07T09:00:00+00:00",
+        }
+        self.run_async(self.db.record_gemini_attempt(attempt))
+        self.run_async(self.db.record_gemini_attempt(attempt))
+
+        stats = self.run_async(
+            self.db.get_gemini_usage_stats("2026-11-07 00:00:00")
+        )
+        self.assertEqual(stats["totals"]["attempts"], 1)
+        self.assertEqual(stats["totals"]["prompt_tokens"], 1000)
+        self.assertEqual(stats["totals"]["thoughts_tokens"], 20)
+        self.assertAlmostEqual(stats["totals"]["estimated_cost_usd"], 0.00043)
+        self.assertEqual(stats["models"][0]["model"], "gemini-3.1-flash-lite")
+        self.assertEqual(
+            stats["operations"][0]["operation"], "conversation_selection"
+        )
+
+    def test_gemini_usage_requests_are_grouped_without_prompt_data(self) -> None:
+        self.run_async(self.db.initialize())
+        base = {
+            "request_id": "request-group-1",
+            "operation": "conversation_turn",
+            "model": "gemini-3.1-flash-lite",
+            "duration_ms": 100.0,
+            "outcome": "ok",
+            "prompt_token_count": 100,
+            "candidates_token_count": 10,
+            "total_token_count": 110,
+            "cost_usd": 0.00004,
+            "cost_status": "estimated",
+            "pricing_version": "test",
+            "created_at": "2026-11-07T09:00:00+00:00",
+        }
+        first = dict(base, attempt_id="group-attempt-1")
+        second = dict(
+            base,
+            attempt_id="group-attempt-2",
+            operation="conversation_selection",
+            model="gemini-3.8-flash",
+            prompt_token_count=200,
+            candidates_token_count=20,
+            total_token_count=220,
+            cost_usd=0.00009,
+        )
+        self.run_async(self.db.record_gemini_attempt(first))
+        self.run_async(self.db.record_gemini_attempt(second))
+
+        rows = self.run_async(
+            self.db.list_gemini_usage_requests("2026-11-07 00:00:00")
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["request_id"], "request-group-1")
+        self.assertEqual(rows[0]["attempts"], 2)
+        self.assertEqual(rows[0]["prompt_tokens"], 300)
+        self.assertEqual(rows[0]["total_tokens"], 330)
+        self.assertAlmostEqual(rows[0]["estimated_cost_usd"], 0.00013)
+        self.assertIn("gemini-3.1-flash-lite", rows[0]["models"])
+        self.assertNotIn("prompt", rows[0])
 
     def test_initialize_is_idempotent(self) -> None:
         self.run_async(self.db.initialize())
