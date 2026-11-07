@@ -4508,3 +4508,12 @@ Verification:
 - Current PR #8 head before this migration: 1c4e8cd0b289ac761939d9fad2bc8d9dc60a05cf.
 - The migration is not complete until code changes are committed to this feature branch, CI passes, and the user performs manual Telegram tests with one bot poller.
 - Preserve local uncommitted files and user evaluation artifacts. Never overwrite eval-consultant-blind-map.json, eval-consultant-blind-results.json, or local-backup-2026-11-06/.
+
+
+### Migration implementation update — 2026-11-07
+- Changes are committed directly to PR #8 head branch feat/gemini-usage-analytics; no merge or main-branch update.
+- Primary defaults in AIService and Settings are now 3.1 Flash-Lite for fast/smart/vision roles. Reserve defaults are 3.8 Flash.
+- The new GEMINI_PRIMARY_MODEL and GEMINI_RESERVE_MODEL variables are the only model overrides. Legacy role variables are intentionally ignored so an existing local .env does not leave 3.8 as primary. .env itself was not read or modified.
+- _generate now tries the reserve after model-unavailable, server (5xx), transport and bounded conversation timeouts; quota/rate-limit, auth and invalid-request errors still stop without a second call. Malformed or empty structured conversation_turn / conversation_selection responses now receive one reserve attempt with the same prompt/schema. Semantic grounding remains with existing validators.
+- First CI run #95: compileall passed; focused tests initially had 1 failure because a telemetry test still expected the former 3.1 fallback. 141 tests passed; this expectation is being updated to 3.8 and settings tests are being added to the focused workflow. Re-run CI after this correction.
+- No live API calls were made. Manual Telegram validation is still pending; stop duplicate pollers before running the bot.
