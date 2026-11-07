@@ -782,6 +782,11 @@ class SearchService:
             else:
                 # Preserve the legacy non-raw pipeline's primary-only depth.
                 page_variants = [primary]
+            if raw and not page_variants:
+                logger.info(
+                    "RAW conversational pagination stopped: no live routes remain"
+                )
+                break
             pages_used = page_no
             pages_scanned += 1
             page_rows = 0
