@@ -4427,3 +4427,11 @@ Verification:
 - No local Python execution or live provider calls were performed.
 - Web dashboard, PostgreSQL migration and server deployment remain unimplemented.
 - Manual local verification is still required for VS Code output, persistence across restart, and the Telegram commands.
+
+### Verification update — 2026-11-07 10:05 UTC
+- Latest successful focused workflow: run #44, commit `6dc7d1829db03ce3f5868c6eb894404984932f2b`.
+- Compile step passed; focused suite passed: **31 passed, 1 warning, 7 subtests passed**.
+- The preceding run #24 had 30 passed and one failed pricing-boundary assertion because the test expected `0.0000045` instead of the correct `0.0045`. The test expectation was fixed; the implementation matched Google's published pricing.
+- The successful run includes the grouped request-history and admin Telegram command code, because both were present before commit #44.
+- PR #8 remains draft/open/unmerged. PR #7 remains draft/open/unmerged. `main` is untouched.
+- The branch is ready for local integration verification; the local database migration, actual VS Code logs and Telegram commands have not yet been manually tested on the user's PC.
