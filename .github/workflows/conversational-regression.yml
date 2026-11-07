@@ -1,4 +1,5 @@
 name: Conversational regression tests
+# This bounded task branch opts into the same offline regression workflow.
 
 on:
   push:
