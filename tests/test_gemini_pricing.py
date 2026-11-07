@@ -51,7 +51,7 @@ class GeminiPricingTests(unittest.TestCase):
         self.assertEqual(status, "estimated")
         self.assertAlmostEqual(cost, 0.00048)
 
-    def test_flash_rate_changes_on_2027_01_01(self):
+    def test_future_unverified_flash_rate_is_unknown(self):
         tokens = {"prompt_token_count": 1_000, "total_token_count": 2_000}
         old_cost, _, _ = estimate_cost_usd(
             "gemini-3.8-flash", tokens,
@@ -62,7 +62,7 @@ class GeminiPricingTests(unittest.TestCase):
             when=datetime(2027, 1, 1, 0, 0, tzinfo=timezone.utc),
         )
         self.assertAlmostEqual(old_cost, 0.0000045)
-        self.assertAlmostEqual(new_cost, 0.000009)
+        self.assertIsNone(new_cost)
 
     def test_missing_usage_and_unknown_models_are_not_zero_cost(self):
         self.assertEqual(
