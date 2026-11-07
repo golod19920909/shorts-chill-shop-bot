@@ -8,6 +8,7 @@ the bot, and keeps ``main.py`` limited to process lifecycle.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from telegram import BotCommand, Update
@@ -70,6 +71,7 @@ from services.marketplaces import AliExpressProvider
 from services.marketplaces.base import MarketplaceProvider
 from services.product_assistant import ProductAssistant
 from services.gemini_telemetry import configure_persistence, flush_pending_attempts
+from services.gemini_dashboard import GeminiDashboardServer
 from services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
@@ -379,6 +381,41 @@ async def _post_init(application: Application) -> None:
     # Persist Gemini usage only after the database schema is ready.
     configure_persistence(database.record_gemini_attempt)
 
+    dashboard_settings = application.bot_data["settings"]
+    dashboard = None
+    if dashboard_settings.is_analytics_dashboard_enabled:
+        try:
+            dashboard = GeminiDashboardServer(
+                database,
+                host=dashboard_settings.analytics_dashboard_host,
+                port=dashboard_settings.analytics_dashboard_port,
+                username=dashboard_settings.analytics_dashboard_username,
+                password=dashboard_settings.analytics_dashboard_password,
+            ).start()
+            logger.info(
+                "Gemini analytics dashboard listening on http://%s:%d "
+                "(HTTP Basic authentication enabled)",
+                dashboard_settings.analytics_dashboard_host,
+                dashboard.port,
+            )
+            if dashboard_settings.analytics_dashboard_host not in {
+                "127.0.0.1", "localhost", "::1"
+            }:
+                logger.warning(
+                    "Dashboard is bound to a non-loopback interface; expose it "
+                    "only behind an HTTPS reverse proxy"
+                )
+        except OSError:
+            logger.exception(
+                "Could not start Gemini analytics dashboard; bot will continue"
+            )
+    else:
+        logger.info(
+            "Gemini analytics dashboard disabled "
+            "(set ANALYTICS_DASHBOARD_PASSWORD to enable)"
+        )
+    application.bot_data["gemini_dashboard"] = dashboard
+
     # Real automatic price tracking. Built here because the notifier
     # needs the live bot instance; it is a no-op when no provider is
     # configured (the tracking UI then reports manual tracking).
@@ -408,6 +445,12 @@ async def _post_init(application: Application) -> None:
 
 async def _post_shutdown(application: Application) -> None:
     """Release provider HTTP clients on shutdown."""
+
+    # Stop the optional dashboard before draining analytics writes.
+    dashboard = application.bot_data.get("gemini_dashboard")
+    if dashboard is not None:
+        await asyncio.to_thread(dashboard.stop)
+        application.bot_data["gemini_dashboard"] = None
 
     # Drain queued usage writes before the application event loop stops.
     await flush_pending_attempts()
