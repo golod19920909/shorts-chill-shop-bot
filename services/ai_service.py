@@ -2862,11 +2862,55 @@ seller_terms: {seller_terms_json}
             if operation in {"conversation_turn", "conversation_selection"}:
                 structured = self._extract_json_object(text)
                 if operation == "conversation_turn":
+                    confidence = (
+                        structured.get("confidence")
+                        if isinstance(structured, dict) else None
+                    )
+                    slot_updates = (
+                        structured.get("slot_updates")
+                        if isinstance(structured, dict) else None
+                    )
                     valid_shape = (
                         isinstance(structured, dict)
-                        and isinstance(structured.get("action"), str)
-                        and isinstance(structured.get("confidence"), (int, float))
-                        and not isinstance(structured.get("confidence"), bool)
+                        and structured.get("action") in {
+                            "new_search", "refine", "correction",
+                            "alternatives", "compare", "clarify", "respond",
+                        }
+                        and isinstance(confidence, (int, float))
+                        and not isinstance(confidence, bool)
+                        and 0.0 <= confidence <= 1.0
+                        and (
+                            structured.get("product_type") is None
+                            or isinstance(structured.get("product_type"), str)
+                        )
+                        and isinstance(structured.get("marketplace_terms"), list)
+                        and all(isinstance(term, str) for term in structured["marketplace_terms"])
+                        and (
+                            structured.get("question") is None
+                            or isinstance(structured.get("question"), str)
+                        )
+                        and (
+                            structured.get("response") is None
+                            or isinstance(structured.get("response"), str)
+                        )
+                        and isinstance(slot_updates, list)
+                        and all(
+                            isinstance(item, dict)
+                            and item.get("operation") in {"add", "replace", "remove"}
+                            and item.get("kind") in {
+                                "use_case", "compatibility", "feature",
+                                "exclusion", "preference",
+                            }
+                            and (
+                                item.get("target") is None
+                                or isinstance(item.get("target"), str)
+                            )
+                            and (
+                                item.get("value") is None
+                                or isinstance(item.get("value"), str)
+                            )
+                            for item in slot_updates
+                        )
                     )
                 else:
                     selections = (
@@ -2878,6 +2922,7 @@ seller_terms: {seller_terms_json}
                         and all(
                             isinstance(item, dict)
                             and isinstance(item.get("id"), str)
+                            and bool(item.get("id").strip())
                             and isinstance(item.get("identity_evidence"), str)
                             and isinstance(item.get("requirement_evidence"), dict)
                             for item in selections
