@@ -4487,3 +4487,24 @@ Verification:
 - This verifies offline timeout cancellation/fallback behavior, timeout-budget arithmetic, instrumentation logs, conversation-turn behavior and engine regressions. It does **not** establish live Gemini 3.8 latency or prove the issue is fully resolved in production.
 - Local runtime and live Telegram verification remain pending. User should pull the updated feature branch and run representative new searches/refinements; compare primary-model success, fallback frequency, prompt_build_ms, setup_ms, sdk_wait_ms, parse_ms, selection elapsed time and end-to-end response time.
 - Latest implementation commit: `22a0b29f69d29a25309ab687dea1016bf5a74e15`. PR #8 remains draft/open/unmerged; PR #7 and `main` remain untouched.
+
+
+## 2026-11-07 — Gemini 3.1 primary / Gemini 3.8 reserve migration (in progress)
+
+### User-approved direction
+- Move the full Option C consultant workload to gemini-3.1-flash-lite as the primary generation.
+- Keep gemini-3.8-flash configured as the reserve model; do not remove it.
+- Do not merge PR #8 or touch main without explicit approval.
+- Preserve Option C, dialogue context, candidate evidence, deterministic AliExpress retrieval/validation/ranking and Telegram delivery. Browse remains 30 cards; AI candidate selection remains capped at 20.
+
+### Implementation started on feat/gemini-usage-analytics
+- Primary/reserve defaults are being migrated in services/ai_service.py and config/settings.py.
+- New environment overrides are GEMINI_PRIMARY_MODEL (default 3.1 Flash-Lite) and GEMINI_RESERVE_MODEL (default 3.8 Flash). Old GEMINI_MODEL, GEMINI_SMART_MODEL, GEMINI_FAST_MODEL, GEMINI_VISION_MODEL and GEMINI_FALLBACK_MODEL variables are intentionally ignored by the new loader so an existing local .env cannot silently keep 3.8 as primary. The user's actual .env is not accessed or modified.
+- The generation boundary is being updated so malformed consultant structured output, empty structured responses, model-unavailable errors, server errors, transport failures and bounded consultant timeouts can advance once to the reserve model. Account-wide quota/rate-limit, authentication and invalid-request errors must not trigger a reserve call.
+- Structured turn/selection schemas and semantic grounding validators remain intact. The reserve receives the same prompt and schema; there is no parallel dual-model call.
+- Offline regressions are being added for malformed structured output and transport failure. No live Gemini, Telegram or AliExpress calls are part of this work.
+
+### Handoff / verification
+- Current PR #8 head before this migration: 1c4e8cd0b289ac761939d9fad2bc8d9dc60a05cf.
+- The migration is not complete until code changes are committed to this feature branch, CI passes, and the user performs manual Telegram tests with one bot poller.
+- Preserve local uncommitted files and user evaluation artifacts. Never overwrite eval-consultant-blind-map.json, eval-consultant-blind-results.json, or local-backup-2026-11-06/.
