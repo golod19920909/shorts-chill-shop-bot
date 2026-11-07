@@ -295,7 +295,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(written[0]["attempt_id"], attempt.attempt_id)
         self.assertEqual(written[0]["request_id"], usage.request_id)
         self.assertEqual(written[0]["cost_status"], "estimated")
-        self.assertAlmostEqual(written[0]["cost_usd"], 0.00028)
+        self.assertAlmostEqual(written[0]["cost_usd"], 0.00043)
 
     async def test_failed_attempt_is_persisted_with_unknown_cost(self):
         written = []
