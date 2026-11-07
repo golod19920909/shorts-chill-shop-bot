@@ -69,6 +69,7 @@ from services.ai_service import AIService
 from services.marketplaces import AliExpressProvider
 from services.marketplaces.base import MarketplaceProvider
 from services.product_assistant import ProductAssistant
+from services.gemini_telemetry import configure_persistence, flush_pending_attempts
 from services.search_service import SearchService
 
 logger = logging.getLogger(__name__)
@@ -365,6 +366,9 @@ async def _post_init(application: Application) -> None:
     database: Database = application.bot_data["database"]
     await database.init_db()
 
+    # Persist Gemini usage only after the database schema is ready.
+    configure_persistence(database.record_gemini_attempt)
+
     # Real automatic price tracking. Built here because the notifier
     # needs the live bot instance; it is a no-op when no provider is
     # configured (the tracking UI then reports manual tracking).
@@ -394,6 +398,10 @@ async def _post_init(application: Application) -> None:
 
 async def _post_shutdown(application: Application) -> None:
     """Release provider HTTP clients on shutdown."""
+
+    # Drain queued usage writes before the application event loop stops.
+    await flush_pending_attempts()
+    configure_persistence(None)
 
     search_service: SearchService | None = application.bot_data.get("search_service")
     if search_service is not None:
