@@ -876,6 +876,7 @@ async def feed_reset_callback(
     await show_feed(update, context)
 
 
+@track_usage("photo_search")
 async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """A photo was sent: find products that REALLY are the pictured item."""
     from handlers.photo_search import photo_message_handler
