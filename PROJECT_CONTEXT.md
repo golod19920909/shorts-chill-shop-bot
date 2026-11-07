@@ -4443,3 +4443,39 @@ Verification:
 - Gemini call instrumentation is at `AIService`'s remote generation boundary (`record_attempt`), so retries/fallbacks are individually recorded. Request scopes cover text search, category search, discovery feed, photo search and product AI actions.
 - Latest CI run #60 on commit `47e88457e715a27e3f539f71c71a4db21812be82` passed: compile changed packages; **35 passed, 1 warning, 7 subtests passed**. Dashboard auth/API tests are included.
 - PR #8 is still open and draft. No local machine or live Telegram/Gemini/marketplace calls were used. Manual local verification is the remaining step before merge.
+
+## 2026-11-07 — Gemini 3.8 Flash conversational timeout investigation
+
+### Live evidence and diagnosis
+- The user's local live log showed conversation_turn timing out at **4,008 ms** against a **4.0 s** limit, then the fallback model succeeding in 1,533 ms.
+- The same request showed conversation_selection timing out at **6,506 ms** against a **6.5 s** limit, then the fallback succeeding in 3,563 ms.
+- Those durations align almost exactly with the application's own asyncio.timeout limits. This establishes that the immediate timeout trigger is the local per-attempt deadline, not a confirmed Google HTTP/API error.
+- The selector prompt in that run was **27,981 characters** for 64 candidates. The successful fallback processed 8,888 prompt tokens. Prompt size is a plausible contributor to model latency, but this single sample does not prove causation.
+- The existing duration surrounded the SDK call as a whole. It could not separate local prompt/request preparation from time spent awaiting the SDK's HTTP/API operation. SDK wait itself still combines network transport and remote provider processing; it must not be mislabeled as pure model inference time.
+
+### Implemented on PR #8 branch feat/gemini-usage-analytics
+- services/ai_service.py:
+  - Raised the primary/fallback per-attempt budget for conversation_turn from 4.0 s to **5.5 s**.
+  - Raised the whole turn-interpretation deadline from 8.5 s to **12.0 s**, leaving room for both bounded attempts.
+  - Raised the per-attempt budget for conversation_selection from 6.5 s to **8.0 s**.
+  - Added privacy-safe timing fields to per-attempt logs: operation, local request setup, SDK wait, response-text extraction, total duration and prompt character count. No prompt text or credentials are logged.
+  - Added prompt-construction timing and bounded context/prompt character counts for turn interpretation and prompt/payload character counts for candidate selection.
+- services/convsearch/engine.py:
+  - Raised the complete semantic-selection deadline from 15.0 s to **17.0 s**, enough for two 8-second attempts plus small local overhead.
+  - Added total semantic-selection elapsed time and outcome logging.
+- tests/test_gemini_latency.py:
+  - Added an actual fake-client cancellation test proving a primary client timeout advances to the configured fallback.
+  - Added assertions that whole-operation deadlines cover both attempts.
+  - Added a log regression proving local setup and SDK wait are reported separately without logging prompt contents.
+- .github/workflows/gemini-usage-analytics.yml now runs the latency regression and the existing turn-fallback regression.
+
+### Boundaries preserved
+- Option C hybrid architecture, Gemini 3.8 Flash primary, Gemini 3.1 Flash-Lite fallback, quota handling, deterministic validation/ranking, candidate evidence fields, 20-item AI selection cap and 30-card presentation cap remain unchanged.
+- No candidate evidence fields or prompt context were removed; no model, thinking level, retrieval, ranking, or product validation behavior was changed.
+- No .env, credentials, local database or user-local files were accessed or modified.
+- PR #8 remains draft/open/unmerged; PR #7 and main remain untouched.
+
+### Verification status
+- Changes are committed on feat/gemini-usage-analytics; latest implementation commit before this context update: 6b6a01e5ecda9a7aefbfd61bc597e35a0a961b9b.
+- Focused CI and local Python tests are pending at this handoff. No live Gemini/Telegram call has yet tested the new budgets.
+- Do not describe the timeout issue as fully resolved until CI passes and the user runs representative Telegram searches against this updated branch. Compare primary-model success rate, timeout/fallback rate, per-attempt SDK wait, prompt size, and end-to-end response time.
