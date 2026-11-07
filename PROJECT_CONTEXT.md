@@ -4435,3 +4435,11 @@ Verification:
 - The successful run includes the grouped request-history and admin Telegram command code, because both were present before commit #44.
 - PR #8 remains draft/open/unmerged. PR #7 remains draft/open/unmerged. `main` is untouched.
 - The branch is ready for local integration verification; the local database migration, actual VS Code logs and Telegram commands have not yet been manually tested on the user's PC.
+### Dashboard and latest CI update — 2026-11-07
+- The optional read-only web dashboard is implemented in `services/gemini_dashboard.py` and wired into `_post_init` / `_post_shutdown` in `bot/__init__.py`.
+- It is disabled by default. Set `ANALYTICS_DASHBOARD_PASSWORD` in `.env`; optional `ANALYTICS_DASHBOARD_USERNAME`, `ANALYTICS_DASHBOARD_HOST` (default `127.0.0.1`) and `ANALYTICS_DASHBOARD_PORT` (default `8765`) configure access. It uses HTTP Basic auth, no-store/security headers, read-only endpoints, and never exposes prompt text. Keep it loopback-bound behind HTTPS reverse proxy on a server; do not expose Basic Auth over public plain HTTP.
+- Local dashboard URL with defaults: `http://127.0.0.1:8765`.
+- README and `.env.example` now document dashboard settings and the admin usage commands.
+- Gemini call instrumentation is at `AIService`'s remote generation boundary (`record_attempt`), so retries/fallbacks are individually recorded. Request scopes cover text search, category search, discovery feed, photo search and product AI actions.
+- Latest CI run #60 on commit `47e88457e715a27e3f539f71c71a4db21812be82` passed: compile changed packages; **35 passed, 1 warning, 7 subtests passed**. Dashboard auth/API tests are included.
+- PR #8 is still open and draft. No local machine or live Telegram/Gemini/marketplace calls were used. Manual local verification is the remaining step before merge.
