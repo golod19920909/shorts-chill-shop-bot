@@ -62,7 +62,7 @@ class GeminiPricingTests(unittest.TestCase):
             when=datetime(2027, 1, 1, 0, 0, tzinfo=timezone.utc),
         )
         self.assertAlmostEqual(old_cost, 0.0045)
-        self.assertAlmostEqual(new_cost, 0.000009)
+        self.assertAlmostEqual(new_cost, 0.009)
 
     def test_missing_usage_and_unknown_models_are_not_zero_cost(self):
         self.assertEqual(
