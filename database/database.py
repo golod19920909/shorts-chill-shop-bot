@@ -1225,6 +1225,93 @@ class Database:
     #: stored (a count, a currency code, a source name).
     METADATA_VALUE_LIMIT = 120
 
+    async def record_gemini_attempt(self, attempt: dict[str, Any]) -> None:
+        """Persist one Gemini attempt once; never store prompts or user text."""
+
+        async with self._connect() as conn:
+            await conn.execute(
+                "INSERT OR IGNORE INTO gemini_usage "
+                "(attempt_id, request_id, operation, model, duration_ms, outcome, "
+                "prompt_token_count, candidates_token_count, total_token_count, "
+                "cached_content_token_count, thoughts_token_count, cost_usd, "
+                "cost_status, pricing_version, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(attempt["attempt_id"]),
+                    attempt.get("request_id"),
+                    str(attempt["operation"]),
+                    str(attempt["model"]),
+                    float(attempt.get("duration_ms") or 0.0),
+                    str(attempt["outcome"]),
+                    attempt.get("prompt_token_count"),
+                    attempt.get("candidates_token_count"),
+                    attempt.get("total_token_count"),
+                    attempt.get("cached_content_token_count"),
+                    attempt.get("thoughts_token_count"),
+                    attempt.get("cost_usd"),
+                    str(attempt.get("cost_status") or "unknown_usage"),
+                    attempt.get("pricing_version"),
+                    str(attempt["created_at"]),
+                ),
+            )
+            await conn.commit()
+
+    async def get_gemini_usage_stats(
+        self, since: str | None = None
+    ) -> dict[str, Any]:
+        """Aggregate durable Gemini usage by model and operation."""
+
+        where = " WHERE datetime(created_at) >= datetime(?)" if since else ""
+        params = [since] if since else []
+
+        total_query = (
+            "SELECT COUNT(*) AS attempts, "
+            "COALESCE(SUM(prompt_token_count), 0) AS prompt_tokens, "
+            "COALESCE(SUM(candidates_token_count), 0) AS candidate_tokens, "
+            "COALESCE(SUM(total_token_count), 0) AS total_tokens, "
+            "COALESCE(SUM(cached_content_token_count), 0) AS cached_tokens, "
+            "COALESCE(SUM(thoughts_token_count), 0) AS thoughts_tokens, "
+            "COALESCE(SUM(cost_usd), 0.0) AS estimated_cost_usd, "
+            "COUNT(CASE WHEN cost_usd IS NULL THEN 1 END) AS unknown_costs "
+            "FROM gemini_usage" + where
+        )
+        model_query = (
+            "SELECT model, COUNT(*) AS attempts, "
+            "COALESCE(SUM(prompt_token_count), 0) AS prompt_tokens, "
+            "COALESCE(SUM(candidates_token_count), 0) AS candidate_tokens, "
+            "COALESCE(SUM(total_token_count), 0) AS total_tokens, "
+            "COALESCE(SUM(cached_content_token_count), 0) AS cached_tokens, "
+            "COALESCE(SUM(thoughts_token_count), 0) AS thoughts_tokens, "
+            "COALESCE(SUM(cost_usd), 0.0) AS estimated_cost_usd, "
+            "COUNT(CASE WHEN cost_usd IS NULL THEN 1 END) AS unknown_costs "
+            "FROM gemini_usage" + where
+            + " GROUP BY model ORDER BY estimated_cost_usd DESC, model"
+        )
+        operation_query = (
+            "SELECT operation, COUNT(*) AS attempts, "
+            "COALESCE(SUM(prompt_token_count), 0) AS prompt_tokens, "
+            "COALESCE(SUM(total_token_count), 0) AS total_tokens, "
+            "COALESCE(SUM(cost_usd), 0.0) AS estimated_cost_usd, "
+            "COUNT(CASE WHEN cost_usd IS NULL THEN 1 END) AS unknown_costs "
+            "FROM gemini_usage" + where
+            + " GROUP BY operation ORDER BY estimated_cost_usd DESC, operation"
+        )
+
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            total_cursor = await conn.execute(total_query, params)
+            total_row = await total_cursor.fetchone()
+            model_cursor = await conn.execute(model_query, params)
+            model_rows = await model_cursor.fetchall()
+            operation_cursor = await conn.execute(operation_query, params)
+            operation_rows = await operation_cursor.fetchall()
+
+        return {
+            "totals": dict(total_row) if total_row is not None else {},
+            "models": [dict(row) for row in model_rows],
+            "operations": [dict(row) for row in operation_rows],
+        }
+
     async def record_event(
         self,
         event_type: str,
