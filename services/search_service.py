@@ -133,13 +133,15 @@ DEFAULT_PAGE_SIZE = 5
 #: only the default), and only a real product search goes deeper - a category,
 #: a feed or a photo takes its breadth from its own pipeline (see
 #: ``query_variants``).
-MAX_SEARCH_PAGES = 3
+MAX_SEARCH_PAGES = 5
 
-#: Hard wall-clock budget for a conversational retrieval pass. The engine
-#: evaluates partial rows after this deadline and can still answer with
-#: already collected listings; one slow page must not multiply the per-call
-#: AliExpress timeout across every query variant and page.
-RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS = 30.0
+#: Bounded conversational retrieval budgets. A single slow AliExpress route
+#: must not consume the whole search: each route is capped independently, each
+#: page has its own wall-clock budget, and the complete search remains bounded.
+#: Completed route results are retained when any of these limits is reached.
+RAW_CONVERSATION_ROUTE_TIMEOUT_SECONDS = 13.0
+RAW_CONVERSATION_PAGE_TIMEOUT_SECONDS = 32.0
+RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS = 60.0
 
 #: Stems of MOOD adjectives ("прикольное", "необычные", "полезные") and
 #: filler pronouns/adverbs. Stems, not full words, so inflections are
@@ -761,6 +763,13 @@ class SearchService:
             else None
         )
         raw_deadline_exhausted = False
+        raw_page_budget_exhausted = False
+        pages_requested = len(pages)
+        pages_completed = 0
+        pages_failed = 0
+        routes_requested = 0
+        routes_completed = 0
+        routes_failed = 0
 
         for page_no in pages:
             # Page 1 asks every grounded phrase. Later pages continue every
@@ -777,15 +786,35 @@ class SearchService:
             pages_scanned += 1
             page_rows = 0
             successful_page_variant_rows: dict[str, int] = {}
+            page_deadline = (
+                min(
+                    raw_deadline,
+                    time.perf_counter() + RAW_CONVERSATION_PAGE_TIMEOUT_SECONDS,
+                )
+                if raw_deadline is not None else None
+            )
+            page_had_failure = False
 
             for variant_index, variant in enumerate(page_variants, start=1):
+                now = time.perf_counter()
                 if raw_deadline is not None:
-                    remaining = raw_deadline - time.perf_counter()
+                    remaining = raw_deadline - now
+                    page_remaining = (page_deadline - now) if page_deadline is not None else remaining
                     if remaining <= 0:
                         raw_deadline_exhausted = True
                         break
+                    if page_remaining <= 0:
+                        raw_page_budget_exhausted = True
+                        break
+                    route_budget = min(
+                        remaining,
+                        page_remaining,
+                        RAW_CONVERSATION_ROUTE_TIMEOUT_SECONDS,
+                    )
                 else:
                     remaining = None
+                    page_remaining = None
+                    route_budget = None
                 # The primary query on the request's own page keeps the
                 # parser's request object; a further variant (or a deeper
                 # page) only ever replaces the marketplace phrase / the page
@@ -798,8 +827,9 @@ class SearchService:
                         update={"normalized_query": variant, "page_no": page_no}
                     )
                 route_started = time.perf_counter()
+                routes_requested += len(active) if raw else 0
                 try:
-                    if remaining is None:
+                    if route_budget is None:
                         results = await asyncio.gather(
                             *(
                                 self._timed_provider_call(
@@ -810,7 +840,7 @@ class SearchService:
                             return_exceptions=True,
                         )
                     else:
-                        async with asyncio.timeout(remaining):
+                        async with asyncio.timeout(route_budget):
                             results = await asyncio.gather(
                                 *(
                                     self._timed_provider_call(
@@ -821,12 +851,27 @@ class SearchService:
                                 return_exceptions=True,
                             )
                 except TimeoutError:
-                    # asyncio.timeout cancels only the in-flight provider round.
-                    # Previously completed routes remain in raw_route_pairs and
-                    # are fused below; the caller can still evaluate partial rows.
-                    raw_deadline_exhausted = True
+                    # A route timeout retires only this phrase when page and
+                    # search budgets still have room. If the page/global
+                    # deadline itself expired, preserve completed routes and
+                    # stop the bounded retrieval pass.
+                    now = time.perf_counter()
+                    raw_deadline_exhausted = (
+                        raw_deadline is not None and now >= raw_deadline
+                    )
+                    raw_page_budget_exhausted = (
+                        not raw_deadline_exhausted
+                        and page_deadline is not None
+                        and now >= page_deadline
+                    )
                     results = [
-                        TimeoutError("conversational retrieval deadline")
+                        TimeoutError(
+                            "conversational retrieval deadline"
+                            if raw_deadline_exhausted
+                            else "conversational page budget"
+                            if raw_page_budget_exhausted
+                            else "conversational route timeout"
+                        )
                         for _provider in active
                     ]
                 route_pairs = list(zip(active, results, strict=True))
@@ -846,6 +891,9 @@ class SearchService:
                         if isinstance(result, BaseException)
                         or bool(getattr(result, "provider_error", None))
                     )
+                    routes_failed += route_failures
+                    routes_completed += max(0, len(results) - route_failures)
+                    page_had_failure = page_had_failure or route_failures > 0
                     logger.info(
                         "RAW conversational route completed: page=%d "
                         "variant=%d/%d providers=%d rows=%d failures=%d "
@@ -958,9 +1006,16 @@ class SearchService:
                 # RAW conversational retrieval evaluates every bounded
                 # grounded route before fusion. Stopping as soon as the first
                 # route fills the pool would make RRF depend on route order.
-                if all_failed or raw_deadline_exhausted:
+                if all_failed or raw_deadline_exhausted or raw_page_budget_exhausted:
                     break
+            if raw:
+                if page_had_failure:
+                    pages_failed += 1
+                else:
+                    pages_completed += 1
             if all_failed:
+                break
+            if raw and (raw_deadline_exhausted or raw_page_budget_exhausted):
                 break
             if raw:
                 # Retire only phrases that failed or returned no rows on this
@@ -1023,11 +1078,22 @@ class SearchService:
                         current_unique, pool_target, page_no,
                     )
                     break
-                if raw_deadline_exhausted:
+                if raw_deadline_exhausted or raw_page_budget_exhausted:
                     logger.warning(
-                        "RAW conversational retrieval reached its %.0fs time budget; "
-                        "continuing with %d collected route(s)",
+                        "RAW conversational retrieval budget reached: "
+                        "scope=%s total_budget_s=%.0f page_budget_s=%.0f "
+                        "pages_requested=%d pages_completed=%d pages_failed=%d "
+                        "routes_requested=%d routes_completed=%d routes_failed=%d "
+                        "collected_routes=%d",
+                        "total" if raw_deadline_exhausted else "page",
                         RAW_CONVERSATION_SEARCH_TIMEOUT_SECONDS,
+                        RAW_CONVERSATION_PAGE_TIMEOUT_SECONDS,
+                        pages_requested,
+                        pages_completed,
+                        pages_failed,
+                        routes_requested,
+                        routes_completed,
+                        routes_failed,
                         len(raw_route_pairs),
                     )
                     break
