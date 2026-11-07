@@ -1061,7 +1061,12 @@ production timings:
   latency before any further timeout increase.
 - Retrieval diagnostics now record pages requested/completed/failed, routes
   requested/completed/failed, raw and unique candidate counts, and total
-  retrieval duration. Gemini diagnostics record selection funnel counts.
+  retrieval duration. The engine also records counts by rejection/quarantine
+  stage (wrong type, unverified required evidence, explicit exclusion,
+  budget/currency mismatch, ranking validation). Gemini diagnostics record
+  selection funnel counts.
+- `.env.example`, the `Settings` dataclass default and `load_settings()`
+  default are all aligned at five pages; the user's actual `.env` is untouched.
 - The 30-card presentation cap and five-card Telegram page size remain
   separate from the 20-product AI selection target.
 
