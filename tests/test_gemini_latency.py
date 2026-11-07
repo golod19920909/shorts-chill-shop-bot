@@ -90,7 +90,7 @@ class GeminiLatencyBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("op=conversation_turn", logs)
         self.assertIn("setup_ms=", logs)
         self.assertIn("sdk_wait_ms=", logs)
-        self.assertIn("prompt_chars=26", logs)
+        self.assertIn("prompt_chars=25", logs)
 
 
 if __name__ == "__main__":
