@@ -17,7 +17,7 @@ class ConversationTurnFallbackTests(unittest.IsolatedAsyncioTestCase):
                 calls.append(kwargs["model"])
                 if len(calls) == 1:
                     raise TimeoutError("simulated primary timeout")
-                return SimpleNamespace(text='{"action":"refine","confidence":0.9}')
+                return SimpleNamespace(text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
 
         service = AIService(
             api_key=None,
@@ -41,5 +41,5 @@ class ConversationTurnFallbackTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             result,
-            '{"action":"refine","confidence":0.9}',
+            '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}',
         )
