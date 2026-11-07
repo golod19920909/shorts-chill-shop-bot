@@ -245,6 +245,12 @@ class RawConversationalRetrievalTests(SearchServiceTestCase):
         self.assertIn("variant=2/2", route_logs)
         self.assertIn("duration_ms=", route_logs)
         self.assertNotIn("wireless headphones", route_logs)
+        metrics_log = "\n".join(captured.output)
+        self.assertIn("pages_requested=1", metrics_log)
+        self.assertIn("pages_completed=1", metrics_log)
+        self.assertIn("routes_requested=2", metrics_log)
+        self.assertIn("raw_candidates=2", metrics_log)
+        self.assertIn("unique_candidates=1", metrics_log)
         self.assertEqual(provider.search_calls, 2)
         self.assertEqual(
             provider.search_queries,
@@ -1618,14 +1624,26 @@ class SearchDepthDefaultTests(unittest.TestCase):
         import os
         from unittest.mock import patch
 
-        from config.settings import load_settings
+        from config.settings import (
+            MarketplaceCredentials,
+            Settings,
+            load_settings,
+        )
         from services.search_service import MAX_SEARCH_PAGES
 
         with patch.dict(os.environ, {"SEARCH_MAX_PAGES": ""}):
             configured = load_settings()
+        directly_constructed = Settings(
+            bot_token=None,
+            gemini_api_key=None,
+            database_path="database/shop_bot.db",
+            log_level="INFO",
+            aliexpress=MarketplaceCredentials(),
+        )
 
         self.assertEqual(MAX_SEARCH_PAGES, 5)
         self.assertEqual(configured.search_max_pages, 5)
+        self.assertEqual(directly_constructed.search_max_pages, 5)
 
 if __name__ == "__main__":
     unittest.main()
