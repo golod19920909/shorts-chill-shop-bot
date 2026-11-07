@@ -64,7 +64,7 @@ def estimate_cost_usd(
 
     cached = tokens.get("cached_content_token_count", 0)
     if cached < 0 or cached > prompt:
-        return None, "unknown_usage", PRICING_VERSION
+        return None, "unknown_usage", pricing_version
 
     uncached_input = prompt - cached
     billable_output = total - prompt
