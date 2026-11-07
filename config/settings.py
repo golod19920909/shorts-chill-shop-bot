@@ -111,10 +111,10 @@ class Settings:
     #: quality bar (and one set of prompt behaviours) for parsing, selection
     #: and photo reading; the distinct role variables stay so a deployment can
     #: still pin a cheaper model to one role without touching any code.
-    gemini_fast_model: str = "gemini-3.8-flash"
-    gemini_smart_model: str = "gemini-3.8-flash"
-    gemini_vision_model: str = "gemini-3.8-flash"
-    gemini_fallback_model: str = "gemini-3.1-flash-lite"
+    gemini_fast_model: str = "gemini-3.1-flash-lite"
+    gemini_smart_model: str = "gemini-3.1-flash-lite"
+    gemini_vision_model: str = "gemini-3.1-flash-lite"
+    gemini_fallback_model: str = "gemini-3.8-flash"
 
     @property
     def gemini_model(self) -> str:
@@ -276,15 +276,19 @@ def load_settings() -> Settings:
         feed_max_pages_per_open=_get_int(
             "FEED_MAX_PAGES_PER_OPEN", default=2, minimum=1, maximum=10
         ),
-        gemini_fast_model=_get("GEMINI_FAST_MODEL") or "gemini-3.8-flash",
-        #: ``GEMINI_MODEL`` stays supported as the single-model override for
-        #: the "smart" role, so existing .env files keep working unchanged.
-        gemini_smart_model=(
-            _get("GEMINI_MODEL") or _get("GEMINI_SMART_MODEL") or "gemini-3.8-flash"
+        gemini_fast_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
         ),
-        gemini_vision_model=_get("GEMINI_VISION_MODEL") or "gemini-3.8-flash",
+        # The new primary/reserve names intentionally supersede legacy
+        # role-specific variables so an old .env cannot leave 3.8 primary.
+        gemini_smart_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+        ),
+        gemini_vision_model=(
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+        ),
         gemini_fallback_model=(
-            _get("GEMINI_FALLBACK_MODEL") or "gemini-3.1-flash-lite"
+            _get("GEMINI_RESERVE_MODEL") or "gemini-3.8-flash"
         ),
     )
 
