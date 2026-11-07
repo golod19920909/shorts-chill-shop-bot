@@ -4346,3 +4346,58 @@ This section is the durable engineering handoff and acceptance summary.
 - New partner click tracking: NOT YET IMPLEMENTED; attribution compatibility is an open prerequisite.
 - Existing promo/product-card, sales-event, hot-discount and admin mechanisms must be preserved.
 - Next action: re-fetch the current PR #7 head/branch and review the remaining relevant files/tests in full; then produce the Stage A audit inventory and confirm any API permission limitations before implementation.
+
+
+## 2026-11-07 — Gemini usage persistence and cost analytics (PR #8)
+
+### Scope and preserved boundaries
+The user approved implementation of durable Gemini token/cost analytics. Work is isolated on branch `feat/gemini-usage-analytics`, based on the current `work/consultant-reliability` head. Draft PR: https://github.com/golod19920909/shorts-chill-shop-bot/pull/8, targeting `work/consultant-reliability`.
+
+PR #7 remains draft/open/unmerged. Do not merge PR #7 or PR #8 without the user's explicit instruction. `main` remains untouched.
+
+No changes are permitted to Gemini prompts, model routing/fallback policy, conversation state decisions, AliExpress retrieval, product validation/ranking, product limits, Telegram card rendering, or credentials. No live Gemini, Telegram or AliExpress calls were made.
+
+### Audit findings
+- The existing `services/gemini_telemetry.py` already extracted real `usage_metadata` fields and logged individual attempts. It recorded prompt, candidate, total, cached and thinking token counts, but had no durable history or price calculation.
+- The existing `turn_scope` collector was not wired into the main Telegram search/AI handler entry points.
+- The project already uses `aiosqlite` and has a single SQLite `Database` layer, plus an existing admin AI diagnostics screen. Reuse these rather than adding a second local database or a separate Telegram admin system.
+- Existing analytics events are user/product activity events; Gemini request accounting uses a dedicated `gemini_usage` table to avoid mixing unrelated metrics.
+
+### Implemented on the feature branch
+1. Added `services/gemini_pricing.py` with versioned Standard paid-tier estimates:
+   - `gemini-3.8-flash`: $0.75 / 1M input and $3.75 / 1M output through 2026-12-31; $1.50 / $7.50 from 2027-01-01.
+   - `gemini-3.1-flash-lite`: $0.25 / 1M input and $1.50 / 1M output.
+   - Cached input uses the published cached-input rates.
+   - Billable output is derived from `total_token_count - prompt_token_count`, which includes candidate and thinking tokens once; `thoughts_token_count` is separately displayed but is not added a second time.
+   - Unknown model or incomplete usage metadata produces unknown cost, never a fabricated zero.
+   - Rates are based on Google's published Standard paid-tier Gemini API pricing. They are estimates, not a direct billing export; compare against AI Studio Usage.
+2. Extended `services/gemini_telemetry.py`:
+   - Unique attempt IDs and per-handler request IDs.
+   - Per-attempt token/cost/status/pricing-version logging.
+   - Async best-effort persistence callback and pending-write flush at shutdown.
+   - A `track_usage` decorator for request-level correlation.
+   - No prompt, user text, Telegram ID, key, cookie or authorization data is stored.
+3. Added `gemini_usage` table and indexes in `database/models.py`.
+4. Added idempotent persistence and aggregate-by-model/operation queries in `database/database.py`.
+5. Wired the telemetry writer after database initialization and flush before shutdown in `bot/__init__.py`.
+6. Added request scopes to text search, category search, photo search and product AI action handlers.
+7. Extended the existing admin AI screen with period filters and persisted token/cost breakdowns by model and operation.
+8. Added offline tests:
+   - `tests/test_gemini_pricing.py`
+   - persistence tests in `tests/test_gemini_telemetry.py`
+   - database idempotency/aggregation test in `tests/test_database.py`
+9. Added focused workflow `.github/workflows/gemini-usage-analytics.yml` to compile application packages and run pricing, telemetry and database tests on the feature branch and PRs targeting `work/consultant-reliability`.
+
+### Verification state at handoff
+- Latest feature branch head after the focused workflow was added: `8ffa57ec7d726d0f7c2bb1c3187dfb25435332fc`.
+- GitHub status query returned no check runs/statuses yet. Do not claim tests passed until the new workflow has completed and its logs have been inspected.
+- No local Python test execution was performed in this environment.
+- PR #8 is draft/open; no merge performed.
+
+### Remaining work
+- Inspect CI results and fix any failures.
+- Verify the new table is created against an existing local database and that persisted rows survive a bot restart.
+- Manually verify that the VS Code terminal shows per-attempt token counts and estimated USD cost, and that the admin AI screen reflects persisted totals. This requires the user's local environment and credentials; do not run live provider calls from CI.
+- Add a safe recent-attempt detail view if useful.
+- Web dashboard, PostgreSQL migration, Telegram slash commands and server deployment are later stages; they are NOT implemented in this first local-persistence increment.
+- Confirm all other Gemini call entry points that may run outside the four decorated handlers; per-attempt persistence still works, but those attempts may have no request_id until their handler is scoped.
