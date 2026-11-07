@@ -592,6 +592,7 @@ def _merge_feed_outcome(target: SearchOutcome, page_outcome: SearchOutcome) -> N
     target.comparisons.extend(page_outcome.comparisons)
 
 
+@track_usage("discovery_feed")
 async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """«✨ Находки»: AliExpress' own feed, straight to the FIRST product card.
 
