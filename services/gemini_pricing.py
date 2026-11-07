@@ -10,7 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
-PRICING_VERSION = "google-gemini-standard-paid-2026-11-07"
 TOKENS_PER_MILLION = 1_000_000
 
 
@@ -52,11 +51,16 @@ def estimate_cost_usd(
     rates = _rates_for(model, moment.date())
     if rates is None:
         return None, "unknown_model", None
+    pricing_version = (
+        "google-gemini-standard-paid-2026-11-07"
+        if moment.date() < date(2027, 1, 1)
+        else "google-gemini-standard-paid-2027-01-01"
+    )
 
     prompt = tokens.get("prompt_token_count")
     total = tokens.get("total_token_count")
     if prompt is None or total is None or total < prompt:
-        return None, "unknown_usage", PRICING_VERSION
+        return None, "unknown_usage", pricing_version
 
     cached = tokens.get("cached_content_token_count", 0)
     if cached < 0 or cached > prompt:
@@ -69,4 +73,4 @@ def estimate_cost_usd(
         + cached * rates.cached_input_per_million
         + billable_output * rates.output_per_million
     ) / TOKENS_PER_MILLION
-    return round(cost, 12), "estimated", PRICING_VERSION
+    return round(cost, 12), "estimated", pricing_version
