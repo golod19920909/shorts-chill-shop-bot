@@ -4479,3 +4479,11 @@ Verification:
 - Changes are committed on feat/gemini-usage-analytics; latest implementation commit before this context update: 6b6a01e5ecda9a7aefbfd61bc597e35a0a961b9b.
 - Focused CI and local Python tests are pending at this handoff. No live Gemini/Telegram call has yet tested the new budgets.
 - Do not describe the timeout issue as fully resolved until CI passes and the user runs representative Telegram searches against this updated branch. Compare primary-model success rate, timeout/fallback rate, per-attempt SDK wait, prompt size, and end-to-end response time.
+
+### Verification update — 2026-11-07
+- Latest successful workflow run **#82** on code commit `22a0b29f69d29a25309ab687dea1016bf5a74e15`: compileall passed; focused suite **140 passed, 1 warning, 61 subtests passed**.
+- The focused CI now includes `tests/test_gemini_latency.py`, `tests/test_ai_conversation_turn_fallback.py`, `tests/test_ai_conversation_turn.py`, and `tests/test_convsearch_engine.py`, alongside the Gemini analytics/pricing/persistence/dashboard tests.
+- An intermediate expanded run failed because `tests/test_ai_service.py` contains stale legacy tests that call removed `_with_result_limit` / `_fallback_parse` methods. In accordance with AGENTS.md, the stale module was excluded from this focused workflow; its tests were not modified. The active conversation-turn and engine suites pass.
+- This verifies offline timeout cancellation/fallback behavior, timeout-budget arithmetic, instrumentation logs, conversation-turn behavior and engine regressions. It does **not** establish live Gemini 3.8 latency or prove the issue is fully resolved in production.
+- Local runtime and live Telegram verification remain pending. User should pull the updated feature branch and run representative new searches/refinements; compare primary-model success, fallback frequency, prompt_build_ms, setup_ms, sdk_wait_ms, parse_ms, selection elapsed time and end-to-end response time.
+- Latest implementation commit: `22a0b29f69d29a25309ab687dea1016bf5a74e15`. PR #8 remains draft/open/unmerged; PR #7 and `main` remain untouched.
