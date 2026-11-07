@@ -2074,3 +2074,45 @@ class RecommendationFollowupContinuityTests(unittest.IsolatedAsyncioTestCase):
             "лазерный уровень",
         )
 
+class SelectorIdentityScopeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_identity_review_ids_only_include_candidates_sent_to_gemini(self):
+        engine = ConversationSearchEngine()
+        reviewed = product("reviewed-in-pool", "Набор универсальных инструментов")
+        ordinary = product("ordinary-in-pool", "Рыболовная катушка")
+        selector = AsyncMock(return_value=[
+            reviewed.product_id,
+            ordinary.product_id,
+        ])
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        state = ConversationEngineState(user_key="selector-identity-scope")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[reviewed, ordinary],
+            report={
+                "semantic_review_ids": [
+                    reviewed.product_id,
+                    "review-id-not-in-candidate-pool",
+                ],
+            },
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(
+            selector.await_args.kwargs["identity_review_ids"],
+            [reviewed.product_id],
+        )
+        self.assertEqual(
+            [item.product_id for item in decision.products],
+            [reviewed.product_id, ordinary.product_id],
+        )
+
