@@ -903,10 +903,19 @@ class ConversationSearchEngine:
             decision, strategy, state,
             timeout_seconds=AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
         )
+        selection_duration_ms = (time.perf_counter() - selection_started) * 1000
+        decision.report["selection_duration_ms"] = round(selection_duration_ms)
+        decision.report["final_cards_count"] = len(decision.products)
         logger.info(
-            "convsearch semantic selection finished elapsed_ms=%.0f budget_s=%.1f "
-            "status=%s",
-            (time.perf_counter() - selection_started) * 1000,
+            "convsearch semantic selection metrics input=%d requested=%d "
+            "returned=%d validated=%d final_cards=%d duration_ms=%.0f "
+            "budget_s=%.1f status=%s",
+            decision.report.get("selection_input_count", 0),
+            decision.report.get("selection_requested_count", 0),
+            decision.report.get("selection_returned_count", 0),
+            decision.report.get("selection_validated_count", 0),
+            len(decision.products),
+            selection_duration_ms,
             AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
             decision.report.get("ai_selection", "not_used"),
         )
@@ -1069,6 +1078,10 @@ class ConversationSearchEngine:
         decision.report["ai_review_window_limit"] = selector_window_limit
         decision.report["ai_review_in_window"] = review_quota
         decision.report["ai_ordinary_in_window"] = ordinary_quota
+        decision.report["selection_input_count"] = len(selector_pool)
+        decision.report["selection_requested_count"] = wanted
+        decision.report["selection_returned_count"] = 0
+        decision.report["selection_validated_count"] = 0
         def deterministic_safe_pool() -> list[Product]:
             return [
                 product for product in original_pool
@@ -1086,9 +1099,11 @@ class ConversationSearchEngine:
                 decision.products = safe
                 decision.report["reason"] = "deterministic_fallback"
                 decision.report["ai_fallback_kept"] = len(safe)
+                decision.report["final_cards_count"] = len(safe)
                 return decision
 
             decision.products = []
+            decision.report["final_cards_count"] = 0
             decision.outcome = Outcome.NO_ELIGIBLE
             if decision.report.get("feature_review_ids"):
                 decision.report["reason"] = "unverified_required_features"
@@ -1119,6 +1134,7 @@ class ConversationSearchEngine:
                         decision.report["reason"] = "unverified_product_identity"
             else:
                 decision.products = original_pool[:presentation_limit]
+            decision.report["final_cards_count"] = len(decision.products)
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
@@ -1279,6 +1295,7 @@ class ConversationSearchEngine:
                 else:
                     decision.report["ai_second_pass"] = "completed"
                 if isinstance(second_ids, list):
+                    decision.report["selection_returned_count"] += len(second_ids)
                     remaining_allowed = {
                         product.product_id: product
                         for product in remaining_pool
@@ -1301,8 +1318,11 @@ class ConversationSearchEngine:
         # listing fits) from an unusable response (None). Respect that
         # explicit no-match decision: falling back here would re-display the
         # very candidates Gemini just rejected as irrelevant.
+        decision.report["selection_returned_count"] = len(selected_ids)
         if not selected and selected_ids == []:
             decision.products = []
+            decision.report["selection_validated_count"] = 0
+            decision.report["final_cards_count"] = 0
             decision.report["ai_selected"] = 0
             decision.outcome = Outcome.NO_ELIGIBLE
             decision.report["ai_selection"] = "semantic_no_match"
@@ -1311,6 +1331,7 @@ class ConversationSearchEngine:
         if not selected:
             return finish_fallback("empty_fallback")
 
+        decision.report["selection_validated_count"] = len(selected)
         decision.report["ai_selected"] = len(selected)
 
         # Keep the order returned across the two bounded AI passes.
@@ -1331,6 +1352,7 @@ class ConversationSearchEngine:
         decision.report["ai_tail_added"] = min(
             len(tail), max(0, presentation_limit - len(selected))
         )
+        decision.report["final_cards_count"] = len(decision.products)
         return decision
 
     # -- clarification policy ------------------------------------------------
