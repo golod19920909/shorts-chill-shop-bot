@@ -1312,6 +1312,36 @@ class Database:
             "operations": [dict(row) for row in operation_rows],
         }
 
+    async def list_gemini_usage_requests(
+        self, since: str | None = None, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Return recent grouped Telegram requests without prompt contents."""
+
+        where = " WHERE request_id IS NOT NULL"
+        params: list[Any] = []
+        if since:
+            where += " AND datetime(created_at) >= datetime(?)"
+            params.append(since)
+        query = (
+            "SELECT request_id, MIN(created_at) AS created_at, "
+            "COUNT(*) AS attempts, "
+            "GROUP_CONCAT(DISTINCT model) AS models, "
+            "GROUP_CONCAT(DISTINCT operation) AS operations, "
+            "COALESCE(SUM(prompt_token_count), 0) AS prompt_tokens, "
+            "COALESCE(SUM(total_token_count), 0) AS total_tokens, "
+            "COALESCE(SUM(cost_usd), 0.0) AS estimated_cost_usd, "
+            "COUNT(CASE WHEN cost_usd IS NULL THEN 1 END) AS unknown_costs "
+            "FROM gemini_usage"
+            + where
+            + " GROUP BY request_id ORDER BY created_at DESC LIMIT ?"
+        )
+        params.append(max(1, min(int(limit), 50)))
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(query, params)
+            rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def record_event(
         self,
         event_type: str,
