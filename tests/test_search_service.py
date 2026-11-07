@@ -1616,5 +1616,17 @@ class DeduplicationAndRelevanceTests(SearchServiceTestCase):
 if __name__ == "__main__":
     unittest.main()
 
+class SearchDepthDefaultTests(unittest.TestCase):
+    def test_conversational_product_search_defaults_to_five_pages(self) -> None:
+        import os
+        from unittest.mock import patch
 
+        from config.settings import load_settings
+        from services.search_service import MAX_SEARCH_PAGES
+
+        with patch.dict(os.environ, {"SEARCH_MAX_PAGES": ""}):
+            configured = load_settings()
+
+        self.assertEqual(MAX_SEARCH_PAGES, 5)
+        self.assertEqual(configured.search_max_pages, 5)
 
