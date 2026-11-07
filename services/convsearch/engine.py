@@ -975,6 +975,10 @@ class ConversationSearchEngine:
             len(decision.products),
         )
         logger.info(
+            "convsearch rejection reasons=%s",
+            decision.report.get("rejection_reasons", {}),
+        )
+        logger.info(
             "convsearch action=%s intent=%s reason=%s raw=%d kept=%d ai_selection=%s",
             decision.outcome.value,
             getattr(intent, "value", str(intent)),
@@ -1503,6 +1507,13 @@ class ConversationSearchEngine:
         )
         report["ranked"] = len(ranked)
         report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
+        report["rejection_reasons"] = {
+            "wrong_product_type": report["rejected_type"],
+            "required_feature_unverified_quarantined": len(feature_review),
+            "explicit_exclusion": report["rejected_exclusion"],
+            "budget_or_currency_mismatch": report["rejected_budget"],
+            "ranking_validation": report["rank_rejected"],
+        }
         review_ids = set(report["semantic_review_ids"])
         report["safe_ranked"] = sum(
             1 for product in ranked
