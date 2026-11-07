@@ -4517,3 +4517,9 @@ Verification:
 - _generate now tries the reserve after model-unavailable, server (5xx), transport and bounded conversation timeouts; quota/rate-limit, auth and invalid-request errors still stop without a second call. Malformed or empty structured conversation_turn / conversation_selection responses now receive one reserve attempt with the same prompt/schema. Semantic grounding remains with existing validators.
 - First CI run #95: compileall passed; focused tests initially had 1 failure because a telemetry test still expected the former 3.1 fallback. 141 tests passed; this expectation is being updated to 3.8 and settings tests are being added to the focused workflow. Re-run CI after this correction.
 - No live API calls were made. Manual Telegram validation is still pending; stop duplicate pollers before running the bot.
+
+
+### Structured contract hardening — 2026-11-07
+- The pre-fallback shape gate for conversation_turn now checks the complete required field set, action enum, confidence range, nullable string fields, marketplace_terms and slot_updates field shapes. This catches schema-invalid model output before accepting the attempt; the same prompt is then sent once to the reserve.
+- Conversation-selection shape gate checks the required selection object fields and non-empty candidate IDs. Existing quote/ID grounding validation remains downstream and unchanged.
+- Offline latency fixtures were updated to emit the full required conversation-turn schema rather than abbreviated JSON.
