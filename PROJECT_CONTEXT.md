@@ -4548,3 +4548,58 @@ Verification:
 - Next required verification: user fetches this branch in their existing Windows working tree without discarding local modifications, then runs the focused workflow command from .github/workflows/gemini-usage-analytics.yml (including tests/test_settings.py). If tests fail, fix them before manual Telegram testing.
 - Do not edit .env. Because the loader intentionally ignores the old model-role variables, the code defaults now select 3.1 primary and 3.8 reserve even if those old values remain in the user's local .env.
 - Keep PR #8 draft/open/unmerged. Do not merge, do not touch main or PR #7.
+
+## Conversational search completion work — 2026-11-07
+
+Work is isolated on branch `fix/conversational-search-completion-20`, based on
+`feat/gemini-usage-analytics`. Do not merge either branch or retarget the
+existing Gemini migration PR without the user's explicit approval.
+
+### Changes made for the incomplete-result task
+
+- The default product-search depth is now five documented AliExpress pages:
+  `MAX_SEARCH_PAGES = 5` and `SEARCH_MAX_PAGES` defaults to 5; the existing
+  environment override and hard maximum of 10 remain.
+- Conversational retrieval now has bounded nested budgets:
+  13 seconds per route, 32 seconds per page, and 60 seconds overall. A route
+  timeout retires only that route when the page/search budgets still have room;
+  already completed route results are retained and fused. The overall search
+  remains finite.
+- Search diagnostics now report requested/completed/failed pages and routes,
+  raw and unique candidate counts, and retrieval duration without logging
+  user queries or product payloads.
+- If the first valid Gemini selection returns fewer than the requested count,
+  the engine makes exactly one additional selection call over the still-
+  unselected candidates, with the same hard requirements and the remaining
+  selection time budget. Already selected IDs are excluded from that pass.
+  There is no unbounded model loop and no deterministic padding of an
+  under-filled AI selection with unreviewed candidates.
+- The selection prompt now explicitly distinguishes soft use-case context from
+  hard requirements, permits grounded cross-language synonyms, and asks Gemini
+  to inspect all candidates and return all genuinely suitable items up to the
+  limit. Evidence quotes, real candidate IDs, and deterministic hard gates
+  remain mandatory.
+- Selection telemetry records input, requested, returned, validated and final
+  card counts plus selection duration.
+
+### AliExpress 405 interpretation
+
+The existing client deliberately treats `resp_code=405` with
+`resp_msg="The result is empty"` as a successful empty search result. Other
+405 response messages remain API errors and are not retried. Therefore the
+historical log fragment `resp_code=405` alone does not prove a broken route;
+the exact `resp_msg` is required to distinguish a legitimate empty route from
+a real API rejection. No blind retry or partner-link changes were made.
+
+### Verification still required
+
+- Run the focused offline tests for `tests/test_convsearch_engine.py` and
+  `tests/test_search_service.py`, then the repository's conversational
+  regression workflow.
+- Confirm the five-page behavior and 60-second upper bound against real
+  AliExpress latency without changing credentials or `.env`.
+- Perform a live Telegram check for a search with more than 20 suitable
+  candidates, a search with fewer than 20, and an alternatives follow-up.
+- Revisit the AliExpress 405 diagnosis only with the matching safe
+  `resp_msg`/error-class log; never record credentials, signatures, full user
+  queries, or full product payloads.
