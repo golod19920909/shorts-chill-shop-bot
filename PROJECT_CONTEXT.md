@@ -4523,3 +4523,9 @@ Verification:
 - The pre-fallback shape gate for conversation_turn now checks the complete required field set, action enum, confidence range, nullable string fields, marketplace_terms and slot_updates field shapes. This catches schema-invalid model output before accepting the attempt; the same prompt is then sent once to the reserve.
 - Conversation-selection shape gate checks the required selection object fields and non-empty candidate IDs. Existing quote/ID grounding validation remains downstream and unchanged.
 - Offline latency fixtures were updated to emit the full required conversation-turn schema rather than abbreviated JSON.
+
+
+### Documentation and selector regression update — 2026-11-07
+- README model configuration table now documents GEMINI_PRIMARY_MODEL=gemini-3.1-flash-lite and GEMINI_RESERVE_MODEL=gemini-3.8-flash; legacy model-role variables are marked deprecated/ignored.
+- Added an offline regression proving a structurally invalid conversation-selection response advances once to the reserve and accepts a correctly shaped response.
+- The first CI attempt (#95) exposed one stale expected fallback model and was corrected from 3.1 to 3.8. Subsequent commits were made through the GitHub connector; a fresh workflow result is not yet visible through the available run lookup. Do not claim the corrected head has passed CI until verified.
