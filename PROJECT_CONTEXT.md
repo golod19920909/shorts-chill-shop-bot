@@ -4538,3 +4538,13 @@ Verification:
 - Focused workflow now includes tests/test_settings.py. Tests were updated for the new 3.8 reserve and complete conversation-turn schema. Added offline tests for invalid turn JSON, invalid selection shape and transport failover.
 - CI status for the latest head is not verified: the only retrieved run (#95) was on an earlier commit and failed on one stale telemetry expectation, which was corrected. The GitHub connector's commit-run lookup currently returns no run for the latest push commits. Do not claim the latest head passed.
 - Current branch remains feat/gemini-usage-analytics, PR #8 open/draft/unmerged, base work/consultant-reliability. main and PR #7 remain untouched.
+
+
+### Final handoff at current checkpoint — 2026-11-07
+- Latest implementation commit before this context entry: a98570da32766e808609d927647e49aa3d6576c1.
+- The structured turn validator now requires every schema-required top-level field and all four slot-update fields, and validates action/operation/kind types before enum membership. This avoids malformed model JSON raising TypeError inside validation.
+- Latest changed files across this migration: services/ai_service.py, config/settings.py, .env.example, README.md, bot/__init__.py, tests/test_settings.py, tests/test_gemini_latency.py, tests/test_ai_conversation_turn_fallback.py, tests/test_gemini_telemetry.py, .github/workflows/gemini-usage-analytics.yml, PROJECT_CONTEXT.md.
+- Verification limitation: no runner or repository checkout is available in this session. GitHub Actions run #95 on the earlier migration commit passed compileall but had 1 failed stale telemetry expectation (141 passed, 1 failed, 61 subtests); the expectation was corrected and settings/selection fallback tests were added afterward. The current head has NOT been verified by CI or local pytest yet.
+- Next required verification: user fetches this branch in their existing Windows working tree without discarding local modifications, then runs the focused workflow command from .github/workflows/gemini-usage-analytics.yml (including tests/test_settings.py). If tests fail, fix them before manual Telegram testing.
+- Do not edit .env. Because the loader intentionally ignores the old model-role variables, the code defaults now select 3.1 primary and 3.8 reserve even if those old values remain in the user's local .env.
+- Keep PR #8 draft/open/unmerged. Do not merge, do not touch main or PR #7.
