@@ -4380,7 +4380,7 @@ No changes are permitted to Gemini prompts, model routing/fallback policy, conve
 3. Added `gemini_usage` table and indexes in `database/models.py`.
 4. Added idempotent persistence and aggregate-by-model/operation queries in `database/database.py`.
 5. Wired the telemetry writer after database initialization and flush before shutdown in `bot/__init__.py`.
-6. Added request scopes to text search, category search, photo search and product AI action handlers.
+6. Added request scopes to text search, category search, discovery feed, photo search and product AI action handlers.
 7. Extended the existing admin AI screen with period filters and persisted token/cost breakdowns by model and operation.
 8. Added offline tests:
    - `tests/test_gemini_pricing.py`
@@ -4389,7 +4389,7 @@ No changes are permitted to Gemini prompts, model routing/fallback policy, conve
 9. Added focused workflow `.github/workflows/gemini-usage-analytics.yml` to compile application packages and run pricing, telemetry and database tests on the feature branch and PRs targeting `work/consultant-reliability`.
 
 ### Verification state at handoff
-- Latest feature branch head after the focused workflow was added: `8ffa57ec7d726d0f7c2bb1c3187dfb25435332fc`.
+- Latest feature branch head after pricing edge-case correction: `f5526dcc239089b934bec6ed86067c6f4dc93ad8`.
 - GitHub status query returned no check runs/statuses yet. Do not claim tests passed until the new workflow has completed and its logs have been inspected.
 - No local Python test execution was performed in this environment.
 - PR #8 is draft/open; no merge performed.
