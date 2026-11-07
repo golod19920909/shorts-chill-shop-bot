@@ -1193,9 +1193,17 @@ class ConversationSearchEngine:
         except (TypeError, ValueError):
             selector_kwargs.pop("marketplace_terms", None)
 
+        selection_deadline = time.perf_counter() + selection_timeout
+
+        async def request_selection(pool, kwargs):
+            remaining = selection_deadline - time.perf_counter()
+            if remaining <= 0:
+                raise TimeoutError("conversation selection budget exhausted")
+            async with asyncio.timeout(remaining):
+                return await selector(pool, **kwargs)
+
         try:
-            async with asyncio.timeout(selection_timeout):
-                selected_ids = await selector(selector_pool, **selector_kwargs)
+            selected_ids = await request_selection(selector_pool, selector_kwargs)
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
             return finish_fallback("timeout_fallback")
@@ -1224,6 +1232,71 @@ class ConversationSearchEngine:
             if len(selected) >= wanted:
                 break
 
+        # A valid short answer is not automatically proof that the remaining
+        # catalogue is irrelevant. Run ONE bounded continuation over the
+        # unselected candidates, with a smaller remaining target and the same
+        # hard requirements. The second pass cannot see or repeat chosen IDs;
+        # the shared deadline prevents an unbounded Gemini loop.
+        decision.report["ai_first_pass_selected"] = len(selected)
+        decision.report["ai_second_pass"] = "not_needed"
+        if selected_ids and len(selected) < wanted:
+            remaining_pool = [
+                product for product in selector_pool
+                if product.product_id and product.product_id not in seen
+            ]
+            remaining_ids = {
+                product.product_id for product in remaining_pool
+            }
+            remaining_wanted = wanted - len(selected)
+            if remaining_pool and remaining_wanted > 0:
+                second_kwargs = dict(selector_kwargs)
+                second_kwargs["wanted"] = remaining_wanted
+                second_kwargs["identity_review_ids"] = [
+                    product_id for product_id in semantic_review_ids
+                    if product_id in remaining_ids
+                ]
+                second_kwargs["query"] = (
+                    query
+                    + "\nДополнительный проход: продолжи отбор среди этих "
+                    "оставшихся товаров. Уже выбранные товары исключены. "
+                    "Верни все остальные позиции, которые действительно "
+                    "соответствуют запросу, до указанного лимита."
+                )
+                try:
+                    second_ids = await request_selection(
+                        remaining_pool, second_kwargs
+                    )
+                except TimeoutError:
+                    second_ids = None
+                    decision.report["ai_second_pass"] = "timeout"
+                except Exception:
+                    second_ids = None
+                    decision.report["ai_second_pass"] = "error"
+                    logger.info(
+                        "Gemini conversation selection continuation failed",
+                        exc_info=True,
+                    )
+                else:
+                    decision.report["ai_second_pass"] = "completed"
+                if isinstance(second_ids, list):
+                    remaining_allowed = {
+                        product.product_id: product
+                        for product in remaining_pool
+                    }
+                    added = 0
+                    for product_id in second_ids:
+                        if (
+                            isinstance(product_id, str)
+                            and product_id in remaining_allowed
+                            and product_id not in seen
+                        ):
+                            selected.append(remaining_allowed[product_id])
+                            seen.add(product_id)
+                            added += 1
+                        if len(selected) >= wanted:
+                            break
+                    decision.report["ai_second_pass_selected"] = added
+
         # AIService distinguishes a valid empty ID list (no supplied
         # listing fits) from an unusable response (None). Respect that
         # explicit no-match decision: falling back here would re-display the
@@ -1240,11 +1313,10 @@ class ConversationSearchEngine:
 
         decision.report["ai_selected"] = len(selected)
 
-        # The model only sees/selects the first 20. Keep its ordering.
-        # Append the untouched deterministic tail ONLY when Gemini filled
-        # the whole selection window. A shorter valid selection can mean
-        # that fewer candidates actually fit; padding it with unseen rows
-        # would silently override the model's semantic decision.
+        # Keep the order returned across the two bounded AI passes.
+        # Append the untouched deterministic tail ONLY when the combined
+        # selection fills the requested window; otherwise preserve the
+        # model's short result rather than padding with unreviewed rows.
         tail = []
         if len(selected) >= wanted:
             tail = [
