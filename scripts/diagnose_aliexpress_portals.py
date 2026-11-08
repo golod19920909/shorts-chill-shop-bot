@@ -25,10 +25,13 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
+
 from config.settings import settings
 from services.marketplaces.aliexpress_client import (
     AliExpressClient,
     GATEWAY_URL,
+    unwrap_response,
 )
 
 METHOD_FEATURED_PROMO_GET = "aliexpress.affiliate.featuredpromo.get"
@@ -61,21 +64,91 @@ async def _probe(
     client: AliExpressClient,
     label: str,
     method: str,
+    stats: dict[str, int],
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
+    """Inspect the raw TOP envelope before the client normalizes empty results.
+
+    Signing and gateway selection still use AliExpressClient. This diagnostic
+    path reads the raw response only to distinguish API-reported empty results
+    from unexpected empty payloads; it never prints request or record data.
+    """
     print(f"\n[{label}]")
     print(f"  METHOD: {method}")
     try:
-        result = await client.call(method, params or {})
-    except Exception as exc:  # diagnostic tool: report one probe and continue
-        _print_failure(label, exc)
+        request_params = client.build_params(method, params or {})
+        response = await client._http_client.post(
+            client.gateway,
+            data=request_params,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPStatusError as exc:
+        stats["failed"] += 1
+        print("  RESULT: HTTP_ERROR")
+        print(f"  HTTP_STATUS: {exc.response.status_code}")
+        return None
+    except httpx.TimeoutException:
+        stats["failed"] += 1
+        print("  RESULT: CLIENT_ERROR (Timeout)")
+        return None
+    except httpx.HTTPError as exc:
+        stats["failed"] += 1
+        print(f"  RESULT: CLIENT_ERROR ({type(exc).__name__})")
+        return None
+    except ValueError:
+        stats["failed"] += 1
+        print("  RESULT: CLIENT_ERROR (NonJsonResponse)")
+        return None
+    except Exception as exc:
+        stats["failed"] += 1
+        print(f"  RESULT: CLIENT_ERROR ({type(exc).__name__})")
         return None
 
-    print("  RESULT: SUCCESS")
-    print(f"  RESPONSE_FIELDS: {', '.join(sorted(result.keys())) or '(empty)'}")
-    return result
+    if not isinstance(payload, dict):
+        stats["failed"] += 1
+        print("  RESULT: UNEXPECTED_PAYLOAD")
+        print(f"  PAYLOAD_TYPE: {type(payload).__name__}")
+        return None
 
+    envelope_keys = [
+        key for key, value in payload.items()
+        if key.endswith("_response") and isinstance(value, dict)
+    ]
+    business = unwrap_response(payload)
+    error = payload.get("error_response")
+    if isinstance(error, dict):
+        stats["failed"] += 1
+        print("  RESULT: API_ERROR")
+        print(f"  API_CODE: {error.get('code', 'not returned')}")
+        print(f"  API_SUB_CODE: {error.get('sub_code', 'not returned')}")
+        return None
 
+    stats["ok"] += 1
+    print("  RESULT: RESPONSE_RECEIVED")
+    print(f"  HTTP_STATUS: {response.status_code}")
+    print(f"  RESPONSE_ENVELOPES: {', '.join(envelope_keys) or '(none)'}")
+    print(f"  BUSINESS_FIELDS: {', '.join(sorted(business.keys())) or '(empty)'}")
+    if "resp_code" in business:
+        print(f"  API_RESP_CODE: {business.get('resp_code')}")
+    if "resp_msg" in business:
+        message = " ".join(str(business.get("resp_msg") or "").split())
+        print(f"  API_RESP_MSG: {message[:200] or '(empty)'}")
+
+    resp_code = business.get("resp_code")
+    if resp_code is not None and str(resp_code) == "405":
+        print("  DATA_STATUS: EMPTY_RESULT_REPORTED_BY_API")
+    elif resp_code is not None and str(resp_code) != "200":
+        stats["failed"] += 1
+        print("  DATA_STATUS: API_REPORTED_NON_SUCCESS")
+    elif not business:
+        print("  DATA_STATUS: EMPTY_OR_UNRECOGNIZED_BUSINESS_PAYLOAD")
+    else:
+        print("  DATA_STATUS: BUSINESS_PAYLOAD_PRESENT")
+    return business
 def _data(result: dict[str, Any] | None) -> dict[str, Any]:
     """The client returns resp_result; business records live in its result."""
     if not result:
@@ -113,15 +186,14 @@ async def run(args: argparse.Namespace) -> int:
     print("Retries: disabled for this diagnostic")
 
     client = AliExpressClient(credentials, timeout=15.0, max_retries=0)
-    failures = 0
+    stats = {"ok": 0, "failed": 0}
     try:
         promo_result = await _probe(
             client,
             "FEATURED_CAMPAIGNS",
             METHOD_FEATURED_PROMO_GET,
+            stats,
         )
-        if promo_result is None:
-            failures += 1
         campaigns = _campaigns(promo_result)
         print(f"  CAMPAIGN_COUNT: {len(campaigns)}")
         for index, campaign in enumerate(campaigns[:20], start=1):
@@ -158,10 +230,9 @@ async def run(args: argparse.Namespace) -> int:
                     client,
                     "FEATURED_CAMPAIGN_PRODUCTS",
                     METHOD_FEATURED_PROMO_PRODUCTS_GET,
+                    stats,
                     product_params,
                 )
-                if products_result is None:
-                    failures += 1
                 products = _products(products_result)
                 print(f"  PRODUCT_COUNT_RETURNED: {len(products)}")
                 for index, product in enumerate(products[:5], start=1):
@@ -196,6 +267,7 @@ async def run(args: argparse.Namespace) -> int:
             client,
             "AFFILIATE_ORDERS_LAST_24H",
             METHOD_ORDER_LIST,
+            stats,
             {
                 "start_time": start_time,
                 "end_time": end_time,
@@ -204,8 +276,6 @@ async def run(args: argparse.Namespace) -> int:
                 "page_size": 10,
             },
         )
-        if order_result is None:
-            failures += 1
         orders = _orders(order_result)
         print(f"  ORDER_COUNT_RETURNED: {len(orders)}")
         print(
@@ -220,11 +290,11 @@ async def run(args: argparse.Namespace) -> int:
         await client.aclose()
 
     print("\nSUMMARY")
-    print(f"  API_CALLS_OK: {client.calls_ok}")
-    print(f"  API_CALLS_FAILED: {client.calls_err}")
-    print(f"  PROBE_FAILURES: {failures}")
-    print("  No database or configuration files were changed.")
-    return 1 if failures else 0
+    print(f"  API_CALLS_OK: {stats['ok']}")
+    print(f"  API_CALLS_FAILED: {stats['failed']}")
+    print("  DATABASE_OPENED: no")
+    print("  CONFIGURATION_FILES_CHANGED: no")
+    return 1 if stats["failed"] else 0
 
 
 def parse_args() -> argparse.Namespace:
