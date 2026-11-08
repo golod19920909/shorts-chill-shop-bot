@@ -72,21 +72,22 @@ def _available_text(event: SaleEvent, start_date: str | None = None, end_date: s
         + "Цены, скидки и условия показывает сам маркетплейс."
     )
 
-def _unavailable_text(event: SaleEvent) -> str:
-    """Screen text when the destination URL is not (yet) configured.
-
-    No link is shown, the wording stays honest (nothing is promised), and the
-    user is pointed at the product search so the screen is still useful.
-    """
-
+def _unavailable_text(event: SaleEvent, start_date: str | None = None, end_date: str | None = None) -> str:
+    """Screen text when the destination URL is not configured."""
+    dates = [
+        f"Начало: {start_date}" if start_date else None,
+        f"Окончание: {end_date}" if end_date else None,
+    ]
+    date_text = "\\n".join(item for item in dates if item)
+    if date_text:
+        date_text += "\\n\\n"
     return (
-        f"\U0001F3F7 <b>{event.title}</b>\n\n"
-        "Раздел скоро откроется: мы ещё готовим подборку специальных "
-        "предложений AliExpress. Загляните позже.\n\n"
-        "А нужный товар можно найти прямо сейчас в разделе "
-        "«Умный поиск»."
+        f"\\U0001F3F7 <b>{event.title}</b>\\n\\n"
+        + date_text
+        + "Раздел скоро откроется: мы ещё готовим подборку специальных "
+        + "предложений AliExpress. Загляните позже.\\n\\n"
+        + "А нужный товар можно найти прямо сейчас в разделе «Умный поиск»."
     )
-
 
 def _is_admin(context: ContextTypes.DEFAULT_TYPE, telegram_id: int | None) -> bool:
     """Whether this Telegram id may see a disabled event (admin-only access).
@@ -181,7 +182,7 @@ async def sale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     database = common.get_database(context)
     start_date = await database.get_config(f"sale.{event_id}.start_date") or event.start_date
     end_date = await database.get_config(f"sale.{event_id}.end_date") or event.end_date
-    text = _available_text(event, start_date, end_date) if destination else _unavailable_text(event)
+    text = _available_text(event, start_date, end_date) if destination else _unavailable_text(event, start_date, end_date)
     await query.edit_message_text(
         text, parse_mode="HTML", reply_markup=sale_screen_keyboard(destination)
     )
