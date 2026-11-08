@@ -1,7 +1,7 @@
 """Analytics vocabulary: event names, their labels and time periods.
 
-The bot records *events* (a search ran, a card was shown, a buy button was
-pressed) and the admin panel aggregates them. This module holds no SQL and
+The bot records *events* (a search ran, a card was shown, an affiliate link
+was requested) and the admin panel aggregates them. This module holds no SQL and
 no Telegram code - it only owns the names, so a typo cannot silently
 create a second event type that never shows up in the statistics.
 
