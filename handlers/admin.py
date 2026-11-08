@@ -233,6 +233,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     key = (query.data or "").partition(":")[2]
+    callback_answered = False
 
     period = context.user_data.get(ADMIN_PERIOD_KEY, analytics.DEFAULT_PERIOD)
     screen = context.user_data.get(ADMIN_SCREEN_KEY, CB_ADMIN_MENU_KEY)
@@ -254,6 +255,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         context.user_data[ADMIN_API_TEST_KEY] = await _run_api_test(context)
     elif key == CB_ADMIN_AFFILIATE_SYNC_KEY:
         screen, page = "affiliate", 0
+        await query.answer("Синхронизация заказов запущена…")
+        callback_answered = True
         try:
             context.user_data["affiliate_sync_result"] = await _run_affiliate_sync(context)
         except Exception as exc:
@@ -284,7 +287,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data[ADMIN_SCREEN_KEY] = screen
     context.user_data[ADMIN_PAGE_KEY] = page
 
-    await query.answer()
+    if not callback_answered:
+        await query.answer()
     await _render_screen(update, context, screen, period, page)
 
 
