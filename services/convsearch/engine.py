@@ -1190,6 +1190,10 @@ class ConversationSearchEngine:
                 strategy.request, "intent_marketplace_terms", []
             ),
             "budget_constraint": budget_constraint,
+            # Product identity and relevance selection is the quality-critical
+            # stage. Keep it on the former 3.8 Flash quality level; Flash-Lite
+            # remains the fast model for conversation-turn interpretation.
+            "use_reserve_model": True,
         }
         # Keep injected selectors / older adapters that implement the
         # established contract working. The production AIService accepts the
@@ -1210,6 +1214,8 @@ class ConversationSearchEngine:
                     selector_kwargs.pop("marketplace_terms")
                 if "budget_constraint" not in parameter_names:
                     selector_kwargs.pop("budget_constraint")
+                if "use_reserve_model" not in parameter_names:
+                    selector_kwargs.pop("use_reserve_model")
         except (TypeError, ValueError):
             selector_kwargs.pop("marketplace_terms", None)
 
