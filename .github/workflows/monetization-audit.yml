@@ -23,7 +23,7 @@ on:
       - "config/sales.py"
       - "handlers/sales.py"
       - "manage_sales.py"
-      - "tests/test_sales_calendar.py"
+      - "tests/test_sales_calendar.py tests/test_admin_panel.py"
       - ".github/workflows/monetization-audit.yml"
 
 jobs:
