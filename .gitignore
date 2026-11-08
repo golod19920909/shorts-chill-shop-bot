@@ -13,3 +13,8 @@ database/*.db-journal
 .venv/
 __pycache__/
 *.pyc
+
+# Local SQLite backups and restore snapshots (never commit user data)
+database/backups/
+*.sqlite3
+*.sqlite3-*
