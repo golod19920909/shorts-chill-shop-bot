@@ -5014,3 +5014,9 @@ Source inspection on this branch confirms:
 - `DATABASE_BACKUP_DIR` may override the default `database/backups`. Restore requires `--confirm-restore`, should be run only with the bot service stopped, creates a pre-restore backup, stages the restored DB to a temporary file, and preserves existing WAL/SHM sidecars instead of deleting them.
 - Added offline tests for backup consistency and restore rollback-copy behavior. Execution is not yet verified through an accessible Actions result.
 - `.gitignore` now excludes local backup directories and `.sqlite3` files. README deployment guidance documents backup/restore.
+
+
+### Scheduled server backups
+- Added `deploy/shopbot-backup.service` and `deploy/shopbot-backup.timer`. On a systemd server, installing/enabling the timer schedules the verified SQLite backup daily at 03:15 server-local time, with `Persistent=true` and a small randomized delay.
+- README now documents timer installation. The unit runs as the existing `shopbot` service account and uses `%h/shorts-chill-shop-bot`; adjust `WorkingDirectory`/`ExecStart` only if the deployment directory differs.
+- No server was accessed or modified by this GitHub change; installation and a real server restore drill remain deployment-time checks.
