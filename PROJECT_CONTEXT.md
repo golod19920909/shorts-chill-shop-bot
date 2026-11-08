@@ -4650,3 +4650,11 @@ A local regression run on `fix/conversational-search-completion-20` exposed that
 - The previously reported 2,161-pass / 2-failure local run is historical evidence only. Re-run focused and repository CI suites on the current branch head before claiming this correction is verified.
 - resp_code=405 is classified as an empty successful result only when the API message explicitly says «The result is empty». Other 405 business responses remain errors. Existing evidence does not identify a single root cause for every 405; no request/signature/parameter fix is claimed. Capture the exact sanitized response code/message and route context for any other 405 before changing request construction.
 - Live AliExpress catalog quality, actual 20-card selection, and Telegram delivery remain unverified until owner-run live testing.
+
+## Gemini model-swap quality follow-up (2026-11-08)
+
+- The intended model policy remains **Gemini 3.1 Flash-Lite primary / Gemini 3.8 Flash reserve**. The primary/reserve roles are not being globally reversed.
+- Live Telegram logs exposed a gap in the selection chain: when Flash-Lite returned a valid but short selection (for example, 8 of the requested 20), the engine ran its one continuation pass using the same primary model. Because the response was valid, the error-based reserve fallback was not triggered. Thus the stronger reserve model was never consulted for an under-filled but valid result.
+- The bounded continuation now explicitly asks AIService.select_conversation_candidates to use the configured reserve model. The first pass remains on Flash-Lite; only the second pass after a short valid result is routed to Flash. The existing shared selection deadline, candidate-ID exclusion, hard requirements, evidence validation, and one-continuation limit remain in force.
+- Added tests for AIService model routing and engine continuation flag/diagnostics. No deterministic padding or relaxation of evidence/type/exclusion gates was introduced.
+- New stacked branch: fix/gemini-quality-preserving-selection, based on PR #9 head 67f9cb8684504be0ddfbc2d1e3a0ef5f4edd98bd. Changes are not merged. Tests have not been executed in a local checkout; GitHub status must be checked after opening the stacked draft PR. Live AliExpress/Telegram verification is still required.
