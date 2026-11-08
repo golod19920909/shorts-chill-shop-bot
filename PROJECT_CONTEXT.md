@@ -4659,3 +4659,11 @@ A local regression run on `fix/conversational-search-completion-20` exposed that
 - Corrected selection-returned diagnostics so the second-pass count is not overwritten by the first-pass count.
 - Added tests for AIService model routing and engine continuation flag/diagnostics. No deterministic padding or relaxation of evidence/type/exclusion gates was introduced.
 - New stacked branch: fix/gemini-quality-preserving-selection, based on PR #9 head 67f9cb8684504be0ddfbc2d1e3a0ef5f4edd98bd. Changes are not merged. Tests have not been executed in a local checkout; GitHub status must be checked after opening the stacked draft PR. Live AliExpress/Telegram verification is still required.
+
+
+### Quality-preserving model-role adjustment (2026-11-08)
+
+- The owner clarified that the model swap must not reduce the product-selection quality previously observed with Gemini 3.8 Flash.
+- Therefore the quality-critical conversational product-selection stage is explicitly routed to the configured reserve model (Gemini 3.8 Flash) on its first pass as well as its bounded continuation. Gemini 3.1 Flash-Lite remains the primary fast model for conversation-turn interpretation and other lightweight text tasks.
+- This deliberately prioritizes preserving selection quality over forcing Flash-Lite to perform the semantic product-selection stage. No product-type, feature-evidence, compatibility, exclusion, or ranking gate is relaxed. No result padding is introduced.
+- PR #10 remains a draft and unmerged. Local and live verification have not been performed by the assistant; do not claim tests pass.
