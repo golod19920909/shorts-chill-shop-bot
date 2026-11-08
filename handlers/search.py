@@ -626,6 +626,11 @@ async def send_product_advice(
         reply_markup=reply_markup or back_to_menu_keyboard(),
     )
 
+    if conversation_state is None:
+        candidate_state = context.user_data.get("_convsearch_state")
+        if isinstance(candidate_state, ConversationEngineState):
+            conversation_state = candidate_state
+
     allowed_ids = {product.product_id for product in source_products}
     recommended = [
         product
