@@ -5076,3 +5076,7 @@ Source inspection on this branch confirms:
 - Current comparison against PR #10 branch: 68 commits ahead, 0 behind, 26 changed files; the diff contains no unrelated Gemini implementation files.
 - The GitHub combined-status endpoint returned an empty status list for the latest branch commit. This connector cannot confirm whether Actions has started or passed; do not claim tests passed. Focused tests and `py_compile` steps are wired into `.github/workflows/monetization-audit.yml`.
 - Draft PR #11 to `main` remains closed and unmerged; no code was merged into `main` or PR #10.
+
+
+### Schema documentation correction (2026-11-08)
+- Updated `database/models.py` inventory from ten to thirteen tables and documented the three additional runtime tables: `bot_config`, `gemini_usage`, and `affiliate_orders`. This is documentation-only; no schema or runtime behavior changed.
