@@ -498,16 +498,16 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             product_url="https://example.com/drill-1",
         )
 
-    def test_reserve_model_is_used_only_when_requested_for_continuation(self) -> None:
+    def test_conversation_selection_uses_primary_model(self) -> None:
         service = self._service(
             '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
             '"requirement_evidence":{}}]}'
         )
         result = asyncio.run(service.select_conversation_candidates(
-            [self._product()], query="cordless screwdriver", use_reserve_model=True
+            [self._product()], query="cordless screwdriver"
         ))
         self.assertEqual(result, ["drill-1"])
-        self.assertEqual(service.captured_models[-1], ("gemini-3.8-flash",))
+        self.assertEqual(service.captured_models[-1], ("gemini-3.1-flash-lite",))
 
     def test_selection_schema_requires_each_active_feature_evidence_field(self) -> None:
         service = self._service(
