@@ -4996,3 +4996,11 @@ Source inspection on this branch confirms:
 - Stage 1 remains **partially blocked** only on the campaign-product probe and observing a non-empty order response with commission fields. The campaign-product probe requires the exact Portals campaign name and exact start/end timestamps in PST. Do not infer them from a calendar label or invent an end date.
 - Stage 2 source inventory is complete at code-inspection level; no live database contents were inspected and no user-level counts are claimed.
 - Prepare Stage 3 architecture options from these findings and request user approval before implementing monetization features. Premium/subscriptions/Telegram Stars/paid limits remain explicitly deferred.
+
+### Affiliate link-request analytics — first implementation block (2026-11-08)
+- Product-card «🛒 Купить» buttons now use callback data `pbuy:<session_id>:<index>`; the callback resolves the exact cached product and refuses stale or non-affiliate links.
+- On callback, the bot writes `affiliate_link_requested` with product identity and `is_affiliate=true`, then sends the exact API-provided affiliate URL in a separate Telegram URL button.
+- Critical measurement boundary: Telegram does not notify the bot when the follow-up URL button is actually opened. The metric is therefore explicitly a link request, not a confirmed browser click, order or commission. Historical `affiliate_clicked` rows remain legacy data and are not mixed into the new metric.
+- The new event is part of `KNOWN_EVENTS` and has an explicit Russian admin label. It is written through the existing analytics_events table and `handlers.common.record_event`; no duplicate analytics store was added.
+- CI workflow `.github/workflows/conversational-regression.yml` now includes `audit/aliexpress-portals-smoke-test` as a push trigger so GitHub Actions can verify changes on this work branch.
+- Follow-up needed: verify callback/card tests and GitHub Actions after the branch push. No tests are claimed as run from the GitHub file-edit operation alone.
