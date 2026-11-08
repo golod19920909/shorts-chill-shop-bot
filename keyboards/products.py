@@ -174,16 +174,13 @@ def browse_card_keyboard(
     """
 
     rows: list[list[InlineKeyboardButton]] = []
-    # Telegram rejects the WHOLE keyboard when the long URL buttons of one
-    # message exceed a shared budget (see keyboards.limits): 🛒 Купить is
-    # taken first, the share link is dropped first when the budget is tight.
-    # Callback buttons are never budgeted.
+    # Only the share URL consumes the Telegram URL budget. Buy is a callback
+    # button now, and its exact affiliate URL is sent in a separate message.
     budget = UrlBudget()
 
     if (
         product.has_affiliate_url
         and is_openable_url(product.affiliate_url)
-        and budget.try_take(product.affiliate_url)
     ):
         # The callback records an explicit request for this exact affiliate URL.
         # The handler then sends it as a Telegram URL button. Telegram does not
