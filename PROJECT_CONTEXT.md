@@ -5027,3 +5027,12 @@ Source inspection on this branch confirms:
 - Updated `scripts/diagnose_aliexpress_portals.py` to query a bounded 30-day PST window by default (configurable 1–90 days) and test all four AliExpress order statuses: `Payment Completed`, `Buyer Confirmed Receipt`, `Completed Settlement`, and `Invalid`. The script still prints only aggregate counts and never prints order rows, IDs, buyer data or amounts.
 - Official order-list documentation confirms `order_id`, `sub_order_id`, `tracking_id`, `order_status`, `paid_amount`, `estimated_paid_commission`, `finished_amount`, `estimated_finished_commission`, `settled_currency`, and pagination fields. It labels the commission amounts as estimated; the implementation must preserve that distinction. <https://developer.alibaba.com/docs/api.htm?apiId=45802>
 - Until the corrected probe returns a real record, order persistence/synchronization must remain gated; do not present the prior empty result as a confirmed zero-sales period.
+
+
+### Affiliate order ledger and admin sync (2026-11-08)
+- Added `affiliate_orders` SQLite table with a stable `(order_id, sub_order_id)` key and only allowlisted fields: order/status/tracking/product identifiers, commission rate, paid/finished amounts, estimated commissions, settlement currency and timestamps. Buyer/custom parameter fields and raw response bodies are not stored.
+- Added idempotent upsert and status-count queries to the existing `Database` layer.
+- Added `services/affiliate_orders.py`: bounded 30-day PST window, four known order statuses, page size 50, at most two pages per status per manual sync, error isolation per status, and verbatim storage of `estimated_*_commission` fields. It does not perform currency conversion or relabel estimates as actual payouts.
+- Added `/admin → Монетизация` with link-request count, imported order counts by status, last sync time and a manual sync button. Callback is acknowledged before network calls to avoid Telegram callback timeouts.
+- Added offline tests for normalization/privacy allowlist, nested response parsing, empty status responses, and database upsert behavior. Added the new service/database/admin files and test to the dedicated CI workflow.
+- This is implementation against the documented schema; live order import is still unverified until the corrected 30-day PST probe is run against the user's current key. Do not present an empty table as proof of zero orders.
