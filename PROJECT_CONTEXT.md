@@ -4625,3 +4625,9 @@ A local regression run on `fix/conversational-search-completion-20` exposed that
 - The first local validation after restoring `_to_search_request`, `_with_result_limit`, and `_fallback_parse` exposed a syntax regression: the `@staticmethod` decorator for `_with_result_limit` was accidentally placed at module scope while its method remained indented inside `AIService`.
 - Corrected the decorator indentation in commit `15459d3828126562759419000883441798f46365`. The resulting branch snippet was re-fetched and verified to keep the decorator and method inside the class.
 - The focused local pytest run had stopped during collection with `IndentationError`; no tests ran in that attempt. Re-run `py_compile` and the focused test set after pulling this commit. CI/live verification is still pending.
+
+### Focused local regression verification (2026-11-08)
+- After pulling commit `fcedc28`, the user confirmed `python -m py_compile services/ai_service.py` completed without errors.
+- The focused suite `tests/test_ai_service.py tests/test_convsearch_engine.py tests/test_search_service.py` passed locally: **184 passed, 60 subtests passed** in 3.41 seconds.
+- This confirms the restored deterministic AIService parser imports and works with the conversational engine and retrieval service in the focused test scope.
+- The broader workflow regression set and live AliExpress/Telegram tests are still pending. GitHub Actions status was not returned by the available commit-status/workflow-run lookup for commit `fcedc28`.
