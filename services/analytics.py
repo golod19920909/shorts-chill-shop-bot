@@ -121,8 +121,8 @@ EVENT_LABELS: dict[str, str] = {
     EVENT_FAVORITE_REMOVED: "Удалено из избранного",
     EVENT_TRACKING_ADDED: "Включено отслеживание цены",
     EVENT_TRACKING_STOPPED: "Остановлено отслеживание",
-    EVENT_BUY_AFFILIATE: "Клики по партнёрской ссылке",
-    EVENT_BUY_EXTERNAL: "Клики по обычной ссылке",
+    EVENT_BUY_AFFILIATE: "Исторические события партнёрской ссылки (старый формат)",
+    EVENT_BUY_EXTERNAL: "Исторические события обычной ссылки (старый формат)",
     #: Label kept so historical ``compare_requested`` rows still render
     #: honestly in the panel; no new rows are written (feature removed).
     EVENT_COMPARE_REQUESTED: "Запросов сравнения (функция убрана)",
