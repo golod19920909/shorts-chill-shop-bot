@@ -5008,3 +5008,9 @@ Source inspection on this branch confirms:
 - The admin top-products aggregate now reads `affiliate_link_requested`, the new event emitted by the Buy callback. It no longer treats legacy `affiliate_clicked` rows as current click/request activity.
 - Legacy `affiliate_clicked` / `external_clicked` labels are marked as historical formats to avoid presenting unproduced historical events as live measurements.
 - Added offline tests for the callback keyboard shape, affiliate-only visibility, and the distinct event vocabulary/label. The tests have been committed; execution is pending an accessible GitHub Actions result.
+
+### SQLite backup/restore utility (2026-11-08)
+- Added `scripts/database_maintenance.py` with `backup`, `list`, and guarded `restore` commands. Backups use SQLite's online backup API (not a raw file copy), are verified with `PRAGMA integrity_check`, and retain the latest 14 standard backups by default.
+- `DATABASE_BACKUP_DIR` may override the default `database/backups`. Restore requires `--confirm-restore`, should be run only with the bot service stopped, creates a pre-restore backup, stages the restored DB to a temporary file, and preserves existing WAL/SHM sidecars instead of deleting them.
+- Added offline tests for backup consistency and restore rollback-copy behavior. Execution is not yet verified through an accessible Actions result.
+- `.gitignore` now excludes local backup directories and `.sqlite3` files. README deployment guidance documents backup/restore.
