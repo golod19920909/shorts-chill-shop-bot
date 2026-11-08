@@ -5080,3 +5080,8 @@ Source inspection on this branch confirms:
 
 ### Schema documentation correction (2026-11-08)
 - Updated `database/models.py` inventory from ten to thirteen tables and documented the three additional runtime tables: `bot_config`, `gemini_usage`, and `affiliate_orders`. This is documentation-only; no schema or runtime behavior changed.
+
+
+### Monetization audit documentation consistency pass (2026-11-08)
+- Corrected stale product-keyboard and analytics comments: the Buy action is a callback that records `affiliate_link_requested`, then sends the API-provided URL in a separate Telegram URL button. Telegram cannot confirm that the URL was opened.
+- Corrected the admin panel overview wording and updated the database schema inventory to thirteen tables. These changes align comments/docs with the implemented behavior; they do not change runtime logic.
