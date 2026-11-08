@@ -1,4 +1,4 @@
-"""Admin panel tests: access control, all 13 screens, navigation, safety.
+"""Admin panel tests: access control, all 15 screens, navigation, safety.
 
 Every screen renders against a REAL temporary SQLite database (no mocked
 aggregates), the panel refuses non-admins, unknown buttons never dead-end,
@@ -156,7 +156,7 @@ class AdminAccessTests(AdminPanelTestCase):
         self.assertIn("Админ-панель", message.texts[0])
         rows = message.kwargs[0]["reply_markup"].inline_keyboard
         labels = [b.text for row in rows for b in row]
-        self.assertEqual(len(labels), 15)  # 14 sections + home
+        self.assertEqual(len(labels), 16)  # 15 sections + home
         self.assertIn("📊 Статистика", labels)
         self.assertIn("⚙️ Система", labels)
         self.assertIn("🏷 Акции", labels)
