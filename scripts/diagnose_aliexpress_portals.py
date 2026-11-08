@@ -4,7 +4,8 @@ Run from the repository root:
     python -m scripts.diagnose_aliexpress_portals
 
 Optional featured-campaign product probe (times must be the campaign's
-PST-local values as required by the API documentation):
+PST-local values as required by the API documentation). Order queries also use
+PST and inspect all documented statuses over a bounded 30-day window:
     python -m scripts.diagnose_aliexpress_portals \
         --promo-name "EXACT_NAME_FROM_API" \
         --promo-start-time "YYYY-MM-DD HH:MM:SS" \
@@ -39,7 +40,13 @@ METHOD_FEATURED_PROMO_PRODUCTS_GET = (
     "aliexpress.affiliate.featuredpromo.products.get"
 )
 METHOD_ORDER_LIST = "aliexpress.affiliate.order.list"
-GMT_PLUS_8 = timezone(timedelta(hours=8))
+PST = timezone(timedelta(hours=-8))
+ORDER_STATUSES = (
+    "Payment Completed",
+    "Buyer Confirmed Receipt",
+    "Completed Settlement",
+    "Invalid",
+)
 
 
 def _items(container: Any, key: str) -> list[dict[str, Any]]:
@@ -262,31 +269,33 @@ async def run(args: argparse.Namespace) -> int:
                 "No dates or campaign names are guessed."
             )
 
-        now = datetime.now(GMT_PLUS_8)
-        start_time = (now - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(PST)
+        start_time = (now - timedelta(days=args.order_days)).strftime("%Y-%m-%d %H:%M:%S")
         end_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        order_result = await _probe(
-            client,
-            "AFFILIATE_ORDERS_LAST_24H",
-            METHOD_ORDER_LIST,
-            stats,
-            {
-                "start_time": start_time,
-                "end_time": end_time,
-                "status": "Payment Completed",
-                "page_no": 1,
-                "page_size": 10,
-            },
-        )
-        orders = _orders(order_result)
-        print(f"  ORDER_COUNT_RETURNED: {len(orders)}")
-        print(
-            "  TOTAL_RECORD_COUNT: "
-            f"{_data(order_result).get('total_record_count', 'not returned') if order_result else 'not available'}"
-        )
+        for order_status in ORDER_STATUSES:
+            order_result = await _probe(
+                client,
+                "AFFILIATE_ORDERS_" + order_status.upper().replace(" ", "_"),
+                METHOD_ORDER_LIST,
+                stats,
+                {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "status": order_status,
+                    "page_no": 1,
+                    "page_size": 10,
+                },
+            )
+            orders = _orders(order_result)
+            print(f"  ORDER_STATUS: {order_status}")
+            print(f"  ORDER_COUNT_RETURNED: {len(orders)}")
+            print(
+                "  TOTAL_RECORD_COUNT: "
+                f"{_data(order_result).get('total_record_count', 'not returned') if order_result else 'not available'}"
+            )
         print(
             "  NOTE: order rows and commercial details are deliberately not "
-            "printed by this diagnostic."
+            "printed by this diagnostic. Times are PST; the window is bounded."
         )
     finally:
         await client.aclose()
@@ -302,6 +311,14 @@ async def run(args: argparse.Namespace) -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Read-only AliExpress Portals API smoke test."
+    )
+    parser.add_argument(
+        "--order-days",
+        type=int,
+        default=30,
+        choices=range(1, 91),
+        metavar="1..90",
+        help="bounded order-query window in days (default: 30; API times are PST).",
     )
     parser.add_argument(
         "--promo-name",
