@@ -4678,3 +4678,20 @@ The owner's explicit requirement supersedes the earlier quality-follow-up notes 
 - Every bounded product-selection continuation stays on Flash-Lite. A short/empty valid first answer may receive the existing single continuation on Flash-Lite; it must not route to 3.8.
 - Existing product-type, identity evidence, mandatory-feature evidence, compatibility, exclusion, budget, deduplication and ranking gates remain unchanged. Do not loosen them to make the result count look larger.
 - PR #10 branch `fix/gemini-quality-preserving-selection` is being corrected to this policy. Draft only; not merged. Local/live test execution is not claimed. The owner reported the focused local suite had one fixture assertion failure; do not broaden work into unrelated test rewrites.
+
+
+### Evidence-backed product recommendations render as cards (2026-11-08)
+
+When a user asks which previously found product is recommended, the product
+assistant now carries the exact product IDs associated with its verified
+listing quotes from Gemini's answer. A recommendation returns its one selected
+ID; an evidence-based multi-product answer returns every referenced ID.
+ProductAssistant maps those IDs only to the original Product objects it
+was given. handlers.search.send_product_advice performs a final membership
+check against the current cached/shown set, sends the factual explanation,
+then renders the referenced real listing(s) through the existing
+send_search_results card renderer (photo, marketplace data, price and
+navigation). This is a presentation/delivery enhancement only: no new
+AliExpress search, no model-created product, no weakened evidence checks,
+and no change to the Flash-Lite primary / 3.8 reserve policy. The legacy
+text-only AIService.answer_product_question facade remains available.
