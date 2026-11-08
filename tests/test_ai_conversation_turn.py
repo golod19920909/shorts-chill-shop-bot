@@ -598,7 +598,7 @@ class ConversationTurnContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ЖЁСТКИЙ БЮДЖЕТ: до 2000 UAH", prompt)
         self.assertIn("НЕ доказывает соответствие", prompt)
         self.assertIn("неизвестный тип пропускай", prompt)
-        self.assertIn("Проверяй совместимость отдельно", prompt)
+        self.assertIn("Проверяй явно заданную совместимость отдельно", prompt)
         self.assertIn("Не считай запятую сама по себе признаком второго товара", prompt)
         self.assertIn("фактически подтверждённые характеристики", prompt)
         self.assertIn("основной предмет", prompt)
