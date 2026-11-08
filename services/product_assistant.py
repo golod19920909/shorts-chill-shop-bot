@@ -1057,18 +1057,19 @@ class ProductAssistant:
             if callable(answer_with_selection):
                 result = await answer_with_selection(question, products)
                 if isinstance(result, tuple) and len(result) == 2:
-                    text, recommended_id = result
-                    recommended = next(
-                        (
-                            product for product in products
-                            if product.product_id == recommended_id
-                        ),
-                        None,
-                    )
+                    text, referenced_ids = result
+                    if isinstance(referenced_ids, str):
+                        referenced_ids = [referenced_ids]
+                    if not isinstance(referenced_ids, (list, tuple)):
+                        referenced_ids = []
+                    allowed = {product.product_id: product for product in products}
+                    recommended = []
+                    for product_id in referenced_ids:
+                        product = allowed.get(product_id) if isinstance(product_id, str) else None
+                        if product is not None and product not in recommended:
+                            recommended.append(product)
                     if text:
-                        return ProductAdvice(
-                            text, True, [recommended] if recommended is not None else []
-                        )
+                        return ProductAdvice(text, True, recommended)
             else:
                 text = await self.ai.answer_product_question(question, products)
                 if text:
