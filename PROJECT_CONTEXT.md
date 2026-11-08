@@ -5096,3 +5096,8 @@ Source inspection on this branch confirms:
 - The panel now contains 15 sections (including the added `Акции` and `Монетизация` sections) plus the main-menu escape button. A pre-existing test still expected 14 sections plus home; updated it to expect 16 total buttons.
 - Updated stale 13-section comments/docstrings in `keyboards/admin.py` and `handlers/admin.py`.
 - Added `tests/test_admin_panel.py` to `.github/workflows/monetization-audit.yml` so the focused workflow covers the expanded admin grid and screen rendering. CI execution remains unverified because no status contexts are exposed.
+
+
+### Monetization workflow verification scope (2026-11-08)
+- Confirmed the YAML now lists `tests/test_admin_panel.py` as a separate PR path and executes it in the focused pytest command alongside affiliate analytics, order sync, backup/restore and sales-calendar tests. (The first edit accidentally combined two path names into one YAML string; this was corrected before finalizing.)
+- The workflow still runs automatically on pushes to `audit/aliexpress-portals-smoke-test`. No CI pass is claimed until an actual Actions run result is visible.
