@@ -92,6 +92,11 @@ class ApplicationWiringTests(BotStartupTestCase):
                 "favorites",
                 "tracking",
                 "stats",
+                "stats_today",
+                "stats_week",
+                "stats_month",
+                "stats_models",
+                "stats_requests",
                 "admin",
             },
         )
