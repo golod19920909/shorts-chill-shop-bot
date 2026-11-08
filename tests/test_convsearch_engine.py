@@ -1028,6 +1028,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             calls.append({
                 "ids": [item.product_id for item in pool],
                 "wanted": kwargs["wanted"],
+                "use_reserve_model": kwargs.get("use_reserve_model", False),
             })
             if len(calls) == 1:
                 return [f"continue-{i}" for i in range(4)]
@@ -1055,6 +1056,8 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selector.await_count, 2)
         self.assertEqual(calls[0]["wanted"], 20)
         self.assertEqual(calls[1]["wanted"], 16)
+        self.assertTrue(calls[1]["use_reserve_model"])
+        self.assertEqual(decision.report["ai_second_pass_model"], "configured_reserve")
         self.assertEqual(len(calls[1]["ids"]), 16)
         self.assertFalse(set(calls[0]["ids"][:4]) & set(calls[1]["ids"]))
         self.assertEqual(decision.report["ai_first_pass_selected"], 4)
