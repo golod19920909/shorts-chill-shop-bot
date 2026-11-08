@@ -32,3 +32,33 @@ def test_restore_keeps_a_pre_restore_copy(tmp_path):
     rollback = restore_database(restore_source, database, backup_dir)
     assert _read_value(database) == "restored"
     assert _read_value(rollback) == "current"
+
+
+def test_restore_failure_rolls_back_the_original_database(tmp_path, monkeypatch):
+    import scripts.database_maintenance as maintenance
+
+    database = tmp_path / "shop.db"
+    _make_db(database, "current")
+    backup_dir = tmp_path / "backups"
+    source_backup = backup_dir / "source.sqlite3"
+    source_backup.parent.mkdir(parents=True)
+    _make_db(source_backup, "replacement")
+
+    original_check = maintenance._integrity_check
+
+    def fail_only_after_replacement(path):
+        if path.resolve() == database.resolve():
+            raise RuntimeError("simulated post-replace integrity failure")
+        original_check(path)
+
+    monkeypatch.setattr(maintenance, "_integrity_check", fail_only_after_replacement)
+
+    try:
+        restore_database(source_backup, database, backup_dir)
+    except RuntimeError as exc:
+        assert "simulated" in str(exc)
+    else:
+        raise AssertionError("restore should fail during the final integrity check")
+
+    assert _read_value(database) == "current"
+    assert list(backup_dir.glob("shop.db.failed-restore-*"))
