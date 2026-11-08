@@ -5090,3 +5090,9 @@ Source inspection on this branch confirms:
 ### Restore rollback regression coverage (2026-11-08)
 - Added a focused failure-path test for `restore_database`: simulate an integrity-check failure after the replacement file is installed, then assert the original database is restored and the failed replacement is retained for diagnosis.
 - The existing monetization workflow already includes `tests/test_database_maintenance.py`, so this test is covered by the configured CI job when it runs. Execution is not claimed; the connected GitHub status endpoint still exposes no status contexts.
+
+
+### Admin panel section-count regression fix (2026-11-08)
+- The panel now contains 15 sections (including the added `Акции` and `Монетизация` sections) plus the main-menu escape button. A pre-existing test still expected 14 sections plus home; updated it to expect 16 total buttons.
+- Updated stale 13-section comments/docstrings in `keyboards/admin.py` and `handlers/admin.py`.
+- Added `tests/test_admin_panel.py` to `.github/workflows/monetization-audit.yml` so the focused workflow covers the expanded admin grid and screen rendering. CI execution remains unverified because no status contexts are exposed.
