@@ -74,12 +74,13 @@ def restore_database(source_backup: Path, target: Path, backup_dir: Path) -> Pat
     sidecars = [Path(str(target) + suffix) for suffix in ("-wal", "-shm") ]
     moved_sidecars: list[tuple[Path, Path]] = []
     moved_target = False
+    archived_target = target.with_name(target.name + f".pre-restore-{stamp}")
     try:
         if target.exists():
             _copy_database(target, rollback)
         _copy_database(source_backup, temporary)
         if target.exists():
-            os.replace(target, target.with_name(target.name + f".pre-restore-{stamp}"))
+            os.replace(target, archived_target)
             moved_target = True
         for sidecar in sidecars:
             if sidecar.exists():
@@ -91,10 +92,11 @@ def restore_database(source_backup: Path, target: Path, backup_dir: Path) -> Pat
     except Exception:
         if temporary.exists():
             temporary.unlink()
-        if moved_target:
-            archived = target.with_name(target.name + f".pre-restore-{stamp}")
-            if archived.exists() and not target.exists():
-                os.replace(archived, target)
+        if target.exists():
+            failed_target = backup_dir / f"{target.name}.failed-restore-{stamp}"
+            os.replace(target, failed_target)
+        if moved_target and archived_target.exists():
+            os.replace(archived_target, target)
         for preserved, original in reversed(moved_sidecars):
             if preserved.exists() and not original.exists():
                 os.replace(preserved, original)
