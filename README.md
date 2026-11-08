@@ -347,6 +347,14 @@ WantedBy=multi-user.target
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now shopbot
+
+# Daily SQLite backup (03:15 local server time)
+sudo cp deploy/shopbot-backup.service /etc/systemd/system/
+sudo cp deploy/shopbot-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now shopbot-backup.timer
+systemctl list-timers shopbot-backup.timer
+
 sudo journalctl -u shopbot -f
 ```
 
@@ -481,4 +489,4 @@ sudo journalctl -u shopbot -f
 
 ### Обслуживание базы данных
 
-`python -m scripts.database_maintenance backup` создаёт согласованную SQLite-копию через встроенный backup API, проверяет её целостность и применяет ротацию (14 последних файлов). Путь можно переопределить через `DATABASE_BACKUP_DIR`. Команда `list` показывает копии. Восстановление выполняется только после остановки бота: `python -m scripts.database_maintenance restore <backup-file> --confirm-restore`; перед заменой создаётся pre-restore backup. Локальные копии исключены из Git.
+`python -m scripts.database_maintenance backup` создаёт согласованную SQLite-копию через встроенный backup API, проверяет её целостность и применяет ротацию (14 последних файлов). Путь можно переопределить через `DATABASE_BACKUP_DIR`. В репозитории есть `deploy/shopbot-backup.service` и `.timer` для ежедневного запуска в 03:15; после установки проверьте `systemctl list-timers shopbot-backup.timer`. Команда `list` показывает копии. Восстановление выполняется только после остановки бота: `python -m scripts.database_maintenance restore <backup-file> --confirm-restore`; перед заменой создаётся pre-restore backup. Локальные копии исключены из Git.
