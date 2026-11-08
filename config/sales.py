@@ -23,6 +23,7 @@ friendly message instead of a broken link.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from urllib.parse import urlparse
 
 
@@ -39,13 +40,15 @@ class SaleEvent:
     event_id: str
     #: User-facing event title shown on the menu button and the section screen.
     title: str
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 #: The registry of known sales events, keyed by internal id. Adding a future
 #: event means adding ONE entry here; every handler and screen already works
 #: with any event in this registry.
 SALE_EVENTS: dict[str, SaleEvent] = {
-    "black_friday": SaleEvent("black_friday", "Чёрная пятница"),
+    "black_friday": SaleEvent("black_friday", "Чёрная пятница", start_date="2026-11-19"),
 }
 
 #: The event the standalone sales section currently represents. Future events
@@ -107,3 +110,21 @@ def safe_http_url(url: str | None) -> str | None:
     if not parsed.netloc:
         return None
     return candidate
+
+def start_date_key(event_id: str) -> str:
+    return f"sale.{event_id}.start_date"
+
+
+def end_date_key(event_id: str) -> str:
+    return f"sale.{event_id}.end_date"
+
+
+def safe_iso_date(value: str | None) -> str | None:
+    """Accept only an exact calendar date in YYYY-MM-DD form."""
+    if not value:
+        return None
+    try:
+        parsed = date.fromisoformat(value.strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed.isoformat() if parsed.isoformat() == value.strip() else None
