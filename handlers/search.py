@@ -30,7 +30,9 @@ from telegram.ext import ContextTypes
 from curation.integration import mode_for_feed, mode_for_request
 from handlers import common
 from keyboards.main import back_to_menu_keyboard
+from utils.formatting import is_openable_url
 from keyboards.products import (
+    CB_PREFIX_BUY,
     CB_PREFIX_FAVORITE,
     CB_PREFIX_TRACK,
     browse_card_keyboard,
@@ -1914,6 +1916,45 @@ async def next_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # The browsing card is NOT re-sent per page: it keeps browsing the
     # whole result set in place (browse_callback), so paging the summary
     # never floods the chat with more product messages.
+
+async def buy_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Record an explicit request for the exact affiliate URL of a cached card.
+
+    Telegram URL buttons do not emit a callback when the browser is opened.
+    This measures the user's request to receive the link, not a confirmed open
+    or purchase.
+    """
+    query = update.callback_query
+    if query is None:
+        return
+    parsed = _parse_session_index(query.data or "")
+    if parsed is None:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    session_id, index = parsed
+    product = common.get_cached_product(context, session_id, index)
+    if product is None:
+        await query.answer("Результат устарел — повторите поиск.", show_alert=True)
+        return
+    if not product.has_affiliate_url or not is_openable_url(product.affiliate_url):
+        await query.answer("Партнёрская ссылка для этого товара недоступна.", show_alert=True)
+        return
+    user_id = await common.register_user(update, context)
+    await common.record_event(
+        context, analytics.EVENT_AFFILIATE_LINK_REQUESTED,
+        user_id=user_id,
+        telegram_id=update.effective_user.id if update.effective_user else None,
+        product=product, is_affiliate=True,
+    )
+    await query.answer("Ссылка готова")
+    message = getattr(query, "message", None)
+    if message is None:
+        return
+    await message.reply_text(
+        "Откройте товар по партнёрской ссылке AliExpress:",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]),
+        disable_web_page_preview=True,
+    )
 
 async def favorite_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``⭐ В избранное`` button on a product card."""
