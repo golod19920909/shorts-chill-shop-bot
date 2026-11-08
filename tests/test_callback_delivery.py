@@ -594,10 +594,10 @@ class TwentyCardCarouselTests(DispatchTestCase):
         # ...on the model roles this deployment configured: one generation for
         # parsing, selection and the analysis of a card.
         service = self.application.bot_data["ai_service"]
-        self.assertEqual(service.smart_model, "gemini-3.8-flash")
-        self.assertEqual(service.fast_model, "gemini-3.8-flash")
-        self.assertEqual(service.vision_model, "gemini-3.8-flash")
-        self.assertEqual(service.fallback_model, "gemini-3.1-flash-lite")
+        self.assertEqual(service.smart_model, "gemini-3.1-flash-lite")
+        self.assertEqual(service.fast_model, "gemini-3.1-flash-lite")
+        self.assertEqual(service.vision_model, "gemini-3.1-flash-lite")
+        self.assertEqual(service.fallback_model, "gemini-3.8-flash")
 
 
 if __name__ == "__main__":
