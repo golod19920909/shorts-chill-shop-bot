@@ -27,7 +27,6 @@ from typing import Any
 
 from config.settings import settings
 from services.marketplaces.aliexpress_client import (
-    AliExpressApiError,
     AliExpressClient,
     GATEWAY_URL,
 )
@@ -56,22 +55,6 @@ def _items(container: Any, key: str) -> list[dict[str, Any]]:
             if isinstance(nested, dict):
                 return [nested]
     return []
-
-
-def _print_failure(label: str, exc: Exception) -> None:
-    if isinstance(exc, AliExpressApiError):
-        print(f"  RESULT: API_ERROR")
-        print(f"  MESSAGE: {exc}")
-        if exc.code:
-            print(f"  CODE: {exc.code}")
-        if exc.sub_code:
-            print(f"  SUB_CODE: {exc.sub_code}")
-        if exc.status:
-            print(f"  HTTP_STATUS: {exc.status}")
-    else:
-        # Do not dump arbitrary exception representations: they can contain
-        # request details from third-party libraries.
-        print(f"  RESULT: CLIENT_ERROR ({type(exc).__name__})")
 
 
 async def _probe(
@@ -161,7 +144,6 @@ async def run(args: argparse.Namespace) -> int:
                     "  SKIPPED: pass --promo-name, --promo-start-time and "
                     "--promo-end-time together."
                 )
-                failures += 1
             else:
                 product_params = {
                     "promotion_name": args.promo_name,
