@@ -473,12 +473,16 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         service._client = object()
         service.captured_prompts = []
         service.captured_schemas = []
+        service.captured_models = []
+        service.fast_model = "gemini-3.1-flash-lite"
+        service.fallback_model = "gemini-3.8-flash"
 
         async def fake_generate(
             contents, *, models=None, operation="generate", response_schema=None
         ):
             service.captured_prompts.append(contents)
             service.captured_schemas.append(response_schema)
+            service.captured_models.append(models)
             self.assertEqual(operation, "conversation_selection")
             self.assertIn('"selections"', contents)
             return response
@@ -493,6 +497,17 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             title="Cordless screwdriver with 2 batteries",
             product_url="https://example.com/drill-1",
         )
+
+    def test_reserve_model_is_used_only_when_requested_for_continuation(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="cordless screwdriver", use_reserve_model=True
+        ))
+        self.assertEqual(result, ["drill-1"])
+        self.assertEqual(service.captured_models[-1], ("gemini-3.8-flash",))
 
     def test_selection_schema_requires_each_active_feature_evidence_field(self) -> None:
         service = self._service(
