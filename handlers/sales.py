@@ -62,13 +62,13 @@ def _available_text(event: SaleEvent, start_date: str | None = None, end_date: s
         f"Начало: {start_date}" if start_date else None,
         f"Окончание: {end_date}" if end_date else None,
     ]
-    date_text = "\\n".join(item for item in dates if item)
+    date_text = "\n".join(item for item in dates if item)
     if date_text:
-        date_text += "\\n\\n"
+        date_text += "\n\n"
     return (
-        f"\\U0001F3F7 <b>{event.title}</b>\\n\\n"
+        f"\U0001F3F7 <b>{event.title}</b>\n\n"
         + date_text
-        + "Откройте страницу акции AliExpress кнопкой ниже.\\n\\n"
+        + "Откройте страницу акции AliExpress кнопкой ниже.\n\n"
         + "Цены, скидки и условия показывает сам маркетплейс."
     )
 
