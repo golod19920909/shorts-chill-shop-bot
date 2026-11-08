@@ -5039,7 +5039,7 @@ Source inspection on this branch confirms:
 
 
 ### GitHub branch/PR safety note (2026-11-08)
-- Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is now 65 commits ahead of that base and not behind it; the current compare shows only the monetization/audit files in the branch diff.
+- Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is now 68 commits ahead of that base and not behind it; the current compare shows only the 26 monetization/audit files in the branch diff.
 - A draft PR #11 was briefly created against `main`; comparison showed `main` is far behind this development base and the PR would have included unrelated Gemini/conversational changes. PR #11 was immediately closed without merging. Do not reopen it or target `main` while PR #10 is still separate. Keep the audit branch isolated; integrate only after the correct base is agreed.
 
 
@@ -5069,3 +5069,10 @@ Source inspection on this branch confirms:
 - Current audit branch HEAD: `f38a23abd46a9221d0b3ff70cfc055a9b322f549`.
 - Compared with PR #10 branch `fix/gemini-quality-preserving-selection` (base `8188fe3...`): ahead 65, behind 0; diff contains only 26 audit/monetization files (including documentation, tests and workflow). No merge or PR to PR #10 was created.
 - The connected GitHub status endpoint currently returns no status contexts for the latest commits; this is not evidence of a passing CI run. The dedicated workflow is committed and triggered by pushes to this branch, but its result still needs a visible Actions run.
+
+
+### Final implementation snapshot (2026-11-08)
+- Latest verified audit branch HEAD before this context update: `8841b3dcdf1126a92a842a46c7136e262db78354`.
+- Current comparison against PR #10 branch: 68 commits ahead, 0 behind, 26 changed files; the diff contains no unrelated Gemini implementation files.
+- The GitHub combined-status endpoint returned an empty status list for the latest branch commit. This connector cannot confirm whether Actions has started or passed; do not claim tests passed. Focused tests and `py_compile` steps are wired into `.github/workflows/monetization-audit.yml`.
+- Draft PR #11 to `main` remains closed and unmerged; no code was merged into `main` or PR #10.
