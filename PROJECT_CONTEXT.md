@@ -5039,7 +5039,7 @@ Source inspection on this branch confirms:
 
 
 ### GitHub branch/PR safety note (2026-11-08)
-- Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is 32 commits ahead of that base and not behind it.
+- Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is now 65 commits ahead of that base and not behind it; the current compare shows only the monetization/audit files in the branch diff.
 - A draft PR #11 was briefly created against `main`; comparison showed `main` is far behind this development base and the PR would have included unrelated Gemini/conversational changes. PR #11 was immediately closed without merging. Do not reopen it or target `main` while PR #10 is still separate. Keep the audit branch isolated; integrate only after the correct base is agreed.
 
 
@@ -5063,3 +5063,9 @@ Source inspection on this branch confirms:
 - Stage 5: verified-backup/restore utility and daily systemd timer files are in the repository. Production install, restore drill and safe automated code-update/rollback remain pending server access.
 - Stage 6: focused tests and workflow are committed; GitHub Actions result is not exposed by the connected status API, so tests are not claimed as passing. README and this context are updated.
 - Premium/Stars/subscriptions/paid limits remain deferred.
+
+
+### Latest GitHub branch comparison (2026-11-08)
+- Current audit branch HEAD: `f38a23abd46a9221d0b3ff70cfc055a9b322f549`.
+- Compared with PR #10 branch `fix/gemini-quality-preserving-selection` (base `8188fe3...`): ahead 65, behind 0; diff contains only 26 audit/monetization files (including documentation, tests and workflow). No merge or PR to PR #10 was created.
+- The connected GitHub status endpoint currently returns no status contexts for the latest commits; this is not evidence of a passing CI run. The dedicated workflow is committed and triggered by pushes to this branch, but its result still needs a visible Actions run.
