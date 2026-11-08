@@ -41,7 +41,7 @@ from keyboards.admin import (
     admin_sales_keyboard,
     admin_screen_keyboard,
 )
-from config.sales import DEFAULT_EVENT_ID, SALE_EVENTS, enabled_key, get_event, is_enabled_value, start_date_key, end_date_key
+from config.sales import DEFAULT_EVENT_ID, SALE_EVENTS, enabled_key, get_event, is_enabled_value, start_date_key, end_date_key, safe_iso_date
 from services import analytics
 from services.affiliate_orders import sync_recent_orders
 from datetime import datetime, timezone
@@ -779,8 +779,8 @@ async def _screen_sales(
         logger.exception("Failed to read sales state for the admin panel")
         raw = None
     enabled = is_enabled_value(raw)
-    start_date = (await database.get_config(start_date_key(DEFAULT_EVENT_ID))) or (event.start_date if event else None)
-    end_date = (await database.get_config(end_date_key(DEFAULT_EVENT_ID))) or (event.end_date if event else None)
+    start_date = safe_iso_date(await database.get_config(start_date_key(DEFAULT_EVENT_ID))) or (event.start_date if event else None)
+    end_date = safe_iso_date(await database.get_config(end_date_key(DEFAULT_EVENT_ID))) or (event.end_date if event else None)
 
     has_url = False
     try:
