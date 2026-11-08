@@ -1271,6 +1271,21 @@ class ConversationSearchEngine:
             if remaining_pool and remaining_wanted > 0:
                 second_kwargs = dict(selector_kwargs)
                 second_kwargs["wanted"] = remaining_wanted
+                try:
+                    selector_parameters = inspect.signature(selector).parameters
+                    if (
+                        "use_reserve_model" in selector_parameters
+                        or any(
+                            parameter.kind is inspect.Parameter.VAR_KEYWORD
+                            for parameter in selector_parameters.values()
+                        )
+                    ):
+                        second_kwargs["use_reserve_model"] = True
+                        decision.report["ai_second_pass_model"] = "configured_reserve"
+                    else:
+                        decision.report["ai_second_pass_model"] = "selector_default"
+                except (TypeError, ValueError):
+                    decision.report["ai_second_pass_model"] = "selector_default"
                 second_kwargs["identity_review_ids"] = [
                     product_id for product_id in semantic_review_ids
                     if product_id in remaining_ids
