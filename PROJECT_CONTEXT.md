@@ -4953,3 +4953,46 @@ git status --short --branch
 Share only the sanitized console output. Never share `.env` contents.
 
 Do not yet implement campaign sync, order ingestion, schema changes or monetization UI. First classify the raw responses as confirmed empty result, unexpected response shape, unsupported method/permission, or another API condition. Then continue the Phase 1 checklist above.
+
+
+## Monetization audit update — GitHub-only workflow and live API results (2026-11-08)
+
+### Workflow clarification
+- Further work is performed directly against the GitHub branch `audit/aliexpress-portals-smoke-test`; do not ask the user to switch their main local worktree or run local Git commands for ordinary repository edits.
+- The previously created local worktree `C:\\shorts-chill-shop-bot audit` was only an isolation mechanism. It is not required for GitHub-based work and must not be treated as the execution environment going forward.
+- Do not touch PR #10, its branch, `main`, or the user's primary local working copy.
+
+### Stage 1 — live AliExpress API probe (user executed with the current project key and gateway)
+Gateway: `https://api-sg.aliexpress.com/sync`.
+
+| Method | Observed result | What this proves |
+|---|---|---|
+| `aliexpress.affiliate.featuredpromo.get` | HTTP 200, `resp_code=200`, `resp_msg=Call succeeds`, 0 campaigns | The method is callable with the current key/gateway, but this request returned no campaign rows. It does not prove that the Portals calendar is unavailable or that no future campaign exists. |
+| `aliexpress.affiliate.featuredpromo.products.get` | Not called | The campaign-list response supplied no exact `promo_name` and no campaign dates. Do not guess campaign name or start/end time. Run only after the exact campaign name and both PST-local dates/times are supplied from Portals. |
+| `aliexpress.affiliate.order.list` | HTTP 200, `resp_code=405`, `resp_msg=The result is empty`; no order fields or total count | The API accepted the request but returned its documented empty-result response for the diagnostic's last-24-hours / `Payment Completed` query. This is not proof of permission denial or that the method is unusable. No order or commission data was available to inspect. |
+
+The diagnostic reported 2 API calls received, 0 transport/API failures. It did not open the database or change configuration. The production client's empty-result normalization was inspected: `resp_code=405` is counted as a successful empty result, separately from real API errors.
+
+### Stage 2 — existing monetization inventory and findings
+Source inspection on this branch confirms:
+
+1. **Product-level promo information exists.** The AliExpress product normalizer extracts a real listing's `promo_code_info` and product cards can display it. This is API-supplied per-product information, not a searchable coupon catalogue.
+2. **The standalone «🎟 Промокоды» section is a static partner landing link.** `config/promo.py` defines one fixed `PROMO_REFERRAL_URL`; `handlers/promo_codes.py` renders one screen and one URL button. It does not fetch coupon codes, values, minimum spend or expiry dates.
+3. **«🔥 Горячие скидки» is four fixed partner destinations.** `config/hot_discounts.py` contains Super discounts, Brand discounts, Product bundles and Coins discounts URLs. These are outbound landing pages, not a live feed of individually verified discounted products.
+4. **Sales section exists as reusable landing-page infrastructure.** `config/sales.py` registers Black Friday; `handlers/sales.py` renders a landing screen using the administrator-configured URL stored in `bot_config`. The existing `/admin` «Акции» section toggles visibility. It does not synchronize a campaign calendar or show campaign-specific product cards.
+5. **Partner click analytics are not currently collected reliably.** `services/analytics.py` retains event names such as `affiliate_clicked`, but its own comments state that the buy-click events have no producer because product «Купить» buttons are direct Telegram URL buttons. Telegram does not report URL-button presses to the bot. Historical event rows may remain, but current counts cannot be treated as current click totals.
+6. **No order/commission ingestion is implemented.** The current `analytics_events` store records bot events and product metadata; it is not an affiliate-order ledger. The inspected admin analytics aggregate event counts and top products, not AliExpress order statuses, paid/finished amounts or commissions. The current provider does not implement `affiliate.order.list`.
+7. **Existing `/admin` must be extended, not duplicated.** It already has sections for statistics, users, products, feed, discounts, sales, AI, AliExpress API, database, logs and system. It also has safe API diagnostics and a persistent sales enable/disable setting.
+8. **Gemini usage analytics are separate.** Durable Gemini token/cost analytics and the optional read-only dashboard exist; they do not measure affiliate clicks, orders or commissions.
+9. **Infrastructure is not yet a complete deployment/rollback system.** The repository has SQLite health/integrity diagnostics and deployment documentation, but no verified automated backup + atomic update + rollback workflow was established by this audit. Database schema changes must account for the current SQLite initialization approach; do not assume a migration framework exists.
+
+### Current conclusions
+- Verified working: existing AliExpress product search/detail methods (already live-verified by the project), featured-campaign list method returns a valid success envelope but currently no rows, fixed partner landing links, per-product promo metadata when supplied, existing admin and Gemini analytics.
+- Not yet verified: featured-campaign product retrieval; order rows with real order/commission fields; current affiliate click tracking; any live campaign-product participation feed.
+- Not implemented: affiliate order/commission synchronization and persistence; reliable product-link click producer; dynamic coupon catalogue; campaign calendar synchronization; verified sale-product catalogue; consent-based cross-sell workflow; production backup/update/rollback automation.
+- No fake discounts, orders, commissions, campaign participation or click totals may be introduced.
+
+### Stage gates / next action
+- Stage 1 remains **partially blocked** only on the campaign-product probe and observing a non-empty order response with commission fields. The campaign-product probe requires the exact Portals campaign name and exact start/end timestamps in PST. Do not infer them from a calendar label or invent an end date.
+- Stage 2 source inventory is complete at code-inspection level; no live database contents were inspected and no user-level counts are claimed.
+- Prepare Stage 3 architecture options from these findings and request user approval before implementing monetization features. Premium/subscriptions/Telegram Stars/paid limits remain explicitly deferred.
