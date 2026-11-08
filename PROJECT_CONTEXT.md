@@ -4695,3 +4695,10 @@ navigation). This is a presentation/delivery enhancement only: no new
 AliExpress search, no model-created product, no weakened evidence checks,
 and no change to the Flash-Lite primary / 3.8 reserve policy. The legacy
 text-only AIService.answer_product_question facade remains available.
+
+
+### Уточнение приветствия раздела «Умный поиск» (2026-11-08)
+- В `handlers/start.py` обновлён `SEARCH_PROMPT`, который показывается при открытии раздела «Умный поиск». Текст теперь прямо представляет бота как ИИ-консультанта по товарам AliExpress и кратко объясняет его реальные задачи: поиск по обычному описанию, подбор по бюджету и пожеланиям, учёт характеристик/рейтинга/совместимости/ограничений, сравнение и ответы на вопросы о найденных товарах.
+- Добавлен один более содержательный пример запроса и приглашение общаться обычным языком. HTML-разметка ограничена поддерживаемыми Telegram-тегами `<b>`.
+- Одноразовое приветствие первого запуска (`WELCOME_MESSAGE`) и другие разделы не менялись. Это изменение касается только экрана раздела «Умный поиск».
+- Изменение внесено в PR #10, ветка `fix/gemini-quality-preserving-selection`; локальный запуск бота и тесты после этого изменения не выполнялись.
