@@ -1744,14 +1744,11 @@ class AIService:
         identity_review_ids: list[str] | None = None,
         marketplace_terms: list[str] | None = None,
         budget_constraint: str | None = None,
-        use_reserve_model: bool = False,
     ) -> list[str] | None:
         """Select grounded candidates; uncertain claims require listing quotes.
 
-        The bounded continuation pass may explicitly use the configured reserve
-        model when the primary model returned a valid but incomplete selection.
-        This preserves the Lite-first model policy without silently accepting
-        an under-filled result when the quality-oriented reserve is available.
+        Every selection pass uses the configured primary model. The reserve is
+        attempted only by _generate when the primary request itself fails.
 
         Gemini returns exact evidence snippets alongside ids. This method
         verifies every snippet against the supplied title/description before
@@ -1904,19 +1901,13 @@ seller_terms: {seller_terms_json}
             len(prompt),
             (time.perf_counter() - prompt_build_started) * 1000,
         )
-        selection_model = (
-            self.fallback_model
-            if use_reserve_model and self.fallback_model
-            else self.fast_model
-        )
         logger.info(
-            "Gemini conversation selection model route: pass=%s model=%s",
-            "reserve_continuation" if use_reserve_model else "primary",
-            selection_model,
+            "Gemini conversation selection model route: pass=primary model=%s",
+            self.fast_model,
         )
         raw = await self._generate(
             prompt,
-            models=(selection_model,),
+            models=(self.fast_model,),
             operation="conversation_selection",
             response_schema=selection_schema,
         )
@@ -2693,11 +2684,11 @@ seller_terms: {seller_terms_json}
           account-wide and trying more models would only waste quota;
         - a **model-unavailable** error (404/503) moves on to the fallback
           model;
-        - a **client timeout** also moves to the fallback model for bounded
-          conversation-turn interpretation and candidate selection; both use
-          short per-attempt limits and an outer wall-clock deadline;
-        - quota/rate limits stop immediately, and timeouts in other operations
-          keep the existing no-retry policy. All failures are swallowed so the
+        - a **client timeout**, server failure, transport failure or unavailable
+          primary model moves to the configured reserve for every AI operation;
+        - account-wide quota/rate limits and invalid credentials stop immediately
+          because another model on the same key cannot repair them. All failures
+          are swallowed so the
           bot never crashes because Gemini is down.
 
         Every failed attempt logs ONE detail fragment built by
@@ -2792,12 +2783,8 @@ seller_terms: {seller_terms_json}
                     error=True,
                 )
                 kind = _classify_gemini_error(exc)
-                consultant_operation = operation in {
-                    "conversation_selection", "conversation_turn"
-                }
                 will_fallback = index + 1 < len(chain) and (
-                    kind in {"model", "server", "transport"}
-                    or (kind == "timeout" and consultant_operation)
+                    kind in {"model", "server", "transport", "timeout"}
                 )
                 detail = _format_gemini_error(
                     exc,
