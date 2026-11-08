@@ -843,6 +843,8 @@ async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, pag
     else:
         lines.append("• Данные пока не получены")
     if isinstance(last_result, dict):
+        if last_result.get("error"):
+            lines.append("• Ошибка синхронизации: " + common.escape(last_result["error"]))
         lines.extend(["", "<b>Последний запуск синхронизации:</b>"])
         lines.append(f"• Получено строк: {int(last_result.get('rows_received', 0))}")
         lines.append(f"• Сохранено/обновлено: {int(last_result.get('rows_saved', 0))}")
@@ -857,7 +859,7 @@ async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, pag
         "Суммы estimated_paid_commission и estimated_finished_commission в API являются оценочными значениями; эта панель не называет их фактически выплаченными комиссиями.",
         "Запрос ссылки — не подтверждение открытия браузера, заказа или покупки.",
     ])
-    return "\\n".join(lines), admin_screen_keyboard("affiliate", period)
+    return "\n".join(lines), admin_screen_keyboard("affiliate", period)
 
 
 async def _run_affiliate_sync(context: ContextTypes.DEFAULT_TYPE) -> dict[str, Any]:
