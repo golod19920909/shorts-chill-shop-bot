@@ -358,6 +358,41 @@ class GroundedProductQuestionTests(unittest.TestCase):
         self.assertIn("Cordless drill", answer)
         self.assertIn("Includes two batteries", answer)
 
+    def test_grounded_recommendation_returns_the_real_product_id(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        answer, product_ids = asyncio.run(
+            service.answer_product_question_with_recommendation(
+                "Какой лучше для работы без розетки?", self._products()
+            )
+        )
+        self.assertIn("наиболее подходящим выглядит", answer)
+        self.assertEqual(product_ids, ["item-1"])
+
+    def test_grounded_claims_return_every_referenced_product_id(self) -> None:
+        products = self._products() + [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="item-2",
+                title="Corded drill",
+                description="Includes a power cable",
+                product_url="https://example.com/item-2",
+            )
+        ]
+        service = self._service(
+            '{"claims":['
+            '{"product_id":"item-1","field":"description","quote":"Includes two batteries"},'
+            '{"product_id":"item-2","field":"description","quote":"Includes a power cable"}],'
+            '"recommendation":{"product_id":null,"evidence":[]}}'
+        )
+        answer, product_ids = asyncio.run(
+            service.answer_product_question_with_recommendation("Сравни их", products)
+        )
+        self.assertIn("По данным карточек AliExpress", answer)
+        self.assertEqual(product_ids, ["item-1", "item-2"])
+
     def test_recommendation_with_invented_evidence_is_not_accepted(self) -> None:
         service = self._service(
             '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
