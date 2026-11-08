@@ -1744,8 +1744,14 @@ class AIService:
         identity_review_ids: list[str] | None = None,
         marketplace_terms: list[str] | None = None,
         budget_constraint: str | None = None,
+        use_reserve_model: bool = False,
     ) -> list[str] | None:
         """Select grounded candidates; uncertain claims require listing quotes.
+
+        The bounded continuation pass may explicitly use the configured reserve
+        model when the primary model returned a valid but incomplete selection.
+        This preserves the Lite-first model policy without silently accepting
+        an under-filled result when the quality-oriented reserve is available.
 
         Gemini returns exact evidence snippets alongside ids. This method
         verifies every snippet against the supplied title/description before
@@ -1898,9 +1904,19 @@ seller_terms: {seller_terms_json}
             len(prompt),
             (time.perf_counter() - prompt_build_started) * 1000,
         )
+        selection_model = (
+            self.fallback_model
+            if use_reserve_model and self.fallback_model
+            else self.fast_model
+        )
+        logger.info(
+            "Gemini conversation selection model route: pass=%s model=%s",
+            "reserve_continuation" if use_reserve_model else "primary",
+            selection_model,
+        )
         raw = await self._generate(
             prompt,
-            models=(self.fast_model,),
+            models=(selection_model,),
             operation="conversation_selection",
             response_schema=selection_schema,
         )
