@@ -2,7 +2,7 @@
 
 Callback scheme (all under the single ``adm:`` prefix the router matches):
 
-* ``adm:menu`` - the panel's main screen with all 13 sections;
+* ``adm:menu`` - the panel's main screen with all 15 sections;
 * ``adm:<section>`` - one section (stats/users/searches/...);
 * ``adm:<section>:p<N>`` - a paginated section on page N;
 * ``adm:<period>`` - switch the period of the CURRENT screen
@@ -37,7 +37,7 @@ CB_ADMIN_SALE_DISABLE_KEY = "sale_off"
 LABEL_ADMIN_REFRESH = "\U0001F504 Обновить"
 LABEL_ADMIN_PANEL = "\U0001F510 Админ-панель"
 
-#: The 13 sections of the main screen, in the exact spec §39 order:
+#: The 15 sections of the main screen, in the exact spec §39 order:
 #: ``(callback_key, label)``.
 ADMIN_SECTIONS: tuple[tuple[str, str], ...] = (
     ("stats", "\U0001F4CA Статистика"),
@@ -74,7 +74,7 @@ def _label_for(key: str) -> str:
 
 
 def admin_main_keyboard() -> InlineKeyboardMarkup:
-    """The §39 grid: 13 sections in pairs + the main-menu escape."""
+    """The §39 grid: 15 sections in pairs + the main-menu escape."""
 
     rows: list[list[InlineKeyboardButton]] = []
     pair: list[InlineKeyboardButton] = []
