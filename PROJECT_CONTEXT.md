@@ -4702,3 +4702,76 @@ text-only AIService.answer_product_question facade remains available.
 - Добавлен один более содержательный пример запроса и приглашение общаться обычным языком. HTML-разметка ограничена поддерживаемыми Telegram-тегами `<b>`.
 - Одноразовое приветствие первого запуска (`WELCOME_MESSAGE`) и другие разделы не менялись. Это изменение касается только экрана раздела «Умный поиск».
 - Изменение внесено в PR #10, ветка `fix/gemini-quality-preserving-selection`; локальный запуск бота и тесты после этого изменения не выполнялись.
+
+
+## Project handoff update — monetization inventory and consultant model switch (2026-11-08)
+
+This section consolidates the current monetization baseline and supersedes any older conflicting Gemini model-role notes below.
+
+### 1. Monetization features already present in the project
+
+The existing repository already contains several user-facing promotional mechanisms. They must be preserved and extended rather than rebuilt:
+
+- **Product-level promo information:** the AliExpress product-processing/card pipeline extracts and displays the existing `promo_code_info`. This is separate from the standalone «🎟 Промокоды» screen.
+- **Standalone «🎟 Промокоды» screen:** `config/promo.py` supplies one fixed `PROMO_REFERRAL_URL`; `handlers/promo_codes.py` renders the landing screen and its Telegram URL button. It is not a dynamic coupon catalogue. Legacy `pcamp:<index>` callbacks are handled safely; do not restore the removed campaign list or treat internal campaign IDs as coupon codes.
+- **Sales events:** `config/sales.py` contains a reusable event registry (currently the configured Black Friday event). Enabled state and destination are stored in the existing `bot_config` key/value configuration (`sale.<event_id>.enabled`, `sale.<event_id>.url`). `handlers/sales.py` provides the landing screen, admin-aware visibility, server-side rejection of forged callbacks for disabled events, and safe HTTP(S) URL validation. It does not generate product feeds or claim historical discounts.
+- **«🔥 Горячие скидки»:** `config/hot_discounts.py` defines four fixed partner destinations: Super discounts, Brand discounts, Product bundles and Coins discounts. This is a static partner-link section, not a live verified discount feed.
+- **Existing analytics foundation:** `services/analytics.py` contains an event vocabulary distinguishing `affiliate_clicked` from `external_clicked`, with admin-facing labels and historical aggregation. However, direct Telegram «Купить» URL buttons do not report button presses to the bot, so the affiliate-click producer is dormant for that direct-button path. Card display or opening a Telegram URL button must not be counted as a confirmed click, order, sale or commission.
+- **Existing admin panel:** `/admin` and its existing AI diagnostics/analytics screens are the place to extend; do not create a second admin interface. Admin-only checks and existing DB/config patterns must be retained.
+- **Gemini cost analytics (separate from affiliate revenue analytics):** the Gemini usage analytics work added `services/gemini_pricing.py`, durable per-attempt `gemini_usage` persistence, request grouping, model/operation aggregation, admin Telegram commands (`/stats_today`, `/stats_week`, `/stats_month`, `/stats_models`, `/stats_requests`) and an optional read-only HTTP Basic dashboard at `http://127.0.0.1:8765` (disabled unless configured). The dashboard is loopback-bound by default and uses `ANALYTICS_DASHBOARD_PASSWORD`. Its focused CI was recorded as passing on PR #8's earlier head; verify current branch/PR CI before making claims about the latest head. These metrics measure AI usage/cost, not AliExpress orders or affiliate commission.
+
+### 2. Monetization work not yet implemented
+
+The monetization audit notes recorded in this file state that the targeted source audit was started/completed on 2026-11-06, but implementation of the new monetization workstream had **not** started at that handoff. The following remain future work unless separately verified in source:
+
+- Dynamic cross-selling after the main consultation, with user consent before searching for add-on products.
+- New reliable affiliate-click measurement/redirect tracking. Compatibility with Telegram and AliExpress attribution, open-redirect protection and signed-URL integrity must be assessed first.
+- Verified Portals order, confirmed-purchase and commission reporting/import. Clicks must never be treated as sales.
+- Dynamic coupon/deal retrieval from official AliExpress capabilities. Current credentials/permissions and response fields must be verified; no unsupported coupon API or seller-coupon availability may be assumed.
+- Expanded admin partner-funnel, promo and cross-sell metrics/settings.
+- Full commercial server deployment/update/backup/rollback work.
+- Do not duplicate the existing promo, sales, hot-discount, analytics or admin mechanisms.
+
+The following official/current baseline distinctions are important:
+- Product-level promo data exists, but the standalone promo screen is a fixed referral destination, not a coupon database.
+- Hot discounts are four configured partner destinations, not a dynamically checked discount feed.
+- Black Friday is represented by reusable event configuration and a landing page, not by an automated discounted-product feed.
+- Affiliate-click event names exist, but direct Telegram URL-button presses are not observable by the current handler flow.
+- Partner orders and commissions are not established by click analytics.
+- The new commercial workstream must continue from its agreed Stage A audit and implementation plan; do not jump directly into broad code changes.
+
+### 3. Premium subscription — explicitly deferred
+
+The owner clarified on 2026-11-08 that Premium subscriptions will be considered only after the bot gains meaningful popularity. For the current roadmap:
+- Keep the bot useful and free for users.
+- Do not implement subscription plans, paid limits, Telegram Stars, payment processing, renewal or subscription administration now.
+- Do not spend current implementation effort on Free/Premium entitlement enforcement.
+- Keep future extensibility in mind without building subscription infrastructure prematurely.
+
+### 4. Consultant model switch — authoritative policy (2026-11-08)
+
+The owner's latest instruction is to move the consultant's AI workload to **Gemini 3.1 Flash-Lite as the sole primary model**, while preserving the previous quality safeguards and keeping **Gemini 3.8 Flash as reserve-only**.
+
+- Gemini 3.1 Flash-Lite is primary for every AI role: conversation-turn interpretation, query parsing, candidate selection/ranking, product advice/questions, comparisons/evidence review and photo understanding.
+- Gemini 3.8 Flash is not a second-stage quality model and must not be invoked just because Flash-Lite returns a valid short list, an empty valid selection or a conservative answer.
+- Gemini 3.8 Flash may be attempted only after a genuine primary request failure handled by `AIService._generate`: model unavailable/server error, transport or network error, client timeout, or quota/rate-limit failure. Invalid credentials and invalid requests are not recoverable by switching models and must not trigger reserve fallback. If reserve also fails/is rate-limited, stop.
+- The one bounded continuation for a valid but short/empty candidate selection stays on Flash-Lite. No deterministic padding and no weakening of product identity, evidence quotes, required-feature, compatibility, exclusion, budget, deduplication or ranking gates.
+- This corrected policy supersedes earlier notes in this file suggesting that the reserve model should perform first-pass candidate selection or the continuation pass. Those notes are historical and must not be treated as current instructions.
+- The migration must preserve the Option C architecture, dialogue context, search/retrieval strategy, candidate pool and Telegram rendering. Do not restore the legacy ShoppingAgent loop or introduce category/keyword patches.
+- The owner's quality requirement is that the model change must not silently reduce the recommendation quality previously observed with 3.8. This is an acceptance requirement, **not a verified result**: offline tests do not prove semantic parity, live catalogue quality, latency or cost. Do not claim parity until it has been evaluated honestly in owner-authorized live scenarios.
+
+### 5. Additional latest consultant-facing improvements on PR #10
+
+On branch `fix/gemini-quality-preserving-selection` (stacked on the conversational-search work; PR #10 remains draft/unmerged according to the latest recorded handoff):
+
+- **Evidence-backed recommendations as product cards:** when the user asks which previously found item is recommended, `ProductAssistant` returns only IDs grounded in verified listing quotes and the original candidate set. `handlers.search.send_product_advice` checks those IDs against the currently shown/cached products, sends the explanation and renders the real existing product cards. It performs no new AliExpress search and does not let Gemini invent products.
+- **Search-section welcome text:** `handlers/start.py::SEARCH_PROMPT` was rewritten to introduce the bot clearly as an AliExpress AI shopping consultant, describe its real capabilities and give a concrete natural-language example. The one-time first-start `WELCOME_MESSAGE` and other sections were not changed.
+- These improvements do not constitute implementation of dynamic cross-selling or new affiliate monetization.
+
+### 6. Verification and branch safety at this handoff
+
+- Target branch for the latest consultant changes: `fix/gemini-quality-preserving-selection`; PR #10 is not approved for merge. Do not merge it, retarget it, or touch `main` without explicit owner approval.
+- The local focused suite previously had a user-reported fixture/assertion failure after the model-policy correction. The assistant has not run the latest local checkout, the latest PR CI, or live Gemini/AliExpress/Telegram tests for the current head. Do not claim a green test suite or proven quality parity.
+- The evidence-backed card and welcome-text changes were recorded as committed to PR #10; tests after those changes were not run in the recorded handoff.
+- Preserve user-local edits, `.env`, local database, logs and backup folders. Never expose secrets or include them in repository documentation.
+- Continue updating this file after every substantial implementation with exact files, commit SHA, verification actually performed, unresolved issues and current PR status.
