@@ -5051,3 +5051,15 @@ Source inspection on this branch confirms:
 - Extended `SaleEvent` with optional `start_date`/`end_date`. Black Friday is seeded with the known start date `2026-11-19`; end date intentionally remains unknown.
 - Added validated ISO date config keys and `manage_sales.py dates <event_id> <YYYY-MM-DD> [YYYY-MM-DD]` so an administrator can update dates in the existing `bot_config` store without creating another admin panel.
 - `/admin → Акции` displays start/end dates; the public sale landing page displays configured dates while still opening only the admin-configured partner landing page. No campaign product cards or discounts are inferred.
+
+
+### Monetization architecture document and current stage status (2026-11-08)
+- Added root `MONETIZATION_ARCHITECTURE.md` defining measurement boundaries, order import, coupon/discount fallbacks, internal campaign calendar, opt-in cross-sell, admin scope, server operations and release gates.
+- Stage 0: repository work remains isolated from PR #10 and `main`; local user worktree status was not inspected and must not be changed. The local audit worktree is no longer part of the required workflow.
+- Stage 1: campaign-list call is live-success/zero rows; campaign-product method remains gated by exact campaign name and dates; order-list method has a corrected 30-day/four-status diagnostic but has not yet been live-run. The first 24-hour order response is inconclusive because of the date-zone issue.
+- Stage 2: source-level inventory and report complete.
+- Stage 3: architecture decision is documented in `MONETIZATION_ARCHITECTURE.md`; implementation uses the existing analytics, `bot_config`, `/admin` and SQLite layers.
+- Stage 4: implemented link-request analytics, order ledger/manual sync, admin monetization section and campaign date metadata. Dynamic coupon catalogue, confirmed campaign product cards and opt-in cross-sell remain gated/not yet complete.
+- Stage 5: verified-backup/restore utility and daily systemd timer files are in the repository. Production install, restore drill and safe automated code-update/rollback remain pending server access.
+- Stage 6: focused tests and workflow are committed; GitHub Actions result is not exposed by the connected status API, so tests are not claimed as passing. README and this context are updated.
+- Premium/Stars/subscriptions/paid limits remain deferred.
