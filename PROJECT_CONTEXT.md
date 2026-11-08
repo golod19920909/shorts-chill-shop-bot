@@ -5041,3 +5041,7 @@ Source inspection on this branch confirms:
 ### GitHub branch/PR safety note (2026-11-08)
 - Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is 32 commits ahead of that base and not behind it.
 - A draft PR #11 was briefly created against `main`; comparison showed `main` is far behind this development base and the PR would have included unrelated Gemini/conversational changes. PR #11 was immediately closed without merging. Do not reopen it or target `main` while PR #10 is still separate. Keep the audit branch isolated; integrate only after the correct base is agreed.
+
+
+### Admin API capability wording
+- `/admin → AliExpress API` now explicitly distinguishes the callable-but-empty featured-campaign method, the unprobed campaign-products method, and the order-list implementation whose live data is still pending a corrected PST probe. No unverified capability is labelled as live-confirmed.
