@@ -102,7 +102,7 @@ class Settings:
     #: consistent quality bar across dialogue, selection, product answers and
     #: photo understanding. GEMINI_PRIMARY_MODEL is the only primary override;
     #: GEMINI_RESERVE_MODEL selects the one reserve used after eligible errors.
-    #: Account-wide quota/rate-limit errors never trigger the reserve.
+    #: Model-scoped quota/rate-limit errors get one reserve attempt; if both models are limited, stop.
     gemini_fast_model: str = "gemini-3.1-flash-lite"
     gemini_smart_model: str = "gemini-3.1-flash-lite"
     gemini_vision_model: str = "gemini-3.1-flash-lite"

@@ -596,6 +596,70 @@ async def _narrow_shown_results(
         )
     return True
 
+async def send_product_advice(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat_id: int,
+    advice,
+    source_outcome: SearchOutcome | None,
+    source_products: list[Product],
+    *,
+    user_id: int | None = None,
+    telegram_id: int | None = None,
+    conversation_state: ConversationEngineState | None = None,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> str | None:
+    """Send grounded advice and render its selected real product as a card.
+
+    Recommendation IDs have already been validated by AIService and mapped
+    back to the supplied Product objects by ProductAssistant. This final
+    membership check keeps the card path closed to anything outside the
+    current user's cached result set. No provider search is performed.
+    """
+
+    text = (getattr(advice, "text", None) or "").strip()
+    if not text:
+        return None
+    await context.bot.send_message(
+        chat_id,
+        text,
+        parse_mode="HTML",
+        reply_markup=reply_markup or back_to_menu_keyboard(),
+    )
+
+    if conversation_state is None:
+        candidate_state = context.user_data.get("_convsearch_state")
+        if isinstance(candidate_state, ConversationEngineState):
+            conversation_state = candidate_state
+
+    allowed_ids = {product.product_id for product in source_products}
+    recommended = [
+        product
+        for product in getattr(advice, "recommended_products", [])
+        if product.product_id in allowed_ids
+    ]
+    if not recommended or source_outcome is None:
+        return None
+
+    recommendation_outcome = SearchOutcome(
+        request=source_outcome.request,
+        products=recommended,
+        searched_marketplaces=list(source_outcome.searched_marketplaces),
+        failed_marketplaces=list(source_outcome.failed_marketplaces),
+        unavailable_marketplaces=list(source_outcome.unavailable_marketplaces),
+    )
+    shown = await send_search_results(
+        context,
+        chat_id,
+        recommendation_outcome,
+        pre_curated=True,
+        follow_up=False,
+        conversation_state=conversation_state,
+    )
+    if shown:
+        context.user_data["last_shown_session"] = shown
+    return shown
+
+
 async def _answer_over_shown(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
@@ -660,8 +724,15 @@ async def _answer_over_shown(
         return False
     if isinstance(conversation_state, ConversationEngineState) and record_user_text:
         conversation_state.record_turn(record_user_text)
-    await context.bot.send_message(
-        chat_id, advice.text, parse_mode="HTML", reply_markup=back_to_menu_keyboard()
+    await send_product_advice(
+        context,
+        chat_id,
+        advice,
+        source_outcome,
+        products,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        conversation_state=conversation_state,
     )
     # Persist the pending question only after Telegram confirms delivery; an
     # undelivered prompt must not consume the user's next ordinary message.

@@ -329,12 +329,18 @@ async def consume_pending_question(
     if assistant is None:  # pragma: no cover - wiring guarantees it
         return False
 
-    advice = await assistant.answer(
-        question, _products_for_question(context, session_id, index, product)
+    question_products = _products_for_question(
+        context, session_id, index, product
     )
-    await message.reply_text(
-        advice.text,
-        parse_mode="HTML",
+    advice = await assistant.answer(question, question_products)
+    from handlers.search import send_product_advice  # local: avoids a cycle
+
+    await send_product_advice(
+        context,
+        message.chat_id,
+        advice,
+        common.get_cached_outcome(context, session_id),
+        question_products,
         reply_markup=_result_keyboard(session_id, index),
     )
     return True

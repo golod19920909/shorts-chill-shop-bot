@@ -4650,3 +4650,128 @@ A local regression run on `fix/conversational-search-completion-20` exposed that
 - The previously reported 2,161-pass / 2-failure local run is historical evidence only. Re-run focused and repository CI suites on the current branch head before claiming this correction is verified.
 - resp_code=405 is classified as an empty successful result only when the API message explicitly says «The result is empty». Other 405 business responses remain errors. Existing evidence does not identify a single root cause for every 405; no request/signature/parameter fix is claimed. Capture the exact sanitized response code/message and route context for any other 405 before changing request construction.
 - Live AliExpress catalog quality, actual 20-card selection, and Telegram delivery remain unverified until owner-run live testing.
+
+## Gemini model-swap quality follow-up (2026-11-08)
+
+- The intended model policy remains **Gemini 3.1 Flash-Lite primary / Gemini 3.8 Flash reserve**. The primary/reserve roles are not being globally reversed.
+- Live Telegram logs exposed a gap in the selection chain: when Flash-Lite returned a valid but short selection (for example, 8 of the requested 20), the engine ran its one continuation pass using the same primary model. Because the response was valid, the error-based reserve fallback was not triggered. Thus the stronger reserve model was never consulted for an under-filled but valid result.
+- The bounded continuation now explicitly asks AIService.select_conversation_candidates to use the configured reserve model. The first pass remains on Flash-Lite; only the second pass after a short or empty valid result is routed to Flash. This avoids treating a conservative empty Lite answer as a definitive no-match before the reserve model has reviewed the same remaining pool. The existing shared selection deadline, candidate-ID exclusion, hard requirements, evidence validation, and one-continuation limit remain in force.
+- Corrected selection-returned diagnostics so the second-pass count is not overwritten by the first-pass count.
+- Added tests for AIService model routing and engine continuation flag/diagnostics. No deterministic padding or relaxation of evidence/type/exclusion gates was introduced.
+- New stacked branch: fix/gemini-quality-preserving-selection, based on PR #9 head 67f9cb8684504be0ddfbc2d1e3a0ef5f4edd98bd. Changes are not merged. Tests have not been executed in a local checkout; GitHub status must be checked after opening the stacked draft PR. Live AliExpress/Telegram verification is still required.
+
+
+### Quality-preserving model-role adjustment (2026-11-08)
+
+- The owner clarified that the model swap must not reduce the product-selection quality previously observed with Gemini 3.8 Flash.
+- Therefore the quality-critical conversational product-selection stage is explicitly routed to the configured reserve model (Gemini 3.8 Flash) on its first pass as well as its bounded continuation. Gemini 3.1 Flash-Lite remains the primary fast model for conversation-turn interpretation and other lightweight text tasks.
+- This deliberately prioritizes preserving selection quality over forcing Flash-Lite to perform the semantic product-selection stage. No product-type, feature-evidence, compatibility, exclusion, or ranking gate is relaxed. No result padding is introduced.
+- PR #10 remains a draft and unmerged. Local and live verification have not been performed by the assistant; do not claim tests pass.
+
+## Owner-confirmed Gemini model policy — corrected implementation (2026-11-08)
+
+The owner's explicit requirement supersedes the earlier quality-follow-up notes above:
+
+- **Gemini 3.1 Flash-Lite is the sole primary model for every AI task**: conversation interpretation, query parsing, product selection/ranking, product advice/questions, comparison evidence, and photo understanding.
+- **Gemini 3.8 Flash is reserve-only.** It is never selected because Flash-Lite returns a valid short list, an empty valid selection, or a conservative answer. Those are model decisions, not proof of outage.
+- The reserve is attempted only inside `AIService._generate` after a real primary request failure: model unavailable (404/503 or equivalent), server error, transport/network error, client timeout, or quota/rate-limit response (one reserve attempt because limits may be model-scoped). If the reserve is also limited, stop. Invalid credentials and invalid requests do not trigger a reserve because switching models cannot repair them.
+- Every bounded product-selection continuation stays on Flash-Lite. A short/empty valid first answer may receive the existing single continuation on Flash-Lite; it must not route to 3.8.
+- Existing product-type, identity evidence, mandatory-feature evidence, compatibility, exclusion, budget, deduplication and ranking gates remain unchanged. Do not loosen them to make the result count look larger.
+- PR #10 branch `fix/gemini-quality-preserving-selection` is being corrected to this policy. Draft only; not merged. Local/live test execution is not claimed. The owner reported the focused local suite had one fixture assertion failure; do not broaden work into unrelated test rewrites.
+
+
+### Evidence-backed product recommendations render as cards (2026-11-08)
+
+When a user asks which previously found product is recommended, the product
+assistant now carries the exact product IDs associated with its verified
+listing quotes from Gemini's answer. A recommendation returns its one selected
+ID; an evidence-based multi-product answer returns every referenced ID.
+ProductAssistant maps those IDs only to the original Product objects it
+was given. handlers.search.send_product_advice performs a final membership
+check against the current cached/shown set, sends the factual explanation,
+then renders the referenced real listing(s) through the existing
+send_search_results card renderer (photo, marketplace data, price and
+navigation). This is a presentation/delivery enhancement only: no new
+AliExpress search, no model-created product, no weakened evidence checks,
+and no change to the Flash-Lite primary / 3.8 reserve policy. The legacy
+text-only AIService.answer_product_question facade remains available.
+
+
+### Уточнение приветствия раздела «Умный поиск» (2026-11-08)
+- В `handlers/start.py` обновлён `SEARCH_PROMPT`, который показывается при открытии раздела «Умный поиск». Текст теперь прямо представляет бота как ИИ-консультанта по товарам AliExpress и кратко объясняет его реальные задачи: поиск по обычному описанию, подбор по бюджету и пожеланиям, учёт характеристик/рейтинга/совместимости/ограничений, сравнение и ответы на вопросы о найденных товарах.
+- Добавлен один более содержательный пример запроса и приглашение общаться обычным языком. HTML-разметка ограничена поддерживаемыми Telegram-тегами `<b>`.
+- Одноразовое приветствие первого запуска (`WELCOME_MESSAGE`) и другие разделы не менялись. Это изменение касается только экрана раздела «Умный поиск».
+- Изменение внесено в PR #10, ветка `fix/gemini-quality-preserving-selection`; локальный запуск бота и тесты после этого изменения не выполнялись.
+
+
+## Project handoff update — monetization inventory and consultant model switch (2026-11-08)
+
+This section consolidates the current monetization baseline and supersedes any older conflicting Gemini model-role notes below.
+
+### 1. Monetization features already present in the project
+
+The existing repository already contains several user-facing promotional mechanisms. They must be preserved and extended rather than rebuilt:
+
+- **Product-level promo information:** the AliExpress product-processing/card pipeline extracts and displays the existing `promo_code_info`. This is separate from the standalone «🎟 Промокоды» screen.
+- **Standalone «🎟 Промокоды» screen:** `config/promo.py` supplies one fixed `PROMO_REFERRAL_URL`; `handlers/promo_codes.py` renders the landing screen and its Telegram URL button. It is not a dynamic coupon catalogue. Legacy `pcamp:<index>` callbacks are handled safely; do not restore the removed campaign list or treat internal campaign IDs as coupon codes.
+- **Sales events:** `config/sales.py` contains a reusable event registry (currently the configured Black Friday event). Enabled state and destination are stored in the existing `bot_config` key/value configuration (`sale.<event_id>.enabled`, `sale.<event_id>.url`). `handlers/sales.py` provides the landing screen, admin-aware visibility, server-side rejection of forged callbacks for disabled events, and safe HTTP(S) URL validation. It does not generate product feeds or claim historical discounts.
+- **«🔥 Горячие скидки»:** `config/hot_discounts.py` defines four fixed partner destinations: Super discounts, Brand discounts, Product bundles and Coins discounts. This is a static partner-link section, not a live verified discount feed.
+- **Existing analytics foundation:** `services/analytics.py` contains an event vocabulary distinguishing `affiliate_clicked` from `external_clicked`, with admin-facing labels and historical aggregation. However, direct Telegram «Купить» URL buttons do not report button presses to the bot, so the affiliate-click producer is dormant for that direct-button path. Card display or opening a Telegram URL button must not be counted as a confirmed click, order, sale or commission.
+- **Existing admin panel:** `/admin` and its existing AI diagnostics/analytics screens are the place to extend; do not create a second admin interface. Admin-only checks and existing DB/config patterns must be retained.
+- **Gemini cost analytics (separate from affiliate revenue analytics):** the Gemini usage analytics work added `services/gemini_pricing.py`, durable per-attempt `gemini_usage` persistence, request grouping, model/operation aggregation, admin Telegram commands (`/stats_today`, `/stats_week`, `/stats_month`, `/stats_models`, `/stats_requests`) and an optional read-only HTTP Basic dashboard at `http://127.0.0.1:8765` (disabled unless configured). The dashboard is loopback-bound by default and uses `ANALYTICS_DASHBOARD_PASSWORD`. Its focused CI was recorded as passing on PR #8's earlier head; verify current branch/PR CI before making claims about the latest head. These metrics measure AI usage/cost, not AliExpress orders or affiliate commission.
+
+### 2. Monetization work not yet implemented
+
+The monetization audit notes recorded in this file state that the targeted source audit was started/completed on 2026-11-06, but implementation of the new monetization workstream had **not** started at that handoff. The following remain future work unless separately verified in source:
+
+- Dynamic cross-selling after the main consultation, with user consent before searching for add-on products.
+- New reliable affiliate-click measurement/redirect tracking. Compatibility with Telegram and AliExpress attribution, open-redirect protection and signed-URL integrity must be assessed first.
+- Verified Portals order, confirmed-purchase and commission reporting/import. Clicks must never be treated as sales.
+- Dynamic coupon/deal retrieval from official AliExpress capabilities. Current credentials/permissions and response fields must be verified; no unsupported coupon API or seller-coupon availability may be assumed.
+- Expanded admin partner-funnel, promo and cross-sell metrics/settings.
+- Full commercial server deployment/update/backup/rollback work.
+- Do not duplicate the existing promo, sales, hot-discount, analytics or admin mechanisms.
+
+The following official/current baseline distinctions are important:
+- Product-level promo data exists, but the standalone promo screen is a fixed referral destination, not a coupon database.
+- Hot discounts are four configured partner destinations, not a dynamically checked discount feed.
+- Black Friday is represented by reusable event configuration and a landing page, not by an automated discounted-product feed.
+- Affiliate-click event names exist, but direct Telegram URL-button presses are not observable by the current handler flow.
+- Partner orders and commissions are not established by click analytics.
+- The new commercial workstream must continue from its agreed Stage A audit and implementation plan; do not jump directly into broad code changes.
+
+### 3. Premium subscription — explicitly deferred
+
+The owner clarified on 2026-11-08 that Premium subscriptions will be considered only after the bot gains meaningful popularity. For the current roadmap:
+- Keep the bot useful and free for users.
+- Do not implement subscription plans, paid limits, Telegram Stars, payment processing, renewal or subscription administration now.
+- Do not spend current implementation effort on Free/Premium entitlement enforcement.
+- Keep future extensibility in mind without building subscription infrastructure prematurely.
+
+### 4. Consultant model switch — authoritative policy (2026-11-08)
+
+The owner's latest instruction is to move the consultant's AI workload to **Gemini 3.1 Flash-Lite as the sole primary model**, while preserving the previous quality safeguards and keeping **Gemini 3.8 Flash as reserve-only**.
+
+- Gemini 3.1 Flash-Lite is primary for every AI role: conversation-turn interpretation, query parsing, candidate selection/ranking, product advice/questions, comparisons/evidence review and photo understanding.
+- Gemini 3.8 Flash is not a second-stage quality model and must not be invoked just because Flash-Lite returns a valid short list, an empty valid selection or a conservative answer.
+- Gemini 3.8 Flash may be attempted only after a genuine primary request failure handled by `AIService._generate`: model unavailable/server error, transport or network error, client timeout, or quota/rate-limit failure. Invalid credentials and invalid requests are not recoverable by switching models and must not trigger reserve fallback. If reserve also fails/is rate-limited, stop.
+- The one bounded continuation for a valid but short/empty candidate selection stays on Flash-Lite. No deterministic padding and no weakening of product identity, evidence quotes, required-feature, compatibility, exclusion, budget, deduplication or ranking gates.
+- This corrected policy supersedes earlier notes in this file suggesting that the reserve model should perform first-pass candidate selection or the continuation pass. Those notes are historical and must not be treated as current instructions.
+- The migration must preserve the Option C architecture, dialogue context, search/retrieval strategy, candidate pool and Telegram rendering. Do not restore the legacy ShoppingAgent loop or introduce category/keyword patches.
+- The owner's quality requirement is that the model change must not silently reduce the recommendation quality previously observed with 3.8. This is an acceptance requirement, **not a verified result**: offline tests do not prove semantic parity, live catalogue quality, latency or cost. Do not claim parity until it has been evaluated honestly in owner-authorized live scenarios.
+
+### 5. Additional latest consultant-facing improvements on PR #10
+
+On branch `fix/gemini-quality-preserving-selection` (stacked on the conversational-search work; PR #10 remains draft/unmerged according to the latest recorded handoff):
+
+- **Evidence-backed recommendations as product cards:** when the user asks which previously found item is recommended, `ProductAssistant` returns only IDs grounded in verified listing quotes and the original candidate set. `handlers.search.send_product_advice` checks those IDs against the currently shown/cached products, sends the explanation and renders the real existing product cards. It performs no new AliExpress search and does not let Gemini invent products.
+- **Search-section welcome text:** `handlers/start.py::SEARCH_PROMPT` was rewritten to introduce the bot clearly as an AliExpress AI shopping consultant, describe its real capabilities and give a concrete natural-language example. The one-time first-start `WELCOME_MESSAGE` and other sections were not changed.
+- These improvements do not constitute implementation of dynamic cross-selling or new affiliate monetization.
+
+### 6. Verification and branch safety at this handoff
+
+- Target branch for the latest consultant changes: `fix/gemini-quality-preserving-selection`; PR #10 is not approved for merge. Do not merge it, retarget it, or touch `main` without explicit owner approval.
+- The local focused suite previously had a user-reported fixture/assertion failure after the model-policy correction. The assistant has not run the latest local checkout, the latest PR CI, or live Gemini/AliExpress/Telegram tests for the current head. Do not claim a green test suite or proven quality parity.
+- The evidence-backed card and welcome-text changes were recorded as committed to PR #10; tests after those changes were not run in the recorded handoff.
+- Preserve user-local edits, `.env`, local database, logs and backup folders. Never expose secrets or include them in repository documentation.
+- Continue updating this file after every substantial implementation with exact files, commit SHA, verification actually performed, unresolved issues and current PR status.

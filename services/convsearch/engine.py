@@ -1259,7 +1259,7 @@ class ConversationSearchEngine:
         # the shared deadline prevents an unbounded Gemini loop.
         decision.report["ai_first_pass_selected"] = len(selected)
         decision.report["ai_second_pass"] = "not_needed"
-        if selected_ids and len(selected) < wanted:
+        if isinstance(selected_ids, list) and len(selected) < wanted:
             remaining_pool = [
                 product for product in selector_pool
                 if product.product_id and product.product_id not in seen
@@ -1271,6 +1271,10 @@ class ConversationSearchEngine:
             if remaining_pool and remaining_wanted > 0:
                 second_kwargs = dict(selector_kwargs)
                 second_kwargs["wanted"] = remaining_wanted
+                # A valid but short/empty selection is not a model outage.
+                # Keep the continuation on the same primary model; _generate
+                # alone may invoke the reserve after a real request failure.
+                decision.report["ai_second_pass_model"] = "primary"
                 second_kwargs["identity_review_ids"] = [
                     product_id for product_id in semantic_review_ids
                     if product_id in remaining_ids
@@ -1322,7 +1326,6 @@ class ConversationSearchEngine:
         # listing fits) from an unusable response (None). Respect that
         # explicit no-match decision: falling back here would re-display the
         # very candidates Gemini just rejected as irrelevant.
-        decision.report["selection_returned_count"] = len(selected_ids)
         if not selected and selected_ids == []:
             decision.products = []
             decision.report["selection_validated_count"] = 0

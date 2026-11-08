@@ -116,10 +116,9 @@ STRICT_FILTER_RULES = """\
   релевантности запросу (сначала самое подходящее);"""
 
 
-#: Structured Google API statuses that mean the WHOLE KEY is out of
-#: quota/rate-limited. Another model cannot help, so the fallback model is
-#: deliberately not attempted - that would only burn more of the same
-#: account quota.
+#: Structured Google API quota/rate-limit statuses. Limits may be scoped
+#: to a model, so the configured reserve gets one attempt; if it is also
+#: rate-limited the chain stops without further retries.
 QUOTA_API_STATUSES = frozenset(
     {"RESOURCE_EXHAUSTED", "RATE_LIMITED", "TOO_MANY_REQUESTS"}
 )
@@ -311,7 +310,7 @@ def _classify_gemini_error(error: BaseException) -> str:
     Returns one of:
 
 
-    * ``quota``    - HTTP 429 / RESOURCE_EXHAUSTED (account-wide; no fallback);
+    * ``quota``    - HTTP 429 / RESOURCE_EXHAUSTED (one reserve attempt);
     * ``auth``     - HTTP 401/403, UNAUTHENTICATED / PERMISSION_DENIED / ...;
     * ``model``    - THIS model is unusable: 404 NOT_FOUND, 503 UNAVAILABLE
                      or an explicitly "unsupported" model - the only kind
@@ -1747,6 +1746,9 @@ class AIService:
     ) -> list[str] | None:
         """Select grounded candidates; uncertain claims require listing quotes.
 
+        Every selection pass uses the configured primary model. The reserve is
+        attempted only by _generate when the primary request itself fails.
+
         Gemini returns exact evidence snippets alongside ids. This method
         verifies every snippet against the supplied title/description before
         an id can leave the AI boundary. Category labels are deliberately not
@@ -1897,6 +1899,10 @@ seller_terms: {seller_terms_json}
             len(products_json),
             len(prompt),
             (time.perf_counter() - prompt_build_started) * 1000,
+        )
+        logger.info(
+            "Gemini conversation selection model route: pass=primary model=%s",
+            self.fast_model,
         )
         raw = await self._generate(
             prompt,
@@ -2189,17 +2195,18 @@ seller_terms: {seller_terms_json}
             verified.append((aspect, first_quote, second_quote))
         return verified or None
 
-    async def answer_product_question(
+    async def answer_product_question_with_recommendation(
         self, question: str, products: list[Product]
-    ) -> str | None:
-        """Build an answer only from exact quotes verified against listings.
+    ) -> tuple[str | None, list[str]]:
+        """Return grounded answer text and validated referenced product IDs.
 
         Gemini selects relevant evidence; the application, not the model,
-        constructs the factual text delivered to Telegram.
+        constructs factual text and validates every recommendation against
+        the supplied marketplace listings.
         """
 
         if not self.is_available or not products or not (question or "").strip():
-            return None
+            return None, None
 
         payloads = [
             product_facts(product) for product in products[:MAX_PRODUCTS_IN_PROMPT]
@@ -2221,11 +2228,11 @@ seller_terms: {seller_terms_json}
                 )
         except TimeoutError:
             logger.info("Gemini product-question answer timed out; using safe fallback")
-            return None
+            return None, None
         payload = self._extract_json_object(raw) if raw else None
         claims = payload.get("claims") if isinstance(payload, dict) else None
         if not isinstance(claims, list):
-            return None
+            return None, None
 
         by_id = {
             str(item.get("id")): item
@@ -2270,7 +2277,8 @@ seller_terms: {seller_terms_json}
                 return (
                     "По вашему запросу наиболее подходящим выглядит "
                     f"<b>{title}</b>. В карточке указано: {quotes} "
-                    "Вывод основан на тексте карточки AliExpress, а не на независимой проверке качества."
+                    "Вывод основан на тексте карточки AliExpress, а не на независимой проверке качества.",
+                    str(recommended_id),
                 )
 
         rendered: list[str] = []
@@ -2311,7 +2319,7 @@ seller_terms: {seller_terms_json}
             if len(rendered) >= 8:
                 break
         if rendered:
-            return "По данным карточек AliExpress: " + " ".join(rendered)
+            return "По данным карточек AliExpress: " + " ".join(rendered), None
 
         # If the buyer asks for a winner without saying what matters, ask
         # one short follow-up instead of pretending the catalogue lacks data.
@@ -2323,8 +2331,19 @@ seller_terms: {seller_terms_json}
                 and clarification.count("?") == 1
                 and not re.search(r"https?://|www\.|<[^>]+>|\{", clarification, re.IGNORECASE)
             ):
-                return clarification
-        return None
+                return clarification, None
+        return None, None
+
+
+    async def answer_product_question(
+        self, question: str, products: list[Product]
+    ) -> str | None:
+        """Backward-compatible text-only facade for existing callers."""
+
+        answer, _recommended_product_id = (
+            await self.answer_product_question_with_recommendation(question, products)
+        )
+        return answer
 
     def _validated_sentences(
         self, text: str | None, facts: object
@@ -2673,15 +2692,14 @@ seller_terms: {seller_terms_json}
         model first, then (implicitly) the configured fallback model. The
         chain is deliberately short and quota-aware:
 
-        - a **quota/rate-limit** error stops immediately - the limit is
-          account-wide and trying more models would only waste quota;
+        - a **quota/rate-limit** error gets one reserve attempt because
+          provider limits may be model-scoped;
         - a **model-unavailable** error (404/503) moves on to the fallback
           model;
-        - a **client timeout** also moves to the fallback model for bounded
-          conversation-turn interpretation and candidate selection; both use
-          short per-attempt limits and an outer wall-clock deadline;
-        - quota/rate limits stop immediately, and timeouts in other operations
-          keep the existing no-retry policy. All failures are swallowed so the
+        - a **client timeout**, server failure, transport failure or unavailable
+          primary model moves to the configured reserve for every AI operation;
+        - invalid credentials and invalid requests stop immediately because
+          switching models cannot repair them. All failures are swallowed so the
           bot never crashes because Gemini is down.
 
         Every failed attempt logs ONE detail fragment built by
@@ -2776,12 +2794,8 @@ seller_terms: {seller_terms_json}
                     error=True,
                 )
                 kind = _classify_gemini_error(exc)
-                consultant_operation = operation in {
-                    "conversation_selection", "conversation_turn"
-                }
                 will_fallback = index + 1 < len(chain) and (
-                    kind in {"model", "server", "transport"}
-                    or (kind == "timeout" and consultant_operation)
+                    kind in {"model", "server", "transport", "timeout", "quota"}
                 )
                 detail = _format_gemini_error(
                     exc,
@@ -2790,10 +2804,10 @@ seller_terms: {seller_terms_json}
                     will_fallback=will_fallback,
                     api_key=self._api_key,
                 )
-                if kind == "quota":
+                if kind == "quota" and not will_fallback:
                     logger.warning(
-                        "Gemini quota/rate limit reached; not trying another model"
-                        " (%s)",
+                        "Gemini quota/rate limit reached on primary and reserve; "
+                        "no further model attempts (%s)",
                         detail,
                     )
                     self.generate_failed += 1
@@ -2802,6 +2816,13 @@ seller_terms: {seller_terms_json}
                     if kind == "model":
                         logger.warning(
                             "Gemini model %s is unavailable; trying fallback model %s (%s)",
+                            model,
+                            chain[index + 1],
+                            detail,
+                        )
+                    elif kind == "quota":
+                        logger.warning(
+                            "Gemini model %s reached its quota; trying reserve model %s (%s)",
                             model,
                             chain[index + 1],
                             detail,

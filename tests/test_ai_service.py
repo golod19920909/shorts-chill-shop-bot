@@ -358,6 +358,41 @@ class GroundedProductQuestionTests(unittest.TestCase):
         self.assertIn("Cordless drill", answer)
         self.assertIn("Includes two batteries", answer)
 
+    def test_grounded_recommendation_returns_the_real_product_id(self) -> None:
+        service = self._service(
+            '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
+            '{"field":"description","quote":"Includes two batteries"}]}}'
+        )
+        answer, product_ids = asyncio.run(
+            service.answer_product_question_with_recommendation(
+                "Какой лучше для работы без розетки?", self._products()
+            )
+        )
+        self.assertIn("наиболее подходящим выглядит", answer)
+        self.assertEqual(product_ids, ["item-1"])
+
+    def test_grounded_claims_return_every_referenced_product_id(self) -> None:
+        products = self._products() + [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="item-2",
+                title="Corded drill",
+                description="Includes a power cable",
+                product_url="https://example.com/item-2",
+            )
+        ]
+        service = self._service(
+            '{"claims":['
+            '{"product_id":"item-1","field":"description","quote":"Includes two batteries"},'
+            '{"product_id":"item-2","field":"description","quote":"Includes a power cable"}],'
+            '"recommendation":{"product_id":null,"evidence":[]}}'
+        )
+        answer, product_ids = asyncio.run(
+            service.answer_product_question_with_recommendation("Сравни их", products)
+        )
+        self.assertIn("По данным карточек AliExpress", answer)
+        self.assertEqual(product_ids, ["item-1", "item-2"])
+
     def test_recommendation_with_invented_evidence_is_not_accepted(self) -> None:
         service = self._service(
             '{"claims":[],"recommendation":{"product_id":"item-1","evidence":['
@@ -473,12 +508,16 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         service._client = object()
         service.captured_prompts = []
         service.captured_schemas = []
+        service.captured_models = []
+        service.fast_model = "gemini-3.1-flash-lite"
+        service.fallback_model = "gemini-3.8-flash"
 
         async def fake_generate(
             contents, *, models=None, operation="generate", response_schema=None
         ):
             service.captured_prompts.append(contents)
             service.captured_schemas.append(response_schema)
+            service.captured_models.append(models)
             self.assertEqual(operation, "conversation_selection")
             self.assertIn('"selections"', contents)
             return response
@@ -493,6 +532,17 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             title="Cordless screwdriver with 2 batteries",
             product_url="https://example.com/drill-1",
         )
+
+    def test_conversation_selection_uses_primary_model(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="cordless screwdriver"
+        ))
+        self.assertEqual(result, ["drill-1"])
+        self.assertEqual(service.captured_models[-1], ("gemini-3.1-flash-lite",))
 
     def test_selection_schema_requires_each_active_feature_evidence_field(self) -> None:
         service = self._service(
