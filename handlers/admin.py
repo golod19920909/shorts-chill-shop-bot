@@ -41,7 +41,7 @@ from keyboards.admin import (
     admin_sales_keyboard,
     admin_screen_keyboard,
 )
-from config.sales import DEFAULT_EVENT_ID, SALE_EVENTS, enabled_key, get_event, is_enabled_value
+from config.sales import DEFAULT_EVENT_ID, SALE_EVENTS, enabled_key, get_event, is_enabled_value, start_date_key, end_date_key
 from services import analytics
 from services.affiliate_orders import sync_recent_orders
 from datetime import datetime, timezone
@@ -770,14 +770,17 @@ async def _screen_sales(
 
     event = get_event(DEFAULT_EVENT_ID)
     title = event.title if event is not None else "Чёрная пятница"
+    database = common.get_database(context)
     try:
-        raw = await common.get_database(context).get_config(
+        raw = await database.get_config(
             enabled_key(DEFAULT_EVENT_ID)
         )
     except Exception:  # noqa: BLE001 - a read failure must not break the panel
         logger.exception("Failed to read sales state for the admin panel")
         raw = None
     enabled = is_enabled_value(raw)
+    start_date = (await database.get_config(start_date_key(DEFAULT_EVENT_ID))) or (event.start_date if event else None)
+    end_date = (await database.get_config(end_date_key(DEFAULT_EVENT_ID))) or (event.end_date if event else None)
 
     has_url = False
     try:
@@ -807,6 +810,7 @@ async def _screen_sales(
         f"• <code>python manage_sales.py enable {DEFAULT_EVENT_ID}</code>",
         f"• <code>python manage_sales.py disable {DEFAULT_EVENT_ID}</code>",
     ]
+    lines.extend(["", "Начало по календарю: " + common.escape(start_date or "—"), "Окончание по календарю: " + common.escape(end_date or "—")])
     return "\n".join(lines), admin_sales_keyboard(enabled)
 
 
