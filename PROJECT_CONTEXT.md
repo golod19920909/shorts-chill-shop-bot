@@ -5045,3 +5045,9 @@ Source inspection on this branch confirms:
 
 ### Admin API capability wording
 - `/admin → AliExpress API` now explicitly distinguishes the callable-but-empty featured-campaign method, the unprobed campaign-products method, and the order-list implementation whose live data is still pending a corrected PST probe. No unverified capability is labelled as live-confirmed.
+
+
+### Internal sales calendar date support (2026-11-08)
+- Extended `SaleEvent` with optional `start_date`/`end_date`. Black Friday is seeded with the known start date `2026-11-19`; end date intentionally remains unknown.
+- Added validated ISO date config keys and `manage_sales.py dates <event_id> <YYYY-MM-DD> [YYYY-MM-DD]` so an administrator can update dates in the existing `bot_config` store without creating another admin panel.
+- `/admin → Акции` displays start/end dates; the public sale landing page displays configured dates while still opening only the admin-configured partner landing page. No campaign product cards or discounts are inferred.
