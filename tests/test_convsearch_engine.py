@@ -1028,7 +1028,6 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             calls.append({
                 "ids": [item.product_id for item in pool],
                 "wanted": kwargs["wanted"],
-                "use_reserve_model": kwargs.get("use_reserve_model", False),
             })
             if len(calls) == 1:
                 return [f"continue-{i}" for i in range(4)]
@@ -1056,8 +1055,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(selector.await_count, 2)
         self.assertEqual(calls[0]["wanted"], 20)
         self.assertEqual(calls[1]["wanted"], 16)
-        self.assertTrue(calls[1]["use_reserve_model"])
-        self.assertEqual(decision.report["ai_second_pass_model"], "configured_reserve")
+        self.assertEqual(decision.report["ai_second_pass_model"], "primary")
         self.assertEqual(len(calls[1]["ids"]), 16)
         self.assertFalse(set(calls[0]["ids"][:4]) & set(calls[1]["ids"]))
         self.assertEqual(decision.report["ai_first_pass_selected"], 4)
@@ -1069,7 +1067,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             [f"continue-{i}" for i in range(20)],
         )
 
-    async def test_empty_primary_selection_is_rechecked_by_reserve_model(self):
+    async def test_empty_primary_selection_is_rechecked_by_primary_model(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="selector-empty-reserve")
         candidates = [product(f"empty-{i}", "Рыболовная катушка") for i in range(25)]
@@ -1078,7 +1076,6 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         async def select_batch(pool, **kwargs):
             calls.append({
                 "ids": [item.product_id for item in pool],
-                "use_reserve_model": kwargs.get("use_reserve_model", False),
             })
             if len(calls) == 1:
                 return []
@@ -1098,8 +1095,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
         self.assertEqual(len(calls), 2)
-        self.assertFalse(calls[0]["use_reserve_model"])
-        self.assertTrue(calls[1]["use_reserve_model"])
+        self.assertEqual(decision.report["ai_second_pass_model"], "primary")
         self.assertEqual([item.product_id for item in decision.products], ["empty-0"])
         self.assertEqual(decision.report["ai_second_pass_selected"], 1)
 
