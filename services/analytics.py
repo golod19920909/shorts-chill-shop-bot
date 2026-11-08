@@ -43,6 +43,7 @@ EVENT_PRODUCT_SHOWN = "product_shown"
 #: admin panel keeps rendering historical rows, and ``get_top_products``
 #: still aggregates ``affiliate_clicked``.
 EVENT_BUY_CLICKED = "buy_clicked"
+EVENT_AFFILIATE_LINK_REQUESTED = "affiliate_link_requested"
 
 #: The product link was actually handed over to the user (dormant - see
 #: the note above).
@@ -88,6 +89,7 @@ KNOWN_EVENTS: tuple[str, ...] = (
     EVENT_PRODUCTS_SHOWN,
     EVENT_PRODUCT_SHOWN,
     EVENT_BUY_CLICKED,
+    EVENT_AFFILIATE_LINK_REQUESTED,
     EVENT_PRODUCT_OPENED,
     EVENT_ERRORS,
     EVENT_FAVORITE_ADDED,
@@ -111,7 +113,8 @@ EVENT_LABELS: dict[str, str] = {
     EVENT_SEARCH_FAILED: "Поисков без результатов",
     EVENT_PRODUCTS_SHOWN: "Показов результатов (наборов товаров)",
     EVENT_PRODUCT_SHOWN: "Показов карточек (поштучно)",
-    EVENT_BUY_CLICKED: "Нажатий «Купить»",
+    EVENT_BUY_CLICKED: "Исторические нажатия «Купить»",
+    EVENT_AFFILIATE_LINK_REQUESTED: "Запросов партнёрской ссылки (не подтверждённые открытия)",
     EVENT_PRODUCT_OPENED: "Переходов к товару (ссылка выдана)",
     EVENT_ERRORS: "Внутренних ошибок",
     EVENT_FAVORITE_ADDED: "Добавлено в избранное",
