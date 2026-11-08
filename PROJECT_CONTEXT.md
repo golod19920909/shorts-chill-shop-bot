@@ -4775,3 +4775,54 @@ On branch `fix/gemini-quality-preserving-selection` (stacked on the conversation
 - The evidence-backed card and welcome-text changes were recorded as committed to PR #10; tests after those changes were not run in the recorded handoff.
 - Preserve user-local edits, `.env`, local database, logs and backup folders. Never expose secrets or include them in repository documentation.
 - Continue updating this file after every substantial implementation with exact files, commit SHA, verification actually performed, unresolved issues and current PR status.
+
+
+---
+
+## Project handoff update — AliExpress Portals API diagnostic preparation (2026-11-08)
+
+### Branch and files
+
+- A separate non-main branch was created from the current PR #10 head: `audit/aliexpress-portals-smoke-test`.
+- Base commit: `8188fe3dc3de9d841cf203df45b4f46ca0835c12`.
+- Added `scripts/diagnose_aliexpress_portals.py`.
+- Latest diagnostic-script commit: `6081888e57429970630426ce6bcd32293f3459be`.
+- PR #10 was not modified, merged, or retargeted. No changes were made to `main`.
+
+### Diagnostic behavior
+
+The script is a read-only live API probe and reuses the existing `config.settings.settings.aliexpress` credentials and `services.marketplaces.aliexpress_client.AliExpressClient` signer/gateway. It uses the existing Singapore endpoint `https://api-sg.aliexpress.com/sync`, disables retries for the diagnostic, does not open the database, and does not modify `.env`.
+
+It probes:
+
+1. `aliexpress.affiliate.featuredpromo.get` — lists featured campaign names/descriptions/product counts.
+2. `aliexpress.affiliate.featuredpromo.products.get` — optional second-stage probe; requires exact campaign name plus exact start/end timestamps supplied by the operator. The official reference specifies these campaign timestamps in PST. No campaign name or dates are guessed.
+3. `aliexpress.affiliate.order.list` — read-only query for the last 24 hours with status `Payment Completed`, first page only.
+
+The script intentionally does not print API keys, app secrets, signatures, raw order rows, buyer details, order IDs, or full product records. It prints only method outcomes, response field names, campaign labels/counts, limited product metadata-presence flags, and aggregate order counts. Run from repository root with:
+
+```powershell
+python -m scripts.diagnose_aliexpress_portals
+```
+
+For the campaign-products probe, pass all three arguments:
+
+```powershell
+python -m scripts.diagnose_aliexpress_portals --promo-name "EXACT_NAME" --promo-start-time "YYYY-MM-DD HH:MM:SS" --promo-end-time "YYYY-MM-DD HH:MM:SS"
+```
+
+### Official documentation findings
+
+- Official documentation exposes `aliexpress.affiliate.featuredpromo.get`, whose documented response contains `promo_name`, `promo_desc`, and `product_num`; it does not document campaign start/end dates in that response.
+- Official documentation exposes `aliexpress.affiliate.featuredpromo.products.get`, which accepts `promotion_name`, `promotion_start_time`, and `promotion_end_time` (PST) and documents real product fields including product ID/title, sale/original prices, discount, image URL, promotion link, and `promo_code_info`.
+- Official documentation exposes `aliexpress.affiliate.order.list`, with order status, tracking ID, product details, paid/finished amounts, and estimated paid/finished commissions.
+- The JAQ documentation pages currently surfaced for these methods are grouped under a section labelled `Affiliate API（已废弃）` (deprecated Affiliate API) and show the legacy TOP gateway `eco.taobao.com/router/rest`. The project's existing app key has previously been verified against `api-sg.aliexpress.com/sync`, while the legacy gateway is documented in the code as rejecting this app key. Therefore, documentation alone is insufficient: live behavior on the project's current gateway and key is the deciding check.
+- The featured-products documentation says campaign timestamps are PST. Do not pass Ukraine-local timestamps as if they were PST.
+
+### Verification status and next action
+
+- The diagnostic script was created and reviewed against the existing client response envelope; parsing handles the nested TOP `resp_result.result` structure.
+- No live API calls have been run from this environment because the owner's local `.env` and API credentials are not accessible here.
+- No local Python execution, pytest, CI run, or database operation was performed for this diagnostic branch.
+- Next: owner fetches this branch locally, checks the working tree is clean before switching, runs the first diagnostic, and shares the sanitized output. If `featuredpromo.get` returns campaign names but not dates, the owner supplies the exact PST dates shown in Portals for the specific campaign before running the optional products probe.
+- Do not implement campaign sync, order ingestion, or database changes until the live API results and permissions are confirmed and the audit findings are agreed.
