@@ -1342,6 +1342,63 @@ class Database:
             rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+    async def upsert_affiliate_orders(self, orders: list[dict[str, Any]]) -> int:
+        """Insert/update allowlisted affiliate order fields; never store buyer metadata."""
+        if not orders:
+            return 0
+        sql = (
+            "INSERT INTO affiliate_orders (order_key, order_id, sub_order_id, "
+            "order_status, tracking_id, product_id, product_title, commission_rate, "
+            "paid_amount, estimated_paid_commission, finished_amount, "
+            "estimated_finished_commission, settled_currency, created_time, "
+            "paid_time, finished_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(order_key) DO UPDATE SET "
+            "order_status=excluded.order_status, tracking_id=excluded.tracking_id, "
+            "product_id=excluded.product_id, product_title=excluded.product_title, "
+            "commission_rate=excluded.commission_rate, paid_amount=excluded.paid_amount, "
+            "estimated_paid_commission=excluded.estimated_paid_commission, "
+            "finished_amount=excluded.finished_amount, "
+            "estimated_finished_commission=excluded.estimated_finished_commission, "
+            "settled_currency=excluded.settled_currency, created_time=excluded.created_time, "
+            "paid_time=excluded.paid_time, finished_time=excluded.finished_time, "
+            "synced_at=datetime('now')"
+        )
+        rows = [
+            (
+                str(row['order_key']), str(row['order_id']), str(row['sub_order_id']),
+                str(row.get('order_status') or 'Unknown'), row.get('tracking_id'),
+                row.get('product_id'), row.get('product_title'), row.get('commission_rate'),
+                row.get('paid_amount'), row.get('estimated_paid_commission'),
+                row.get('finished_amount'), row.get('estimated_finished_commission'),
+                row.get('settled_currency'), row.get('created_time'),
+                row.get('paid_time'), row.get('finished_time'),
+            )
+            for row in orders if row.get('order_key') and row.get('order_id') and row.get('sub_order_id')
+        ]
+        if not rows:
+            return 0
+        async with self._connect() as conn:
+            await conn.executemany(sql, rows)
+            await conn.commit()
+        return len(rows)
+
+    async def get_affiliate_order_status_counts(self) -> dict[str, int]:
+        """Count stored affiliate order line items by the latest API status."""
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT order_status, COUNT(*) AS total FROM affiliate_orders "
+                "GROUP BY order_status ORDER BY order_status"
+            )
+            rows = await cursor.fetchall()
+        return {str(row['order_status']): int(row['total']) for row in rows}
+
+    async def count_affiliate_orders(self) -> int:
+        async with self._connect() as conn:
+            cursor = await conn.execute("SELECT COUNT(*) FROM affiliate_orders")
+            row = await cursor.fetchone()
+        return int(row[0]) if row else 0
+
     async def record_event(
         self,
         event_type: str,
