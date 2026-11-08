@@ -99,6 +99,10 @@ API_CAPABILITIES: tuple[str, ...] = (
     "поиск по фото работает через Gemini Vision → обычный текстовый поиск",
     "link.generate — не используется (нет tracking_id); affiliate-ссылки "
     "берутся из задокументированных полей ответа product.query/productdetail.get",
+    "featuredpromo.get — вызов принят, но в последней проверке список кампаний пустой",
+    "featuredpromo.products.get — live-проверка отложена до точного promo_name и PST-дат",
+    "order.list — реализована ограниченная ручная синхронизация; live-данные и доступ к полям "
+    "комиссий ещё требуют подтверждения исправленной PST-диагностикой",
 )
 
 
