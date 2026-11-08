@@ -30,6 +30,7 @@ from handlers import common
 from keyboards.admin import (
     ADMIN_SECTIONS,
     CB_ADMIN_API_TEST_KEY,
+    CB_ADMIN_AFFILIATE_SYNC_KEY,
     CB_ADMIN_MENU_KEY,
     CB_ADMIN_PREFIX,
     CB_ADMIN_REFRESH_KEY,
@@ -42,6 +43,8 @@ from keyboards.admin import (
 )
 from config.sales import DEFAULT_EVENT_ID, SALE_EVENTS, enabled_key, get_event, is_enabled_value
 from services import analytics
+from services.affiliate_orders import sync_recent_orders
+from datetime import datetime, timezone
 from utils.logging import get_recent_logs
 
 logger = logging.getLogger(__name__)
@@ -249,6 +252,13 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif key == CB_ADMIN_API_TEST_KEY:
         screen, page = "api", 0
         context.user_data[ADMIN_API_TEST_KEY] = await _run_api_test(context)
+    elif key == CB_ADMIN_AFFILIATE_SYNC_KEY:
+        screen, page = "affiliate", 0
+        try:
+            context.user_data["affiliate_sync_result"] = await _run_affiliate_sync(context)
+        except Exception as exc:
+            logger.exception("Affiliate order sync failed")
+            context.user_data["affiliate_sync_result"] = {"error": type(exc).__name__}
     elif key in (CB_ADMIN_SALE_ENABLE_KEY, CB_ADMIN_SALE_DISABLE_KEY):
         # The «Акции» toggle: flip the persisted state and re-render the screen
         # from the DB, so the label always reflects the stored value (never the
@@ -345,6 +355,7 @@ async def _render_screen(
         "popular": _screen_feed,
         "discounts": _screen_discounts,
         "sales": _screen_sales,
+        "affiliate": _screen_affiliate,
         "ai": _screen_ai,
         "api": _screen_api,
         "db": _screen_database,
@@ -809,6 +820,61 @@ async def _set_sale_enabled(context: ContextTypes.DEFAULT_TYPE, event_id: str, e
         logger.exception("Failed to persist sales state for %r", event_id)
 
 
+
+async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, page: int) -> tuple[str, Any]:
+    """Affiliate link-request and API-imported order status overview."""
+    database = common.get_database(context)
+    link_requests = await database.count_events(analytics.EVENT_AFFILIATE_LINK_REQUESTED)
+    order_total = await database.count_affiliate_orders()
+    statuses = await database.get_affiliate_order_status_counts()
+    last_sync = await database.get_config("affiliate_orders.last_sync_at")
+    last_result = context.user_data.get("affiliate_sync_result")
+    lines = [
+        "💰 <b>Партнёрская аналитика</b>",
+        "",
+        f"• Запросов партнёрской ссылки: <b>{link_requests}</b>",
+        f"• Строк заказов из AliExpress API: <b>{order_total}</b>",
+        f"• Последняя синхронизация: {common.escape(last_sync or 'ещё не выполнялась')}",
+        "",
+        "<b>Заказы по статусам:</b>",
+    ]
+    if statuses:
+        lines.extend(f"• {common.escape(status)}: {count}" for status, count in statuses.items())
+    else:
+        lines.append("• Данные пока не получены")
+    if isinstance(last_result, dict):
+        lines.extend(["", "<b>Последний запуск синхронизации:</b>"])
+        lines.append(f"• Получено строк: {int(last_result.get('rows_received', 0))}")
+        lines.append(f"• Сохранено/обновлено: {int(last_result.get('rows_saved', 0))}")
+        errors = [f"{name}: {data['error']}" for name, data in (last_result.get('statuses') or {}).items() if data.get('error')]
+        if errors:
+            lines.append("• Ошибки API: " + common.escape('; '.join(errors)))
+        truncated = last_result.get("truncated_statuses") or []
+        if truncated:
+            lines.append("• Не все страницы обработаны: " + common.escape(', '.join(truncated)))
+    lines.extend([
+        "",
+        "Суммы estimated_paid_commission и estimated_finished_commission в API являются оценочными значениями; эта панель не называет их фактически выплаченными комиссиями.",
+        "Запрос ссылки — не подтверждение открытия браузера, заказа или покупки.",
+    ])
+    return "\\n".join(lines), admin_screen_keyboard("affiliate", period)
+
+
+async def _run_affiliate_sync(context: ContextTypes.DEFAULT_TYPE) -> dict[str, Any]:
+    """Run a bounded 30-day import through the existing AliExpress client."""
+    search_service = context.application.bot_data.get("search_service")
+    providers = [
+        provider for provider in (getattr(search_service, "providers", None) or [])
+        if provider.is_configured and getattr(provider, "_client", None) is not None
+    ]
+    if not providers:
+        return {"error": "AliExpress provider is not configured"}
+    database = common.get_database(context)
+    result = await sync_recent_orders(providers[0]._client, database, days=30, max_pages_per_status=2)
+    await database.set_config(
+        "affiliate_orders.last_sync_at", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    )
+    return result
 
 async def _screen_ai(
     context: ContextTypes.DEFAULT_TYPE, period: str, page: int
