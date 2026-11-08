@@ -4826,3 +4826,85 @@ python -m scripts.diagnose_aliexpress_portals --promo-name "EXACT_NAME" --promo-
 - No local Python execution, pytest, CI run, or database operation was performed for this diagnostic branch.
 - Next: owner fetches this branch locally, checks the working tree is clean before switching, runs the first diagnostic, and shares the sanitized output. If `featuredpromo.get` returns campaign names but not dates, the owner supplies the exact PST dates shown in Portals for the specific campaign before running the optional products probe.
 - Do not implement campaign sync, order ingestion, or database changes until the live API results and permissions are confirmed and the audit findings are agreed.
+
+
+---
+
+## Master action plan — monetization audit and implementation (2026-11-08)
+
+This is the authoritative recovery checklist for continuing the monetization project. If work is interrupted or context is lost, resume from the first unchecked item. Do not skip gates or start implementation ahead of the audit.
+
+### Phase 0 — safe starting point
+
+- [x] Preserve the monetization requirements and existing-system inventory in this file.
+- [x] Keep the AliExpress diagnostic isolated on `audit/aliexpress-portals-smoke-test`, based on PR #10 HEAD.
+- [x] Keep PR #10 and `main` untouched; do not merge or retarget either without explicit owner approval.
+- [x] Add the read-only diagnostic script `scripts/diagnose_aliexpress_portals.py`.
+- [ ] Owner checks local `git status --short --branch` before switching branches. If there are local edits/untracked files, stop and preserve them; do not stash, reset, clean, or overwrite.
+- [ ] Owner fetches and checks out `origin/audit/aliexpress-portals-smoke-test`, if the local tree is clean.
+
+### Phase 1 — verify current AliExpress Portals API access (current blocking step)
+
+- [ ] Run `python -m scripts.diagnose_aliexpress_portals` locally using the existing `.env`.
+- [ ] Record whether `aliexpress.affiliate.featuredpromo.get` succeeds on the current app key and Singapore gateway.
+- [ ] Record whether `aliexpress.affiliate.order.list` succeeds and what aggregate data is returned.
+- [ ] If featured campaigns are returned, identify the exact Black Friday campaign name from the API output; do not invent or normalize its identifier.
+- [ ] Obtain exact campaign start/end timestamps from the owner's Portals calendar. Convert/enter them as PST values required by the documented featured-products method; do not pass Ukraine-local times as PST.
+- [ ] Run the optional `featuredpromo.products.get` probe only with the exact campaign name and dates.
+- [ ] Save sanitized outcomes, API error codes/subcodes and aggregate counts. Never paste API secrets, signatures, buyer details, order IDs, or raw order rows into chat or repository files.
+- [ ] Distinguish verified success, unsupported method/permission, empty result and transient failure. The surfaced JAQ docs are marked deprecated, so documentation alone is not proof of current access.
+
+### Phase 2 — complete the existing monetization audit
+
+- [ ] Map current promo-code handling, fixed promo referral section, sales registry, hot-discount links, analytics events and admin controls.
+- [ ] Verify which existing UI clicks actually emit analytics; specifically inspect direct external product buttons that bypass bot callbacks.
+- [ ] Separate affiliate click analytics from confirmed orders, estimated commissions and finalized commissions.
+- [ ] Inventory current database/configuration structures and migration constraints.
+- [ ] Inventory deployment, backup, update and rollback procedures.
+- [ ] Produce an audit report: already implemented, partially implemented, missing, API-dependent, and not currently possible.
+- [ ] Present findings and obtain owner approval before adding monetization features or changing database schema.
+
+### Phase 3 — agree implementation design
+
+After Phase 1 and Phase 2, agree on a design that extends existing functionality rather than duplicating it:
+
+1. Affiliate click/order/commission analytics with honest status distinctions.
+2. Verified promo codes and discounts sourced from official Portals capabilities.
+3. Internal "🔥 Большие распродажи" section driven by partner-side campaign information.
+4. Hybrid campaign presentation: partner landing page by default; own product cards only when API confirms campaign participation; coupons only when verified.
+5. Optional cross-sell recommendations only after user consent and only when relevant.
+6. Extend the existing `/admin`; do not create a parallel admin panel.
+7. Server deployment, backup, restore and rollback.
+
+No fabricated discounts, campaign dates, orders, commissions, product participation or conversion claims. If an official API method is unavailable, document the limitation and use an honest manual/admin-managed fallback where agreed.
+
+### Phase 4 — implement approved blocks incrementally
+
+- [ ] Implement only the blocks approved after the audit.
+- [ ] Reuse existing handlers, config, analytics and database patterns where suitable; do not add duplicate sections/services.
+- [ ] Keep each change scoped and reviewable; record exact files and commit SHA.
+- [ ] Verify the specific changed behavior and report only checks actually run.
+- [ ] Update this handoff after each substantial block.
+
+### Phase 5 — infrastructure
+
+- [ ] Define a safe production update procedure.
+- [ ] Configure automated or documented backups for database and required configuration (secrets must remain outside Git).
+- [ ] Define and verify restore and rollback procedures.
+- [ ] Ensure update/rollback cannot overwrite user data, local configuration or backups.
+
+### Phase 6 — final verification and handoff
+
+- [ ] Verify end-to-end user flows, affiliate links, analytics events and admin actions.
+- [ ] Verify database backup/restore and deployment rollback.
+- [ ] Update README and relevant operator instructions.
+- [ ] Update this file with completed work, remaining risks, exact branch/commit and actual verification evidence.
+- [ ] Provide a concise acceptance report.
+
+### Explicitly deferred — Premium
+
+Premium/subscription monetization is postponed until the bot has an established audience. Do not implement Telegram Stars, payments, subscriptions, paid limits, entitlement checks or free-tier restrictions now. Keep future extensibility possible without building the subscription system prematurely.
+
+### Recovery rule
+
+At every new session: read `AGENTS.md` and this `PROJECT_CONTEXT.md`; inspect the current branch/HEAD and working tree; locate the first unchecked item above; resume there. Never assume a local command, live API call, test, CI run or deployment succeeded unless its output is available and recorded.
