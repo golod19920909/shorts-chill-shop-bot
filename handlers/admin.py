@@ -835,6 +835,7 @@ async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, pag
     link_requests = await database.count_events(analytics.EVENT_AFFILIATE_LINK_REQUESTED)
     order_total = await database.count_affiliate_orders()
     statuses = await database.get_affiliate_order_status_counts()
+    recent_orders = await database.list_affiliate_orders(limit=5)
     last_sync = await database.get_config("affiliate_orders.last_sync_at")
     last_result = context.user_data.get("affiliate_sync_result")
     lines = [
@@ -850,6 +851,16 @@ async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, pag
         lines.extend(f"• {common.escape(status)}: {count}" for status, count in statuses.items())
     else:
         lines.append("• Данные пока не получены")
+    if recent_orders:
+        lines.extend(["", "<b>Последние строки заказов (значения как вернул API):</b>"])
+        for order in recent_orders:
+            title = common.escape(str(order.get("product_title") or "Товар без названия")[:70])
+            status = common.escape(str(order.get("order_status") or "—"))
+            currency = common.escape(str(order.get("settled_currency") or ""))
+            paid = common.escape(str(order.get("paid_amount") or "—"))
+            estimated = common.escape(str(order.get("estimated_paid_commission") or "—"))
+            finished = common.escape(str(order.get("estimated_finished_commission") or "—"))
+            lines.append(f"• {title} — {status}; paid: {paid} {currency}; estimated commission: {estimated} / {finished} {currency}")
     if isinstance(last_result, dict):
         if last_result.get("error"):
             lines.append("• Ошибка синхронизации: " + common.escape(last_result["error"]))
@@ -864,7 +875,7 @@ async def _screen_affiliate(context: ContextTypes.DEFAULT_TYPE, period: str, pag
             lines.append("• Не все страницы обработаны: " + common.escape(', '.join(truncated)))
     lines.extend([
         "",
-        "Суммы estimated_paid_commission и estimated_finished_commission в API являются оценочными значениями; эта панель не называет их фактически выплаченными комиссиями.",
+        "Комиссии показаны только как estimated_* значения API без пересчёта единиц/валюты; это не подтверждённая сумма выплаты.",
         "Запрос ссылки — не подтверждение открытия браузера, заказа или покупки.",
     ])
     return "\n".join(lines), admin_screen_keyboard("affiliate", period)
