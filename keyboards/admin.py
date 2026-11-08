@@ -26,6 +26,7 @@ CB_ADMIN_PREFIX = "adm"
 CB_ADMIN_REFRESH_KEY = "refresh"
 CB_ADMIN_MENU_KEY = "menu"
 CB_ADMIN_API_TEST_KEY = "apitest"
+CB_ADMIN_AFFILIATE_SYNC_KEY = "affiliate_sync"
 #: Toggle actions for the «Акции» promotional section. Distinct from the
 #: section keys above so a toggle never collides with a screen name; both are
 #: handled in ``handlers.admin`` and write through to the SAME ``bot_config``
@@ -53,6 +54,7 @@ ADMIN_SECTIONS: tuple[tuple[str, str], ...] = (
     #: so the panel and the CLI never disagree and the setting survives
     #: restarts (see ``handlers.admin._screen_sales``).
     ("sales", "\U0001F3F7 Акции"),
+    ("affiliate", "\U0001F4B0 Монетизация"),
     ("ai", "\U0001F916 AI"),
     ("api", "\U0001F4E1 AliExpress API"),
     ("db", "\U0001F5C4 База данных"),
@@ -110,6 +112,11 @@ def admin_period_keyboard(period: str) -> InlineKeyboardMarkup:
 
     if row:
         rows.append(row)
+
+    if section == "affiliate":
+        rows.append(
+            [InlineKeyboardButton("🔄 Синхронизировать за 30 дней", callback_data=f"{CB_ADMIN_PREFIX}:{CB_ADMIN_AFFILIATE_SYNC_KEY}")]
+        )
 
     rows.append(
         [
