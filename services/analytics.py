@@ -36,12 +36,10 @@ EVENT_PRODUCTS_SHOWN = "products_shown"
 #: is actually looking at - including every "➡️ Следующий" step.
 EVENT_PRODUCT_SHOWN = "product_shown"
 
-#: Buy-click events ("buy_clicked" / "product_opened" /
-#: "affiliate_clicked" / "external_clicked") have no producer anymore:
-#: "🛒 Купить" is a URL button now, and Telegram reports nothing about
-#: URL-button presses. They stay in the vocabulary on purpose - the
-#: admin panel keeps rendering historical rows, and ``get_top_products``
-#: still aggregates ``affiliate_clicked``.
+#: Legacy Buy-click event names have no producer. The current Buy action is
+#: a callback that records ``affiliate_link_requested`` before handing the
+#: exact affiliate URL to Telegram. Telegram does not report whether the
+#: separate URL button was opened. Legacy names remain for historical rows.
 EVENT_BUY_CLICKED = "buy_clicked"
 EVENT_AFFILIATE_LINK_REQUESTED = "affiliate_link_requested"
 
