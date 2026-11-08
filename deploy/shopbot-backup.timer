@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Shorts Chill Shop Bot SQLite backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=5m
+Unit=shopbot-backup.service
+
+[Install]
+WantedBy=timers.target
