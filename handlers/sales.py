@@ -78,14 +78,14 @@ def _unavailable_text(event: SaleEvent, start_date: str | None = None, end_date:
         f"Начало: {start_date}" if start_date else None,
         f"Окончание: {end_date}" if end_date else None,
     ]
-    date_text = "\\n".join(item for item in dates if item)
+    date_text = "\n".join(item for item in dates if item)
     if date_text:
-        date_text += "\\n\\n"
+        date_text += "\n\n"
     return (
-        f"\\U0001F3F7 <b>{event.title}</b>\\n\\n"
+        f"\U0001F3F7 <b>{event.title}</b>\n\n"
         + date_text
         + "Раздел скоро откроется: мы ещё готовим подборку специальных "
-        + "предложений AliExpress. Загляните позже.\\n\\n"
+        + "предложений AliExpress. Загляните позже.\n\n"
         + "А нужный товар можно найти прямо сейчас в разделе «Умный поиск»."
     )
 
