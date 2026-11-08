@@ -149,8 +149,10 @@ async def _probe(
     else:
         print("  DATA_STATUS: BUSINESS_PAYLOAD_PRESENT")
     return business
+
+
 def _data(result: dict[str, Any] | None) -> dict[str, Any]:
-    """The client returns resp_result; business records live in its result."""
+    """Return the nested business result when the API wraps one."""
     if not result:
         return {}
     nested = result.get("result")
