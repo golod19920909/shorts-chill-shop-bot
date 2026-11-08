@@ -3226,7 +3226,7 @@ seller_terms: {seller_terms_json}
             return None
         return cleaned
 
-@staticmethod
+    @staticmethod
     def _with_result_limit(user_text: str, request: SearchRequest) -> SearchRequest:
         """Attach the explicitly requested result count, when one was asked.
 
