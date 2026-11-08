@@ -56,16 +56,21 @@ DENIED_TEXT = "Этот раздел сейчас недоступен."
 UNKNOWN_TEXT = "Такой акции нет. Откройте главное меню."
 
 
-def _available_text(event: SaleEvent) -> str:
+def _available_text(event: SaleEvent, start_date: str | None = None, end_date: str | None = None) -> str:
     """Screen text when a valid destination URL is configured."""
-
+    dates = [
+        f"Начало: {start_date}" if start_date else None,
+        f"Окончание: {end_date}" if end_date else None,
+    ]
+    date_text = "\\n".join(item for item in dates if item)
+    if date_text:
+        date_text += "\\n\\n"
     return (
-        f"\U0001F3F7 <b>{event.title}</b>\n\n"
-        "Мы собрали специальные предложения AliExpress. "
-        "Нажмите кнопку ниже, чтобы открыть подборку на AliExpress.\n\n"
-        "Цены, скидки и условия покажет сама страница акции у маркетплейса."
+        f"\\U0001F3F7 <b>{event.title}</b>\\n\\n"
+        + date_text
+        + "Откройте страницу акции AliExpress кнопкой ниже.\\n\\n"
+        + "Цены, скидки и условия показывает сам маркетплейс."
     )
-
 
 def _unavailable_text(event: SaleEvent) -> str:
     """Screen text when the destination URL is not (yet) configured.
@@ -173,7 +178,10 @@ async def sale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await query.answer()
     destination = await _destination(context, event_id)
-    text = _available_text(event) if destination else _unavailable_text(event)
+    database = common.get_database(context)
+    start_date = await database.get_config(f"sale.{event_id}.start_date") or event.start_date
+    end_date = await database.get_config(f"sale.{event_id}.end_date") or event.end_date
+    text = _available_text(event, start_date, end_date) if destination else _unavailable_text(event)
     await query.edit_message_text(
         text, parse_mode="HTML", reply_markup=sale_screen_keyboard(destination)
     )
