@@ -4908,3 +4908,48 @@ Premium/subscription monetization is postponed until the bot has an established 
 ### Recovery rule
 
 At every new session: read `AGENTS.md` and this `PROJECT_CONTEXT.md`; inspect the current branch/HEAD and working tree; locate the first unchecked item above; resume there. Never assume a local command, live API call, test, CI run or deployment succeeded unless its output is available and recorded.
+
+
+---
+
+## Project handoff update — first live Portals probe and diagnostic refinement (2026-11-08)
+
+### Owner's first live run
+
+The owner ran `python -m scripts.diagnose_aliexpress_portals` in the isolated audit worktree using the existing local `.env` and the existing project's Python environment.
+
+Observed output:
+
+- `aliexpress.affiliate.featuredpromo.get`: the gateway call completed without a reported client/API failure; the script printed `CAMPAIGN_COUNT: 0`.
+- `aliexpress.affiliate.order.list`: the gateway call completed without a reported client/API failure; the script printed an empty response field list and `ORDER_COUNT_RETURNED: 0`.
+- Product probe was correctly skipped because no exact campaign name and campaign dates were available.
+- The diagnostic summary reported 2 successful calls, 0 failed calls.
+- No database or configuration changes were reported.
+
+**Interpretation limitation:** this first script version used `AliExpressClient.call()`, which intentionally normalizes the documented empty-result response (`resp_code=405`, “The result is empty”) to an empty dictionary. Consequently, the first output did not reveal the raw API `resp_code`, `resp_msg`, or nested response envelope. It is not yet sufficient to conclude that there are no campaigns or no orders, nor that these methods provide usable data on the current key.
+
+### Diagnostic refinement committed
+
+- Updated `scripts/diagnose_aliexpress_portals.py` to inspect the raw TOP response envelope for this standalone read-only diagnostic.
+- Request parameters/signatures are still built by the existing `AliExpressClient.build_params()`; the current Singapore gateway and existing local credentials remain in use.
+- The diagnostic now prints only HTTP status, response-envelope names, business-field names, API response code/message (message truncated), and aggregate counts. It does not print request parameters, secrets, signatures, raw orders, buyer data, order IDs or full product records.
+- It distinguishes API-reported empty result (`resp_code=405`) from an empty/unrecognized payload and other non-200 business responses.
+- It still does not open the database, write configuration, or use retries.
+- This raw diagnostic path uses the client's internal HTTP session directly and is intentionally limited to this script; it does not alter production request behavior.
+- Latest script commit: `2bae602bd923cb9fd4ef1d5bd6223d3aa516d2ff`.
+
+### Current blocking next action
+
+The owner must fetch the latest audit branch in the isolated worktree and rerun the diagnostic. The previous local copy is now behind the latest commits.
+
+From `C:\\shorts-chill-shop-bot audit`:
+
+```powershell
+git pull --ff-only
+git status --short --branch
+& "C:\\shorts-chill-shop-bot рабочий\\.venv\\Scripts\\python.exe" -m scripts.diagnose_aliexpress_portals
+```
+
+Share only the sanitized console output. Never share `.env` contents.
+
+Do not yet implement campaign sync, order ingestion, schema changes or monetization UI. First classify the raw responses as confirmed empty result, unexpected response shape, unsupported method/permission, or another API condition. Then continue the Phase 1 checklist above.
