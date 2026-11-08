@@ -34,6 +34,9 @@ from config.sales import (
     is_enabled_value,
     safe_http_url,
     url_key,
+    start_date_key,
+    end_date_key,
+    safe_iso_date,
 )
 from config.settings import settings
 from database.database import Database
@@ -43,6 +46,7 @@ USAGE = (
     "  python manage_sales.py enable  <event_id>\n"
     "  python manage_sales.py disable <event_id>\n"
     "  python manage_sales.py url     <event_id> <https-url>\n"
+    "  python manage_sales.py dates   <event_id> <YYYY-MM-DD> [YYYY-MM-DD]\n"
     "  python manage_sales.py status\n"
     f"\nKnown events: {', '.join(sorted(SALE_EVENTS))}\n"
 )
@@ -80,6 +84,21 @@ async def _run(args: list[str]) -> int:
                     f"{event.event_id} «{event.title}»: {state}, "
                     f"destination URL: {'configured' if has_url else 'not set'}"
                 )
+            return 0
+
+        if command == "dates" and len(args) in (3, 4):
+            event = _resolve_event(args[1])
+            start = safe_iso_date(args[2])
+            end = safe_iso_date(args[3]) if len(args) == 4 else None
+            if start is None or (len(args) == 4 and end is None):
+                print("Rejected: dates must use exact YYYY-MM-DD format.", file=sys.stderr)
+                return 2
+            if end is not None and end < start:
+                print("Rejected: end date cannot be before start date.", file=sys.stderr)
+                return 2
+            await database.set_config(start_date_key(event.event_id), start)
+            await database.set_config(end_date_key(event.event_id), end or "")
+            print("Calendar dates for event saved.")
             return 0
 
         if command in ("enable", "disable") and len(args) >= 2:
