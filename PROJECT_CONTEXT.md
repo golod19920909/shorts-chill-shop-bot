@@ -5036,3 +5036,8 @@ Source inspection on this branch confirms:
 - Added `/admin → Монетизация` with link-request count, imported order counts by status, last sync time and a manual sync button. Callback is acknowledged before network calls to avoid Telegram callback timeouts.
 - Added offline tests for normalization/privacy allowlist, nested response parsing, empty status responses, and database upsert behavior. Added the new service/database/admin files and test to the dedicated CI workflow.
 - This is implementation against the documented schema; live order import is still unverified until the corrected 30-day PST probe is run against the user's current key. Do not present an empty table as proof of zero orders.
+
+
+### GitHub branch/PR safety note (2026-11-08)
+- Comparing `audit/aliexpress-portals-smoke-test` against `fix/gemini-quality-preserving-selection` shows the audit branch is based exactly on PR #10 HEAD (`8188fe3...`) and its diff is limited to the audit/monetization files. It is 32 commits ahead of that base and not behind it.
+- A draft PR #11 was briefly created against `main`; comparison showed `main` is far behind this development base and the PR would have included unrelated Gemini/conversational changes. PR #11 was immediately closed without merging. Do not reopen it or target `main` while PR #10 is still separate. Keep the audit branch isolated; integrate only after the correct base is agreed.
