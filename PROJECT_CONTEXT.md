@@ -4969,9 +4969,9 @@ Gateway: `https://api-sg.aliexpress.com/sync`.
 |---|---|---|
 | `aliexpress.affiliate.featuredpromo.get` | HTTP 200, `resp_code=200`, `resp_msg=Call succeeds`, 0 campaigns | The method is callable with the current key/gateway, but this request returned no campaign rows. It does not prove that the Portals calendar is unavailable or that no future campaign exists. |
 | `aliexpress.affiliate.featuredpromo.products.get` | Not called | The campaign-list response supplied no exact `promo_name` and no campaign dates. Do not guess campaign name or start/end time. Run only after the exact campaign name and both PST-local dates/times are supplied from Portals. |
-| `aliexpress.affiliate.order.list` | HTTP 200, `resp_code=405`, `resp_msg=The result is empty`; no order fields or total count | The API accepted the request but returned its documented empty-result response for the diagnostic's last-24-hours / `Payment Completed` query. This is not proof of permission denial or that the method is unusable. No order or commission data was available to inspect. |
+| `aliexpress.affiliate.order.list` | HTTP 200, `resp_code=405`, `resp_msg=The result is empty`; no order fields or total count | The API accepted the request, but the diagnostic used a GMT+8-derived last-24-hours range while order-query date semantics need to be checked against the documented PST convention. Treat this run as inconclusive: it does not prove there were no orders or that commission fields are unavailable. |
 
-The diagnostic reported 2 API calls received, 0 transport/API failures. It did not open the database or change configuration. The production client's empty-result normalization was inspected: `resp_code=405` is counted as a successful empty result, separately from real API errors.
+The first diagnostic reported 2 API calls received, 0 transport/API failures. It did not open the database or change configuration. Important correction: the first order query's date range was constructed in GMT+8; the order-list range is treated as PST by the API integration guidance, so its 405 response cannot be used as evidence of a genuinely empty last-24-hour window. The production client's empty-result normalization was inspected: `resp_code=405` is counted as a successful empty result, separately from real API errors.
 
 ### Stage 2 — existing monetization inventory and findings
 Source inspection on this branch confirms:
@@ -4993,7 +4993,7 @@ Source inspection on this branch confirms:
 - No fake discounts, orders, commissions, campaign participation or click totals may be introduced.
 
 ### Stage gates / next action
-- Stage 1 remains **partially blocked** only on the campaign-product probe and observing a non-empty order response with commission fields. The campaign-product probe requires the exact Portals campaign name and exact start/end timestamps in PST. Do not infer them from a calendar label or invent an end date.
+- Stage 1 remains **partially blocked** only on the campaign-product probe and observing a non-empty order response with commission fields. The campaign-product probe requires the exact Portals campaign name and exact start/end timestamps in PST. Do not infer them from a calendar label or invent an end date. The order diagnostic has been corrected to use a bounded 30-day PST window and to query all four documented statuses (`Payment Completed`, `Buyer Confirmed Receipt`, `Completed Settlement`, `Invalid`); this corrected probe has not yet been executed with the user's key.
 - Stage 2 source inventory is complete at code-inspection level; no live database contents were inspected and no user-level counts are claimed.
 - Prepare Stage 3 architecture options from these findings and request user approval before implementing monetization features. Premium/subscriptions/Telegram Stars/paid limits remain explicitly deferred.
 
@@ -5020,3 +5020,10 @@ Source inspection on this branch confirms:
 - Added `deploy/shopbot-backup.service` and `deploy/shopbot-backup.timer`. On a systemd server, installing/enabling the timer schedules the verified SQLite backup daily at 03:15 server-local time, with `Persistent=true` and a small randomized delay.
 - README now documents timer installation. The unit runs as the existing `shopbot` service account and uses `%h/shorts-chill-shop-bot`; adjust `WorkingDirectory`/`ExecStart` only if the deployment directory differs.
 - No server was accessed or modified by this GitHub change; installation and a real server restore drill remain deployment-time checks.
+
+
+### Order API diagnostic correction (2026-11-08)
+- Review of the first live probe found that its order-list `start_time`/`end_time` were generated from GMT+8, not PST. The returned `405 The result is empty` therefore cannot be treated as evidence that the account had no orders in a correctly aligned period.
+- Updated `scripts/diagnose_aliexpress_portals.py` to query a bounded 30-day PST window by default (configurable 1–90 days) and test all four AliExpress order statuses: `Payment Completed`, `Buyer Confirmed Receipt`, `Completed Settlement`, and `Invalid`. The script still prints only aggregate counts and never prints order rows, IDs, buyer data or amounts.
+- Official order-list documentation confirms `order_id`, `sub_order_id`, `tracking_id`, `order_status`, `paid_amount`, `estimated_paid_commission`, `finished_amount`, `estimated_finished_commission`, `settled_currency`, and pagination fields. It labels the commission amounts as estimated; the implementation must preserve that distinction. <https://developer.alibaba.com/docs/api.htm?apiId=45802>
+- Until the corrected probe returns a real record, order persistence/synchronization must remain gated; do not present the prior empty result as a confirmed zero-sales period.
