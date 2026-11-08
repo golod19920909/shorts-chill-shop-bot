@@ -150,7 +150,7 @@ class LoadSettingsTests(unittest.TestCase):
         with patch.dict(os.environ, CLEAN_ENV, clear=False):
             settings = load_settings()
 
-        self.assertEqual(settings.search_max_pages, 3)
+        self.assertEqual(settings.search_max_pages, 5)
         self.assertEqual(settings.photo_search_pages, 2)
         self.assertEqual(settings.photo_search_hypotheses, 4)
 
@@ -186,7 +186,7 @@ class LoadSettingsTests(unittest.TestCase):
                 with patch.dict(os.environ, env, clear=False):
                     settings = load_settings()
 
-                self.assertEqual(settings.search_max_pages, 3)
+                self.assertEqual(settings.search_max_pages, 5)
                 self.assertEqual(settings.photo_search_pages, 2)
                 self.assertEqual(settings.photo_search_hypotheses, 4)
 

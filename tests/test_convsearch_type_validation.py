@@ -165,6 +165,22 @@ class CrossCategoryValidationTests(unittest.TestCase):
                 msg=title,
             )
 
+    def test_shared_modifier_does_not_make_a_different_accessory_head_the_requested_product(self) -> None:
+        cases = (
+            ("Сварочная маска автоматическая", "сварочный аппарат"),
+            ("Welding mask automatic", "welding machine"),
+        )
+        for title, requested_type in cases:
+            with self.subTest(title=title):
+                verdict = validate_product_type(
+                    product("wrong-accessory", title), requested_type
+                )
+                self.assertFalse(verdict.qualifies, msg=title)
+                self.assertTrue(
+                    any(reason.startswith("accessory_head:") for reason in verdict.reasons),
+                    msg=f"Expected accessory-role rejection, got {verdict.reasons!r}",
+                )
+
     def test_actual_welder_titles_still_qualify(self) -> None:
         for title in (
             "Сварочный аппарат инверторный бытовой",

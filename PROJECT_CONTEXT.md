@@ -1037,55 +1037,48 @@ production timings:
 
 - Gemini turn interpretation is wrapped in an outer timeout of
   `min(AIService.timeout_seconds, 8s)`; its fallback path is deterministic.
-- Candidate selection has an independent **15-second** deadline
-  (`AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS = 15.0`). There is no shared
-  cumulative Gemini budget in the current code. The model calls are sequential,
-  so the code-level worst-case model wait is approximately 23 seconds,
-  excluding AliExpress retrieval and any separately bounded no-results reply.
-  These are configured limits, not measured production timings.
-- Candidate selection runs after deterministic candidate validation/ranking
-  when the outcome contains results and a selector is available. The selector
-  is capped at 20 candidates; the separate presentation cap remains 30.
-- The conversational retrieval adapter calls `SearchService.find_products`
-  with `raw=True`, `broaden=True`, and `raw_broaden=True`. The raw path
-  now uses the configured bounded page depth for product searches: page 1
-  evaluates every grounded query variant (maximum three); later pages repeat
-  only the primary phrase. All collected page/phrase routes are fused with
-  RRF. Pagination stops once the unique raw pool reaches its target, a provider
-  page returns no rows, or the configured page limit is exhausted. The default `SEARCH_MAX_PAGES` is 3,
-  so one conversational turn makes at most five sequential AliExpress
-  product-query calls for one provider (three first-page variants plus two
-  primary-phrase pages); the actual count is lower when the pool fills sooner.
-- `services.query_variants.product_query_variants` caps the phrase list at
-  three. `SearchService.find_products` iterates grounded phrases/pages
-  sequentially; provider calls for the same phrase are gathered concurrently.
-  RRF is applied across all collected routes, so removing a route or changing
-  execution order without preserving the complete route set could alter
-  candidate quality.
-- The AliExpress HTTP client defaults to a 10-second HTTP timeout, one retry
-  for transient timeout/transport/5xx failures, and a 1-second retry backoff.
-  Thus a failing individual API call can consume roughly two request timeout
-  windows plus the backoff; three sequential variants can multiply that wait.
-  This is a worst-case configuration inference, not a measured end-to-end
-  duration. HTTPX phase timeouts are not a strict whole-search wall-clock SLA.
-- Existing diagnostics already record per-provider call latency and total
-  `SearchService.find_products` latency in bounded in-memory samples. Gemini
-  attempts log operation, model and elapsed milliseconds. No live samples were
-  available during this GitHub-only audit, so actual p50/p95 latency and the
-  frequency of retries remain unverified.
+- Candidate selection asks Gemini for up to 20 products. For the default
+  30-card presentation, the AI review window is normally 70 of up to 80
+  deterministically ranked candidates; the ten-card tail is appended only
+  when the AI selection reaches 20. If a valid first pass is short, one
+  bounded continuation reviews only the still-unselected candidates.
+- The outer AI selection budget is 17 seconds total for both passes. The
+  Gemini SDK attempt cap is 8 seconds per model attempt. Selection telemetry
+  distinguishes input count, requested count, returned IDs, validated IDs,
+  final cards and elapsed time.
+- Conversational retrieval uses the configured page depth, now five pages by
+  default. Up to three grounded query variants are requested on page 1; each
+  route that returns rows continues independently on later pages, while empty
+  or failed routes are retired. Per-route rankings are fused with RRF.
+- Retrieval has nested hard limits: 13 seconds per route, 32 seconds per page,
+  and 60 seconds for the complete conversational retrieval pass. A route
+  timeout retires that route when page/search time remains; completed route
+  results are retained. The maximum is bounded even if the provider stalls.
+- The AliExpress client still serializes requests for the shared application
+  key and retains its bounded transient retry policy. Its HTTP timeout is
+  10 seconds with one retry/backoff; the conversational route deadline can
+  cancel a particularly slow retry, which should be monitored against live
+  latency before any further timeout increase.
+- Retrieval diagnostics now record pages requested/completed/failed, routes
+  requested/completed/failed, raw and unique candidate counts, and total
+  retrieval duration. The engine also records counts by rejection/quarantine
+  stage (wrong type, unverified required evidence, explicit exclusion,
+  budget/currency mismatch, ranking validation). Gemini diagnostics record
+  selection funnel counts.
+- `.env.example`, the `Settings` dataclass default and `load_settings()`
+  default are all aligned at five pages; the user's actual `.env` is untouched.
+- The 30-card presentation cap and five-card Telegram page size remain
+  separate from the 20-product AI selection target.
 
-No runtime code or timeout policy was changed during this read-only audit.
-Do not parallelize additional AliExpress phrase calls or reduce the grounded
-variant set solely from these theoretical bounds: that could increase API
-pressure or reduce recall/RRF quality. The next performance step should use
-real bot diagnostics to separate Gemini interpretation, each AliExpress
-variant/retry, and Gemini selection before choosing a bounded optimization.
-The 5-second interpretation, 8-second selection, 20-candidate AI window and
-30-card presentation cap remain unchanged.
+The earlier read-only performance notes below were written before the
+2026-11-07 bounded route/page/overall deadlines and are historical, not the
+current timeout policy.
 
+### Historical conversational retrieval pagination implementation (2026-11-04)
 
-
-### Conversational retrieval pagination implementation (2026-11-04)
+The following records the earlier November 4 implementation. It is superseded
+by the November 7 update above: the current default is five pages, and later
+pages continue every live grounded phrase rather than only the primary phrase.
 
 The raw conversational path previously bypassed the existing
 `SEARCH_MAX_PAGES` loop because the page condition required `not raw`.
@@ -1093,10 +1086,10 @@ That meant the engine fetched up to three grounded variants, but only from
 page 1, even though the AliExpress adapter already forwarded `page_no` and
 the project had a bounded three-page default.
 
-Fixed in `services/search_service.py`:
+Fixed at that time in `services/search_service.py`:
 - Raw conversational SEARCH requests now use the same configured page range.
 - Page 1 still gathers every grounded variant before any early stop, preserving
-  complete RRF route coverage. Deeper pages repeat only the primary phrase.
+  complete RRF route coverage. Deeper pages originally repeated only the primary phrase.
 - After each complete page, the service checks the fused unique pool and stops
   when the raw pool target is reached. Otherwise it continues only up to the
   configured page limit.
@@ -4548,3 +4541,112 @@ Verification:
 - Next required verification: user fetches this branch in their existing Windows working tree without discarding local modifications, then runs the focused workflow command from .github/workflows/gemini-usage-analytics.yml (including tests/test_settings.py). If tests fail, fix them before manual Telegram testing.
 - Do not edit .env. Because the loader intentionally ignores the old model-role variables, the code defaults now select 3.1 primary and 3.8 reserve even if those old values remain in the user's local .env.
 - Keep PR #8 draft/open/unmerged. Do not merge, do not touch main or PR #7.
+
+## Conversational search completion work — 2026-11-07
+
+Work is isolated on branch `fix/conversational-search-completion-20`, based on
+`feat/gemini-usage-analytics`. Do not merge either branch or retarget the
+existing Gemini migration PR without the user's explicit approval.
+
+### Changes made for the incomplete-result task
+
+- The default product-search depth is now five documented AliExpress pages:
+  `MAX_SEARCH_PAGES = 5` and `SEARCH_MAX_PAGES` defaults to 5; the existing
+  environment override and hard maximum of 10 remain.
+- Conversational retrieval now has bounded nested budgets:
+  13 seconds per route, 32 seconds per page, and 60 seconds overall. A route
+  timeout retires only that route when the page/search budgets still have room;
+  already completed route results are retained and fused. The overall search
+  remains finite.
+- Search diagnostics now report requested/completed/failed pages and routes,
+  raw and unique candidate counts, and retrieval duration without logging
+  user queries or product payloads.
+- If the first valid Gemini selection returns fewer than the requested count,
+  the engine makes exactly one additional selection call over the still-
+  unselected candidates, with the same hard requirements and the remaining
+  selection time budget. Already selected IDs are excluded from that pass.
+  There is no unbounded model loop and no deterministic padding of an
+  under-filled AI selection with unreviewed candidates.
+- The selection prompt now explicitly distinguishes soft use-case context from
+  hard requirements, permits grounded cross-language synonyms, and asks Gemini
+  to inspect all candidates and return all genuinely suitable items up to the
+  limit. Evidence quotes, real candidate IDs, and deterministic hard gates
+  remain mandatory.
+- Semantic review IDs passed to Gemini are now intersected with the exact
+  candidate IDs in that AI request. The live trace had 70 submitted candidates
+  but 99 identity-review IDs; off-pool IDs were unnecessary prompt data and
+  could confuse the model.
+- Selection telemetry records input, requested, returned, validated and final
+  card counts plus selection duration.
+
+### Why the first AI pass could return only four
+
+The selection schema has no `maxItems=4` restriction, and the application
+caps accepted IDs at the requested maximum of 20. Therefore the observed four
+IDs were not caused by a four-item schema limit. The model was allowed to
+return a shorter semantically conservative list, and the engine previously
+accepted that list as final without asking it to inspect the remaining
+candidates. The live count mismatch (70 candidates versus 99 identity-review
+IDs) is separately confirmed in the engine's data flow and is now corrected.
+The exact relevance of the other 66 listings cannot be proven from aggregate
+logs alone; the full candidate payload/raw model answer was not retained.
+The new bounded continuation is intended to recover suitable candidates
+without weakening hard gates or pretending every remaining item is relevant.
+
+### AliExpress 405 interpretation
+
+The existing client deliberately treats `resp_code=405` with
+`resp_msg="The result is empty"` as a successful empty search result. Other
+405 response messages remain API errors and are not retried. Therefore the
+historical log fragment `resp_code=405` alone does not prove a broken route;
+the exact `resp_msg` is required to distinguish a legitimate empty route from
+a real API rejection. No blind retry or partner-link changes were made.
+
+### Verification still required
+
+- Run the focused offline tests for `tests/test_convsearch_engine.py` and
+  `tests/test_search_service.py`, then the repository's conversational
+  regression workflow.
+- Confirm the five-page behavior and 60-second upper bound against real
+  AliExpress latency without changing credentials or `.env`.
+- Perform a live Telegram check for a search with more than 20 suitable
+  candidates, a search with fewer than 20, and an alternatives follow-up.
+- Revisit the AliExpress 405 diagnosis only with the matching safe
+  `resp_msg`/error-class log; never record credentials, signatures, full user
+  queries, or full product payloads.
+
+## 2026-11-08 — Restored legacy deterministic query parser
+
+A local regression run on `fix/conversational-search-completion-20` exposed that `services/ai_service.py` ended with a truncated `_to_search_request` implementation and omitted the class methods `_with_result_limit` and `_fallback_parse`. This broke both Gemini-unavailable fallback parsing and validation of Gemini's structured search request. The implementation was restored from the last known-good repository revision (`dec6289d55bc12f43c789020bccaa42f3859bcb2`), preserving the current branch's module-level parsing helpers and current model schema. The restored deterministic parser handles explicit prices/currencies, rating and order thresholds, unit quantity, AliExpress preference, required features, quality-only ranking preference, sort preference, and deterministic result-card count capture. The restored structured conversion validates model fields, preserves the user's exact original query, strips marketplace-irrelevant constraint phrases, and filters context/design/negation phrases out of literal required-feature filters.
+
+**Fix commit:** `9602a7c823b9e19e0801d075d091798dc8268614` on `fix/conversational-search-completion-20`. The local user environment has not yet pulled or tested this commit. Required verification after pull: `tests/test_ai_service.py`, `tests/test_convsearch_engine.py`, and `tests/test_search_service.py`, followed by the full project regression suite if these pass. Existing user-local edits and backup folders must remain untouched; do not merge PR #9 without explicit approval.
+
+### AIService parser restoration follow-up (2026-11-08)
+- The first local validation after restoring `_to_search_request`, `_with_result_limit`, and `_fallback_parse` exposed a syntax regression: the `@staticmethod` decorator for `_with_result_limit` was accidentally placed at module scope while its method remained indented inside `AIService`.
+- Corrected the decorator indentation in commit `15459d3828126562759419000883441798f46365`. The resulting branch snippet was re-fetched and verified to keep the decorator and method inside the class.
+- The focused local pytest run had stopped during collection with `IndentationError`; no tests ran in that attempt. Re-run `py_compile` and the focused test set after pulling this commit. CI/live verification is still pending.
+
+### Focused local regression verification (2026-11-08)
+- After pulling commit `fcedc28`, the user confirmed `python -m py_compile services/ai_service.py` completed without errors.
+- The focused suite `tests/test_ai_service.py tests/test_convsearch_engine.py tests/test_search_service.py` passed locally: **184 passed, 60 subtests passed** in 3.41 seconds.
+- This confirms the restored deterministic AIService parser imports and works with the conversational engine and retrieval service in the focused test scope.
+- The broader workflow regression set and live AliExpress/Telegram tests are still pending. GitHub Actions status was not returned by the available commit-status/workflow-run lookup for commit `fcedc28`.
+
+### Broad regression triage and alignment (2026-11-08)
+- User-reported expanded local run: **2,182 passed, 50 failed, 1 deselected, 746 subtests passed**. The failures clustered into outdated expectations and test fixtures, pre-Option-C merge tests, and a prompt/selector test mismatch; the run also emitted SQLite worker-thread warnings from the Gemini latency tests (`unable to open database file`), which were warnings rather than the reported test failures.
+- Updated conversation selection prompt wording to explicitly fail closed when the main product type cannot be established from title/description: the unknown type must be skipped. This preserves the existing allowance for clear synonyms and does not treat missing exact wording as incompatibility.
+- Updated tests to match the configured Gemini chain (`gemini-3.1-flash-lite` primary for text/vision roles; `gemini-3.8-flash` reserve). Conversation-turn fake responses now satisfy the complete `CONVERSATION_TURN_SCHEMA`; the old minimal `{"action":"refine"}` fixture is intentionally rejected by production validation.
+- Updated retrieval-default tests to expect five pages, the approved setting on this task branch.
+- Updated startup and callback tests for the actual registered Telegram command menu and current Gemini model configuration.
+- Updated the selector-window test: deterministic identity filtering removes the clear welding-mask accessory before Gemini review, so only `welder-1` reaches the selector and `wanted=1`. This is not a model under-selection defect.
+- The old `merge_search_requests` / `_merge_is_safe` API is absent from both this branch and its `feat/gemini-usage-analytics` base. The current bot setup builds `SearchService` and does not route through the old `services.conversation.resolve_request` merge path. The broad workflow therefore excludes the obsolete pre-Option-C merge test modules `test_conversation.py`, `test_stage3a_merge_feature_protection.py`, and `test_stage3c_merge_constraint_protection.py`, plus only the single Stage 3D test that directly calls the removed `_merge_is_safe` method. No legacy merge API was restored.
+- Existing explicit exclusions for stale legacy test modules and `test_text_query_is_parsed_and_searched` remain documented in the workflow. The corrected focused and broad runs have **not yet been re-executed locally**; do not treat this triage as a passing test result. Live AliExpress/Telegram verification remains pending.
+
+## PR #9 — follow-up regression correction (2026-11-08)
+
+- The latest local broad test report exposed a remaining deterministic identity-gate leak: a listing titled «Сварочная маска автоматическая» shared the application modifier «сварочная» with the request «сварочный аппарат». Because the requested head noun «аппарат» was absent, the candidate should not have entered semantic review as a plausible machine. The generic accessory-role vocabulary now includes mask/маска, and an accessory-head mismatch is rejected even when a non-distinguishing requested modifier is shared. Requests whose own product type is a component (for example, a phone case) retain the bounded cross-language semantic-review path.
+- Added direct RU/EN regression coverage for the shared-modifier / wrong-accessory-head case. The existing end-to-end turn regression verifies that only the actual welding machine reaches Gemini selection.
+- Aligned one prompt test with the current explicit wording «Проверяй явно заданную совместимость отдельно»; this changes the assertion, not product behavior.
+- The previously reported 2,161-pass / 2-failure local run is historical evidence only. Re-run focused and repository CI suites on the current branch head before claiming this correction is verified.
+- resp_code=405 is classified as an empty successful result only when the API message explicitly says «The result is empty». Other 405 business responses remain errors. Existing evidence does not identify a single root cause for every 405; no request/signature/parameter fix is claimed. Capture the exact sanitized response code/message and route context for any other 405 before changing request construction.
+- Live AliExpress catalog quality, actual 20-card selection, and Telegram delivery remain unverified until owner-run live testing.

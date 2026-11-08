@@ -903,10 +903,19 @@ class ConversationSearchEngine:
             decision, strategy, state,
             timeout_seconds=AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
         )
+        selection_duration_ms = (time.perf_counter() - selection_started) * 1000
+        decision.report["selection_duration_ms"] = round(selection_duration_ms)
+        decision.report["final_cards_count"] = len(decision.products)
         logger.info(
-            "convsearch semantic selection finished elapsed_ms=%.0f budget_s=%.1f "
-            "status=%s",
-            (time.perf_counter() - selection_started) * 1000,
+            "convsearch semantic selection metrics input=%d requested=%d "
+            "returned=%d validated=%d final_cards=%d duration_ms=%.0f "
+            "budget_s=%.1f status=%s",
+            decision.report.get("selection_input_count", 0),
+            decision.report.get("selection_requested_count", 0),
+            decision.report.get("selection_returned_count", 0),
+            decision.report.get("selection_validated_count", 0),
+            len(decision.products),
+            selection_duration_ms,
             AI_CONVERSATION_SELECTION_TIMEOUT_SECONDS,
             decision.report.get("ai_selection", "not_used"),
         )
@@ -964,6 +973,10 @@ class ConversationSearchEngine:
             len(decision.report.get("semantic_review_ids", [])),
             decision.report.get("ai_selected", 0),
             len(decision.products),
+        )
+        logger.info(
+            "convsearch rejection reasons=%s",
+            decision.report.get("rejection_reasons", {}),
         )
         logger.info(
             "convsearch action=%s intent=%s reason=%s raw=%d kept=%d ai_selection=%s",
@@ -1069,6 +1082,10 @@ class ConversationSearchEngine:
         decision.report["ai_review_window_limit"] = selector_window_limit
         decision.report["ai_review_in_window"] = review_quota
         decision.report["ai_ordinary_in_window"] = ordinary_quota
+        decision.report["selection_input_count"] = len(selector_pool)
+        decision.report["selection_requested_count"] = wanted
+        decision.report["selection_returned_count"] = 0
+        decision.report["selection_validated_count"] = 0
         def deterministic_safe_pool() -> list[Product]:
             return [
                 product for product in original_pool
@@ -1086,9 +1103,11 @@ class ConversationSearchEngine:
                 decision.products = safe
                 decision.report["reason"] = "deterministic_fallback"
                 decision.report["ai_fallback_kept"] = len(safe)
+                decision.report["final_cards_count"] = len(safe)
                 return decision
 
             decision.products = []
+            decision.report["final_cards_count"] = 0
             decision.outcome = Outcome.NO_ELIGIBLE
             if decision.report.get("feature_review_ids"):
                 decision.report["reason"] = "unverified_required_features"
@@ -1119,6 +1138,7 @@ class ConversationSearchEngine:
                         decision.report["reason"] = "unverified_product_identity"
             else:
                 decision.products = original_pool[:presentation_limit]
+            decision.report["final_cards_count"] = len(decision.products)
             return decision
 
         query_parts = [strategy.request.normalized_query or strategy.request.original_query or ""]
@@ -1164,7 +1184,7 @@ class ConversationSearchEngine:
             ],
             "identity_review_ids": [
                 product_id for product_id in semantic_review_ids
-                if product_id
+                if product_id in selector_ids
             ],
             "marketplace_terms": getattr(
                 strategy.request, "intent_marketplace_terms", []
@@ -1193,9 +1213,17 @@ class ConversationSearchEngine:
         except (TypeError, ValueError):
             selector_kwargs.pop("marketplace_terms", None)
 
+        selection_deadline = time.perf_counter() + selection_timeout
+
+        async def request_selection(pool, kwargs):
+            remaining = selection_deadline - time.perf_counter()
+            if remaining <= 0:
+                raise TimeoutError("conversation selection budget exhausted")
+            async with asyncio.timeout(remaining):
+                return await selector(pool, **kwargs)
+
         try:
-            async with asyncio.timeout(selection_timeout):
-                selected_ids = await selector(selector_pool, **selector_kwargs)
+            selected_ids = await request_selection(selector_pool, selector_kwargs)
         except TimeoutError:
             logger.info("Gemini conversation selection timed out")
             return finish_fallback("timeout_fallback")
@@ -1224,12 +1252,81 @@ class ConversationSearchEngine:
             if len(selected) >= wanted:
                 break
 
+        # A valid short answer is not automatically proof that the remaining
+        # catalogue is irrelevant. Run ONE bounded continuation over the
+        # unselected candidates, with a smaller remaining target and the same
+        # hard requirements. The second pass cannot see or repeat chosen IDs;
+        # the shared deadline prevents an unbounded Gemini loop.
+        decision.report["ai_first_pass_selected"] = len(selected)
+        decision.report["ai_second_pass"] = "not_needed"
+        if selected_ids and len(selected) < wanted:
+            remaining_pool = [
+                product for product in selector_pool
+                if product.product_id and product.product_id not in seen
+            ]
+            remaining_ids = {
+                product.product_id for product in remaining_pool
+            }
+            remaining_wanted = wanted - len(selected)
+            if remaining_pool and remaining_wanted > 0:
+                second_kwargs = dict(selector_kwargs)
+                second_kwargs["wanted"] = remaining_wanted
+                second_kwargs["identity_review_ids"] = [
+                    product_id for product_id in semantic_review_ids
+                    if product_id in remaining_ids
+                ]
+                second_kwargs["query"] = (
+                    query
+                    + "\nДополнительный проход: продолжи отбор среди этих "
+                    "оставшихся товаров. Уже выбранные товары исключены. "
+                    "Верни все остальные позиции, которые действительно "
+                    "соответствуют запросу, до указанного лимита."
+                )
+                try:
+                    second_ids = await request_selection(
+                        remaining_pool, second_kwargs
+                    )
+                except TimeoutError:
+                    second_ids = None
+                    decision.report["ai_second_pass"] = "timeout"
+                except Exception:
+                    second_ids = None
+                    decision.report["ai_second_pass"] = "error"
+                    logger.info(
+                        "Gemini conversation selection continuation failed",
+                        exc_info=True,
+                    )
+                else:
+                    decision.report["ai_second_pass"] = "completed"
+                if isinstance(second_ids, list):
+                    decision.report["selection_returned_count"] += len(second_ids)
+                    remaining_allowed = {
+                        product.product_id: product
+                        for product in remaining_pool
+                    }
+                    added = 0
+                    for product_id in second_ids:
+                        if (
+                            isinstance(product_id, str)
+                            and product_id in remaining_allowed
+                            and product_id not in seen
+                        ):
+                            selected.append(remaining_allowed[product_id])
+                            seen.add(product_id)
+                            added += 1
+                        if len(selected) >= wanted:
+                            break
+                    decision.report["ai_second_pass_selected"] = added
+
         # AIService distinguishes a valid empty ID list (no supplied
         # listing fits) from an unusable response (None). Respect that
         # explicit no-match decision: falling back here would re-display the
         # very candidates Gemini just rejected as irrelevant.
+        decision.report["selection_returned_count"] = len(selected_ids)
         if not selected and selected_ids == []:
             decision.products = []
+            decision.report["selection_validated_count"] = 0
+            decision.report["final_cards_count"] = 0
             decision.report["ai_selected"] = 0
             decision.outcome = Outcome.NO_ELIGIBLE
             decision.report["ai_selection"] = "semantic_no_match"
@@ -1238,13 +1335,13 @@ class ConversationSearchEngine:
         if not selected:
             return finish_fallback("empty_fallback")
 
+        decision.report["selection_validated_count"] = len(selected)
         decision.report["ai_selected"] = len(selected)
 
-        # The model only sees/selects the first 20. Keep its ordering.
-        # Append the untouched deterministic tail ONLY when Gemini filled
-        # the whole selection window. A shorter valid selection can mean
-        # that fewer candidates actually fit; padding it with unseen rows
-        # would silently override the model's semantic decision.
+        # Keep the order returned across the two bounded AI passes.
+        # Append the untouched deterministic tail ONLY when the combined
+        # selection fills the requested window; otherwise preserve the
+        # model's short result rather than padding with unreviewed rows.
         tail = []
         if len(selected) >= wanted:
             tail = [
@@ -1259,6 +1356,7 @@ class ConversationSearchEngine:
         decision.report["ai_tail_added"] = min(
             len(tail), max(0, presentation_limit - len(selected))
         )
+        decision.report["final_cards_count"] = len(decision.products)
         return decision
 
     # -- clarification policy ------------------------------------------------
@@ -1409,6 +1507,13 @@ class ConversationSearchEngine:
         )
         report["ranked"] = len(ranked)
         report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
+        report["rejection_reasons"] = {
+            "wrong_product_type": report["rejected_type"],
+            "required_feature_unverified_quarantined": len(feature_review),
+            "explicit_exclusion": report["rejected_exclusion"],
+            "budget_or_currency_mismatch": report["rejected_budget"],
+            "ranking_validation": report["rank_rejected"],
+        }
         review_ids = set(report["semantic_review_ids"])
         report["safe_ranked"] = sum(
             1 for product in ranked

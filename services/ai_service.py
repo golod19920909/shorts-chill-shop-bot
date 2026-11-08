@@ -1811,18 +1811,20 @@ class AIService:
 - Путь категорий AliExpress используй только как вспомогательный контекст. Он не доказывает сам по себе, что конкретная позиция — искомый товар, и не отменяет противоречие в названии.
 - Категория товара сама по себе НЕ доказывает соответствие ни типу товара, ни обязательной характеристике.
 - Не принимай товар за подходящий только из-за совпадения прилагательного, части слова или родственного термина. Сопоставляй основной предмет, его роль в карточке и фактически подтверждённые характеристики.
-- Учитывай явно указанные назначение, класс применения и совместимость; не подменяй их соседним типом товара.
-- Проверяй совместимость отдельно: аксессуар должен подходить к указанному устройству/инструменту; совпадения общего слова недостаточно.
-- Если тип или класс товара неизвестен по доступным данным, неизвестный тип пропускай; отсутствие запрещённого слова не доказывает соответствие.
+- Учитывай назначение и класс применения как признаки релевантности и ранжирования. Считай их обязательными только тогда, когда они явно присутствуют в списке обязательных требований ниже. Не превращай обычное пожелание или контекст использования в дополнительный жёсткий фильтр. Если карточка явно относится к несовместимому классу применения, не считай её полноценной заменой; отсутствие упоминания назначения само по себе не является доказательством несовместимости.
+- Проверяй явно заданную совместимость отдельно: аксессуар должен подходить к указанному устройству/инструменту; совпадения общего слова недостаточно.
+- Допускай понятные синонимы и эквивалентные названия одного и того же типа товара, в том числе между русским и английским языками. Не требуй буквального совпадения формулировки запроса с названием карточки, если из самого названия/описания ясно, что это тот же основной товар.
+- Если по названию и описанию нельзя уверенно установить тип основного товара, неизвестный тип пропускай: не угадывай его по категории, продавцу или соседним товарам. Если данные явно противоречат запросу, отклони позицию. Но не считай отсутствие точного слова или языка запроса доказательством нерелевантности.
 - Не считай запятую сама по себе признаком второго товара: заголовки AliExpress часто отделяют запятыми характеристики и другое название ТОГО ЖЕ предмета. Сопоставь начало заголовка и весь последующий текст: если начало называет понятный синоним/вариант искомого товара, а продолжение описывает тот же предмет, разрешено подтвердить идентичность точной цитатой из любой части title. Если продолжение называет отдельный аксессуар, запчасть, расходник или второй товар, отклони карточку. Если связь между частями заголовка неясна, не угадывай и не выбирай товар без подтверждения.
 - Соблюдай каждое явное исключение. Прямое противоречие в названии/описании означает отказ.
 - Для КАЖДОГО обязательного требования из списка ниже найди отдельное подтверждение в названии или описании. Не додумывай по типичному комплекту, фотографии, цене, рейтингу или категории.
 - Обязательные требования: {requirements_json}
 - Для каждого выбранного товара верни точную короткую цитату из названия или описания, подтверждающую КАЖДОЕ обязательное требование. Ключ в requirement_evidence должен дословно совпадать с требованием из списка. Цитата должна реально присутствовать в полях товара.
-- Для товара, чей id находится в identity_review_ids, дополнительно верни identity_evidence: точную цитату из названия/описания, на основании которой ты определил его как искомый товар. Не используй для этого category_path.
+- Для товара, чей id находится в identity_review_ids, дополнительно верни identity_evidence: точную короткую цитату из title/description, которая подтверждает, что карточка описывает именно искомый основной товар. Цитата должна дословно присутствовать в поле, но не обязана повторять формулировку запроса.
 - Дополнительная формулировка продавца (seller_terms) дана только как подсказка для сопоставления языков и терминов. Она не является доказательством и не разрешает выбирать товар без подтверждения в самой карточке.
-- Если подтверждения нет, не выбирай товар. Отсутствие данных — неизвестность, а не подтверждение.
-{budget_rule}- Рейтинг и количество заказов помогают упорядочить только уже подходящие товары.
+- Проверь ВСЕ переданные карточки. Не останавливайся после нескольких очевидных совпадений: верни все позиции, которые действительно соответствуют типу товара и обязательным требованиям, до лимита {limit}. Не сокращай список только ради краткого ответа или выбора нескольких «самых идеальных» вариантов.
+- Не добавляй товар ради количества: если подходящих действительно меньше лимита, верни только их.
+{budget_rule}- Рейтинг и количество заказов помогают упорядочить уже подходящие товары, но не заменяют проверку типа и обязательных требований.
 - Верни не более {limit} лучших позиций. Если подходящих нет, верни пустой массив selections."""
         prompt = f"""Ты отбираешь товары AliExpress для текущего диалога.
 Ориентир запроса: {query[:500]}
@@ -3115,3 +3117,189 @@ seller_terms: {seller_terms_json}
         def number(value: object) -> float | None:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None
+            number_value = float(value)
+            return number_value if number_value == number_value else None  # NaN
+
+        update: dict[str, object] = {}
+        if isinstance(payload.get("normalized_query"), str) and payload[
+            "normalized_query"
+        ].strip():
+            model_phrase = " ".join(payload["normalized_query"].split())
+            cleaned = _strip_constraint_phrases(model_phrase)
+            # Cleaning must never throw a usable phrase away: when nothing
+            # but noise is left, the model's original wording is kept.
+            update["normalized_query"] = cleaned or model_phrase
+        # ``original_query`` ALWAYS stays the user's own words
+        # (``fallback_text``): a model echoing or rewriting it ("x", a
+        # summary, a translation) must not replace the exact query the
+        # conversation replay/audit depends on.
+        if isinstance(payload.get("category"), str) and payload["category"].strip():
+            update["category"] = payload["category"].strip()
+        max_price = number(payload.get("max_price"))
+        if max_price is not None and max_price > 0:
+            update["max_price"] = max_price
+        min_price = number(payload.get("min_price"))
+        if min_price is not None and min_price > 0:
+            update["min_price"] = min_price
+        currency = payload.get("currency")
+        if isinstance(currency, str) and normalize_currency(currency):
+            update["currency"] = normalize_currency(currency)
+        min_rating = number(payload.get("min_rating"))
+        if min_rating is not None and 0 < min_rating <= 5:
+            update["min_rating"] = min_rating
+        min_orders = number(payload.get("min_orders"))
+        if min_orders is not None and min_orders > 0:
+            update["min_orders"] = int(min_orders)
+        quantity = number(payload.get("quantity"))
+        if quantity is not None and quantity > 0:
+            update["quantity"] = int(quantity)
+        sort = payload.get("sort_preference")
+        if isinstance(sort, str) and sort.strip().lower() in ALLOWED_SORT_PREFERENCES:
+            update["sort_preference"] = SortPreference(sort.strip().lower())
+        if payload.get("prefers_good_rating") is True:
+            update["prefers_good_rating"] = True
+        marketplaces: list[Marketplace] = []
+        raw_marketplaces = payload.get("preferred_marketplaces")
+        if isinstance(raw_marketplaces, list):
+            for name in raw_marketplaces:
+                if (
+                    isinstance(name, str)
+                    and name.strip().lower() == Marketplace.ALIEXPRESS.value
+                ):
+                    if Marketplace.ALIEXPRESS not in marketplaces:
+                        marketplaces.append(Marketplace.ALIEXPRESS)
+        update["preferred_marketplaces"] = marketplaces
+
+        # Feature lists: context-of-use («для жены») and design («в виде
+        # сердца») phrases never become a literal inclusion filter, and a
+        # phrase that LEADS with a negation states an ABSENCE - it is dropped
+        # from required_features (never turned into an exclusion: the negated
+        # word often appears literally in the CORRECT title).
+        def clean_features(raw: object) -> list[str]:
+            if not isinstance(raw, list):
+                return []
+            features: list[str] = []
+            for item in raw:
+                if not isinstance(item, str):
+                    continue
+                phrase = " ".join(item.split()).strip()
+                if not phrase:
+                    continue
+                if is_context_clause(phrase) or is_design_clause(phrase):
+                    continue
+                if is_negation_clause(phrase):
+                    continue
+                if phrase not in features:
+                    features.append(phrase)
+            return features
+
+        update["required_features"] = clean_features(payload.get("required_features"))
+        update["excluded_features"] = clean_features(payload.get("excluded_features"))
+
+        try:
+            return base.model_copy(update=update)
+        except Exception:  # noqa: BLE001 - a validation failure is a fallback
+            return base
+
+    def _validated_ai_text(self, text: object, facts: object) -> str | None:
+        """A sentence of AI text whose numbers all exist in ``facts``.
+
+        A hallucinated figure can never reach the user: a text mentioning
+        any number absent from the supplied product data is dropped. Pure
+        prose (no numbers at all) passes, because there is nothing to
+        verify it against beyond the model's wording.
+        """
+
+        if not isinstance(text, str) or not text.strip():
+            return None
+        cleaned = " ".join(text.split()).strip()
+        if len(cleaned) > 400:
+            return None
+        allowed = numeric_tokens(json.dumps(facts, ensure_ascii=False, default=str))
+        numbers = set(re.findall(r"\d+(?:[.,]\d+)?", cleaned))
+        if numbers and not numbers <= allowed:
+            logger.warning(
+                "AI text mentioned numbers absent from the supplied data "
+                "(%s); the text is dropped",
+                ", ".join(sorted(numbers - allowed)[:5]),
+            )
+            return None
+        return cleaned
+
+    @staticmethod
+    def _with_result_limit(user_text: str, request: SearchRequest) -> SearchRequest:
+        """Attach the explicitly requested result count, when one was asked.
+
+        The LLM prompt never fills ``result_limit``: the deterministic count
+        capture in ``services.text_matching`` is the only source, so a
+        hallucinating model cannot inflate or erase how many cards the user
+        asked for. When no count is present the request is returned as is
+        and the default browse cap applies unchanged.
+        """
+
+        count = extract_requested_result_count(user_text)
+        if count is None or count == request.result_limit:
+            return request
+        return request.model_copy(update={"result_limit": count})
+
+    @staticmethod
+    def _fallback_parse(text: str) -> SearchRequest:
+        """Deterministic parser used when Gemini is unavailable.
+
+        It only recognizes EXPLICIT information in the text (numbers,
+        currency symbols, an explicitly named marketplace). It does not
+        interpret fuzzy phrases such as "good reviews" - inventing a
+        minimum rating from them would be guessing, and the project rule
+        is to filter only on data we actually have. Such a phrase is
+        instead recorded as the ranking-only wish ``prefers_good_rating``
+        (real quality fields reorder candidates; nothing is filtered), and
+        with Gemini configured the same field is filled by the prompt.
+        """
+
+        lowered = text.lower()
+        normalized = re.sub(r"\s+", " ", text).strip()
+
+        quantity = _match_int(lowered, _QUANTITY_PATTERN)
+        min_rating = _match_number(lowered, _MIN_RATING_PATTERN)
+        min_orders = _match_int(lowered, _MIN_ORDERS_PATTERN)
+
+        # A rating clause also contains an amount ("rating above 4.5");
+        # blank it out before price extraction so "above 4.5" is never
+        # mistaken for a price bound.
+        price_scope = _MIN_RATING_PATTERN.sub(" ", lowered)
+        # A currency symbol glued to the number ("$30", "€30") is itself the
+        # marker: the budget is explicit without a word marker.
+        symbol_amount = _match_number(price_scope, _MAX_SYMBOL_PATTERN)
+        max_price = _match_number(price_scope, _MAX_PRICE_PATTERN)
+        min_price = _match_number(price_scope, _MIN_PRICE_PATTERN)
+        if max_price is None and min_price is None:
+            if re.search(r"(?i)\b(?:от|over|at least)\b", price_scope):
+                # «over €30»: floor marker -> the amount is a MINIMUM.
+                min_price = symbol_amount
+            else:
+                max_price = symbol_amount
+
+        preferred_marketplaces: list[Marketplace] = []
+        if "aliexpress" in lowered or "алиэкспресс" in lowered:
+            preferred_marketplaces.append(Marketplace.ALIEXPRESS)
+
+        required_features: list[str] = []
+        for match in _REQUIRED_FEATURE_RE.findall(text):
+            feature = _clean_feature(match)
+            if feature:
+                required_features.append(feature)
+
+        return SearchRequest(
+            original_query=text,
+            normalized_query=_strip_constraint_phrases(normalized),
+            max_price=max_price,
+            min_price=min_price,
+            currency=_detect_currency(lowered),
+            min_rating=min_rating,
+            min_orders=min_orders,
+            quantity=quantity,
+            preferred_marketplaces=preferred_marketplaces,
+            required_features=required_features,
+            sort_preference=_detect_sort_preference(lowered),
+            prefers_good_rating=_has_fuzzy_quality_phrase(lowered),
+        )

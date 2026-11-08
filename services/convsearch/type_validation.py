@@ -80,6 +80,9 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
         # standalone product types when the user asks for the add-on itself;
         # the relation rule rejects them only after a different host type.
         "аэратор", "коврик", "aerator", "mat", "mats",
+        # Generic protective equipment/accessories, including items that
+        # share an application adjective with a different requested device.
+        "маска", "mask",
     }
 )
 
@@ -475,7 +478,24 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     description_has_type = any(
         _contains(description_tokens, token) for token in type_tokens
     )
-    if accessory_head is not None and (not any_type_in_own or accessory_composite):
+    requested_type_is_component = any(
+        _is_accessory_head_token(token) and not _is_adjective(token)
+        for token in type_tokens
+    )
+    # A shared modifier does not rescue a different, clearly named product
+    # head. For example, "welding mask" shares the adjective "welding" with
+    # "welding machine", but the listing is still a mask, not a machine.
+    # Preserve cross-language review for requested components such as phone
+    # cases and watch bands: those are the requested product role themselves.
+    accessory_role_mismatch = (
+        accessory_head is not None
+        and head is not None
+        and not _contains(own_tokens, head)
+        and not requested_type_is_component
+    )
+    if accessory_head is not None and (
+        not any_type_in_own or accessory_composite or accessory_role_mismatch
+    ):
         # The same generic nouns describe both an accessory OF a host product
         # and a legitimate accessory product in its own right. When the user
         # explicitly asks for that component (e.g. a phone case / watch band),
@@ -486,10 +506,6 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         is_generic_bundle = any(
             stems_match(accessory_head, bundle_head)
             for bundle_head in _GENERIC_BUNDLE_HEADS
-        )
-        requested_type_is_component = any(
-            _is_accessory_head_token(token) and not _is_adjective(token)
-            for token in type_tokens
         )
         if (
             is_generic_bundle

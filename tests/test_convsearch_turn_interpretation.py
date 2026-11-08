@@ -1622,7 +1622,7 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.active_by_kind("budget").value, "2000.0 UAH")
         self.assertEqual(state.last_question, "Какой товар вас интересует?")
 
-    async def test_semantic_selector_removes_wrong_product_from_results(self):
+    async def test_deterministic_identity_gate_excludes_wrong_product_before_selector(self):
         class SelectingAI(FakeAI):
             async def select_conversation_candidates(self, candidates, *, query, wanted=20, required_features=None, identity_review_ids=None):
                 self.selection_input = [item.product_id for item in candidates]
@@ -1646,7 +1646,10 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(decision.outcome, Outcome.RESULTS)
         self.assertEqual([item.product_id for item in decision.products], ["welder-1"])
         self.assertEqual(decision.report["ai_selection"], "selected")
-        self.assertEqual(ai.selection_wanted, 2)
+        # The deterministic identity gate removes the clear accessory before
+        # Gemini review, so the selector receives only the actual welder.
+        self.assertEqual(ai.selection_input, ["welder-1"])
+        self.assertEqual(ai.selection_wanted, 1)
         self.assertIn("сварочный аппарат", ai.selection_query)
 
     async def test_semantic_selector_empty_result_does_not_restore_irrelevant_items(self):

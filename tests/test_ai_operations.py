@@ -353,10 +353,10 @@ class ModelChainTests(unittest.TestCase):
     def test_the_three_primary_roles_share_one_documented_model(self) -> None:
         # One generation for parsing, selection and photo reading; the fallback
         # stays a different, cheaper model - it is a safety net, not a role.
-        self.assertEqual(DEFAULT_MODEL, "gemini-3.8-flash")
-        self.assertEqual(DEFAULT_FAST_MODEL, "gemini-3.8-flash")
-        self.assertEqual(DEFAULT_VISION_MODEL, "gemini-3.8-flash")
-        self.assertEqual(DEFAULT_FALLBACK_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(DEFAULT_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(DEFAULT_FAST_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(DEFAULT_VISION_MODEL, "gemini-3.1-flash-lite")
+        self.assertEqual(DEFAULT_FALLBACK_MODEL, "gemini-3.8-flash")
 
 
 class StrictSelectionTests(unittest.TestCase):
@@ -493,7 +493,7 @@ class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
     async def test_conversation_turn_uses_shared_json_schema(self):
         from services.ai_service import CONVERSATION_TURN_SCHEMA
 
-        generate = AsyncMock(return_value=SimpleNamespace(text='{"action":"refine"}'))
+        generate = AsyncMock(return_value=SimpleNamespace(text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}'))
         service = AIService(api_key=None)
         service._client = SimpleNamespace(
             aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate))
@@ -505,7 +505,7 @@ class GeminiOperationConfigTests(unittest.IsolatedAsyncioTestCase):
             operation="conversation_turn",
         )
 
-        self.assertEqual(result, '{"action":"refine"}')
+        self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
         config = generate.await_args.kwargs["config"]
         self.assertEqual(config["response_mime_type"], "application/json")
         self.assertIs(config["response_schema"], CONVERSATION_TURN_SCHEMA)
@@ -587,7 +587,7 @@ class GeminiConversationTurnFallbackSchemaTests(unittest.IsolatedAsyncioTestCase
 
         generate = AsyncMock(side_effect=[
             TimeoutError("primary timed out"),
-            SimpleNamespace(text='{"action":"refine"}'),
+            SimpleNamespace(text='{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}'),
         ])
         service = AIService(
             api_key=None,
@@ -605,7 +605,7 @@ class GeminiConversationTurnFallbackSchemaTests(unittest.IsolatedAsyncioTestCase
             operation="conversation_turn",
         )
 
-        self.assertEqual(result, '{"action":"refine"}')
+        self.assertEqual(result, '{"action":"refine","confidence":0.9,"product_type":null,"marketplace_terms":[],"question":null,"response":null,"slot_updates":[]}')
         self.assertEqual(generate.await_count, 2)
         first_config = generate.await_args_list[0].kwargs["config"]
         fallback_config = generate.await_args_list[1].kwargs["config"]
