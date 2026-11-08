@@ -388,7 +388,7 @@ async def _screen_stats(
     total_users = await database.count_users()
     new_users = await database.count_users(since)
     top_products = await database.get_top_products(
-        analytics.EVENT_BUY_AFFILIATE, since=since, limit=TOP_LIMIT
+        analytics.EVENT_AFFILIATE_LINK_REQUESTED, since=since, limit=TOP_LIMIT
     )
     daily = await database.get_daily_event_counts(days=7)
 
