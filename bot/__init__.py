@@ -59,6 +59,7 @@ from keyboards.main import (
 from keyboards.products import (
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
+    CB_PREFIX_BUY,
     CB_PREFIX_CARD_UNTRACK,
     CB_PREFIX_FAVORITE,
     CB_PREFIX_FAVORITE_REMOVE,
@@ -254,6 +255,9 @@ def _register_handlers(application: Application) -> None:
     )
     application.add_handler(
         CallbackQueryHandler(admin.admin_callback, pattern=f"^{CB_ADMIN_PREFIX}:")
+    )
+    application.add_handler(
+        CallbackQueryHandler(search.buy_link_callback, pattern=f"^{CB_PREFIX_BUY}:")
     )
     application.add_handler(
         CallbackQueryHandler(search.favorite_callback, pattern=f"^{CB_PREFIX_FAVORITE}:")
