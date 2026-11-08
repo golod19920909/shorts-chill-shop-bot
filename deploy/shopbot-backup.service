@@ -1,0 +1,12 @@
+[Unit]
+Description=Shorts Chill Shop Bot SQLite backup
+After=network.target
+
+[Service]
+Type=oneshot
+User=shopbot
+WorkingDirectory=%h/shorts-chill-shop-bot
+ExecStart=%h/shorts-chill-shop-bot/.venv/bin/python -m scripts.database_maintenance backup
+
+[Install]
+WantedBy=multi-user.target
