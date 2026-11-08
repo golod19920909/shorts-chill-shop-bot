@@ -161,10 +161,10 @@ def browse_card_keyboard(
     message is edited in place, so navigation callbacks carry the absolute
     target index: a stale button can never show the wrong product.
 
-    ``🛒 Купить`` is a URL button that opens this product's exact
-    affiliate URL right in the browser (one press, no bot round-trip),
-    and it exists only when the provider really returned an affiliate
-    URL (affiliate-only rule). The tracking row reflects the user's
+    ``🛒 Купить`` is a callback only when the provider returned a real
+    affiliate URL. The handler records the link request, then sends the
+    exact API URL as a Telegram URL button; Telegram cannot confirm whether
+    that browser button was opened. The tracking row reflects the user's
     current state (``🔔`` to start, ``🔕`` to stop) inside this same
     card. ``◀️ Назад`` is always present: on any product but the first it
     moves to the previous product, and on the FIRST one it leaves the feed
