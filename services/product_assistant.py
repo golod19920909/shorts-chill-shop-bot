@@ -67,10 +67,11 @@ _NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
 
 @dataclass(frozen=True)
 class ProductAdvice:
-    """A rendered answer plus whether a language model wrote it."""
+    """A rendered answer plus any real products Gemini recommends."""
 
     text: str
     used_ai: bool
+    recommended_products: list[Product] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1050,9 +1051,28 @@ class ProductAssistant:
             return ProductAdvice(deterministic, False)
 
         if self.ai_available:
-            text = await self.ai.answer_product_question(question, products)
-            if text:
-                return ProductAdvice(text, True)
+            answer_with_selection = getattr(
+                self.ai, "answer_product_question_with_recommendation", None
+            )
+            if callable(answer_with_selection):
+                result = await answer_with_selection(question, products)
+                if isinstance(result, tuple) and len(result) == 2:
+                    text, recommended_id = result
+                    recommended = next(
+                        (
+                            product for product in products
+                            if product.product_id == recommended_id
+                        ),
+                        None,
+                    )
+                    if text:
+                        return ProductAdvice(
+                            text, True, [recommended] if recommended is not None else []
+                        )
+            else:
+                text = await self.ai.answer_product_question(question, products)
+                if text:
+                    return ProductAdvice(text, True)
 
         return ProductAdvice(
             "По данным этих карточек не могу надёжно это подтвердить. "
