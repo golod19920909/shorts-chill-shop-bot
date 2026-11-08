@@ -2195,17 +2195,18 @@ seller_terms: {seller_terms_json}
             verified.append((aspect, first_quote, second_quote))
         return verified or None
 
-    async def answer_product_question(
+    async def answer_product_question_with_recommendation(
         self, question: str, products: list[Product]
-    ) -> str | None:
-        """Build an answer only from exact quotes verified against listings.
+    ) -> tuple[str | None, str | None]:
+        """Return grounded answer text and an optional validated product ID.
 
         Gemini selects relevant evidence; the application, not the model,
-        constructs the factual text delivered to Telegram.
+        constructs factual text and validates every recommendation against
+        the supplied marketplace listings.
         """
 
         if not self.is_available or not products or not (question or "").strip():
-            return None
+            return None, None
 
         payloads = [
             product_facts(product) for product in products[:MAX_PRODUCTS_IN_PROMPT]
@@ -2227,7 +2228,7 @@ seller_terms: {seller_terms_json}
                 )
         except TimeoutError:
             logger.info("Gemini product-question answer timed out; using safe fallback")
-            return None
+            return None, None
         payload = self._extract_json_object(raw) if raw else None
         claims = payload.get("claims") if isinstance(payload, dict) else None
         if not isinstance(claims, list):
@@ -2276,7 +2277,8 @@ seller_terms: {seller_terms_json}
                 return (
                     "По вашему запросу наиболее подходящим выглядит "
                     f"<b>{title}</b>. В карточке указано: {quotes} "
-                    "Вывод основан на тексте карточки AliExpress, а не на независимой проверке качества."
+                    "Вывод основан на тексте карточки AliExpress, а не на независимой проверке качества.",
+                    str(recommended_id),
                 )
 
         rendered: list[str] = []
@@ -2317,7 +2319,7 @@ seller_terms: {seller_terms_json}
             if len(rendered) >= 8:
                 break
         if rendered:
-            return "По данным карточек AliExpress: " + " ".join(rendered)
+            return "По данным карточек AliExpress: " + " ".join(rendered), None
 
         # If the buyer asks for a winner without saying what matters, ask
         # one short follow-up instead of pretending the catalogue lacks data.
@@ -2329,8 +2331,19 @@ seller_terms: {seller_terms_json}
                 and clarification.count("?") == 1
                 and not re.search(r"https?://|www\.|<[^>]+>|\{", clarification, re.IGNORECASE)
             ):
-                return clarification
+                return clarification, None
         return None
+
+
+    async def answer_product_question(
+        self, question: str, products: list[Product]
+    ) -> str | None:
+        """Backward-compatible text-only facade for existing callers."""
+
+        answer, _recommended_product_id = (
+            await self.answer_product_question_with_recommendation(question, products)
+        )
+        return answer
 
     def _validated_sentences(
         self, text: str | None, facts: object
