@@ -4614,3 +4614,9 @@ a real API rejection. No blind retry or partner-link changes were made.
 - Revisit the AliExpress 405 diagnosis only with the matching safe
   `resp_msg`/error-class log; never record credentials, signatures, full user
   queries, or full product payloads.
+
+## 2026-11-08 — Restored legacy deterministic query parser
+
+A local regression run on `fix/conversational-search-completion-20` exposed that `services/ai_service.py` ended with a truncated `_to_search_request` implementation and omitted the class methods `_with_result_limit` and `_fallback_parse`. This broke both Gemini-unavailable fallback parsing and validation of Gemini's structured search request. The implementation was restored from the last known-good repository revision (`dec6289d55bc12f43c789020bccaa42f3859bcb2`), preserving the current branch's module-level parsing helpers and current model schema. The restored deterministic parser handles explicit prices/currencies, rating and order thresholds, unit quantity, AliExpress preference, required features, quality-only ranking preference, sort preference, and deterministic result-card count capture. The restored structured conversion validates model fields, preserves the user's exact original query, strips marketplace-irrelevant constraint phrases, and filters context/design/negation phrases out of literal required-feature filters.
+
+**Fix commit:** `9602a7c823b9e19e0801d075d091798dc8268614` on `fix/conversational-search-completion-20`. The local user environment has not yet pulled or tested this commit. Required verification after pull: `tests/test_ai_service.py`, `tests/test_convsearch_engine.py`, and `tests/test_search_service.py`, followed by the full project regression suite if these pass. Existing user-local edits and backup folders must remain untouched; do not merge PR #9 without explicit approval.
