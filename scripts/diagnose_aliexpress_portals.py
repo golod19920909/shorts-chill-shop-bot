@@ -3,11 +3,12 @@
 Run from the repository root:
     python -m scripts.diagnose_aliexpress_portals
 
-Optional featured-campaign product probe:
+Optional featured-campaign product probe (times must be the campaign's
+PST-local values as required by the API documentation):
     python -m scripts.diagnose_aliexpress_portals \
         --promo-name "EXACT_NAME_FROM_API" \
-        --promo-start-time "2026-11-19 00:00:00" \
-        --promo-end-time "2026-11-30 23:59:59"
+        --promo-start-time "YYYY-MM-DD HH:MM:SS" \
+        --promo-end-time "YYYY-MM-DD HH:MM:SS"
 
 The script reads the existing ALIEXPRESS_APP_KEY / ALIEXPRESS_APP_SECRET
 from the environment (normally .env via config.settings), uses the existing
@@ -248,9 +249,18 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Read-only AliExpress Portals API smoke test."
     )
-    parser.add_argument("--promo-name")
-    parser.add_argument("--promo-start-time")
-    parser.add_argument("--promo-end-time")
+    parser.add_argument(
+        "--promo-name",
+        help="Exact promo_name returned by featuredpromo.get.",
+    )
+    parser.add_argument(
+        "--promo-start-time",
+        help="Campaign start time in PST, format YYYY-MM-DD HH:MM:SS.",
+    )
+    parser.add_argument(
+        "--promo-end-time",
+        help="Campaign end time in PST, format YYYY-MM-DD HH:MM:SS.",
+    )
     return parser.parse_args()
 
 
