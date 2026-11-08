@@ -9,7 +9,7 @@ Access rules (the whole point of the panel being gated):
   is stored, and the attempt is logged (not counted as an event, so the
   statistics cannot be influenced from outside).
 
-The panel is a grid of 13 sections (§39); every section renders numbers
+The panel is a grid of 15 sections (§39); every section renders numbers
 read from the database or from live service diagnostics. What it never
 renders: the bot token, API keys, signed URLs, authorization headers or
 free-form user text beyond the admin-only top queries of §42.
@@ -387,7 +387,7 @@ async def _render_screen(
 async def _screen_menu(
     context: ContextTypes.DEFAULT_TYPE, period: str, page: int
 ) -> tuple[str, Any]:
-    """§39: the grid of 13 sections."""
+    """§39: the grid of 15 sections."""
 
     return MENU_TEXT, admin_main_keyboard()
 
