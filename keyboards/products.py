@@ -11,10 +11,9 @@ offers:
 ``🛒 Купить`` exists only when the marketplace really returned an
 affiliate link for this product: this project never sends the user to a
 plain marketplace page behind a Buy button, and never invents an affiliate
-URL. Buy is a URL button: one press opens the product's exact affiliate
-URL right in the browser, with no bot round-trip and no extra message.
-(The flip side of Telegram's design: the bot receives no signal about
-URL-button presses, so a Buy click cannot be recorded as analytics.)
+URL. Buy is a callback: the bot records an explicit affiliate-link
+request and then sends the exact API-provided URL in a separate Telegram
+URL button. Telegram does not report whether that URL button was opened.
 
 There is deliberately NO "🔍 Сравнить" button on cards: a comparison of
 one product is meaningless, and the keyboard must stay small.
