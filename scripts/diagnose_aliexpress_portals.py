@@ -92,22 +92,24 @@ async def _probe(
     return result
 
 
-def _campaigns(result: dict[str, Any] | None) -> list[dict[str, Any]]:
+def _data(result: dict[str, Any] | None) -> dict[str, Any]:
+    """The client returns resp_result; business records live in its result."""
     if not result:
-        return []
-    return _items(result.get("promos"), "promos")
+        return {}
+    nested = result.get("result")
+    return nested if isinstance(nested, dict) else result
+
+
+def _campaigns(result: dict[str, Any] | None) -> list[dict[str, Any]]:
+    return _items(_data(result).get("promos"), "promos")
 
 
 def _orders(result: dict[str, Any] | None) -> list[dict[str, Any]]:
-    if not result:
-        return []
-    return _items(result.get("orders"), "orders")
+    return _items(_data(result).get("orders"), "orders")
 
 
 def _products(result: dict[str, Any] | None) -> list[dict[str, Any]]:
-    if not result:
-        return []
-    return _items(result.get("products"), "products")
+    return _items(_data(result).get("products"), "products")
 
 
 async def run(args: argparse.Namespace) -> int:
@@ -225,7 +227,7 @@ async def run(args: argparse.Namespace) -> int:
         print(f"  ORDER_COUNT_RETURNED: {len(orders)}")
         print(
             "  TOTAL_RECORD_COUNT: "
-            f"{order_result.get('total_record_count', 'not returned') if order_result else 'not available'}"
+            f"{_data(order_result).get('total_record_count', 'not returned') if order_result else 'not available'}"
         )
         print(
             "  NOTE: order rows and commercial details are deliberately not "
