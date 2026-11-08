@@ -244,7 +244,30 @@ CREATE TABLE IF NOT EXISTS gemini_usage (
 );
 """
 
+
+CREATE_AFFILIATE_ORDERS_TABLE = """
+CREATE TABLE IF NOT EXISTS affiliate_orders (
+    order_key TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    sub_order_id TEXT NOT NULL,
+    order_status TEXT NOT NULL,
+    tracking_id TEXT,
+    product_id TEXT,
+    product_title TEXT,
+    commission_rate TEXT,
+    paid_amount TEXT,
+    estimated_paid_commission TEXT,
+    finished_amount TEXT,
+    estimated_finished_commission TEXT,
+    settled_currency TEXT,
+    created_time TEXT,
+    paid_time TEXT,
+    finished_time TEXT,
+    synced_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
 ALL_TABLES = (
+    CREATE_AFFILIATE_ORDERS_TABLE,
     CREATE_USERS_TABLE,
     CREATE_SEARCH_HISTORY_TABLE,
     CREATE_FAVORITES_TABLE,
@@ -262,6 +285,8 @@ ALL_TABLES = (
 #: Indexes added together with the tables. Created after the tables in
 #: ``Database.initialize`` so the schema stays one logical unit.
 ALL_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_affiliate_orders_status_created "
+    "ON affiliate_orders (order_status, created_time);",
     "CREATE INDEX IF NOT EXISTS idx_search_history_user "
     "ON search_history (user_id, id DESC);",
     "CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites (user_id, id DESC);",
