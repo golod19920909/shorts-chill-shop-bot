@@ -5004,3 +5004,7 @@ Source inspection on this branch confirms:
 - The new event is part of `KNOWN_EVENTS` and has an explicit Russian admin label. It is written through the existing analytics_events table and `handlers.common.record_event`; no duplicate analytics store was added.
 - CI workflow `.github/workflows/conversational-regression.yml` now includes `audit/aliexpress-portals-smoke-test` as a push trigger so GitHub Actions can verify changes on this work branch.
 - Follow-up needed: verify callback/card tests and GitHub Actions after the branch push. No tests are claimed as run from the GitHub file-edit operation alone.
+### Affiliate analytics admin alignment (2026-11-08)
+- The admin top-products aggregate now reads `affiliate_link_requested`, the new event emitted by the Buy callback. It no longer treats legacy `affiliate_clicked` rows as current click/request activity.
+- Legacy `affiliate_clicked` / `external_clicked` labels are marked as historical formats to avoid presenting unproduced historical events as live measurements.
+- Added offline tests for the callback keyboard shape, affiliate-only visibility, and the distinct event vocabulary/label. The tests have been committed; execution is pending an accessible GitHub Actions result.
