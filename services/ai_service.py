@@ -2232,7 +2232,7 @@ seller_terms: {seller_terms_json}
         payload = self._extract_json_object(raw) if raw else None
         claims = payload.get("claims") if isinstance(payload, dict) else None
         if not isinstance(claims, list):
-            return None
+            return None, None
 
         by_id = {
             str(item.get("id")): item
@@ -2332,7 +2332,7 @@ seller_terms: {seller_terms_json}
                 and not re.search(r"https?://|www\.|<[^>]+>|\{", clarification, re.IGNORECASE)
             ):
                 return clarification, None
-        return None
+        return None, None
 
 
     async def answer_product_question(
