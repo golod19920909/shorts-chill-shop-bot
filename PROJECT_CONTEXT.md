@@ -4667,3 +4667,14 @@ A local regression run on `fix/conversational-search-completion-20` exposed that
 - Therefore the quality-critical conversational product-selection stage is explicitly routed to the configured reserve model (Gemini 3.8 Flash) on its first pass as well as its bounded continuation. Gemini 3.1 Flash-Lite remains the primary fast model for conversation-turn interpretation and other lightweight text tasks.
 - This deliberately prioritizes preserving selection quality over forcing Flash-Lite to perform the semantic product-selection stage. No product-type, feature-evidence, compatibility, exclusion, or ranking gate is relaxed. No result padding is introduced.
 - PR #10 remains a draft and unmerged. Local and live verification have not been performed by the assistant; do not claim tests pass.
+
+## Owner-confirmed Gemini model policy — corrected implementation (2026-11-08)
+
+The owner's explicit requirement supersedes the earlier quality-follow-up notes above:
+
+- **Gemini 3.1 Flash-Lite is the sole primary model for every AI task**: conversation interpretation, query parsing, product selection/ranking, product advice/questions, comparison evidence, and photo understanding.
+- **Gemini 3.8 Flash is reserve-only.** It is never selected because Flash-Lite returns a valid short list, an empty valid selection, or a conservative answer. Those are model decisions, not proof of outage.
+- The reserve is attempted only inside `AIService._generate` after a real primary request failure: model unavailable (404/503 or equivalent), server error, transport/network error, or client timeout. Account-wide quota/rate limits and invalid credentials stop without trying 3.8 because they affect the same API key and another model cannot repair them.
+- Every bounded product-selection continuation stays on Flash-Lite. A short/empty valid first answer may receive the existing single continuation on Flash-Lite; it must not route to 3.8.
+- Existing product-type, identity evidence, mandatory-feature evidence, compatibility, exclusion, budget, deduplication and ranking gates remain unchanged. Do not loosen them to make the result count look larger.
+- PR #10 branch `fix/gemini-quality-preserving-selection` is being corrected to this policy. Draft only; not merged. Local/live test execution is not claimed. The owner reported the focused local suite had one fixture assertion failure; do not broaden work into unrelated test rewrites.
