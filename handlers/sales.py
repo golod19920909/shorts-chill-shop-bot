@@ -42,6 +42,7 @@ from config.sales import (
     is_enabled_value,
     safe_http_url,
     url_key,
+    safe_iso_date,
 )
 from handlers import common
 from keyboards.sales import sale_menu_button, sale_screen_keyboard
@@ -180,8 +181,8 @@ async def sale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await query.answer()
     destination = await _destination(context, event_id)
     database = common.get_database(context)
-    start_date = await database.get_config(f"sale.{event_id}.start_date") or event.start_date
-    end_date = await database.get_config(f"sale.{event_id}.end_date") or event.end_date
+    start_date = safe_iso_date(await database.get_config(f"sale.{event_id}.start_date")) or event.start_date
+    end_date = safe_iso_date(await database.get_config(f"sale.{event_id}.end_date")) or event.end_date
     text = _available_text(event, start_date, end_date) if destination else _unavailable_text(event, start_date, end_date)
     await query.edit_message_text(
         text, parse_mode="HTML", reply_markup=sale_screen_keyboard(destination)
