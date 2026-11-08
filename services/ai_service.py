@@ -116,10 +116,9 @@ STRICT_FILTER_RULES = """\
   релевантности запросу (сначала самое подходящее);"""
 
 
-#: Structured Google API statuses that mean the WHOLE KEY is out of
-#: quota/rate-limited. Another model cannot help, so the fallback model is
-#: deliberately not attempted - that would only burn more of the same
-#: account quota.
+#: Structured Google API quota/rate-limit statuses. Limits may be scoped
+#: to a model, so the configured reserve gets one attempt; if it is also
+#: rate-limited the chain stops without further retries.
 QUOTA_API_STATUSES = frozenset(
     {"RESOURCE_EXHAUSTED", "RATE_LIMITED", "TOO_MANY_REQUESTS"}
 )
@@ -311,7 +310,7 @@ def _classify_gemini_error(error: BaseException) -> str:
     Returns one of:
 
 
-    * ``quota``    - HTTP 429 / RESOURCE_EXHAUSTED (account-wide; no fallback);
+    * ``quota``    - HTTP 429 / RESOURCE_EXHAUSTED (one reserve attempt);
     * ``auth``     - HTTP 401/403, UNAUTHENTICATED / PERMISSION_DENIED / ...;
     * ``model``    - THIS model is unusable: 404 NOT_FOUND, 503 UNAVAILABLE
                      or an explicitly "unsupported" model - the only kind
@@ -2680,15 +2679,14 @@ seller_terms: {seller_terms_json}
         model first, then (implicitly) the configured fallback model. The
         chain is deliberately short and quota-aware:
 
-        - a **quota/rate-limit** error stops immediately - the limit is
-          account-wide and trying more models would only waste quota;
+        - a **quota/rate-limit** error gets one reserve attempt because
+          provider limits may be model-scoped;
         - a **model-unavailable** error (404/503) moves on to the fallback
           model;
         - a **client timeout**, server failure, transport failure or unavailable
           primary model moves to the configured reserve for every AI operation;
-        - account-wide quota/rate limits and invalid credentials stop immediately
-          because another model on the same key cannot repair them. All failures
-          are swallowed so the
+        - invalid credentials and invalid requests stop immediately because
+          switching models cannot repair them. All failures are swallowed so the
           bot never crashes because Gemini is down.
 
         Every failed attempt logs ONE detail fragment built by
@@ -2784,7 +2782,7 @@ seller_terms: {seller_terms_json}
                 )
                 kind = _classify_gemini_error(exc)
                 will_fallback = index + 1 < len(chain) and (
-                    kind in {"model", "server", "transport", "timeout"}
+                    kind in {"model", "server", "transport", "timeout", "quota"}
                 )
                 detail = _format_gemini_error(
                     exc,
@@ -2793,10 +2791,10 @@ seller_terms: {seller_terms_json}
                     will_fallback=will_fallback,
                     api_key=self._api_key,
                 )
-                if kind == "quota":
+                if kind == "quota" and not will_fallback:
                     logger.warning(
-                        "Gemini quota/rate limit reached; not trying another model"
-                        " (%s)",
+                        "Gemini quota/rate limit reached on primary and reserve; "
+                        "no further model attempts (%s)",
                         detail,
                     )
                     self.generate_failed += 1
@@ -2805,6 +2803,13 @@ seller_terms: {seller_terms_json}
                     if kind == "model":
                         logger.warning(
                             "Gemini model %s is unavailable; trying fallback model %s (%s)",
+                            model,
+                            chain[index + 1],
+                            detail,
+                        )
+                    elif kind == "quota":
+                        logger.warning(
+                            "Gemini model %s reached its quota; trying reserve model %s (%s)",
                             model,
                             chain[index + 1],
                             detail,
