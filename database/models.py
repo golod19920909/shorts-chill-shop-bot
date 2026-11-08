@@ -1,7 +1,7 @@
 """SQL schema definitions for the SQLite database.
 
 Kept deliberately small (per the project brief: "do not over-engineer
-the database"). Ten tables:
+the database"). Thirteen tables:
 
 - users            : one row per Telegram user
 - search_history   : past parsed search requests
@@ -27,6 +27,10 @@ the database"). Ten tables:
                      keep a feed novel - one row per (user, product), no
                      snapshot, because the only question it answers is
                      "has this user met this product?"
+- bot_config       : persistent runtime settings for admin-managed features
+- gemini_usage     : per-attempt Gemini token, latency and estimated-cost data
+- affiliate_orders : allowlisted AliExpress affiliate order line items; estimated
+                     commissions remain explicitly estimates
 
 ``favorites`` and ``tracked_products`` are separate because they express
 different intents: bookmarking a product for later viewing vs. actively
