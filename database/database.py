@@ -1393,6 +1393,20 @@ class Database:
             rows = await cursor.fetchall()
         return {str(row['order_status']): int(row['total']) for row in rows}
 
+    async def list_affiliate_orders(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Return recent allowlisted order fields for the admin-only dashboard."""
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT order_status, product_title, paid_amount, "
+                "estimated_paid_commission, finished_amount, "
+                "estimated_finished_commission, settled_currency, created_time "
+                "FROM affiliate_orders ORDER BY synced_at DESC, created_time DESC LIMIT ?",
+                (max(1, min(int(limit), 20)),),
+            )
+            rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def count_affiliate_orders(self) -> int:
         async with self._connect() as conn:
             cursor = await conn.execute("SELECT COUNT(*) FROM affiliate_orders")
