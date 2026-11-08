@@ -46,6 +46,7 @@ from utils.formatting import (
 )
 
 CB_PREFIX_FAVORITE = "pfav"
+CB_PREFIX_BUY = "pbuy"
 CB_PREFIX_TRACK = "ptrack"
 CB_PREFIX_FAVORITE_REMOVE = "fdel"
 CB_PREFIX_TRACK_STOP = "tstop"
@@ -184,18 +185,16 @@ def browse_card_keyboard(
         and is_openable_url(product.affiliate_url)
         and budget.try_take(product.affiliate_url)
     ):
-        # URL button: one press opens this product's exact affiliate URL
-        # in the browser. No bot round-trip, no re-sent card, no extra
-        # message - and the URL is the one the API returned for exactly
-        # this (session_id, index) product.
-        #
-        # ``is_openable_url`` is not cosmetic: Telegram refuses the WHOLE
-        # message when one button URL is empty or relative ("Text buttons
-        # are not allowed" / "URL host is empty", verified live), which
-        # would hide the product entirely.
+        # The callback records an explicit request for this exact affiliate URL.
+        # The handler then sends it as a Telegram URL button. Telegram does not
+        # report whether that browser button was opened, so analytics counts
+        # the request only, never a confirmed browser click.
         rows.append(
             [
-                InlineKeyboardButton(LABEL_BUY, url=product.affiliate_url)
+                InlineKeyboardButton(
+                    LABEL_BUY,
+                    callback_data=f"{CB_PREFIX_BUY}:{session_id}:{index}",
+                )
             ]
         )
 
