@@ -5101,3 +5101,10 @@ Source inspection on this branch confirms:
 ### Monetization workflow verification scope (2026-11-08)
 - Confirmed the YAML now lists `tests/test_admin_panel.py` as a separate PR path and executes it in the focused pytest command alongside affiliate analytics, order sync, backup/restore and sales-calendar tests. (The first edit accidentally combined two path names into one YAML string; this was corrected before finalizing.)
 - The workflow still runs automatically on pushes to `audit/aliexpress-portals-smoke-test`. No CI pass is claimed until an actual Actions run result is visible.
+
+
+### Guarded Linux deployment and code rollback (2026-11-09)
+- Added `scripts/deploy_update.sh` for the existing single-instance Linux/systemd layout. It requires a clean checkout on the configured deployment branch, fetches the exact remote-tracking ref, permits fast-forward only, creates/verifies a SQLite backup before changing code, installs pinned runtime + test dependencies, compiles modules, runs focused monetization/admin regressions, restarts the service, and verifies `systemctl is-active`.
+- If a post-update step fails, the ERR trap resets only the server checkout to the prior commit, reinstalls that commit's runtime dependencies and attempts a verified service restart. It does not auto-restore SQLite: preserving new user data is safer; an incompatible schema rollback requires a deliberate offline restore from the pre-update backup.
+- The `shopbot` account requires a narrow sudoers rule for only `systemctl restart shopbot` and `systemctl is-active --quiet shopbot`; README documents the setup. The script does not read or edit `.env`.
+- `.github/workflows/monetization-audit.yml` validates shell syntax with `bash -n`. The script is not run against production here; server access is not available. CI status remains unverified.
