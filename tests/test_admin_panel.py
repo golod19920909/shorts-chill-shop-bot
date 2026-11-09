@@ -242,6 +242,37 @@ class AdminScreenRenderTests(AdminPanelTestCase):
         ]
         self.assertIn("adm:users:p1", callbacks)
 
+    def test_findings_screen_shows_curation_stage_metrics(self) -> None:
+        context = self.make_context()
+        search_service = context.application.bot_data["search_service"]
+        search_service.last_feed_stats = {
+            "page": 2,
+            "endpoint": "aliexpress.affiliate.product.query",
+            "raw_rows": 50,
+            "final": 38,
+            "exact_duplicates": 2,
+            "dropped_no_image": 4,
+            "dropped_no_affiliate": 3,
+            "hidden_as_seen": 3,
+        }
+        search_service.last_findings_stats = {
+            "received": 38,
+            "exact_duplicates": 0,
+            "near_duplicates": 6,
+            "selected": 20,
+            "ai_status": "selected",
+            "duration_ms": 1250.0,
+        }
+
+        text, _keyboard = run(admin._screen_feed(context, "today", 0))
+
+        self.assertIn("Интеллектуальный отбор", text)
+        self.assertIn("Кандидатов после технической проверки: 38", text)
+        self.assertIn("похожих товаров удалено: 6", text)
+        self.assertIn("Gemini: <b>selected</b>", text)
+        self.assertIn("отобрано: <b>20</b>", text)
+        self.assertNotIn("бот не ранжирует", text)
+
     def test_api_test_without_provider_is_honest(self) -> None:
         result = run(admin._run_api_test(self.make_context()))
         self.assertIn("нет настроенного провайдера", result)
