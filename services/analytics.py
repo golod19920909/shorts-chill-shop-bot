@@ -31,6 +31,10 @@ EVENT_SEARCH_SUCCESS = "search_success"
 EVENT_SEARCH_FAILED = "search_failed"
 EVENT_PRODUCTS_SHOWN = "products_shown"
 
+#: One «✨ Находки» candidate pool was curated; metadata contains only stage counts,
+#: selector status and elapsed time (never query text, credentials or URLs).
+EVENT_FEED_CURATED = "feed_curated"
+
 #: One card was put on screen. ``products_shown`` counts a whole result set
 #: (the search screens), ``product_shown`` counts the single card the user
 #: is actually looking at - including every "➡️ Следующий" step.
@@ -84,6 +88,7 @@ KNOWN_EVENTS: tuple[str, ...] = (
     EVENT_SEARCH_STARTED,
     EVENT_SEARCH_SUCCESS,
     EVENT_SEARCH_FAILED,
+    EVENT_FEED_CURATED,
     EVENT_PRODUCTS_SHOWN,
     EVENT_PRODUCT_SHOWN,
     EVENT_BUY_CLICKED,
@@ -109,6 +114,7 @@ EVENT_LABELS: dict[str, str] = {
     EVENT_SEARCH_STARTED: "Поисковых запросов",
     EVENT_SEARCH_SUCCESS: "Успешных поисков",
     EVENT_SEARCH_FAILED: "Поисков без результатов",
+    EVENT_FEED_CURATED: "Подборок «Находки» обработано",
     EVENT_PRODUCTS_SHOWN: "Показов результатов (наборов товаров)",
     EVENT_PRODUCT_SHOWN: "Показов карточек (поштучно)",
     EVENT_BUY_CLICKED: "Исторические нажатия «Купить»",
