@@ -1718,6 +1718,39 @@ class FindingsCurationTests(SearchServiceTestCase):
             service.last_findings_stats["ai_status"], "deterministic_only"
         )
 
+    def test_deterministic_fallback_uses_real_orders_without_hard_thresholds(self):
+        from services.search_service import SearchOutcome
+
+        quiet = make_product(
+            Marketplace.ALIEXPRESS, "quiet", None,
+            title="Умные часы спортивные",
+            orders_count=12,
+        )
+        popular = make_product(
+            Marketplace.ALIEXPRESS, "popular", None,
+            title="Мини проектор домашний",
+            orders_count=12000,
+        )
+        unknown = make_product(
+            Marketplace.ALIEXPRESS, "unknown", None,
+            title="Лампа настольная сенсорная",
+            orders_count=None,
+            rating=None,
+            positive_rate=None,
+        )
+        service = SearchService([])
+        outcome = SearchOutcome(
+            request=SearchRequest(original_query="находки AliExpress"),
+            products=[quiet, unknown, popular],
+        )
+
+        self.run_async(service.curate_findings(outcome, wanted=3))
+
+        self.assertEqual(
+            [product.product_id for product in outcome.products],
+            ["popular", "quiet", "unknown"],
+        )
+
     def test_findings_curation_removes_near_duplicate_titles(self):
         from services.search_service import SearchOutcome
 
