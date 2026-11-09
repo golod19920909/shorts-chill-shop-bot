@@ -1645,5 +1645,110 @@ class SearchDepthDefaultTests(unittest.TestCase):
         self.assertEqual(configured.search_max_pages, 5)
         self.assertEqual(directly_constructed.search_max_pages, 5)
 
+
+class FindingsCurationTests(SearchServiceTestCase):
+    def test_ai_selection_is_mapped_only_to_real_pool_ids(self):
+        from services.search_service import SearchOutcome
+
+        class Selector:
+            is_available = True
+
+            async def select_findings_candidates(self, candidates, *, wanted):
+                return ["lamp", "watch", "invented-id"]
+
+        products = [
+            make_product(
+                Marketplace.ALIEXPRESS, "watch", 18.0,
+                title="Умные часы спортивные",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "lamp", 9.0,
+                title="Светильник настольный сенсорный",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "projector", 45.0,
+                title="Мини проектор домашний",
+            ),
+        ]
+        service = SearchService([], ai_service=Selector())
+        outcome = SearchOutcome(
+            request=SearchRequest(original_query="находки AliExpress"),
+            products=products,
+        )
+
+        self.run_async(service.curate_findings(outcome, wanted=2))
+
+        self.assertEqual(
+            [product.product_id for product in outcome.products],
+            ["lamp", "watch"],
+        )
+        self.assertEqual(service.last_findings_stats["ai_status"], "selected")
+        self.assertEqual(service.last_findings_stats["selected"], 2)
+
+    def test_missing_ai_uses_deterministic_diverse_fallback(self):
+        from services.search_service import SearchOutcome
+
+        products = [
+            make_product(
+                Marketplace.ALIEXPRESS, "watch", None,
+                title="Умные часы спортивные",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "lamp", None,
+                title="Светильник настольный сенсорный",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "projector", None,
+                title="Мини проектор домашний",
+            ),
+        ]
+        service = SearchService([], ai_service=AIService(api_key=None))
+        outcome = SearchOutcome(
+            request=SearchRequest(original_query="находки AliExpress"),
+            products=products,
+        )
+
+        self.run_async(service.curate_findings(outcome, wanted=3))
+
+        self.assertEqual(
+            [product.product_id for product in outcome.products],
+            ["watch", "lamp", "projector"],
+        )
+        self.assertEqual(
+            service.last_findings_stats["ai_status"], "deterministic_only"
+        )
+
+    def test_findings_curation_removes_near_duplicate_titles(self):
+        from services.search_service import SearchOutcome
+
+        products = [
+            make_product(
+                Marketplace.ALIEXPRESS, "first", 10.0,
+                title="Беспроводные наушники Bluetooth TWS",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "copy", 11.0,
+                title="Bluetooth TWS беспроводные наушники",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "different", 15.0,
+                title="Рюкзак туристический водостойкий",
+            ),
+        ]
+        service = SearchService([])
+        outcome = SearchOutcome(
+            request=SearchRequest(original_query="находки AliExpress"),
+            products=products,
+        )
+
+        self.run_async(service.curate_findings(outcome, wanted=3))
+
+        self.assertEqual(
+            [product.product_id for product in outcome.products],
+            ["first", "different"],
+        )
+        self.assertEqual(service.last_findings_stats["near_duplicates"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
