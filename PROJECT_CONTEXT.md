@@ -5116,3 +5116,8 @@ Source inspection on this branch confirms:
 - The public API catalog separately lists seller Marketing Management coupon/store-promotion methods. Those are not Portals Affiliate API evidence and are not wired into the bot; do not use them as a workaround with affiliate credentials.
 - The current coupon display remains product-level `promo_code_info` only when actually returned by the affiliate product API. The standalone promo page remains the configured partner landing page.
 - Corrected order diagnostic with the 30-day PST window has not yet been run with the live app credentials; order ingestion and commissions remain unverified live.
+
+
+### Deployment test isolation (2026-11-09)
+- Tightened `scripts/deploy_update.sh`: production `.venv` now receives only `requirements.txt`; pytest and `requirements-dev.txt` are installed in a temporary isolated venv under `${TMPDIR:-/tmp}`, removed by an EXIT trap. The temporary test environment is created only after the verified database backup and is used for focused pytest; compile and runtime install still use the production venv.
+- This change has not been run on the production server. Workflow status and live deployment remain unverified.
