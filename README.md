@@ -355,11 +355,36 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now shopbot-backup.timer
 systemctl list-timers shopbot-backup.timer
 
+# One-time: allow shopbot to restart/check ONLY this systemd service.
+# Create with: sudo visudo -f /etc/sudoers.d/shopbot-deploy
+# File contents:
+# shopbot ALL=(root) NOPASSWD: /usr/bin/systemctl restart shopbot, /usr/bin/systemctl is-active --quiet shopbot
+
 # Guarded update from the deployed branch (default: main); run as shopbot
+cd ~/shorts-chill-shop-bot
 DEPLOY_REF=main bash scripts/deploy_update.sh
 
 sudo journalctl -u shopbot -f
 ```
+
+Обновление существующей установки:
+
+* Скрипт требует чистую рабочую копию, текущую ветку `main` (или явно
+  заданную `DEPLOY_REF`) и fast-forward обновление. Он создаёт проверенную
+  SQLite-копию до изменения кода, устанавливает зависимости, компилирует
+  приложение, запускает целевые регрессионные тесты и только затем
+  перезапускает сервис.
+* Для запуска от пользователя `shopbot` настройте sudoers-правило выше:
+  оно разрешает только `restart` и `is-active` для службы `shopbot`.
+  Секреты и содержимое `.env` скрипт не читает и не меняет.
+* При ошибке после начала обновления скрипт возвращает Git-код к предыдущему
+  commit, восстанавливает runtime-зависимости и проверяет повторный запуск
+  службы. SQLite автоматически не откатывается: бэкап сохраняется отдельно,
+  чтобы не потерять новые пользовательские данные. Если потребуется откат
+  несовместимой миграции, БД восстанавливается отдельно после остановки бота.
+* Грязная рабочая копия, другая текущая ветка или не-fast-forward обновление
+  приводят к безопасному отказу до изменения кода. Это серверная Linux/systemd
+  процедура, не для локальной Windows-разработки.
 
 Замечания:
 
