@@ -11,9 +11,9 @@ Strict rules implemented here (see the project brief):
   selector (``select_feed_candidates``, at most :data:`TOP_CANDIDATES` cards,
   judged by :data:`STRICT_FILTER_RULES`) and the assistant/discovery pickers
   (``select_candidates`` / ``rank_candidates``), which return only ids the
-  service validates. The «🔥 Популярное» feed is NOT model-ranked: its order
-  is the marketplace's own order volume (``popularity_score``), which keeps
-  that feed reproducible.
+  service validates. The broad «✨ Находки» feed has its own query-free
+  selector; it does not apply invented hard rating/order/price thresholds.
+  The older keyword-based selector remains separate.
 - All numeric constraints that arrive from Gemini are re-applied
   programmatically later, in ``services.comparison_service``.
 - If Gemini is not configured or fails, the bot keeps working: queries
