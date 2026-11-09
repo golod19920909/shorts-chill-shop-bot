@@ -5163,3 +5163,35 @@ Source inspection on this branch confirms:
 - The link is still the original `product.affiliate_url`; affiliate-link request analytics and the existing cross-sell offer flow are unchanged.
 - Product-title links in favorites/tracking lists also remain Telegram URL buttons; their visible labels are product titles, not raw URLs.
 - This is a presentation-only change. No affiliate generation, attribution, tracking, search, ranking, or database behavior was changed. No automated tests were run for this text-only label change.
+
+## «✨ Находки» implementation — initial audit (2026-11-09)
+
+### Scope and branch
+- Active work remains isolated on `audit/aliexpress-portals-smoke-test`; do not merge into `main` or PR #10.
+- Read `AGENTS.md` and this context before changes. Preserve Option C, honest real-product data, AliExpress Affiliate API only, and the existing Telegram card/navigation UX.
+- This task is the approved implementation of the separate technical specification for an intelligent recommendation system in «✨ Находки». Premium subscriptions remain out of scope.
+
+### Verified current architecture
+- `handlers/discovery.py::show_feed` opens the feed, reads per-user `FLOW_FEED` history and persisted `popular_state` cursor, requests bounded AliExpress pages, merges page outcomes, advances the cursor, records the first shown card, and calls `handlers.search.send_search_results`.
+- Runtime defaults are `feed_open_size=20` and `feed_max_pages_per_open=2`; each provider page can return up to 50 rows. The current handler stops fetching as soon as it has 20 technically valid unseen products, so the normal pool is often only the number needed for display, not a deeper candidate pool.
+- `services/search_service.py::find_feed_page` calls `AliExpressProvider.fetch_feed_page` (keyword-less `aliexpress.affiliate.product.query`, without a sort), normalizes provider results, deduplicates canonical marketplace/product identity, requires a real image and affiliate URL, excludes the supplied per-user seen identities, and truncates to the passed limit. It does not currently run quality scoring, family selection, AI selection, or ranking.
+- `handlers.discovery.show_feed` passes `pre_curated=True` to `send_search_results`, intentionally bypassing `CurationGate`. This is why the shared quality/history/mode/diversity pipeline is not applied to the feed.
+- `services.feed_curation.py` already provides pure functions: title similarity, near-duplicate removal, AI-ID ranking/selection validation, diversity spreading, family selection, and recent-history penalty. These are available building blocks; do not create a parallel generic curation framework.
+- `services.search_service.py` already has a bounded generic AI selector path (`select_feed_candidates`, max 20, timeout 8 seconds) for keyword-based product/discovery flows. It uses the shared strict search prompt and is not wired into `find_feed_page`; that prompt assumes a query-specific target and contains assumptions (e.g. rating thresholds) unsuitable for an unqualified broad «Находки» feed without verifying the live field distribution.
+- `services.ai_service.py` already exposes `select_feed_candidates` and validates response shape to a list of IDs. `feed_curation.apply_selection` maps IDs back to the actual supplied candidate pool, so invented IDs are discarded.
+- Product schema exposes real fields including `price`, `currency`, `old_price`, `discount_percent`, `rating`, `orders_count`, `positive_rate`, `promo_code`, `category_path`, image and affiliate URL. In particular, `positive_rate` is not a star rating; do not convert it to stars. Missing rating/orders are not proof of poor quality.
+- Existing `CurationPipeline` recommendation profile is an impulse-buy policy ($1–$20, >=300 orders, >=4.5 stars, with a price fallback). It must NOT be blindly applied to the broad AliExpress feed: no live sample distribution has been obtained for this task, and AliExpress affiliate API may omit star ratings.
+- Existing per-user feed history (`popular_shown`, `FLOW_FEED`) and cursor semantics must be preserved. Search history remains isolated. «Начать заново» clears feed history but intentionally continues from the next marketplace page.
+
+### Evidence limitations
+- Source code and project documentation have been inspected. The current conversation/runtime does not provide the user's local `.env`, production logs, or a live AliExpress response sample. No actual API candidate distribution (rating, orders, discount, category mix) has been claimed or fabricated.
+- Before choosing hard commercial thresholds, inspect an anonymized live sample from the user's bot or a credential-safe diagnostic run. Until then, use structural validation and evidence actually present on each product; missing optional facts remain unknown.
+- No code changes or live API calls have been made in this audit checkpoint.
+
+### Next implementation steps
+1. Inspect exact `AIService` prompt/payload and the existing feed-related tests/callers.
+2. Implement a feed-specific Gemini selection policy for broad unqualified discovery, without changing the keyword-search selector semantics or model configuration. Keep model output limited to candidate IDs and validate all IDs against the exact pool.
+3. Change the «Находки» refill to gather a bounded deeper pool from the existing maximum two documented pages, then curate once per open. Preserve cursor advancement, per-user exclusions, no-repeat history and the 20-card cap.
+4. Add deterministic fallback using existing `services.feed_curation` helpers. A Gemini timeout/error/invalid answer must not produce invented items or an empty feed when real eligible candidates remain.
+5. Record per-stage candidate counts, AI outcome/latency/tokens/cost using existing analytics/telemetry infrastructure; distinguish selected candidates from actually shown cards.
+6. Run only focused offline tests for the touched behavior, then request a real user-side smoke test if live credentials/data are needed. Update this file after each meaningful implementation milestone.
