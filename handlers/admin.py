@@ -93,8 +93,8 @@ API_CAPABILITIES: tuple[str, ...] = (
     "product.query — подтверждён (живые вызовы поиска)",
     "productdetail.get — подтверждён (карточки товара, отслеживание)",
     "hotproduct.query — недоступен (InsufficientPermission у ключа); "
-    "«✨ Находки» читает широкую выдачу product.query — бот не выполняет "
-    "собственное ранжирование",
+    "«✨ Находки» строится на широком product.query, затем проходит "
+    "детерминированный и Gemini-отбор по реальным товарам",
     "image.search — недоступен (нужен уровень app_signature); "
     "поиск по фото работает через Gemini Vision → обычный текстовый поиск",
     "link.generate — не используется (нет tracking_id); affiliate-ссылки "
@@ -681,10 +681,11 @@ async def _screen_products(
 async def _screen_feed(
     context: ContextTypes.DEFAULT_TYPE, period: str, page: int
 ) -> tuple[str, Any]:
-    """§46: diagnostics of the last «✨ Находки» page fetch (G24)."""
+    """Diagnostics of the latest «✨ Находки» API fetch and curation."""
 
     search_service = context.application.bot_data.get("search_service")
     stats = getattr(search_service, "last_feed_stats", None)
+    curation = getattr(search_service, "last_findings_stats", None)
 
     lines = ["✨ <b>Находки</b>", ""]
 
@@ -714,17 +715,39 @@ async def _screen_feed(
             ]
         )
 
+    if curation is not None:
+        def _curation_field(key: str, default: str = "—") -> Any:
+            value = curation.get(key)
+            return default if value is None else str(value)
+
+        lines.extend(
+            [
+                "",
+                "<b>Интеллектуальный отбор</b>:",
+                f"• Кандидатов после технической проверки: "
+                f"{_curation_field('received')}",
+                f"• Точных дублей: {_curation_field('exact_duplicates', '0')}; "
+                f"похожих товаров удалено: {_curation_field('near_duplicates', '0')}",
+                f"• Gemini: <b>{common.escape(_curation_field('ai_status'))}</b>; "
+                f"отобрано: <b>{_curation_field('selected')}</b>",
+                f"• Время отбора: {_curation_field('duration_ms')} мс",
+            ]
+        )
+
     lines.extend(
         [
             "",
             "<b>Источник кандидатов</b>:",
             "• product.query (aliexpress.affiliate.product.query) БЕЗ keywords "
-            "и БЕЗ sort — собственная витрина AliExpress: ~15–19 млн строк, "
-            "page_size до 50, документированная пагинация page_no.",
+            "и БЕЗ sort — широкая витрина AliExpress, до 50 строк на страницу.",
             "• hotproduct.query и product.smartmatch — недоступны "
             "(InsufficientPermission) для этого ключа.",
-            "• Порядок и состав ленты решает AliExpress: бот не ранжирует, не "
-            "оценяет качество и не выдумывает карточки (G24).",
+            "• После получения бот удаляет точные и похожие дубли, отбирает "
+            "интересные товары через Gemini и ограничивает повторы семейств.",
+            "• Если Gemini недоступен, используется детерминированный отбор "
+            "по реальным заказам, рейтингу, положительным отзывам и скидке.",
+            "• Gemini возвращает только ID из полученного пула; цены, свойства "
+            "и партнёрские ссылки не генерируются моделью.",
         ]
     )
     return "\n".join(lines), admin_screen_keyboard("feed", period)
@@ -1232,7 +1255,7 @@ def _capabilities(
 
     ai_service = bot_data.get("ai_service")
     lines.append(
-        "Gemini (AI-парсер запросов и ранжирование «Популярного»): "
+        "Gemini (AI-парсер и отбор товаров для «Находок»): "
         + ("включён" if ai_service is not None and ai_service.is_available else "выключен")
     )
 
