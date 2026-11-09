@@ -5139,3 +5139,12 @@ Source inspection on this branch confirms:
 - The `Conversational regression tests` workflow on head `f089b75fdd001de6cb3b960d7c67ddebc48c0cce` completed with 3 failures, 438 passed, 1 deselected and 78 subtests passed. Failures: `tests/test_convsearch_turn_interpretation.py::...test_semantic_selector_empty_result_does_not_restore_irrelevant_items` (expected `semantic_no_match`, got `rejected_by_type_gate`); `tests/test_convsearch_engine.py::...test_partial_mandatory_feature_stays_hidden_if_gemini_times_out` (expected `unverified_required_features`, got `rejected_by_type_gate`); `tests/test_ai_operations.py::GeminiSelectionTimeoutFallbackTests::test_other_gemini_operations_do_not_retry_on_timeout` (mock awaited twice, expected once).
 - These files/areas are outside the monetization branch's changed-file set relative to `fix/gemini-quality-preserving-selection`; no Gemini/conversational logic was changed to mask or alter these failures. Treat them as pre-existing baseline failures pending separate authorized work.
 - The dedicated `Monetization audit regression` workflow on the same head completed successfully, including compile, deployment-script syntax and focused monetization tests.
+
+
+## Monetization branch update — 2026-11-09
+
+- Latest dedicated monetization workflow on commit `9d1b175460f6b534936cf01638cd568f85ba5c9a` completed successfully (run 42579896278).
+- Implemented opt-in complementary-item follow-up in `handlers/cross_sell.py`: offered only after a user explicitly requests an affiliate link from a product card or favorites. Decline clears the offer; accept asks the user to describe what to find.
+- The accepted text is consumed once in `handlers/search.py` and resets the previous conversational ledger before the normal search. No automatic second search, guessed accessory category, or hidden product injection.
+- Added `tests/test_cross_sell.py` and included it in the dedicated monetization workflow. New workflow run is pending verification after these changes.
+- Branch remains `audit/aliexpress-portals-smoke-test`; do not merge to main or PR #10. Production server deployment, backup-timer installation/restore drill, and live corrected AliExpress order diagnostic remain unverified and require server/.env access.
