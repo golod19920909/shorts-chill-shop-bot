@@ -24,7 +24,7 @@ CURRENT_BRANCH="$(git branch --show-current)"
 [[ ! -e .git/MERGE_HEAD && ! -e .git/rebase-merge && ! -e .git/rebase-apply ]] || die "Git merge/rebase is in progress"
 
 log "Fetching $REMOTE/$DEPLOY_REF"
-git fetch --prune "$REMOTE" "$DEPLOY_REF"
+git fetch --prune "$REMOTE" "+refs/heads/$DEPLOY_REF:refs/remotes/$REMOTE/$DEPLOY_REF"
 TARGET="$(git rev-parse "$REMOTE/$DEPLOY_REF")"
 PREVIOUS="$(git rev-parse HEAD)"
 git merge-base --is-ancestor "$PREVIOUS" "$TARGET" || die "target is not a fast-forward; manual review required"
