@@ -4,13 +4,11 @@ Every screen goes through the same provider pipeline as a normal search,
 so a failing or unconfigured marketplace degrades gracefully everywhere.
 
 Nothing here invents products:
-- «✨ Находки» (G24) is AliExpress' OWN keyword-less ``product.query``
-  listing: ``SearchService.find_feed_page`` delivers one documented page
-  (normalize -> dedup -> technical validity -> skip what this user has
-  already been shown), and this handler only reads state, refills within
-  the per-open page budget, renders and advances the cursor - there is no
-  local popularity algorithm, no ranking and no quality judgement anywhere
-  in this path;
+- «✨ Находки» uses AliExpress' keyword-less ``product.query`` listing.
+  This handler gathers a bounded candidate pool across documented pages,
+  preserves per-user history/cursor state, then asks SearchService to run
+  one deterministic + Gemini curation pass before rendering. Gemini may
+  return only IDs from the real pool; failures use deterministic fallback;
 - image search describes the picture via Gemini and then runs a normal
   AliExpress text search (the provider itself reports that image search
   is unsupported, see the module docstring of the provider).
@@ -613,13 +611,13 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
       (``popular_shown``, scope ``feed``: the ONLY hard no-repeat source
       for this feed) and the cursor (the next ``page_no``, RAM +
       ``popular_state``);
-    * refills up to ``FEED_OPEN_SIZE`` new cards within
-      ``FEED_MAX_PAGES_PER_OPEN`` documented pages, so one open is bounded
-      REAL API work no matter what the marketplace answers;
+    * gathers a deeper candidate pool (up to 50 rows per page) within
+      ``FEED_MAX_PAGES_PER_OPEN`` documented pages, then curates it down to
+      ``FEED_OPEN_SIZE`` cards; one open remains bounded REAL API work;
     * advances the cursor by the contract ``next = last_attempted + 1``,
       so consecutive opens walk FURTHER into the listing across sessions,
       handler instances and restarts;
-    * renders the outcome and records what this user is shown RIGHT NOW.
+    * renders the curated outcome and records what this user is shown RIGHT NOW.
 
     The search-like flows keep their own scope, so a search can neither
     empty the feed nor make it claim it is over. Navigation INSIDE an
