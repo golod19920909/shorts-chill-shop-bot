@@ -75,7 +75,7 @@ TEST_PIP="$TEST_VENV_DIR/bin/pip"
 log "Compiling application modules"
 "$PYTHON" -m compileall -q bot config curation database handlers keyboards services scripts
 log "Running focused deployment safety tests"
-"$TEST_PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_sales_calendar.py tests/test_admin_panel.py
+"$TEST_PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_favorite_affiliate_link.py tests/test_sales_calendar.py tests/test_admin_panel.py
 log "Restarting systemd service: $SERVICE_NAME"
 ROOT_SYSTEMCTL restart "$SERVICE_NAME"
 ROOT_SYSTEMCTL is-active --quiet "$SERVICE_NAME"
