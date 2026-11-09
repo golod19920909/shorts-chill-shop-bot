@@ -5133,3 +5133,9 @@ Source inspection on this branch confirms:
 ### Monetization CI result (2026-11-09)
 - GitHub Actions run `42579657986` for head `d0bd0549b025ec3070dc6454c50eef40f6e4fb03` completed successfully. Job `monetization-regressions`: dependency install, deployment shell syntax, monetization module compilation and focused pytest suite all passed, including the new favorites affiliate-link tests.
 - This is branch CI evidence only. It does not validate the production server, live Portals credentials/order rows, backup timer installation or Telegram runtime interaction.
+
+
+### Conversational regression CI observation (2026-11-09)
+- The `Conversational regression tests` workflow on head `f089b75fdd001de6cb3b960d7c67ddebc48c0cce` completed with 3 failures, 438 passed, 1 deselected and 78 subtests passed. Failures: `tests/test_convsearch_turn_interpretation.py::...test_semantic_selector_empty_result_does_not_restore_irrelevant_items` (expected `semantic_no_match`, got `rejected_by_type_gate`); `tests/test_convsearch_engine.py::...test_partial_mandatory_feature_stays_hidden_if_gemini_times_out` (expected `unverified_required_features`, got `rejected_by_type_gate`); `tests/test_ai_operations.py::GeminiSelectionTimeoutFallbackTests::test_other_gemini_operations_do_not_retry_on_timeout` (mock awaited twice, expected once).
+- These files/areas are outside the monetization branch's changed-file set relative to `fix/gemini-quality-preserving-selection`; no Gemini/conversational logic was changed to mask or alter these failures. Treat them as pre-existing baseline failures pending separate authorized work.
+- The dedicated `Monetization audit regression` workflow on the same head completed successfully, including compile, deployment-script syntax and focused monetization tests.
