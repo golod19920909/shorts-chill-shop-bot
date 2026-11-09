@@ -5221,3 +5221,11 @@ Source inspection on this branch confirms:
 - The feed curation output is hard-capped at the existing AI feed limit of 20 cards, even if a deployment's legacy `FEED_OPEN_SIZE` setting is accidentally raised above that value. Default settings remain 20 cards and at most two API pages per open.
 - Focused workflow on commit `70ff47ffe3a175a5967cf58fefd3653563173280` completed its focused offline step with 444 passed, 3 failed, 1 deselected and 78 subtests passed. All findings-specific tests and the full `tests/test_search_service.py` module passed. The three failures are the already-recorded conversational baseline failures, unrelated to the feed files.
 - The latest cap-only follow-up is commit `d563ded3024888337a0581c1f4e8064774e77d6a`; its Actions runs are pending/completing. Recheck the run attached to the eventual context-update HEAD before reporting final CI status.
+
+### «✨ Находки» — admin diagnostics (2026-11-09)
+
+- Updated the admin «Находки» screen to show the latest API-page diagnostics alongside the curation summary: candidate count after technical validation, exact/near-duplicate counts, Gemini status, selected count and curation duration.
+- Corrected the capability description: AliExpress still supplies the broad candidate listing; the bot now applies its own real-product selection after retrieval. The screen explains that Gemini returns only IDs and that deterministic fallback uses marketplace-provided commercial signals.
+- Updated the startup/status wording from the retired «Популярное» ranking label to AI selection for «Находки».
+- Added `tests/test_admin_panel.py::AdminScreenRenderTests::test_findings_screen_shows_curation_stage_metrics`.
+- Follow-up verification is running on the branch; latest changes are limited to the admin diagnostics and their test. Keep the previously documented unrelated CI failures separate from findings regressions.
