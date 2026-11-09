@@ -28,7 +28,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import ContextTypes
 
 from curation.integration import mode_for_feed, mode_for_request
-from handlers import common
+from handlers import common, cross_sell
 from keyboards.main import back_to_menu_keyboard
 from utils.formatting import is_openable_url
 from keyboards.products import (
@@ -795,6 +795,20 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not text or text.startswith("/"):
         return
     original_text = text
+
+    # A user who explicitly accepted the complementary-item offer starts a
+    # clean search. Do not let the previous product's slots/budget/exclusions
+    # leak into this separate accessory request.
+    if cross_sell.consume_search_request(context):
+        if text.casefold() in {"отмена", "отменить", "cancel", "не надо"}:
+            await message.reply_text(
+                "Хорошо, дополнительный поиск отменён.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+            _turn_done("cross-sell-cancelled")
+            return
+        reset_conversation(context)
+        reset_conversation_engine(str(update.effective_user.id if update.effective_user else "anon"))
 
     # A pending clarification answer belongs to the EXISTING ledger:
     # the original request was already recorded as its own turn before the
@@ -1955,6 +1969,7 @@ async def buy_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]),
         disable_web_page_preview=True,
     )
+    await cross_sell.offer_after_link(message, context, product)
 
 async def favorite_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``⭐ В избранное`` button on a product card."""
