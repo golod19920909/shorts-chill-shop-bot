@@ -5148,3 +5148,10 @@ Source inspection on this branch confirms:
 - The accepted text is consumed once in `handlers/search.py` and resets the previous conversational ledger before the normal search. No automatic second search, guessed accessory category, or hidden product injection.
 - Added `tests/test_cross_sell.py` and included it in the dedicated monetization workflow. New workflow run is pending verification after these changes.
 - Branch remains `audit/aliexpress-portals-smoke-test`; do not merge to main or PR #10. Production server deployment, backup-timer installation/restore drill, and live corrected AliExpress order diagnostic remain unverified and require server/.env access.
+
+### User-facing AliExpress and cross-sell wording (2026-11-09)
+- Updated product-link wording in `handlers/search.py` and `handlers/favorites.py`: the user-facing instruction says «Откройте товар на AliExpress:» rather than referring to an affiliate link. The affiliate URL itself and tracking behavior are unchanged.
+- Updated the accepted cross-sell prompt in `handlers/cross_sell.py` to a product-agnostic instruction: «Напишите, какие дополнительные товары или аксессуары вас интересуют. Я подберу подходящие варианты.» Removed examples such as cases/cables/mounts because they were inappropriate for some product categories, and removed the redundant cancel instruction after explicit opt-in.
+- Latest cross-sell wording commit: `39b7ff18350f240ddf462280ac4ca554743fa620`. Earlier user-facing wording commits: `ddcbad2d1c21a23c7a96561a5c30926d7e35d863` (`handlers/search.py`) and `b04fa0312b08a74188118a4c89415ccbe679e703` (`handlers/favorites.py`).
+- No search, ranking, affiliate URL generation, attribution, or monetization logic was changed by these wording edits. No tests were run for the final text-only change.
+- Local Windows checkout is `C:\\shorts-chill-shop-bot рабочий`; update it with `git pull --ff-only origin audit/aliexpress-portals-smoke-test`. Restart the bot after pulling. Do not run database maintenance/backup as part of this code-only update.
