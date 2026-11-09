@@ -1913,7 +1913,9 @@ class SearchService:
 
         started = time.perf_counter()
         limit = max(1, min(int(wanted or 20), 100))
+        received_count = len(outcome.products or [])
         raw_pool = deduplicate_products(list(outcome.products or []))
+        exact_duplicates = received_count - len(raw_pool)
         pool = feed_curation.drop_near_duplicates(raw_pool)
         near_duplicates = len(raw_pool) - len(pool)
 
@@ -1966,8 +1968,8 @@ class SearchService:
 
         duration_ms = (time.perf_counter() - started) * 1000
         self.last_findings_stats = {
-            "received": len(outcome.products) + near_duplicates,
-            "exact_duplicates": max(0, len(outcome.products) + near_duplicates - len(raw_pool)),
+            "received": received_count,
+            "exact_duplicates": exact_duplicates,
             "near_duplicates": near_duplicates,
             "selected": len(outcome.products),
             "ai_status": ai_status,
