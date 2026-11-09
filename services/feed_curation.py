@@ -11,10 +11,10 @@ the middle stages as PURE functions over already-normalized
   reorder or drop whole products;
 - every heuristic is deterministic, so tests can assert behaviour
   without a model or a network;
-- Gemini participates only through ``AIService.rank_candidates``, used by the
-  keyword-driven discovery feed; its resulting *order* is validated in
-  :func:`apply_ranking` - unknown ids are discarded, missing products keep
-  their original relative order.
+- Gemini participates only through selectors in ``AIService``; the broad
+  «✨ Находки» feed and keyword-driven discovery use separate prompts.
+  Returned IDs are mapped to the actual candidate pool - unknown IDs are
+  discarded and no product object is created or mutated.
 
 Heuristics (all constants here, all honest about what they are):
 
