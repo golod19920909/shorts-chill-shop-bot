@@ -37,6 +37,7 @@ from services.comparison_service import (
     ProductComparison,
     build_comparison,
     filter_products,
+    popularity_score,
     sort_products,
 )
 from services import feed_curation, query_variants
@@ -1962,11 +1963,31 @@ class SearchService:
                 selected = feed_curation.family_select(selected, limit)
 
         if not selected:
-            selected = feed_curation.family_select(pool, limit)
+            # Deterministic quality ordering uses only commercial signals
+            # AliExpress actually supplied. Missing values stay unknown and
+            # never become a rejection threshold.
+            ranked_fallback = sorted(
+                pool,
+                key=lambda product: (
+                    0
+                    if any(
+                        value is not None
+                        for value in (
+                            product.orders_count,
+                            product.rating,
+                            product.positive_rate,
+                            product.discount_percent,
+                        )
+                    )
+                    else 1,
+                    -popularity_score(product),
+                    -(product.positive_rate if product.positive_rate is not None else -1.0),
+                    -(product.discount_percent if product.discount_percent is not None else -1.0),
+                ),
+            )
+            selected = feed_curation.family_select(ranked_fallback, limit)
             if ai_status == "unavailable":
                 ai_status = "deterministic_only"
-            elif ai_status == "empty_fallback":
-                ai_status = "empty_fallback"
 
         # A final spread pass changes order only; family selection has already
         # bounded repeated variants without inventing or mutating products.
