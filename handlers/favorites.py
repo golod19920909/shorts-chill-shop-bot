@@ -5,15 +5,19 @@ from __future__ import annotations
 import json
 import logging
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from handlers import common
 from keyboards.main import back_to_menu_keyboard
-from keyboards.products import CB_PREFIX_FAVORITE_REMOVE, favorites_list_keyboard
+from keyboards.products import (
+    CB_PREFIX_FAVORITE_BUY,
+    CB_PREFIX_FAVORITE_REMOVE,
+    favorites_list_keyboard,
+)
 from models.product import Marketplace, Product
 from services import analytics
-from utils.formatting import format_marketplace_name, format_price
+from utils.formatting import format_marketplace_name, format_price, is_openable_url
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +153,79 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         parse_mode="HTML",
         reply_markup=favorites_list_keyboard(items[:MAX_LISTED_FAVORITES]),
     )
+
+
+async def favorite_buy_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Return an affiliate link from this user's persisted favorite snapshot.
+
+    The callback carries marketplace + product id, never a list index or URL.
+    Re-reading the user's own snapshot prevents stale buttons from redirecting
+    to another product after the cache changes or the bot restarts.
+    """
+    query = update.callback_query
+    if query is None:
+        return
+
+    parts = (query.data or "").split(":", 2)
+    if (
+        len(parts) != 3
+        or parts[0] != CB_PREFIX_FAVORITE_BUY
+        or parts[1] not in {item.value for item in Marketplace}
+        or not parts[2]
+    ):
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+
+    marketplace, product_id = parts[1], parts[2]
+    user_id = await common.register_user(update, context)
+    if user_id is None:
+        await query.answer("Ошибка базы данных.", show_alert=True)
+        return
+
+    try:
+        rows = await common.get_database(context).get_favorites(user_id)
+    except Exception:
+        logger.exception("Failed to load favorite for affiliate link request")
+        await query.answer("Не удалось загрузить избранное.", show_alert=True)
+        return
+
+    product: Product | None = None
+    for row in rows:
+        if row.get("marketplace") != marketplace or str(row.get("product_id")) != product_id:
+            continue
+        try:
+            product = common.product_from_snapshot(json.loads(row["product_json"]))
+        except Exception:
+            logger.warning("Favorite snapshot is unreadable for %s/%s", marketplace, product_id)
+        break
+
+    if product is None:
+        await query.answer("Товар больше не найден в избранном.", show_alert=True)
+        return
+    if not product.has_affiliate_url or not is_openable_url(product.affiliate_url):
+        await query.answer("Партнёрская ссылка для этого товара недоступна.", show_alert=True)
+        return
+
+    await common.record_event(
+        context,
+        analytics.EVENT_AFFILIATE_LINK_REQUESTED,
+        user_id=user_id,
+        telegram_id=update.effective_user.id if update.effective_user else None,
+        product=product,
+        is_affiliate=True,
+    )
+    await query.answer("Ссылка готова")
+    message = getattr(query, "message", None)
+    if message is not None:
+        await message.reply_text(
+            "Откройте товар по партнёрской ссылке AliExpress:",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]
+            ),
+            disable_web_page_preview=True,
+        )
 
 
 async def favorite_remove_callback(
