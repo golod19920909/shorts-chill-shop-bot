@@ -48,6 +48,7 @@ CB_PREFIX_FAVORITE = "pfav"
 CB_PREFIX_BUY = "pbuy"
 CB_PREFIX_TRACK = "ptrack"
 CB_PREFIX_FAVORITE_REMOVE = "fdel"
+CB_PREFIX_FAVORITE_BUY = "fbuy"
 CB_PREFIX_TRACK_STOP = "tstop"
 
 #: ``ptun:<session_id>:<index>`` - stop tracking THIS product right from
@@ -323,6 +324,15 @@ def favorites_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
             )
 
         action_row: list[InlineKeyboardButton] = []
+        # Stable identity callback: the handler re-reads this user's saved
+        # snapshot, so old favorites screens cannot redirect to another item.
+        if product.has_affiliate_url and is_openable_url(product.affiliate_url):
+            action_row.append(
+                InlineKeyboardButton(
+                    LABEL_BUY,
+                    callback_data=f"{CB_PREFIX_FAVORITE_BUY}:{marketplace}:{product.product_id}",
+                )
+            )
         share_url = share_button_url(product)
         if share_url is not None and budget.try_take(share_url):
             action_row.append(InlineKeyboardButton(LABEL_SHARE, url=share_url))
