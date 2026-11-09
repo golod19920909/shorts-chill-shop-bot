@@ -513,6 +513,38 @@ def _validated_image_analysis(payload: object) -> dict[str, str] | None:
     return analysis
 
 
+FINDINGS_SELECTION_PROMPT = """Ты формируешь широкую редакционную подборку «Находки» из реальных товаров AliExpress.
+
+Это НЕ поиск одного конкретного товара. Нужно выбрать самые интересные и достойные внимания позиции из разнородного каталога.
+
+Верни ТОЛЬКО JSON:
+{{
+  "ids": ["точный_id_1", "точный_id_2"]
+}}
+
+Критерии:
+- выбирай товары с понятным назначением, интересной функцией, необычным решением или очевидной практической пользой;
+- отдавай предпочтение товарам, которые могут заинтересовать широкую аудиторию, а не случайным вариациям одного и того же предмета;
+- используй реальные сигналы, если они есть: число заказов, процент положительных отзывов, рейтинг, скидку и наличие промокода;
+- не считай процент положительных отзывов рейтингом по пятибалльной шкале;
+- отсутствие рейтинга, заказов, скидки или промокода НЕ означает плохое качество и само по себе не является причиной исключения;
+- не применяй выдуманные минимальные пороги рейтинга/заказов и фиксированный потолок цены;
+- не выбирай товар только из-за большой заявленной скидки;
+- исключай явный спам, пустые/бессмысленные позиции, очевидные дубли и повторяющиеся варианты одного семейства, если есть более разнообразные товары;
+- стремись к разнообразию категорий и назначений, но не соблюдай искусственные квоты и не ограничивайся заранее заданным списком категорий;
+- не делай выводов о надёжности, материалах, безопасности, качестве сборки или характеристиках, которых нет в данных.
+
+Формат:
+- используй только ID из переданного списка, каждый не более одного раза;
+- верни до {wanted} ID в порядке интересности;
+- если достойных товаров меньше {wanted}, верни меньше; не заполняй список сомнительными позициями;
+- не добавляй и не выдумывай товары, ID, цены, оценки, заказы или свойства.
+
+Товары (JSON):
+{products_json}
+"""
+
+
 RANK_PROMPT = """Ты отбираешь и упорядочиваешь УЖЕ НАЙДЕННЫЕ товары AliExpress для подборки.
 
 
@@ -1657,6 +1689,67 @@ class AIService:
         if not isinstance(payload, dict):
             return None
         return self._clean_ids(payload.get("ids"))
+
+
+    async def select_findings_candidates(
+        self,
+        candidates: list[Product],
+        *,
+        wanted: int = TOP_CANDIDATES,
+    ) -> list[str] | None:
+        """Select a diverse broad «Находки» set from real marketplace candidates.
+
+        Unlike the keyword-search selector, this policy has no single target
+        product and therefore does not apply search-specific accessory, rating,
+        order-count or price thresholds. Missing marketplace signals stay
+        unknown. The caller validates returned IDs against its exact pool and
+        owns the deterministic fallback.
+        """
+
+        if not self.is_available or not candidates:
+            self.rank_fallback += 1
+            return None
+
+        limit = max(1, min(int(wanted or TOP_CANDIDATES), TOP_CANDIDATES))
+        payloads = [
+            {
+                "id": product.product_id,
+                "title": product.title[:300],
+                "category_path": list(product.category_path or [])[:4],
+                "price": product.price,
+                "currency": product.currency,
+                "old_price": product.old_price,
+                "discount_percent": product.discount_percent,
+                "rating": product.rating,
+                "orders_count": product.orders_count,
+                "positive_rate": product.positive_rate,
+                "promo_code_available": bool(product.promo_code),
+            }
+            for product in candidates
+        ]
+        self.rank_requests += 1
+        raw = await self._generate(
+            FINDINGS_SELECTION_PROMPT.format(
+                wanted=limit,
+                products_json=json.dumps(
+                    payloads, ensure_ascii=False, separators=(",", ":")
+                ),
+            ),
+            models=(self.fast_model,),
+            operation="findings_selection",
+        )
+        payload = self._extract_json_object(raw) if raw else None
+        if not isinstance(payload, dict):
+            self.rank_fallback += 1
+            logger.warning("Gemini findings selection was unusable")
+            return None
+
+        ids = self._clean_ids(payload.get("ids"), limit=limit)
+        if not ids:
+            self.rank_fallback += 1
+            logger.warning("Gemini findings selection returned no usable ids")
+            return None
+        return ids
 
 
     async def select_feed_candidates(
