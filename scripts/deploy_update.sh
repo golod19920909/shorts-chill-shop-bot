@@ -55,14 +55,14 @@ ROLLBACK_NEEDED=1
 log "Fast-forwarding code to $TARGET"
 git merge --ff-only "$TARGET"
 log "Installing pinned runtime dependencies"
-"$PIP" install -r requirements.txt
+"$PIP" install -r requirements.txt -r requirements-dev.txt
 log "Compiling application modules"
 "$PYTHON" -m compileall -q bot config curation database handlers keyboards services scripts
 log "Running focused deployment safety tests"
 "$PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_sales_calendar.py tests/test_admin_panel.py
 log "Restarting systemd service: $SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
-systemctl is-active --quiet "$SERVICE_NAME" || die "service did not become active"
+systemctl is-active --quiet "$SERVICE_NAME"
 ROLLBACK_NEEDED=0
 trap - ERR
 log "DEPLOY_OK: $PREVIOUS -> $TARGET"
