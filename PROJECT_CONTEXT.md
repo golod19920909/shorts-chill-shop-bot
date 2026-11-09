@@ -5280,3 +5280,11 @@ The retry consumes the existing per-open page budget; it does not add an
 unbounded retry loop. If the retry itself fails, the cursor is kept at the
 actual page being retried (page 1), so the next opening does not return to the
 stale high page. Gemini curation and the per-user shown history remain intact.
+
+
+### Findings cursor reset when the per-open page budget is exhausted (2026-11-09)
+
+- Local smoke logs showed that a stale saved cursor (for example page 99) could still survive the earlier recovery logic. Root cause: when the saved page returned a confirmed empty result, the handler set `restarted_from_first_page = True` and changed the loop variable to page 1, but the configured `feed_max_pages_per_open` budget could already be exhausted. The loop then exited without actually requesting page 1, and the final cursor calculation used `last_attempted + 1`, persisting page 100.
+- Corrected the final cursor decision in `handlers/discovery.py`: whenever a confirmed empty stale page triggered recovery, the next persisted cursor is page 1 even if no request budget remains to retry page 1 during that same opening. The existing bounded retry still runs within the current opening when budget permits.
+- This preserves the per-user shown history and does not alter Gemini selection, product curation, ordinary search, or other flows.
+- Commit: `6db2de0c017459eee05ac982f893e49a69b1786a`. Offline tests and real AliExpress smoke verification have not yet been run for this follow-up.
