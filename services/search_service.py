@@ -1955,6 +1955,11 @@ class SearchService:
             )
             if not selected:
                 ai_status = "invalid_ids_fallback"
+            else:
+                # Keep the model's relevance order, but enforce the same
+                # deterministic family cap after selection. AI preference
+                # cannot make near-identical listings crowd out other types.
+                selected = feed_curation.family_select(selected, limit)
 
         if not selected:
             selected = feed_curation.family_select(pool, limit)
