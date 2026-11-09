@@ -8,7 +8,7 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from handlers import common
+from handlers import common, cross_sell
 from keyboards.main import back_to_menu_keyboard
 from keyboards.products import (
     CB_PREFIX_FAVORITE_BUY,
@@ -226,6 +226,7 @@ async def favorite_buy_callback(
             ),
             disable_web_page_preview=True,
         )
+        await cross_sell.offer_after_link(message, context, product)
 
 
 async def favorite_remove_callback(
