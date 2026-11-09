@@ -65,8 +65,7 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = getattr(query, "message", None)
     if message is not None:
         await message.reply_text(
-            "Напишите, что именно подобрать: например, чехол, кабель, крепление "
-            "или другой аксессуар. Я выполню отдельный поиск.\n"
+            "Например, чехол, кабель, крепление или другой аксессуар.\n"
             "Чтобы отменить, отправьте «отмена»."
         )
 
