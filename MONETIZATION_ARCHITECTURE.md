@@ -73,3 +73,10 @@ Status: implementation baseline on `audit/aliexpress-portals-smoke-test` (2026-1
 - The public API catalog also lists seller Marketing Management coupon/store-promotion methods. These are a separate API category and are not evidence that the Portals affiliate app has seller authorization. They are not wired into this bot.
 - Product-level `promo_code_info` remains the only coupon-like product data currently surfaced from the affiliate product response. No standalone coupon-code feed is assumed.
 - Seller marketing endpoints must not be called with Portals credentials as an undocumented workaround.
+
+
+## 10. Affiliate link requests from favorites
+
+- Favorites now expose the same Buy action only when the persisted product snapshot contains a valid affiliate URL.
+- The callback identifies the item by marketplace + product id, re-reads the current user's favorites, validates the stored URL and records `affiliate_link_requested` before returning the exact URL.
+- The metric remains a request for a partner link; Telegram does not confirm that the URL button was opened. This does not measure actual click-through or purchase.
