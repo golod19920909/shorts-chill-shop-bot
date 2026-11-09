@@ -220,7 +220,7 @@ async def favorite_buy_callback(
     message = getattr(query, "message", None)
     if message is not None:
         await message.reply_text(
-            "Откройте товар по партнёрской ссылке AliExpress:",
+            "Откройте товар на AliExpress:",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]
             ),
