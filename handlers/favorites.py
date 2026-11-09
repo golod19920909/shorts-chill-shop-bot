@@ -222,7 +222,7 @@ async def favorite_buy_callback(
         await message.reply_text(
             "Откройте товар на AliExpress:",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]
+                [[InlineKeyboardButton("🛒 Открыть на AliExpress", url=product.affiliate_url)]]
             ),
             disable_web_page_preview=True,
         )
