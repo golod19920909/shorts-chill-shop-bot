@@ -667,6 +667,7 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pages_asked = 0
     last_attempted = start_page
     reached_end_of_feed = False
+    restarted_from_first_page = False
 
     # Build a deeper candidate pool before deciding which 20 products are
     # worth showing. The API budget remains bounded by max_pages (default 2),
@@ -696,8 +697,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # A failed request is NOT a consumed marketplace page. Keep the
             # cursor at the beginning of this open so the next user attempt
             # retries the same page instead of walking into deeper empty pages.
-            context.user_data[FEED_PAGE_KEY] = start_page
-            await _remember_feed_page(context, user_id, start_page)
+            context.user_data[FEED_PAGE_KEY] = page
+            await _remember_feed_page(context, user_id, page)
             await common.record_event(
                 context,
                 analytics.EVENT_SEARCH_FAILED,
@@ -723,11 +724,24 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         collected.extend(page_outcome.products)
 
         if not page_outcome.products_before_filtering:
-            # A confirmed empty page (including AliExpress' documented
-            # resp_code=405 / "The result is empty") marks the end of the
-            # currently available feed pages. Do not keep incrementing the
-            # cursor into 98, 99, ...; the next open starts a fresh pass at
-            # page 1 while the per-user shown history prevents repeats.
+            # A persisted cursor can outlive the usable range of the
+            # marketplace listing. If its first request is confirmed empty,
+            # recover immediately at page 1 within this same open (one time
+            # only, and still inside the existing page-request budget).
+            # Keep this distinct from a failed API request, which is raised
+            # by the provider and handled above.
+            if page > 1 and not collected and not restarted_from_first_page:
+                logger.info(
+                    "Findings feed page %s is empty; retrying from page 1",
+                    page,
+                )
+                page = 1
+                restarted_from_first_page = True
+                continue
+
+            # A confirmed empty first page (or an empty page after useful
+            # candidates) ends this pass. The next open starts a fresh pass
+            # at page 1; per-user shown history prevents unwanted repeats.
             reached_end_of_feed = True
             break
         page += 1
