@@ -355,6 +355,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now shopbot-backup.timer
 systemctl list-timers shopbot-backup.timer
 
+# Guarded update from the deployed branch (default: main); run as shopbot
+DEPLOY_REF=main bash scripts/deploy_update.sh
+
 sudo journalctl -u shopbot -f
 ```
 
