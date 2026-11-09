@@ -5108,3 +5108,11 @@ Source inspection on this branch confirms:
 - If a post-update step fails, the ERR trap resets only the server checkout to the prior commit, reinstalls that commit's runtime dependencies and attempts a verified service restart. It does not auto-restore SQLite: preserving new user data is safer; an incompatible schema rollback requires a deliberate offline restore from the pre-update backup.
 - The `shopbot` account requires a narrow sudoers rule for only `systemctl restart shopbot` and `systemctl is-active --quiet shopbot`; README documents the setup. The script does not read or edit `.env`.
 - `.github/workflows/monetization-audit.yml` validates shell syntax with `bash -n`. The script is not run against production here; server access is not available. CI status remains unverified.
+
+
+### AliExpress Portals capability research (2026-11-09)
+- Added `docs/ALIEXPRESS_PORTALS_CAPABILITY_MATRIX.md`: separates public method documentation from permissions/live evidence for this app.
+- Affiliate Promotion Creatives includes featured-promotion list and campaign-product methods; the app-specific campaign-list probe returned a successful response with zero campaign rows. Campaign-product lookup remains gated until exact campaign name and start/end values are available.
+- The public API catalog separately lists seller Marketing Management coupon/store-promotion methods. Those are not Portals Affiliate API evidence and are not wired into the bot; do not use them as a workaround with affiliate credentials.
+- The current coupon display remains product-level `promo_code_info` only when actually returned by the affiliate product API. The standalone promo page remains the configured partner landing page.
+- Corrected order diagnostic with the 30-day PST window has not yet been run with the live app credentials; order ingestion and commissions remain unverified live.
