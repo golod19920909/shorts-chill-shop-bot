@@ -535,6 +535,14 @@ class SearchService:
         selector = getattr(ai_service, "select_feed_candidates", None)
         self._feed_selector = selector if callable(selector) else None
 
+        # Broad «Находки» has no target query, so it uses its own selection
+        # policy rather than the keyword-search selector above.
+        findings_selector = getattr(ai_service, "select_findings_candidates", None)
+        self._findings_selector = (
+            findings_selector if callable(findings_selector) else None
+        )
+        self.last_findings_stats: dict | None = None
+
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
         #: provider so an operator can trade breadth against API usage; the
@@ -1886,6 +1894,94 @@ class SearchService:
             outcome.products_hidden_as_seen,
         )
         return outcome
+
+    async def curate_findings(
+        self,
+        outcome: SearchOutcome,
+        *,
+        wanted: int = 20,
+    ) -> None:
+        """Curate one completed broad «Находки» pool in place.
+
+        The input contains only normalized, deduplicated, technically
+        displayable, unseen marketplace products. Exact identity is checked
+        again across page boundaries; near-duplicates are removed before the
+        single Gemini decision. Gemini may select only IDs in this pool.
+        Any unavailable/slow/invalid AI response falls back to deterministic
+        family selection over the same real candidates.
+        """
+
+        started = time.perf_counter()
+        limit = max(1, min(int(wanted or 20), 100))
+        raw_pool = deduplicate_products(list(outcome.products or []))
+        pool = feed_curation.drop_near_duplicates(raw_pool)
+        near_duplicates = len(raw_pool) - len(pool)
+
+        chosen: list[str] | None = None
+        ai_status = "unavailable"
+        selector = self._findings_selector
+        ai_available = bool(
+            selector and getattr(self.ai_service, "is_available", True)
+        )
+        if pool and ai_available:
+            try:
+                chosen = await asyncio.wait_for(
+                    selector(pool, wanted=limit),
+                    timeout=FEED_SELECTION_TIMEOUT_SECONDS,
+                )
+                ai_status = "selected" if chosen else "empty_fallback"
+            except TimeoutError:
+                ai_status = "timeout_fallback"
+                logger.warning(
+                    "Findings Gemini selection timed out after %.1fs; "
+                    "using deterministic selection",
+                    FEED_SELECTION_TIMEOUT_SECONDS,
+                )
+            except Exception:
+                ai_status = "error_fallback"
+                logger.exception(
+                    "Findings Gemini selection failed; using deterministic selection"
+                )
+
+        selected: list[Product] = []
+        if chosen:
+            selected = feed_curation.apply_selection(
+                pool, chosen, limit=limit
+            )
+            if not selected:
+                ai_status = "invalid_ids_fallback"
+
+        if not selected:
+            selected = feed_curation.family_select(pool, limit)
+            if ai_status == "unavailable":
+                ai_status = "deterministic_only"
+            elif ai_status == "empty_fallback":
+                ai_status = "empty_fallback"
+
+        # A final spread pass changes order only; family selection has already
+        # bounded repeated variants without inventing or mutating products.
+        selected = feed_curation.diversity_select(selected, len(selected))
+        outcome.products = selected[:limit]
+        outcome.comparisons = build_comparison(outcome.products)
+
+        duration_ms = (time.perf_counter() - started) * 1000
+        self.last_findings_stats = {
+            "received": len(outcome.products) + near_duplicates,
+            "exact_duplicates": max(0, len(outcome.products) + near_duplicates - len(raw_pool)),
+            "near_duplicates": near_duplicates,
+            "selected": len(outcome.products),
+            "ai_status": ai_status,
+            "duration_ms": round(duration_ms, 1),
+        }
+        logger.info(
+            "findings.curation raw=%d near_duplicate_drops=%d selected=%d "
+            "ai_status=%s dur_ms=%.0f",
+            len(raw_pool),
+            near_duplicates,
+            len(outcome.products),
+            ai_status,
+            duration_ms,
+        )
 
     async def find_discovery(
         self,
