@@ -5237,3 +5237,28 @@ Source inspection on this branch confirms:
 - Monetization workflow: **44 passed, 1 failed, 45 subtests passed**. The only failure is the pre-existing cross-sell prompt wording assertion in `tests/test_cross_sell.py`; it is unrelated to findings.
 - There is no claim of a clean full CI run. Findings-specific tests passed in both relevant workflow executions. No live AliExpress API request was possible from this environment because the local `.env` credentials are not accessible here.
 - For local verification, pull this branch, start the bot, open «✨ Находки» once, then inspect Admin → «Находки». That screen now shows the candidate/curation metrics. A real-data review is still needed before any hard rating/orders/discount thresholds are considered.
+
+## Findings feed cursor recovery (2026-11-09)
+
+The «✨ Находки» feed cursor policy was corrected in
+`handlers/discovery.py`:
+
+- A provider/API exception no longer consumes the attempted page. The
+  per-process and persisted cursor remain at the page where this open began,
+  so the next open can retry instead of advancing into more pages after a
+  failed request.
+- A confirmed empty page ends the current pass and resets the next-open
+  cursor to page 1. AliExpress Affiliate API's documented
+  `resp_code=405` + `resp_msg="The result is empty"` is normalized by
+  `AliExpressClient` as an ordinary empty result; this must not cause the
+  feed cursor to grow forever (97, 98, 99, ...).
+- The per-user `FLOW_FEED` shown-history is not cleared by this reset, so
+  already displayed products remain excluded when the feed cycles back to
+  page 1. Explicit «Начать заново» behavior, Gemini curation, product
+  validation, and the normal search pipeline are unchanged.
+
+This is a cursor-recovery change only. It does not establish that a live
+AliExpress response at page 97 is always the end of the complete catalogue;
+it treats the API's confirmed empty-page response as the end of the current
+page sequence and safely rotates to the beginning. Real API behavior still
+needs a local smoke check with the deployment's existing private credentials.
