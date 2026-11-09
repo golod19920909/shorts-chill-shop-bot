@@ -5155,3 +5155,11 @@ Source inspection on this branch confirms:
 - Latest cross-sell wording commit: `39b7ff18350f240ddf462280ac4ca554743fa620`. Earlier user-facing wording commits: `ddcbad2d1c21a23c7a96561a5c30926d7e35d863` (`handlers/search.py`) and `b04fa0312b08a74188118a4c89415ccbe679e703` (`handlers/favorites.py`).
 - No search, ranking, affiliate URL generation, attribution, or monetization logic was changed by these wording edits. No tests were run for the final text-only change.
 - Local Windows checkout is `C:\\shorts-chill-shop-bot рабочий`; update it with `git pull --ff-only origin audit/aliexpress-portals-smoke-test`. Restart the bot after pulling. Do not run database maintenance/backup as part of this code-only update.
+
+## Affiliate URL presentation in Telegram (2026-11-09)
+
+- Keep the exact affiliate URL returned by AliExpress Portals API unchanged. Do not strip query parameters, rewrite the URL, or pass it through third-party URL shorteners: attribution parameters such as `aff_fcid` and `aff_trace_key` must remain intact unless a separately verified API-supported alternative is implemented.
+- Telegram URL buttons hide the long destination URL behind their visible label. In the search and favorites link-delivery replies, the button label is now `🛒 Открыть на AliExpress`; the explanatory message remains `Откройте товар на AliExpress:`.
+- The link is still the original `product.affiliate_url`; affiliate-link request analytics and the existing cross-sell offer flow are unchanged.
+- Product-title links in favorites/tracking lists also remain Telegram URL buttons; their visible labels are product titles, not raw URLs.
+- This is a presentation-only change. No affiliate generation, attribution, tracking, search, ranking, or database behavior was changed. No automated tests were run for this text-only label change.
