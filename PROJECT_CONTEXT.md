@@ -5262,3 +5262,21 @@ AliExpress response at page 97 is always the end of the complete catalogue;
 it treats the API's confirmed empty-page response as the end of the current
 page sequence and safely rotates to the beginning. Real API behavior still
 needs a local smoke check with the deployment's existing private credentials.
+
+### Follow-up recovery for a stale persisted cursor (2026-11-09)
+
+A further edge case was found during the local smoke check: after a bot restart,
+`show_feed()` loads the persisted cursor before making its first API call.
+Therefore the first recovery patch could only reset page 99 AFTER that opening
+had already failed to return products. The handler now retries page 1 within
+the same opening when all of these are true:
+
+- the saved page is greater than 1;
+- that page returned a confirmed empty result (not an API exception);
+- no candidates have been collected in this opening;
+- the one-time restart has not already been used.
+
+The retry consumes the existing per-open page budget; it does not add an
+unbounded retry loop. If the retry itself fails, the cursor is kept at the
+actual page being retried (page 1), so the next opening does not return to the
+stale high page. Gemini curation and the per-user shown history remain intact.
