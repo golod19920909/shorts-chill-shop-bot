@@ -10,8 +10,10 @@ DEPLOY_REF="${DEPLOY_REF:-main}"
 PYTHON="${PYTHON:-$REPO_DIR/.venv/bin/python}"
 PIP="${PIP:-$REPO_DIR/.venv/bin/pip}"
 BACKUP_OUTPUT=""
+SYSTEMCTL="/usr/bin/systemctl"
+ROOT_SYSTEMCTL() { sudo -n "$SYSTEMCTL" "$@"; }
 
-log() { printf '[deploy] %s\\n' "$*"; }
+log() { printf '[deploy] %s\n' "$*"; }
 die() { log "ERROR: $*"; exit 1; }
 
 [[ -d "$REPO_DIR/.git" ]] || die "not a Git checkout: $REPO_DIR"
@@ -21,6 +23,7 @@ CURRENT_BRANCH="$(git branch --show-current)"
 [[ "$CURRENT_BRANCH" == "$DEPLOY_REF" ]] || die "checked-out branch '$CURRENT_BRANCH' differs from DEPLOY_REF '$DEPLOY_REF'"
 [[ -x "$PYTHON" && -x "$PIP" ]] || die "venv executables not found; expected $PYTHON and $PIP"
 [[ -z "$(git status --porcelain --untracked-files=normal)" ]] || die "working tree is not clean; refusing to overwrite local changes"
+sudo -n "$SYSTEMCTL" is-active --quiet "$SERVICE_NAME" || die "service is not active or shopbot lacks passwordless systemctl permission"
 [[ ! -e .git/MERGE_HEAD && ! -e .git/rebase-merge && ! -e .git/rebase-apply ]] || die "Git merge/rebase is in progress"
 
 log "Fetching $REMOTE/$DEPLOY_REF"
@@ -32,7 +35,7 @@ git merge-base --is-ancestor "$PREVIOUS" "$TARGET" || die "target is not a fast-
 
 log "Creating and verifying a SQLite backup before code changes"
 BACKUP_OUTPUT="$("$PYTHON" -m scripts.database_maintenance backup)"
-printf '%s\\n' "$BACKUP_OUTPUT"
+printf '%s\n' "$BACKUP_OUTPUT"
 grep -q '^BACKUP_OK:' <<<"$BACKUP_OUTPUT" || die "database backup did not report BACKUP_OK"
 
 ROLLBACK_NEEDED=0
@@ -41,7 +44,7 @@ rollback_on_error() {
     trap - ERR
     if (( ROLLBACK_NEEDED )); then
         log "Deployment failed (exit $status); rolling code back to $PREVIOUS"
-        if git reset --hard "$PREVIOUS" && "$PIP" install -r requirements.txt && systemctl restart "$SERVICE_NAME" && systemctl is-active --quiet "$SERVICE_NAME"; then
+        if git reset --hard "$PREVIOUS" && "$PIP" install -r requirements.txt && ROOT_SYSTEMCTL restart "$SERVICE_NAME" && ROOT_SYSTEMCTL is-active --quiet "$SERVICE_NAME"; then
             log "Code rollback succeeded. Database was left untouched; backup is available above."
         else
             log "CRITICAL: automatic rollback could not be verified. Inspect service and restore manually if required."
@@ -61,8 +64,8 @@ log "Compiling application modules"
 log "Running focused deployment safety tests"
 "$PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_sales_calendar.py tests/test_admin_panel.py
 log "Restarting systemd service: $SERVICE_NAME"
-systemctl restart "$SERVICE_NAME"
-systemctl is-active --quiet "$SERVICE_NAME"
+ROOT_SYSTEMCTL restart "$SERVICE_NAME"
+ROOT_SYSTEMCTL is-active --quiet "$SERVICE_NAME"
 ROLLBACK_NEEDED=0
 trap - ERR
 log "DEPLOY_OK: $PREVIOUS -> $TARGET"
