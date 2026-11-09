@@ -1764,7 +1764,8 @@ class SearchService:
     ) -> SearchOutcome:
         """One documented page of the OFFICIAL AliExpress feed («✨ Находки»).
 
-        G24: AliExpress composes the feed, this method only delivers it.
+        This method fetches and technically validates ONE marketplace page. The
+        completed multi-page pool is curated once by ``curate_findings``.
         The provider asks ``aliexpress.affiliate.product.query`` WITHOUT
         ``keywords`` and WITHOUT ``sort`` (see
         ``AliExpressProvider.fetch_feed_page``) - the marketplace's own
@@ -1777,9 +1778,10 @@ class SearchService:
           URL must exist - a card without either cannot be shown;
         * skip what THIS user has already been shown (``exclude``).
 
-        NO popularity, quality, rating, orders, price or category judgement
-        is made: the bot never re-decides what AliExpress put into its feed
-        (spec §7/§24). Empty pages are an ordinary outcome, never an error.
+        This page fetch does not apply recommendation thresholds or AI.
+        Feed-level selection happens only after the handler has merged its
+        bounded pages. Missing optional signals remain unknown. Empty pages
+        are an ordinary outcome, never an error.
 
         ``page`` is the documented 1-based ``page_no``; pagination is the
         API's own (live-verified: pages 1/2/40 share zero ids). The honest
