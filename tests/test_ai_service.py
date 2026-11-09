@@ -707,6 +707,71 @@ class CandidatePayloadTests(unittest.TestCase):
         self.assertEqual(payload["category_path"], ["Tools", "Power Tools"])
 
 
+
+class FindingsSelectorTests(unittest.TestCase):
+    def test_findings_selector_uses_real_signals_without_search_thresholds(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        captured: list[tuple[str, str | None]] = []
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            captured.append((contents, operation))
+            return '{"ids":["second","first","invented","second"]}'
+
+        service._generate = fake_generate
+        products = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="first",
+                title="Настольный светильник",
+                product_url="https://example.com/first",
+                price=12.0,
+                currency="USD",
+                positive_rate=97.0,
+            ),
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="second",
+                title="Мини проектор",
+                product_url="https://example.com/second",
+                price=35.0,
+                currency="USD",
+                rating=None,
+                orders_count=None,
+            ),
+        ]
+
+        selected = asyncio.run(
+            service.select_findings_candidates(products, wanted=2)
+        )
+
+        self.assertEqual(selected, ["second", "first"])
+        self.assertEqual(captured[0][1], "findings_selection")
+        self.assertIn('"positive_rate":97.0', captured[0][0])
+        self.assertIn("не применяй выдуманные минимальные пороги", captured[0][0])
+        self.assertNotIn("рейтингом ниже 4.5", captured[0][0])
+        self.assertNotIn("product_url", captured[0][0])
+        self.assertNotIn("affiliate_url", captured[0][0])
+
+    def test_findings_selector_returns_none_when_model_response_is_invalid(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+
+        async def fake_generate(contents, *, models=None, operation="generate"):
+            return '{"ids":[]}'
+
+        service._generate = fake_generate
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="one",
+            title="Настольная лампа",
+            product_url="https://example.com/one",
+        )
+
+        self.assertIsNone(
+            asyncio.run(service.select_findings_candidates([product]))
+        )
+
 if __name__ == "__main__":
     unittest.main()
 
