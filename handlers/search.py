@@ -1965,7 +1965,7 @@ async def buy_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if message is None:
         return
     await message.reply_text(
-        "Откройте товар по партнёрской ссылке AliExpress:",
+        "Откройте товар на AliExpress:",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛒 Открыть товар", url=product.affiliate_url)]]),
         disable_web_page_preview=True,
     )
