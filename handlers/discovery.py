@@ -744,6 +744,13 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # deterministic fallback; the Telegram renderer still receives Product
     # objects from this exact real candidate pool.
     await search_service.curate_findings(outcome, wanted=open_size)
+    await common.record_event(
+        context,
+        analytics.EVENT_FEED_CURATED,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        metadata=search_service.last_findings_stats or {},
+    )
 
     # The cursor contract (§12): next = last_attempted_page + 1, where
     # "attempted" means the page the service really asked - success,
