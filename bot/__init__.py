@@ -62,6 +62,7 @@ from keyboards.products import (
     CB_PREFIX_BUY,
     CB_PREFIX_CARD_UNTRACK,
     CB_PREFIX_FAVORITE,
+    CB_PREFIX_FAVORITE_BUY,
     CB_PREFIX_FAVORITE_REMOVE,
     CB_PREFIX_NAV,
     CB_PREFIX_TRACK,
@@ -270,6 +271,12 @@ def _register_handlers(application: Application) -> None:
     application.add_handler(
         CallbackQueryHandler(
             search.card_untrack_callback, pattern=f"^{CB_PREFIX_CARD_UNTRACK}:"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            favorites.favorite_buy_callback,
+            pattern=f"^{CB_PREFIX_FAVORITE_BUY}:",
         )
     )
     application.add_handler(
