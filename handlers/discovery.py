@@ -666,6 +666,7 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     page = start_page
     pages_asked = 0
     last_attempted = start_page
+    reached_end_of_feed = False
 
     # Build a deeper candidate pool before deciding which 20 products are
     # worth showing. The API budget remains bounded by max_pages (default 2),
@@ -692,10 +693,11 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         except Exception:
             logger.exception("Feed failed (page %s)", page)
-            # The attempted page is consumed even on a hard failure - the
-            # next open must not replay it (§12: next = last_attempted + 1).
-            context.user_data[FEED_PAGE_KEY] = last_attempted + 1
-            await _remember_feed_page(context, user_id, last_attempted + 1)
+            # A failed request is NOT a consumed marketplace page. Keep the
+            # cursor at the beginning of this open so the next user attempt
+            # retries the same page instead of walking into deeper empty pages.
+            context.user_data[FEED_PAGE_KEY] = start_page
+            await _remember_feed_page(context, user_id, start_page)
             await common.record_event(
                 context,
                 analytics.EVENT_SEARCH_FAILED,
@@ -721,8 +723,12 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         collected.extend(page_outcome.products)
 
         if not page_outcome.products_before_filtering:
-            # The API answered this page with NOTHING at all - the honest
-            # end of the listing. Deeper pages cannot hold anything either.
+            # A confirmed empty page (including AliExpress' documented
+            # resp_code=405 / "The result is empty") marks the end of the
+            # currently available feed pages. Do not keep incrementing the
+            # cursor into 98, 99, ...; the next open starts a fresh pass at
+            # page 1 while the per-user shown history prevents repeats.
+            reached_end_of_feed = True
             break
         page += 1
 
@@ -753,12 +759,14 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         metadata=search_service.last_findings_stats or {},
     )
 
-    # The cursor contract (§12): next = last_attempted_page + 1, where
-    # "attempted" means the page the service really asked - success,
-    # emptiness or failure alike. Two consecutive presses therefore cannot
-    # replay the same pages, not even after «🔄 Начать заново».
-    context.user_data[FEED_PAGE_KEY] = last_attempted + 1
-    await _remember_feed_page(context, user_id, last_attempted + 1)
+    # Successful pages advance normally. A confirmed empty page means
+    # this pass reached the end of the marketplace listing, so rotate back
+    # to page 1; the independent per-user shown history keeps already-shown
+    # products out of the next curated pool. Failed requests return above
+    # without moving the cursor.
+    next_page = 1 if reached_end_of_feed else last_attempted + 1
+    context.user_data[FEED_PAGE_KEY] = next_page
+    await _remember_feed_page(context, user_id, next_page)
 
     await record_outcome_events(
         context,
