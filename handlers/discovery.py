@@ -25,6 +25,7 @@ from curation.pipeline import MODE_CATEGORY
 from database.models import FLOW_FEED
 from handlers import common
 from handlers.search import record_outcome_events, send_search_results
+from services import analytics
 from keyboards.main import (
     CB_CATEGORIES,
     back_to_menu_keyboard,
