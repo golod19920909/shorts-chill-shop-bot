@@ -10,6 +10,10 @@ on:
     paths:
       - "scripts/database_maintenance.py"
       - "handlers/search.py"
+      - "handlers/cross_sell.py"
+      - "handlers/favorites.py"
+      - "bot/__init__.py"
+      - "tests/test_cross_sell.py"
       - "keyboards/products.py"
       - "services/analytics.py"
       - "tests/test_affiliate_link_analytics.py"
@@ -43,6 +47,6 @@ jobs:
       - name: Validate deployment script syntax
         run: bash -n scripts/deploy_update.sh
       - name: Compile monetization code
-        run: python -m py_compile scripts/database_maintenance.py scripts/diagnose_aliexpress_portals.py handlers/search.py handlers/admin.py keyboards/products.py keyboards/admin.py services/analytics.py services/affiliate_orders.py database/database.py database/models.py config/sales.py handlers/sales.py manage_sales.py
+        run: python -m py_compile scripts/database_maintenance.py scripts/diagnose_aliexpress_portals.py handlers/search.py handlers/cross_sell.py handlers/favorites.py bot/__init__.py handlers/admin.py keyboards/products.py keyboards/admin.py services/analytics.py services/affiliate_orders.py database/database.py database/models.py config/sales.py handlers/sales.py manage_sales.py
       - name: Run focused monetization tests
-        run: python -m pytest -q tests/test_affiliate_link_analytics.py tests/test_favorite_affiliate_link.py tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_sales_calendar.py tests/test_admin_panel.py
+        run: python -m pytest -q tests/test_affiliate_link_analytics.py tests/test_favorite_affiliate_link.py tests/test_cross_sell.py tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_sales_calendar.py tests/test_admin_panel.py
