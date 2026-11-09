@@ -10,10 +10,17 @@ DEPLOY_REF="${DEPLOY_REF:-main}"
 PYTHON="${PYTHON:-$REPO_DIR/.venv/bin/python}"
 PIP="${PIP:-$REPO_DIR/.venv/bin/pip}"
 BACKUP_OUTPUT=""
+TEST_VENV_DIR=""
 SYSTEMCTL="/usr/bin/systemctl"
 ROOT_SYSTEMCTL() { sudo -n "$SYSTEMCTL" "$@"; }
 
 log() { printf '[deploy] %s\n' "$*"; }
+cleanup_test_venv() {
+    if [[ -n "$TEST_VENV_DIR" && -d "$TEST_VENV_DIR" ]]; then
+        rm -rf -- "$TEST_VENV_DIR"
+    fi
+}
+trap cleanup_test_venv EXIT
 die() { log "ERROR: $*"; exit 1; }
 
 [[ -d "$REPO_DIR/.git" ]] || die "not a Git checkout: $REPO_DIR"
@@ -57,12 +64,18 @@ trap rollback_on_error ERR
 ROLLBACK_NEEDED=1
 log "Fast-forwarding code to $TARGET"
 git merge --ff-only "$TARGET"
-log "Installing pinned runtime dependencies"
-"$PIP" install -r requirements.txt -r requirements-dev.txt
+log "Installing pinned runtime dependencies into the production venv"
+"$PIP" install -r requirements.txt
+log "Creating an isolated temporary venv for deployment tests"
+TEST_VENV_DIR="$(mktemp -d "${TMPDIR:-/tmp}/shopbot-deploy-tests.XXXXXX")"
+"$PYTHON" -m venv "$TEST_VENV_DIR"
+TEST_PYTHON="$TEST_VENV_DIR/bin/python"
+TEST_PIP="$TEST_VENV_DIR/bin/pip"
+"$TEST_PIP" install -r requirements.txt -r requirements-dev.txt
 log "Compiling application modules"
 "$PYTHON" -m compileall -q bot config curation database handlers keyboards services scripts
 log "Running focused deployment safety tests"
-"$PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_sales_calendar.py tests/test_admin_panel.py
+"$TEST_PYTHON" -m pytest -q tests/test_database_maintenance.py tests/test_affiliate_orders.py tests/test_affiliate_link_analytics.py tests/test_sales_calendar.py tests/test_admin_panel.py
 log "Restarting systemd service: $SERVICE_NAME"
 ROOT_SYSTEMCTL restart "$SERVICE_NAME"
 ROOT_SYSTEMCTL is-active --quiet "$SERVICE_NAME"
