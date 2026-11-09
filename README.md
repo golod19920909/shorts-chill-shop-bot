@@ -531,3 +531,6 @@ sudo journalctl -u shopbot -f
 
 
 Подробная схема и оставшиеся release gates: `MONETIZATION_ARCHITECTURE.md`.
+
+
+Границы доступных методов, seller API и текущие пробелы live-проверки: `docs/ALIEXPRESS_PORTALS_CAPABILITY_MATRIX.md`.
