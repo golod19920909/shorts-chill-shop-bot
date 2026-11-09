@@ -778,7 +778,11 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # to page 1; the independent per-user shown history keeps already-shown
     # products out of the next curated pool. Failed requests return above
     # without moving the cursor.
-    next_page = 1 if reached_end_of_feed else last_attempted + 1
+    next_page = (
+        1
+        if reached_end_of_feed or restarted_from_first_page
+        else last_attempted + 1
+    )
     context.user_data[FEED_PAGE_KEY] = next_page
     await _remember_feed_page(context, user_id, next_page)
 
