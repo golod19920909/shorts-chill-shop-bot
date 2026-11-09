@@ -5229,3 +5229,11 @@ Source inspection on this branch confirms:
 - Updated the startup/status wording from the retired «Популярное» ranking label to AI selection for «Находки».
 - Added `tests/test_admin_panel.py::AdminScreenRenderTests::test_findings_screen_shows_curation_stage_metrics`.
 - Follow-up verification is running on the branch; latest changes are limited to the admin diagnostics and their test. Keep the previously documented unrelated CI failures separate from findings regressions.
+
+### Final verification snapshot for this work session (2026-11-09)
+
+- Branch HEAD before this context-only update: `62738003e0587d4d0363fe085786cd90b6cd5a8a`.
+- Conversational regression workflow: focused step reports **444 passed, 3 failed, 1 deselected, 78 subtests passed**. The three failures are unrelated pre-existing conversation regressions: two type-gate reason expectations and one timeout fallback retry-count expectation. The findings selector tests, findings curation tests and full `tests/test_search_service.py` passed. The admin screen test was also included in the monetization suite, where it passed.
+- Monetization workflow: **44 passed, 1 failed, 45 subtests passed**. The only failure is the pre-existing cross-sell prompt wording assertion in `tests/test_cross_sell.py`; it is unrelated to findings.
+- There is no claim of a clean full CI run. Findings-specific tests passed in both relevant workflow executions. No live AliExpress API request was possible from this environment because the local `.env` credentials are not accessible here.
+- For local verification, pull this branch, start the bot, open «✨ Находки» once, then inspect Admin → «Находки». That screen now shows the candidate/curation metrics. A real-data review is still needed before any hard rating/orders/discount thresholds are considered.
