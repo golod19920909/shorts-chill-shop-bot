@@ -5128,3 +5128,8 @@ Source inspection on this branch confirms:
 - Handler re-reads only the current user's persisted favorites and matches marketplace + product id; it does not trust list position, process-local cache or callback-supplied URL. It validates the affiliate URL, records `affiliate_link_requested`, then sends the exact saved URL as a Telegram URL button.
 - Registered the callback in `bot/__init__.py`; added `tests/test_favorite_affiliate_link.py` for presence/absence and stable identity semantics. Added this test to monetization CI and guarded deployment focused tests.
 - Telegram still does not report URL-button opens; this remains a link-request metric, not a click/purchase metric. GitHub CI result not yet verified.
+
+
+### Monetization CI result (2026-11-09)
+- GitHub Actions run `42579657986` for head `d0bd0549b025ec3070dc6454c50eef40f6e4fb03` completed successfully. Job `monetization-regressions`: dependency install, deployment shell syntax, monetization module compilation and focused pytest suite all passed, including the new favorites affiliate-link tests.
+- This is branch CI evidence only. It does not validate the production server, live Portals credentials/order rows, backup timer installation or Telegram runtime interaction.
