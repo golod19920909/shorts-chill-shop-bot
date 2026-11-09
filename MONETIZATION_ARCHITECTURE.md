@@ -34,10 +34,12 @@ Status: implementation baseline on `audit/aliexpress-portals-smoke-test` (2026-1
 
 ## 4. Consent-based cross-sell
 
-- Future cross-sell must be opt-in: ask whether the user wants complementary items before running a second search.
-- Reuse the existing conversational search, strict product identity/evidence checks, AliExpress provider and existing result-card delivery. No separate recommendation engine or hidden automatic product injection.
-- Do not send repeated unsolicited promotions. The user must be able to decline and continue the original flow unchanged.
-- This block is not yet implemented; it is deliberately not represented as complete.
+- Implemented on product-card and favorites affiliate-link requests: after the user asks for the partner link, the bot offers «Да, подобрать» / «Нет, спасибо».
+- The offer stores only a bounded product-title hint in per-user Telegram context; it does not create a tracking profile or send a second search.
+- «Нет» clears the pending offer. «Да» asks the user to describe the accessory/add-on; only the next user text starts a search.
+- The accepted text enters the existing AliExpress conversational search as a **fresh conversation**. The previous product's type, budget, exclusions and other slots are reset, so the accessory request is not silently interpreted as a refinement.
+- No accessory is guessed, no products are injected into the original results, and no automatic second API search occurs. The existing type/evidence validation and result-card delivery remain authoritative.
+- If the user sends «отмена» after opting in, the extra search is cancelled. The pending choice is one-shot and expires naturally with the in-memory user context/process lifetime.
 
 ## 5. Admin
 
