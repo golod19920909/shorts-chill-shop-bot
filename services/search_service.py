@@ -11,8 +11,9 @@ Responsibilities of this service:
   asked WITHOUT ``keywords`` and WITHOUT ``sort``) - normalize,
   deduplicate, keep only technically valid cards (real image + real
   affiliate URL) and skip what this user has already been shown. The
-  composition and the order of that feed are AliExpress' own; this
-  service never ranks, scores or quality-filters it (G24).
+  completed multi-page pool is curated once by ``curate_findings`` with
+  near-duplicate/family selection and a dedicated Gemini selector; failures
+  use a deterministic fallback.
 
 It never produces product data itself and never lets one failing
 marketplace break the whole search.
