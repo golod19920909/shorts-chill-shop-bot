@@ -1916,7 +1916,7 @@ class SearchService:
         """
 
         started = time.perf_counter()
-        limit = max(1, min(int(wanted or 20), 100))
+        limit = max(1, min(int(wanted or 20), AI_FEED_RESULTS))
         received_count = len(outcome.products or [])
         raw_pool = deduplicate_products(list(outcome.products or []))
         exact_duplicates = received_count - len(raw_pool)
