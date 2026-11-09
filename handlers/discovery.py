@@ -69,6 +69,9 @@ POPULAR_CATEGORIES_POOL = ENGAGING_CONSUMER_CATEGORIES
 #: marketplace listing instead of replaying the same first pages.
 FEED_PAGE_KEY = "feed_page"
 
+#: One documented AliExpress feed page contains at most 50 candidate rows.
+FEED_CANDIDATE_PAGE_SIZE = 50
+
 CATEGORIES_TEXT = (
     f"{CATEGORIES} <b>Категории</b>\n\n"
     "Выберите категорию — бот поищет товары в ней.\n"
@@ -666,19 +669,28 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pages_asked = 0
     last_attempted = start_page
 
-    while pages_asked < max_pages and len(collected) < open_size:
+    # Build a deeper candidate pool before deciding which 20 products are
+    # worth showing. The API budget remains bounded by max_pages (default 2),
+    # with no more than 50 rows requested from each documented page.
+    candidate_target = min(
+        FEED_CANDIDATE_PAGE_SIZE * max_pages,
+        max(open_size, 80),
+    )
+    search_service = common.get_search_service(context)
+
+    while pages_asked < max_pages and len(collected) < candidate_target:
         last_attempted = page
         # The cards already collected THIS open count as "seen" too, so a
         # page boundary can never hand the same card to the user twice.
         exclude = set(feed_history)
         exclude.update(identity_pair(product) for product in collected)
         try:
-            page_outcome = await common.get_search_service(context).find_feed_page(
+            page_outcome = await search_service.find_feed_page(
                 page=page,
                 country=country,
                 currency=region.get("currency"),
                 exclude=exclude,
-                limit=open_size - len(collected),
+                limit=FEED_CANDIDATE_PAGE_SIZE,
             )
         except Exception:
             logger.exception("Feed failed (page %s)", page)
@@ -729,6 +741,12 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         )
     )
+
+    # One curation decision per completed open, not one Gemini call per
+    # marketplace page. The service validates AI IDs and owns the safe
+    # deterministic fallback; the Telegram renderer still receives Product
+    # objects from this exact real candidate pool.
+    await search_service.curate_findings(outcome, wanted=open_size)
 
     # The cursor contract (§12): next = last_attempted_page + 1, where
     # "attempted" means the page the service really asked - success,
