@@ -31,6 +31,7 @@ from handlers import (
     ai_assistant,
     discovery,
     favorites,
+    cross_sell,
     hot_discounts,
     newchat,
     promo_codes,
@@ -259,6 +260,9 @@ def _register_handlers(application: Application) -> None:
     )
     application.add_handler(
         CallbackQueryHandler(search.buy_link_callback, pattern=f"^{CB_PREFIX_BUY}:")
+    )
+    application.add_handler(
+        CallbackQueryHandler(cross_sell.callback, pattern=f"^{cross_sell.CB_PREFIX}:")
     )
     application.add_handler(
         CallbackQueryHandler(search.favorite_callback, pattern=f"^{CB_PREFIX_FAVORITE}:")
