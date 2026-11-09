@@ -601,11 +601,10 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     product immediately, and «◀️ Назад» from the first card restores the
     session summary on demand.
 
-    G24: the composition and the order of this feed belong to AliExpress.
-    ``SearchService.find_feed_page`` delivers ONE documented page of the
-    keyword-less ``product.query`` (normalize -> dedup -> technical
-    validity -> skip what this user has already been shown); this handler
-    only:
+    AliExpress supplies the broad keyword-less ``product.query`` candidate
+    pool. This handler gathers bounded pages and preserves the feed cursor and
+    per-user history; SearchService curates the merged pool once before the
+    first card is rendered. Gemini may only select IDs from that real pool.
 
     * reads the per-user state - the feed's shown-history
       (``popular_shown``, scope ``feed``: the ONLY hard no-repeat source
@@ -761,7 +760,7 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         source="feed",
     )
 
-    if not collected:
+    if not outcome.products:
         # Did the MARKETPLACE actually answer? This separates a real
         # end-of-feed from a feed the API answered with nothing:
         # «показали всё» (with a history reset button) must never appear
@@ -799,7 +798,9 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # reaches Telegram, so the next open (in this process or a restarted
     # one) skips it by its canonical identity. This is the FEED's own
     # scope: a search must not be emptied by what the feed displayed.
-    await common.remember_shown(context, user_id, collected[0], flow=FLOW_FEED)
+    await common.remember_shown(
+        context, user_id, outcome.products[0], flow=FLOW_FEED
+    )
 
     header = f"{FINDINGS} <b>Находки</b>"
     await send_search_results(
@@ -811,9 +812,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id=user_id,
         telegram_id=telegram_id,
         track_shown=True,
-        # G24: the list arrives exactly as AliExpress composed it - the
-        # shared curation gate must not rank, score or quality-filter it a
-        # second time; only the history recording of the normal path stays.
+        # The feed-specific curation has already run once. Skip the shared
+        # generic gate so it cannot apply an unrelated second policy pass.
         pre_curated=True,
     )
 
