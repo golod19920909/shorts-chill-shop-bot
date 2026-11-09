@@ -65,3 +65,11 @@ Status: implementation baseline on `audit/aliexpress-portals-smoke-test` (2026-1
 3. Install the backup timer on the production server and perform a backup + restore drill before enabling automated deployments.
 4. Complete opt-in cross-sell only after the user-facing flow is tested.
 5. Keep this branch separate until PR #10's integration base is settled; do not merge to `main` from this branch.
+
+## 9. AliExpress API capability boundary (2026-11-09)
+
+- The separate capability matrix is maintained at `docs/ALIEXPRESS_PORTALS_CAPABILITY_MATRIX.md`.
+- Affiliate Promotion Creatives documents featured-promotion list/products methods; the last app-specific list probe returned success with zero rows. Product lookup remains gated on an exact returned campaign name and exact dates.
+- The public API catalog also lists seller Marketing Management coupon/store-promotion methods. These are a separate API category and are not evidence that the Portals affiliate app has seller authorization. They are not wired into this bot.
+- Product-level `promo_code_info` remains the only coupon-like product data currently surfaced from the affiliate product response. No standalone coupon-code feed is assumed.
+- Seller marketing endpoints must not be called with Portals credentials as an undocumented workaround.
