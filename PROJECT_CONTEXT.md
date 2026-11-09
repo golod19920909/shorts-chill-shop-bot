@@ -5215,3 +5215,9 @@ Source inspection on this branch confirms:
 - Latest focused regression run observed on commit `01798becf48e5c44b7406529092012dfcfc1373d`: 443 passed, 3 failed, 1 deselected, 78 subtests passed. The three failures are the previously documented conversational baseline failures (type-gate reason mismatch twice and timeout fallback retry count); the new findings tests and `tests/test_search_service.py` passed in that run.
 - The monetization workflow on that same commit had 43 passed and 1 unrelated failure in `tests/test_cross_sell.py`: the existing test still expects the earlier wording «Напишите, что именно подобрать», while the branch's earlier approved text change now says «Напишите, какие дополнительные товары или аксессуары вас интересуют…». This is unrelated to «Находки» and was not changed here.
 - New runs have been triggered for the latest findings/analytics changes; verify their final results before claiming a clean workflow.
+
+### «✨ Находки» — result cap and verification note (2026-11-09)
+
+- The feed curation output is hard-capped at the existing AI feed limit of 20 cards, even if a deployment's legacy `FEED_OPEN_SIZE` setting is accidentally raised above that value. Default settings remain 20 cards and at most two API pages per open.
+- Focused workflow on commit `70ff47ffe3a175a5967cf58fefd3653563173280` completed its focused offline step with 444 passed, 3 failed, 1 deselected and 78 subtests passed. All findings-specific tests and the full `tests/test_search_service.py` module passed. The three failures are the already-recorded conversational baseline failures, unrelated to the feed files.
+- The latest cap-only follow-up is commit `d563ded3024888337a0581c1f4e8064774e77d6a`; its Actions runs are pending/completing. Recheck the run attached to the eventual context-update HEAD before reporting final CI status.
