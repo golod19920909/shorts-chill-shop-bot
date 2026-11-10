@@ -717,6 +717,33 @@ class MenuWiringTests(unittest.TestCase):
         self.assertEqual(discovery._feed_page_numbers(2, 2), [2, 41])
         self.assertEqual(discovery._feed_page_numbers(99, 2), [99, 138])
         self.assertEqual(discovery._feed_page_numbers(1, 1), [1])
+        self.assertEqual(
+            discovery._next_feed_page(
+                99,
+                reached_end=False,
+                restarted_from_first_page=True,
+                recovery_page_requested=False,
+            ),
+            1,
+        )
+        self.assertEqual(
+            discovery._next_feed_page(
+                99,
+                reached_end=False,
+                restarted_from_first_page=True,
+                recovery_page_requested=True,
+            ),
+            2,
+        )
+        self.assertEqual(
+            discovery._next_feed_page(
+                1,
+                reached_end=True,
+                restarted_from_first_page=False,
+                recovery_page_requested=False,
+            ),
+            1,
+        )
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()

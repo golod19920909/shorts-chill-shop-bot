@@ -83,6 +83,22 @@ def _feed_page_numbers(start_page: int, max_pages: int) -> list[int]:
     count = max(1, int(max_pages or 1))
     return [base + index * FEED_PAGE_SAMPLE_GAP for index in range(count)]
 
+
+def _next_feed_page(
+    start_page: int,
+    *,
+    reached_end: bool,
+    restarted_from_first_page: bool,
+    recovery_page_requested: bool,
+) -> int:
+    """Advance the rolling cursor without skipping an unrequested recovery."""
+
+    if reached_end or (restarted_from_first_page and not recovery_page_requested):
+        return 1
+    if restarted_from_first_page:
+        return 2
+    return max(1, int(start_page or 1)) + 1
+
 CATEGORIES_TEXT = (
     f"{CATEGORIES} <b>Категории</b>\n\n"
     "Выберите категорию — бот поищет товары в ней.\n"
@@ -680,6 +696,7 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     pages_asked = 0
     reached_end_of_feed = False
     restarted_from_first_page = False
+    recovery_page_requested = False
 
     # Sample different parts of the broad catalogue rather than adjacent pages
     # that may share one topical cluster. With the default budget the sequence
@@ -696,6 +713,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         and len(collected) < candidate_target
     ):
         page = pages_to_fetch[page_index]
+        if restarted_from_first_page and page == 1:
+            recovery_page_requested = True
         # The cards already collected THIS open count as "seen" too, so a
         # page boundary can never hand the same card to the user twice.
         exclude = set(feed_history)
@@ -758,8 +777,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 )
                 restarted_from_first_page = True
                 remaining = max_pages - pages_asked
-                pages_to_fetch[page_index + 1 :] = _feed_page_numbers(
-                    1, remaining
+                pages_to_fetch[page_index + 1 :] = (
+                    _feed_page_numbers(1, remaining) if remaining else []
                 )
                 page_index += 1
                 continue
@@ -805,10 +824,11 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # The rolling base cursor advances one page after a successful opening.
     # A stale base cursor that required recovery resumes at page 2; only an
     # actually empty page 1 resets the cursor. Empty distant samples do not.
-    next_page = (
-        1
-        if reached_end_of_feed
-        else 2 if restarted_from_first_page else start_page + 1
+    next_page = _next_feed_page(
+        start_page,
+        reached_end=reached_end_of_feed,
+        restarted_from_first_page=restarted_from_first_page,
+        recovery_page_requested=recovery_page_requested,
     )
     context.user_data[FEED_PAGE_KEY] = next_page
     await _remember_feed_page(context, user_id, next_page)
