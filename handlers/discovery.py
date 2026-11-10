@@ -802,11 +802,9 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         metadata=search_service.last_findings_stats or {},
     )
 
-    # Successful pages advance normally. A confirmed empty page means
-    # this pass reached the end of the marketplace listing, so rotate back
-    # to page 1; the independent per-user shown history keeps already-shown
-    # products out of the next curated pool. Failed requests return above
-    # without moving the cursor.
+    # The rolling base cursor advances one page after a successful opening.
+    # A stale base cursor that required recovery resumes at page 2; only an
+    # actually empty page 1 resets the cursor. Empty distant samples do not.
     next_page = (
         1
         if reached_end_of_feed

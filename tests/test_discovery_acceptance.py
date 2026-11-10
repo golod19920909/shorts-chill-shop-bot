@@ -659,6 +659,7 @@ class _RecordingDiscoveryService:
         return SearchOutcome(
             request=SearchRequest(original_query=query, mode=SearchMode.SEARCH),
             products=products,
+            products_before_filtering=len(products),
         )
 
     async def find_by_category(

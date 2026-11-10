@@ -750,7 +750,7 @@ class FindingsSelectorTests(unittest.TestCase):
         self.assertIn('"positive_rate":97.0', captured[0][0])
         self.assertIn("не применяй выдуманные минимальные пороги", captured[0][0])
         self.assertIn("category_path как основной сигнал категории", captured[0][0])
-        self.assertIn("верни РОВНО {wanted} ID", captured[0][0])
+        self.assertIn("верни РОВНО 2 ID", captured[0][0])
         self.assertNotIn("рейтингом ниже 4.5", captured[0][0])
         self.assertNotIn("product_url", captured[0][0])
         self.assertNotIn("affiliate_url", captured[0][0])
