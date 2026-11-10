@@ -5299,3 +5299,12 @@ stale high page. Gemini curation and the per-user shown history remain intact.
 - Если Gemini вернул короткий список, его реальные ID остаются в начале; остаток берётся только из того же реального пула, сортируется по marketplace-сигналам и проходит существующий family selector. Неизвестные ID не допускаются.
 - Сохранены лимит 20, история `FLOW_FEED`, техническая проверка карточек, дедупликация, Telegram UI и остальные потоки.
 - Добавлены офлайн-тесты разнесённых страниц, истории, заполнения короткого AI-списка и prompt. Локальные тесты и live smoke с пользовательским `.env` ещё требуется выполнить; не заявлять полную приёмку до этих проверок.
+
+
+### Verification snapshot for the diversity fix (2026-11-10)
+
+- Implementation commits: `7c955c1d768d1de94541bf5284d61f5b8ae81858`, `1544c7b02b598181092811f4f0b3a79c5f261a33`, and `630a101bfbff58f31d2848554303ab7f4b689f3d`.
+- Conversational regression workflow on commit `1544c7b02b598181092811f4f0b3a79c5`: **445 passed, 3 failed, 1 deselected, 78 subtests passed**. The three failures are the existing unrelated conversation type-gate expectations (2) and timeout retry-count expectation (1). The new findings selector and short-selection fill tests passed.
+- Monetization regression workflow on final code commit `630a101bfbff58f31d2848554303ab7f4b689f3d`: **44 passed, 1 failed, 45 subtests passed**. The one failure is the already documented unrelated cross-sell wording assertion in `tests/test_cross_sell.py`; the discovery acceptance tests, including spaced page sampling and history isolation, passed.
+- Deployment script syntax validation and monetization-code compilation passed. No live AliExpress API smoke test was run here; credentials remain in the user's local `.env`.
+- Local user verification remains required: pull the branch, open «Находки» several times, and inspect whether the 1/40, 2/41 sampling produces a wider category mix and up to 20 distinct cards. Do not claim live acceptance until that check is complete.
