@@ -1685,6 +1685,46 @@ class FindingsCurationTests(SearchServiceTestCase):
         self.assertEqual(service.last_findings_stats["ai_status"], "selected")
         self.assertEqual(service.last_findings_stats["selected"], 2)
 
+    def test_short_ai_selection_is_filled_from_remaining_real_families(self):
+        from services.search_service import SearchOutcome
+
+        class Selector:
+            is_available = True
+
+            async def select_findings_candidates(self, candidates, *, wanted):
+                return ["lamp"]
+
+        products = [
+            make_product(
+                Marketplace.ALIEXPRESS, "lamp", 10.0,
+                title="Светильник настольный сенсорный",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "watch", 18.0,
+                title="Умные часы спортивные водонепроницаемые",
+                orders_count=1200,
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS, "projector", 45.0,
+                title="Мини проектор домашний портативный",
+                orders_count=800,
+            ),
+        ]
+        service = SearchService([], ai_service=Selector())
+        outcome = SearchOutcome(
+            request=SearchRequest(original_query="находки AliExpress"),
+            products=products,
+        )
+
+        self.run_async(service.curate_findings(outcome, wanted=3))
+
+        self.assertEqual(
+            {product.product_id for product in outcome.products},
+            {"lamp", "watch", "projector"},
+        )
+        self.assertEqual(len(outcome.products), 3)
+        self.assertEqual(service.last_findings_stats["selected"], 3)
+
     def test_missing_ai_uses_deterministic_diverse_fallback(self):
         from services.search_service import SearchOutcome
 

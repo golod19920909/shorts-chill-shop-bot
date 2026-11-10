@@ -71,6 +71,18 @@ FEED_PAGE_KEY = "feed_page"
 #: One documented AliExpress feed page contains at most 50 candidate rows.
 FEED_CANDIDATE_PAGE_SIZE = 50
 
+#: Live verification recorded no shared product IDs between pages 1, 2 and 40.
+#: A distant sample broadens the catalogue view without another API request.
+FEED_PAGE_SAMPLE_GAP = 39
+
+
+def _feed_page_numbers(start_page: int, max_pages: int) -> list[int]:
+    """Return bounded, spaced catalogue pages for one feed opening."""
+
+    base = max(1, int(start_page or 1))
+    count = max(1, int(max_pages or 1))
+    return [base + index * FEED_PAGE_SAMPLE_GAP for index in range(count)]
+
 CATEGORIES_TEXT = (
     f"{CATEGORIES} <b>Категории</b>\n\n"
     "Выберите категорию — бот поищет товары в ней.\n"
@@ -663,23 +675,27 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     collected: list[Product] = []
     merged: SearchOutcome | None = None
     saw_candidates = False
-    page = start_page
+    pages_to_fetch = _feed_page_numbers(start_page, max_pages)
+    page_index = 0
     pages_asked = 0
-    last_attempted = start_page
     reached_end_of_feed = False
     restarted_from_first_page = False
 
-    # Build a deeper candidate pool before deciding which 20 products are
-    # worth showing. The API budget remains bounded by max_pages (default 2),
-    # with no more than 50 rows requested from each documented page.
+    # Sample different parts of the broad catalogue rather than adjacent pages
+    # that may share one topical cluster. With the default budget the sequence
+    # is 1/40, 2/41, 3/42, ...; each opening still uses at most max_pages calls.
     candidate_target = min(
         FEED_CANDIDATE_PAGE_SIZE * max_pages,
         max(open_size, 80),
     )
     search_service = common.get_search_service(context)
 
-    while pages_asked < max_pages and len(collected) < candidate_target:
-        last_attempted = page
+    while (
+        page_index < len(pages_to_fetch)
+        and pages_asked < max_pages
+        and len(collected) < candidate_target
+    ):
+        page = pages_to_fetch[page_index]
         # The cards already collected THIS open count as "seen" too, so a
         # page boundary can never hand the same card to the user twice.
         exclude = set(feed_history)
@@ -697,8 +713,9 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             # A failed request is NOT a consumed marketplace page. Keep the
             # cursor at the beginning of this open so the next user attempt
             # retries the same page instead of walking into deeper empty pages.
-            context.user_data[FEED_PAGE_KEY] = page
-            await _remember_feed_page(context, user_id, page)
+            retry_page = 1 if restarted_from_first_page else start_page
+            context.user_data[FEED_PAGE_KEY] = retry_page
+            await _remember_feed_page(context, user_id, retry_page)
             await common.record_event(
                 context,
                 analytics.EVENT_SEARCH_FAILED,
@@ -724,27 +741,39 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         collected.extend(page_outcome.products)
 
         if not page_outcome.products_before_filtering:
-            # A persisted cursor can outlive the usable range of the
-            # marketplace listing. If its first request is confirmed empty,
-            # recover immediately at page 1 within this same open (one time
-            # only, and still inside the existing page-request budget).
-            # Keep this distinct from a failed API request, which is raised
-            # by the provider and handled above.
-            if page > 1 and not collected and not restarted_from_first_page:
+            # A stale rolling cursor can point beyond the available listing.
+            # Recover from page 1, but only inside the same API-call budget.
+            # Replace the remaining sparse sample slots with the page-1
+            # sequence; an empty distant sample is not proof the whole
+            # marketplace catalogue has ended.
+            if (
+                page_index == 0
+                and page > 1
+                and not collected
+                and not restarted_from_first_page
+            ):
                 logger.info(
                     "Findings feed page %s is empty; retrying from page 1",
                     page,
                 )
-                page = 1
                 restarted_from_first_page = True
+                remaining = max_pages - pages_asked
+                pages_to_fetch[page_index + 1 :] = _feed_page_numbers(
+                    1, remaining
+                )
+                page_index += 1
                 continue
 
-            # A confirmed empty first page (or an empty page after useful
-            # candidates) ends this pass. The next open starts a fresh pass
-            # at page 1; per-user shown history prevents unwanted repeats.
-            reached_end_of_feed = True
-            break
-        page += 1
+            # Only an empty page 1 confirms that the current broad listing is
+            # empty. An empty distant sample does not reset the rolling cursor.
+            if page == 1 and not collected:
+                reached_end_of_feed = True
+                break
+
+            page_index += 1
+            continue
+
+        page_index += 1
 
     outcome = (
         merged
@@ -780,8 +809,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # without moving the cursor.
     next_page = (
         1
-        if reached_end_of_feed or restarted_from_first_page
-        else last_attempted + 1
+        if reached_end_of_feed
+        else 2 if restarted_from_first_page else start_page + 1
     )
     context.user_data[FEED_PAGE_KEY] = next_page
     await _remember_feed_page(context, user_id, next_page)

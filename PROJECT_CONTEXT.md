@@ -5288,3 +5288,14 @@ stale high page. Gemini curation and the per-user shown history remain intact.
 - Corrected the final cursor decision in `handlers/discovery.py`: whenever a confirmed empty stale page triggered recovery, the next persisted cursor is page 1 even if no request budget remains to retry page 1 during that same opening. The existing bounded retry still runs within the current opening when budget permits.
 - This preserves the per-user shown history and does not alter Gemini selection, product curation, ordinary search, or other flows.
 - Commit: `6db2de0c017459eee05ac982f893e49a69b1786a`. Offline tests and real AliExpress smoke verification have not yet been run for this follow-up.
+
+
+## «✨ Находки» — разнообразная выборка каталога и безопасное заполнение (2026-11-10)
+
+- Полное ТЗ: `docs/TECH_SPEC_FINDINGS_DIVERSITY.md`.
+- Для стандартного бюджета двух запросов выборка теперь разнесённая: 1/40, 2/41, 3/42 и далее. Шаг 39 основан на ранее зафиксированной live-проверке отсутствия общих ID между страницами 1, 2 и 40.
+- Курсор хранит базовую страницу и увеличивается на 1 за успешное открытие. При API-ошибке повторяется та же пара страниц. Пустая дальняя страница не считается концом каталога; stale cursor восстанавливается через page 1 в рамках оставшегося бюджета.
+- Gemini prompt требует широкого охвата категорий/назначений и ровно 20 ID при наличии достаточного пула. Модель, таймаут, payload-поля и телеметрия не меняются.
+- Если Gemini вернул короткий список, его реальные ID остаются в начале; остаток берётся только из того же реального пула, сортируется по marketplace-сигналам и проходит существующий family selector. Неизвестные ID не допускаются.
+- Сохранены лимит 20, история `FLOW_FEED`, техническая проверка карточек, дедупликация, Telegram UI и остальные потоки.
+- Добавлены офлайн-тесты разнесённых страниц, истории, заполнения короткого AI-списка и prompt. Локальные тесты и live smoke с пользовательским `.env` ещё требуется выполнить; не заявлять полную приёмку до этих проверок.

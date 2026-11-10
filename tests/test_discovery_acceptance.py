@@ -651,6 +651,7 @@ class _RecordingDiscoveryService:
         self.calls: list[tuple[str, set | None]] = []
         self.broadened: list[bool] = []
         self.category_kwargs: list[dict] = []
+        self.feed_pages: list[int] = []
         self._product = product
 
     def _result(self, query: str) -> SearchOutcome:
@@ -673,6 +674,7 @@ class _RecordingDiscoveryService:
         self, *, currency=None, country=None, page=1, exclude=None, limit=None
     ):
         self.calls.append(("feed", exclude))
+        self.feed_pages.append(page)
         return self._result("находки")
 
     async def find_products_from_text(self, text, *, currency=None, exclude=None):
@@ -708,6 +710,12 @@ class _FakePhoto:
 
 class MenuWiringTests(unittest.TestCase):
     """Every discovery screen opened from the menu shares ONE history."""
+
+    def test_findings_sample_spaced_pages_while_cursor_rolls_forward(self) -> None:
+        self.assertEqual(discovery._feed_page_numbers(1, 2), [1, 40])
+        self.assertEqual(discovery._feed_page_numbers(2, 2), [2, 41])
+        self.assertEqual(discovery._feed_page_numbers(99, 2), [99, 138])
+        self.assertEqual(discovery._feed_page_numbers(1, 1), [1])
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -809,7 +817,14 @@ class MenuWiringTests(unittest.TestCase):
 
         run(discovery.show_feed(FakeUpdate(callback_query=query), context))
 
-        self.assertEqual(service.calls, [("feed", {("aliexpress", "rotated")})])
+        self.assertEqual(
+            service.calls,
+            [
+                ("feed", {("aliexpress", "rotated")}),
+                ("feed", {("aliexpress", "rotated")}),
+            ],
+        )
+        self.assertEqual(service.feed_pages, [1, 40])
         # The card just shown joins the same per-user history (both scopes).
         rows = run(self.db.get_shown_products(self.user_id))
         self.assertIn(("aliexpress", "100"), rows)
