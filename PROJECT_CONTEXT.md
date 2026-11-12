@@ -5800,3 +5800,24 @@ Gemini requests. Example:
 .venv\\Scripts\\python.exe scripts\\validate_catalog_subcategories.py --max-pages 2
 ```
 
+
+
+### Strict Gemini approval boundary correction (2026-11-12)
+
+A focused local run after the first implementation reported 28 passed / 1
+failed in the three catalog test modules. The remaining failure showed that
+`_finalize_subcategory_selection` was receiving every unselected pool
+candidate appended after Gemini's approved IDs. This made the deterministic
+refill reintroduce products that Gemini had explicitly omitted.
+
+Corrected on the feature branch: successful subcategory selection now passes
+only the IDs returned by Gemini into the deterministic finalizer. The selector
+is already requested to return up to `SUBCATEGORY_SELECTION_MAX`
+(40) IDs, so its approved tail remains the reserve for the final 20-card
+quality/diversity refill. Candidates outside that approved set are never
+reintroduced. Full-pool deterministic fallback remains available only when
+the selector is unavailable, fails, or returns no usable selection. This
+preserves the one-call selector and avoids additional model calls.
+
+Latest correction commit: `4417cc5e4f94470dc06b4634a78ff354ff78a816`.
+Local execution of the tests after this commit is still required.
