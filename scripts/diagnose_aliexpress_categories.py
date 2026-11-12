@@ -103,7 +103,7 @@ async def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     output = reports_dir / f"aliexpress_affiliate_category_tree_{stamp}.json"
     output.write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(
