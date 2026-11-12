@@ -1567,8 +1567,11 @@ class SearchService:
         cheap spam next to the wanted product, and only a model can judge which
         listing is "not the product" in the user's own words. What comes back is
         a SELECTION, not a reorder - the ids the model left out stay hidden (see
-        ``feed_curation.apply_selection``) - and the result is capped at
-        ``AI_FEED_RESULTS`` (never above the deployment's own browse cap).
+        ``feed_curation.apply_selection``). Ordinary feeds are capped at
+        ``AI_FEED_RESULTS``. A curated subcategory may return up to
+        ``SUBCATEGORY_SELECTION_MAX`` ranked IDs (20 primary + 20 reserve);
+        its deterministic subtype/family finalizer then caps the visible shelf
+        at ``AI_FEED_RESULTS``.
 
         Called once per displayed feed, by the flow that OWNS the finished pool:
         ``find_products`` does it inline, while a flow that composes its pool from
@@ -1577,9 +1580,11 @@ class SearchService:
 
         Degrades exactly like every other AI step: no selector, an unavailable
         service, a failed request, an unusable answer or a selection slower than
-        :data:`FEED_SELECTION_TIMEOUT_SECONDS` all leave the deterministic list
-        in place, cut to the browse cap. A feed can therefore never be emptied,
-        reordered wrongly, padded by an AI failure - or held up by a slow one.
+        :data:`FEED_SELECTION_TIMEOUT_SECONDS` leave the deterministic list in
+        place. Subcategories still pass that list through the same deterministic
+        subtype/family finalizer; other feeds retain their existing browse cap.
+        A feed can therefore never be padded by an AI failure or held up by a
+        slow one.
         """
 
         limit = max(1, min(AI_FEED_RESULTS, self.max_results))
