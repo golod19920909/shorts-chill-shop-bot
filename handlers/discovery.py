@@ -510,12 +510,29 @@ async def _edit_or_reply(
 
     query = update.callback_query
     if query is not None:
-        await common.edit_message_or_replace(context, query, text, **kwargs)
+        await query.edit_message_text(text, **kwargs)
         return
 
     message = update.effective_message
     if message is not None:
         await message.reply_text(text, **kwargs)
+
+
+
+
+async def _edit_catalog_or_reply(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs
+) -> None:
+    """Catalog-only edit with a safe Telegram replacement fallback."""
+
+    query = update.callback_query
+    if query is not None:
+        await common.edit_message_or_replace(context, query, text, **kwargs)
+        return
+    message = update.effective_message
+    if message is not None:
+        await message.reply_text(text, **kwargs)
+
 
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -556,7 +573,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except Exception:
             logger.exception("Catalog cover could not be sent; using text fallback")
 
-    await _edit_or_reply(
+    await _edit_catalog_or_reply(
         update,
         context,
         CATEGORIES_TEXT,
@@ -641,7 +658,7 @@ async def subcategory_callback(
                 "reason": "error",
             },
         )
-        await _edit_or_reply(
+        await _edit_catalog_or_reply(
             update,
             context,
             f"{WARNING} Не удалось выполнить поиск по этому направлению.",
@@ -765,7 +782,7 @@ async def subcategory_new_search_callback(
         )
 
         if not outcome.products:
-            await _edit_or_reply(
+            await _edit_catalog_or_reply(
                 update,
                 context,
                 "Пока не нашлось новых подходящих товаров в этой подкатегории. "
@@ -801,7 +818,7 @@ async def subcategory_new_search_callback(
         logger.exception(
             "Subcategory new search failed for %r", subcategory.code
         )
-        await _edit_or_reply(
+        await _edit_catalog_or_reply(
             update,
             context,
             "Не удалось выполнить новый поиск. Предыдущая подборка осталась доступна — "
@@ -856,7 +873,7 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             telegram_id=telegram_id,
             metadata={"source": "category", "reason": "error"},
         )
-        await _edit_or_reply(
+        await _edit_catalog_or_reply(
             update,
             context,
             f"{WARNING} Не удалось выполнить поиск по категории.",
