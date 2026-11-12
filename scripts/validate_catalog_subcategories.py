@@ -104,6 +104,11 @@ async def _run(args: argparse.Namespace) -> int:
             try:
                 outcome = await search_service.find_by_subcategory(subcategory)
                 products = list(outcome.products)
+                selection_diagnostics = (
+                    dict(search_service.last_subcategory_selection_stats)
+                    if search_service.last_subcategory_selection_stats is not None
+                    else None
+                )
                 type_counts = Counter(
                     subcategory_product_type(product, subcategory) or "unclassified"
                     for product in products
@@ -140,6 +145,7 @@ async def _run(args: argparse.Namespace) -> int:
                     "after_constraints": outcome.products_after_constraints,
                     "final_count": len(products),
                     "type_counts": dict(type_counts),
+                    "selection_diagnostics": selection_diagnostics,
                     "searched_marketplaces": outcome.searched_marketplaces,
                     "failed_marketplaces": outcome.failed_marketplaces,
                     "unavailable_marketplaces": outcome.unavailable_marketplaces,
