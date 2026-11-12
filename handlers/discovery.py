@@ -513,20 +513,36 @@ async def _edit_or_reply(
 
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the image-backed catalog landing screen with a text fallback."""
+    """Render the catalog landing screen without replacing an active callback message.
+
+    Callback navigation must stay in the same Telegram message. The cover image
+    is used only for a fresh command/open; callback screens edit the existing
+    text or photo caption in place.
+    """
 
     query = update.callback_query
     chat_id = update.effective_chat.id if update.effective_chat else None
-    can_send_cover = CATALOG_COVER_PATH.is_file() and isinstance(context.bot, Bot)
+    markup = categories_keyboard()
 
+    if query is not None:
+        await query.answer()
+        message = query.message
+        if message is not None and getattr(message, "photo", None):
+            await query.edit_message_caption(
+                caption=CATEGORIES_TEXT,
+                parse_mode="HTML",
+                reply_markup=markup,
+            )
+        else:
+            await query.edit_message_text(
+                text=CATEGORIES_TEXT,
+                parse_mode="HTML",
+                reply_markup=markup,
+            )
+        return
+
+    can_send_cover = CATALOG_COVER_PATH.is_file() and isinstance(context.bot, Bot)
     if can_send_cover and chat_id is not None:
-        if query is not None:
-            await query.answer()
-            if query.message is not None:
-                try:
-                    await query.message.delete()
-                except Exception:
-                    logger.debug("Could not remove previous catalog screen", exc_info=True)
         try:
             with CATALOG_COVER_PATH.open("rb") as cover:
                 await context.bot.send_photo(
@@ -534,34 +550,19 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     photo=cover,
                     caption=CATEGORIES_TEXT,
                     parse_mode="HTML",
-                    reply_markup=categories_keyboard(),
+                    reply_markup=markup,
                 )
             return
         except Exception:
             logger.exception("Catalog cover could not be sent; using text fallback")
-            await context.bot.send_message(
-                chat_id,
-                CATEGORIES_TEXT,
-                parse_mode="HTML",
-                reply_markup=categories_keyboard(),
-            )
-            return
 
-    markup = categories_keyboard()
-    if query is not None and query.message is not None and getattr(query.message, "photo", None):
-        await query.edit_message_caption(
-            caption=CATEGORIES_TEXT,
-            parse_mode="HTML",
-            reply_markup=markup,
-        )
-    else:
-        await _edit_or_reply(
-            update,
-            context,
-            CATEGORIES_TEXT,
-            parse_mode="HTML",
-            reply_markup=markup,
-        )
+    await _edit_or_reply(
+        update,
+        context,
+        CATEGORIES_TEXT,
+        parse_mode="HTML",
+        reply_markup=markup,
+    )
 
 
 
