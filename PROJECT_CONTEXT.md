@@ -6489,3 +6489,12 @@ code changes or select vendors.
 - Shared main-menu and discovery helpers were restored for protected flows. Catalog and thematic screens use a dedicated `catalog:home` callback, catalog-only edit/replacement helper, and catalog session metadata. Non-catalog product cards retain their existing `menu:back` callback and prior replacement ordering; `✨ Находки` and Smart Search are not routed through the catalog-only home/edit helpers.
 - The optional `max_price` argument on `SearchService.find_by_subcategory` defaults to `None`; only the three budget theme tiers pass a value. Existing catalog and protected search calls therefore retain their original request parameters.
 - No tests or live API calls were run during this isolation refactor, per the user's instruction. A fresh local live run is still required after the UI mapping and theme routes are in place.
+
+
+## 2026-11-12 — Final curation and minimum-size clarification
+
+- Thematic searches now run the shared `CurationGate` in `MODE_CATEGORY` for quality filtering, product-family deduplication, relevance and diversity. They pass `user_id=None` to that gate (`curation_history=False`) so ordinary/global seen-product history is not read; `record_views=False` prevents writing to the global curation novelty history. Thematic browsing is still recorded in the separate `FLOW_THEMES` history and that history is used as the exclusion set across all four collections.
+- Both catalog shelf searches and thematic searches enforce the 12-product minimum again after the curation gate. A shelf is not filled with weak or unrelated items when the final eligible set falls below 12.
+- Thematic searches are not marked `pre_curated`; they use the existing quality/diversity gate with isolated history. Existing feed/search callers retain their default curation history and pre-curated behavior.
+- The latest catalog menu count is 59 visible ordinary shelves across 14 visible parent domains (15 configured; smartphones remains hidden pending live validation). The cycling shelf is also withheld because the current live sample did not support a sufficiently narrow, reliable shelf title.
+- No tests, CI, or fresh live API calls were run, per the user's instruction. The local diagnostic script and post-change live catalog report remain pending.
