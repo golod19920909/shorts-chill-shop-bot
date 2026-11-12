@@ -263,6 +263,8 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
 
     for category in CATEGORIES:
+        if not get_subcategories(category.code):
+            continue
         row.append(
             InlineKeyboardButton(
                 category.title, callback_data=f"{CB_CATEGORY_VIEW_PREFIX}:{category.code}"
@@ -425,6 +427,6 @@ def category_by_callback(data: str) -> Category | None:
     if prefix != CB_CATEGORY_PREFIX:
         return None
 
-    from config.catalog import get_category
+    from config.catalog import get_category\nfrom config.subcategories import get_subcategories
 
     return get_category(code)
