@@ -35,13 +35,17 @@ from curation.pipeline import DeduplicationFilter
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService, SUBCATEGORY_SELECTION_MAX
-from services.subcategory_quality import filter_subcategory_relevant
+from services.subcategory_quality import (
+    filter_subcategory_relevant,
+    subcategory_product_type,
+)
 from services.comparison_service import (
     ProductComparison,
     build_comparison,
     filter_products,
     popularity_score,
     sort_products,
+    value_score,
 )
 from services import feed_curation, query_variants
 from services.marketplaces.base import MarketplaceProvider
@@ -1350,70 +1354,139 @@ class SearchService:
 
     @staticmethod
     def _finalize_subcategory_selection(
-        products: list[Product], *, limit: int
+        products: list[Product], *, subcategory: Subcategory, limit: int
     ) -> list[Product]:
-        """Deduplicate and spread product families, then refill from the reserve.
+        """Build a full, subtype-balanced shelf from approved + reserve candidates.
 
-        Gemini supplies up to 40 ranked, approved IDs: 20 primary positions
-        plus 20 reserves. Near-identical listings are removed first. The
-        family pass prefers no more than two products from one title family,
-        but deferred candidates refill any remaining slots when the pool has
-        fewer distinct families. This keeps diversity a preference, not a
-        reason to silently turn a 20-card shelf into a 10-card shelf.
+        Configured product-type aliases act as a shared taxonomy across every
+        subcategory. Within each type, near-identical listings are removed and
+        title families are limited to two primary cards. Type quotas are
+        adaptive to the number of genuinely represented types; all deferred
+        real candidates remain eligible for balanced refill.
         """
 
         exact = deduplicate_products(products)
         near = feed_curation.drop_near_duplicates(exact)
-        family_gate = DeduplicationFilter(threshold=0.50)
-        diverse: list[Product] = []
-        families: list[tuple[Product, int]] = []
-        deferred_by_family: list[list[Product]] = []
+        family_gate = DeduplicationFilter(threshold=0.35)
 
+        by_type: dict[str, list[Product]] = {}
         for candidate in near:
-            for index, (representative, count) in enumerate(families):
-                if not family_gate.similar(candidate, representative):
-                    continue
-                if count < 2:
-                    families[index] = (representative, count + 1)
-                    diverse.append(candidate)
-                else:
-                    deferred_by_family[index].append(candidate)
-                break
-            else:
-                families.append((candidate, 1))
-                deferred_by_family.append([])
-                diverse.append(candidate)
+            type_key = subcategory_product_type(candidate, subcategory) or "__unclassified__"
+            by_type.setdefault(type_key, []).append(candidate)
 
-        # If there are fewer than ten distinct families, refill in rounds:
-        # take one additional candidate from each family before taking a
-        # third/fourth from any one family. This keeps the fallback balanced.
-        refill_count = 0
-        while len(diverse) < max(0, int(limit)):
-            added_in_round = False
-            for deferred in deferred_by_family:
-                if not deferred:
-                    continue
-                diverse.append(deferred.pop(0))
-                refill_count += 1
-                added_in_round = True
-                if len(diverse) >= max(0, int(limit)):
+        primary_by_type: dict[str, list[Product]] = {}
+        deferred_by_type: dict[str, list[list[Product]]] = {}
+        family_count_total = 0
+
+        for type_key, candidates in by_type.items():
+            representatives: list[tuple[Product, int]] = []
+            primary: list[Product] = []
+            deferred_families: list[list[Product]] = []
+            for candidate in candidates:
+                for index, (representative, count) in enumerate(representatives):
+                    if not family_gate.similar(candidate, representative):
+                        continue
+                    if count < 2:
+                        representatives[index] = (representative, count + 1)
+                        primary.append(candidate)
+                    else:
+                        deferred_families[index].append(candidate)
                     break
-            if not added_in_round:
+                else:
+                    representatives.append((candidate, 1))
+                    deferred_families.append([])
+                    primary.append(candidate)
+            primary_by_type[type_key] = primary
+            deferred_by_type[type_key] = deferred_families
+            family_count_total += len(representatives)
+
+        type_keys = list(by_type)
+        type_count = len(type_keys)
+        type_cap = (
+            max(1, int(limit))
+            if type_count <= 1
+            else min(
+                max(1, int(limit)),
+                max(2, (max(0, int(limit)) + type_count - 1) // type_count + 1),
+            )
+        )
+        selected: list[Product] = []
+        selected_by_type = {key: 0 for key in type_keys}
+        primary_cursor = {key: 0 for key in type_keys}
+
+        # First pass: spread the strongest family representatives across
+        # product types, with a small adaptive allowance above equal shares.
+        while len(selected) < max(0, int(limit)):
+            added = False
+            for type_key in type_keys:
+                cursor = primary_cursor[type_key]
+                primary = primary_by_type[type_key]
+                if selected_by_type[type_key] >= type_cap or cursor >= len(primary):
+                    continue
+                selected.append(primary[cursor])
+                primary_cursor[type_key] += 1
+                selected_by_type[type_key] += 1
+                added = True
+                if len(selected) >= max(0, int(limit)):
+                    break
+            if not added:
                 break
-        deferred_count = sum(len(items) for items in deferred_by_family) + refill_count
+
+        # Second pass: refill from the extra members of each family, one
+        # candidate per family per round, then relax the subtype cap only if
+        # the represented types could not fill the shelf.
+        deferred_cursors = {
+            key: [0] * len(deferred_by_type[key]) for key in type_keys
+        }
+        while len(selected) < max(0, int(limit)):
+            added = False
+            for type_key in type_keys:
+                for family_index, family_items in enumerate(deferred_by_type[type_key]):
+                    cursor = deferred_cursors[type_key][family_index]
+                    if cursor >= len(family_items):
+                        continue
+                    selected.append(family_items[cursor])
+                    deferred_cursors[type_key][family_index] += 1
+                    added = True
+                    if len(selected) >= max(0, int(limit)):
+                        break
+                if len(selected) >= max(0, int(limit)):
+                    break
+            if not added:
+                break
+
+        # Final honest fill: when the pool is narrow, use remaining distinct
+        # candidates in their Gemini/quality order rather than returning a
+        # short shelf or inventing products.
+        while len(selected) < max(0, int(limit)):
+            added = False
+            for type_key in type_keys:
+                cursor = primary_cursor[type_key]
+                primary = primary_by_type[type_key]
+                if cursor < len(primary):
+                    selected.append(primary[cursor])
+                    primary_cursor[type_key] += 1
+                    added = True
+                    if len(selected) >= max(0, int(limit)):
+                        break
+            if not added:
+                break
 
         logger.info(
-            "Subcategory final curation: input=%d exact=%d near=%d "
-            "families=%d family_deferred=%d refill=%d final=%d",
+            "Subcategory final curation: code=%s input=%d exact=%d near=%d "
+            "types=%d families=%d type_cap=%d refill=%d final=%d shortfall=%d",
+            subcategory.code,
             len(products),
             len(exact),
             len(near),
-            len(families),
-            deferred_count,
-            refill_count,
-            min(len(diverse), max(0, int(limit))),
+            type_count,
+            family_count_total,
+            type_cap,
+            max(0, len(selected) - min(limit, len(primary_by_type) * type_cap)),
+            max(0, min(len(selected), int(limit))),
+            max(0, int(limit) - len(selected)),
         )
-        return diverse[: max(0, int(limit))]
+        return selected[: max(0, int(limit))]
 
     async def apply_feed_selection(self, outcome: SearchOutcome) -> None:
         """Let the AI drop the junk of a deep pool, keeping the best cards.
@@ -1446,14 +1519,16 @@ class SearchService:
             before = len(outcome.products)
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = (
-                list(outcome.products)
+                sorted(outcome.products, key=value_score, reverse=True)
                 if subcategory is not None
                 else _cut_with_numeric_protection(
                     outcome.products, fallback_limit, outcome.request
                 )
             )
             outcome.products = (
-                self._finalize_subcategory_selection(fallback, limit=limit)
+                self._finalize_subcategory_selection(
+                    fallback, subcategory=subcategory, limit=limit
+                )
                 if subcategory is not None else fallback
             )
             outcome.comparisons = build_comparison(outcome.products)
@@ -1527,12 +1602,14 @@ class SearchService:
             # carries the same bounded numeric-spec pool protection.
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = (
-                list(pool)
+                sorted(pool, key=value_score, reverse=True)
                 if subcategory is not None
                 else _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
             )
             outcome.products = (
-                self._finalize_subcategory_selection(fallback, limit=limit)
+                self._finalize_subcategory_selection(
+                    fallback, subcategory=subcategory, limit=limit
+                )
                 if subcategory is not None else fallback
             )
             outcome.comparisons = build_comparison(outcome.products)
@@ -1561,18 +1638,33 @@ class SearchService:
         selected = feed_curation.apply_selection(
             pool, chosen, limit=selection_limit
         )
+        if subcategory is not None and selected:
+            selected_ids = {product.product_id for product in selected}
+            reserve = [
+                product for product in pool
+                if product.product_id not in selected_ids
+            ]
+            reserve.sort(key=value_score, reverse=True)
+            logger.info(
+                "Subcategory reserve: code=%s gemini_approved=%d "
+                "reserve_candidates=%d",
+                subcategory.code, len(selected), len(reserve),
+            )
+            selected = [*selected, *reserve]
         if not selected:
             # The model named nothing usable: the honest deterministic list is
             # better than an empty screen - still cut with the same bounded
             # numeric-spec pool protection as every deterministic fallback.
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = (
-                list(pool)
+                sorted(pool, key=value_score, reverse=True)
                 if subcategory is not None
                 else _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
             )
             outcome.products = (
-                self._finalize_subcategory_selection(fallback, limit=limit)
+                self._finalize_subcategory_selection(
+                    fallback, subcategory=subcategory, limit=limit
+                )
                 if subcategory is not None else fallback
             )
             outcome.comparisons = build_comparison(outcome.products)
@@ -1596,7 +1688,9 @@ class SearchService:
             return
 
         final_products = (
-            self._finalize_subcategory_selection(selected, limit=limit)
+            self._finalize_subcategory_selection(
+                selected, subcategory=subcategory, limit=limit
+            )
             if subcategory is not None else selected
         )
         log_ai_selection_outcome(
