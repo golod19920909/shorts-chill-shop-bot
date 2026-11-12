@@ -136,7 +136,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("gaming keyboard mouse headset", "gaming mouse pads", "gaming headsets"),
           ("игровая клавиатура", "игровая мышь", "гарнитура", "коврик")),
     _item("streaming", "games", "Стриминг и запись", "Микрофоны, свет и оборудование для трансляций",
-          ("streaming equipment accessories", "USB microphones webcams", "streaming lights capture devices"),
+          ("streaming equipment accessories", "USB microphones webcams ring lights", "video capture cards stream decks audio mixers"),
           ("стриминг", "микрофон", "вебкамера", "свет")),
     _item("vr", "games", "VR-аксессуары", "Аксессуары для виртуальной реальности",
           ("virtual reality VR accessories", "VR headset accessories", "VR controllers accessories"),
