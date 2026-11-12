@@ -85,6 +85,13 @@ class SearchRequest(BaseModel):
 
     mode: SearchMode = SearchMode.SEARCH
     category: str | None = None
+    #: Stable catalog subcategory identity; category remains the parent code
+    #: so the existing CATEGORY ranking/curation policy stays in force.
+    subcategory_code: str | None = None
+    #: Bounded additional marketplace phrases for curated catalog topics.
+    #: Only the category/subcategory flow may populate these; user text and
+    #: Gemini output never set this field.
+    retrieval_queries: list[str] = Field(default_factory=list, max_length=2)
     keywords: list[str] = Field(default_factory=list)
 
     max_price: float | None = Field(default=None, ge=0)
