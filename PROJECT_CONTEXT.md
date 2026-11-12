@@ -5785,3 +5785,18 @@ branch. Then continue with:
 
 Do not mark the TЗ complete until every configured subcategory has real
 provider validation and the remaining acceptance work above is closed.
+
+### Live validation runner
+
+`scripts/validate_catalog_subcategories.py` runs the real shared
+`find_by_subcategory` pipeline against every configured subcategory, with
+bounded documented page depth (default two pages per route), the configured
+Gemini selector/fallback, per-shelf type counts and final product titles.
+It writes a timestamped JSON report under `reports/`. Run explicitly after
+pulling; it is not part of offline pytest and may make real AliExpress API and
+Gemini requests. Example:
+
+```powershell
+.venv\\Scripts\\python.exe scripts\\validate_catalog_subcategories.py --max-pages 2
+```
+
