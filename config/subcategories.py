@@ -126,7 +126,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("controllers", "games", "Геймпады и контроллеры", "Устройства игрового управления",
           ("game controllers gamepads", "wireless gaming controllers", "joystick controllers"),
           ("геймпад", "джойстик", "контроллер", "руль"),
-          ("gamepad", "game controller", "gaming joystick", "racing wheel", "геймпад", "игровой контроллер", "джойстик", "игровой руль"),
+          ("gamepad", "game controller", "controller", "gaming joystick", "racing wheel", "геймпад", "игровой контроллер", "джойстик", "игровой руль"),
           ("wifi router", "wireless router", "network router", "router", "wifi роутер", "remote control", "remote controller")),
     _item("gaming_peripherals", "games", "Игровая периферия", "Клавиатуры, мыши, коврики и гарнитуры",
           ("gaming keyboard mouse headset", "gaming mouse pads", "gaming headsets"),
