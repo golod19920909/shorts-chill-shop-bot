@@ -1518,7 +1518,7 @@ def _browse_keyboard(
             )
         ),
         new_search_label=(
-            "Показать ещё" if outcome.request.subcategory_code else LABEL_NEW_SEARCH
+            "Показать ещё" if meta.get("home_callback") else LABEL_NEW_SEARCH
         ),
         home_callback=meta.get("home_callback"),
     )
