@@ -5526,3 +5526,38 @@ stale high page. Gemini curation and the per-user shown history remain intact.
 - The corrected code has NOT yet been re-run by the user or confirmed by CI.
   Next: pull the latest branch commit and rerun the same four focused test
   modules. Do not proceed to live marketplace checks until this passes.
+
+
+
+## Subcategory 20-card selection and balanced reserve — implementation update (2026-11-12)
+
+This section supersedes the earlier note above that the final subcategory family
+pass has no fill-up behavior.
+
+- The root cause from live Telegram logs was confirmed in
+  `services/search_service.py`: Gemini was asked for at most 20 IDs, and the
+  final exact/near/family curation ran only on those IDs. When curation removed
+  similar products, no reserve candidates were available to restore the shelf
+  to 20 even when the retrieval pool contained many more candidates.
+- Subcategory Gemini selection now requests up to 40 ranked IDs: the first 20
+  are the primary shelf and up to 20 more are a reserve. The selector prompt
+  explicitly requires at least 20 IDs when 20 or more candidates meet the
+  subcategory identity criteria; it no longer treats broad product-family
+  variety as a reason to return only 10–12 cards. This remains one Gemini call.
+- The deterministic finalizer still removes exact and near-identical listings.
+  It now uses a lower, category-agnostic title-family similarity threshold and
+  prefers at most two candidates per family. If that preference leaves empty
+  slots, it refills in round-robin family order from the Gemini-approved
+  reserve, so one family does not monopolize the refill.
+- AI-unavailable/error fallback now curates the complete already-filtered
+  subcategory pool instead of truncating it to 20 before duplicate/family
+  checks. This avoids losing replacement candidates before final curation.
+- Non-subcategory selection behavior, the 30-card general browse cap,
+  conversational Option C, provider retrieval and the AliExpress-only policy
+  remain unchanged. No extra per-product Gemini calls were introduced.
+- Added a focused offline regression test asserting that a subcategory selector
+  receives a 40-ID budget and the deterministic family refill returns 20
+  distinct real candidates from a larger pool.
+- Validation status: source changes and test were committed to this branch,
+  but tests have NOT yet been executed in a local checkout or CI from this
+  environment. No live AliExpress or Telegram validation has been performed.
