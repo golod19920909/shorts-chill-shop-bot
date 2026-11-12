@@ -49,12 +49,51 @@ def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
         if len(term) < 3:
             return False
         return any(_token_matches(token, term) for token in title_tokens)
-    # Multi-word aliases may be reordered in marketplace titles; every
-    # meaningful component must still be present.
-    return all(
-        any(_token_matches(token, term) for token in title_tokens)
-        for term in wanted
-    )
+    # Marketplace titles concatenate product identity with long feature
+    # lists. Requiring alias words anywhere in the title lets unrelated
+    # fragments accidentally form a product type (e.g. "spot welding ...
+    # car dent puller ... machine"). Keep the flexible word order and
+    # inflections, but require all alias components to occur in one local
+    # title window rather than across the whole listing.
+    window_size = min(6, max(3, len(wanted) + 2))
+    for start in range(len(title_tokens)):
+        window = title_tokens[start : start + window_size]
+        if all(
+            any(_token_matches(token, term) for token in window)
+            for term in wanted
+        ):
+            return True
+    return False
+
+
+def subcategory_product_type(
+    product: Product, subcategory: Subcategory
+) -> str | None:
+    """Return the most specific configured product-type alias in the title.
+
+    The alias vocabulary is already the deterministic identity gate for this
+    shelf. Prefer aliases carrying rarer, more specific words (for example
+    "neck massager" over the generic "massager") so the same vocabulary can
+    guide diversity without adding a second hand-maintained taxonomy.
+    """
+
+    title_tokens = _tokens(product.title)
+    aliases = tuple(subcategory.product_types or subcategory.keywords)
+    token_frequency: dict[str, int] = {}
+    for alias in aliases:
+        for token in set(_tokens(alias)):
+            token_frequency[token] = token_frequency.get(token, 0) + 1
+
+    matches = [alias for alias in aliases if _phrase_matches(title_tokens, alias)]
+    if not matches:
+        return None
+
+    def specificity(alias: str) -> tuple[float, int, int]:
+        terms = set(_tokens(alias))
+        score = sum(1.0 / token_frequency.get(term, 1) for term in terms)
+        return score, len(terms), len(alias)
+
+    return max(matches, key=specificity).casefold()
 
 
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
