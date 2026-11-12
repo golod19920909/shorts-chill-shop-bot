@@ -414,7 +414,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertIsNotNone(subcategory)
         light = listing(
             "bike-light",
-            "Велосипедный задний фонарь LED USB rechargeable",
+            "Велосипедный фонарь LED USB rechargeable",
         )
         spoke_tool = listing(
             "spoke-tool",
