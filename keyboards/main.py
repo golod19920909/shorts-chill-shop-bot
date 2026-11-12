@@ -61,6 +61,7 @@ CB_HELP = "menu:help"
 CB_NOTIFICATIONS = "menu:notifications"
 CB_TUTORIAL = "menu:tutorial"
 CB_BACK = "menu:back"
+CB_CATALOG_HOME = "catalog:home"
 
 #: Restore the real previous screen (see ``handlers.start.nav_back_callback``).
 CB_NAV_BACK = "nav:back"
@@ -209,6 +210,14 @@ def main_menu_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
+
+
+def catalog_home_row() -> list[InlineKeyboardButton]:
+    """Home action scoped to catalog navigation only."""
+
+    return [InlineKeyboardButton(LABEL_HOME, callback_data=CB_CATALOG_HOME)]
+
+
 def home_row() -> list[InlineKeyboardButton]:
     """The shared "🏠 Главное меню" row used across secondary screens."""
 
@@ -288,7 +297,7 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     rows.append([
         InlineKeyboardButton("✨ Тематические подборки", callback_data=f"{CB_THEME_PREFIX}:menu")
     ])
-    rows.append(home_row())
+    rows.append(catalog_home_row())
     return InlineKeyboardMarkup(rows)
 
 
@@ -322,7 +331,7 @@ def subcategories_keyboard(category_code: str) -> InlineKeyboardMarkup:
     rows.append([
         InlineKeyboardButton("◀️ Все категории", callback_data=CB_CATEGORIES)
     ])
-    rows.append(home_row())
+    rows.append(catalog_home_row())
     return InlineKeyboardMarkup(rows)
 
 
@@ -364,7 +373,7 @@ def thematic_collections_keyboard() -> InlineKeyboardMarkup:
         )
     ])
     rows.append([InlineKeyboardButton("◀️ Каталог", callback_data=CB_CATEGORIES)])
-    rows.append(home_row())
+    rows.append(catalog_home_row())
     return InlineKeyboardMarkup(rows)
 
 
@@ -379,7 +388,7 @@ def thematic_budget_keyboard() -> InlineKeyboardMarkup:
         for code, label in BUDGET_TIERS
     ]
     rows.append([InlineKeyboardButton("◀️ Тематические подборки", callback_data=f"{CB_THEME_PREFIX}:menu")])
-    rows.append(home_row())
+    rows.append(catalog_home_row())
     return InlineKeyboardMarkup(rows)
 
 
