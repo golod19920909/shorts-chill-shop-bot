@@ -330,7 +330,7 @@ DISABLED_UNTIL_LIVE_VALIDATION_CODES: frozenset[str] = frozenset({
     "personal_care", "power_tools", "workshop_storage", "fitness",
     "camping", "fishing", "kids_safety", "plant_growing",
     "outdoor_leisure", "beauty_appliances", "epilators", "water_sports",
-    "baby_feeding", "streaming",
+    "baby_feeding", "streaming", "skin_care_tools",
 })
 
 # Consolidated or retired shelves remain resolvable for legacy callbacks but
