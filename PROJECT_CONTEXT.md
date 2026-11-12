@@ -6417,3 +6417,16 @@ code changes or select vendors.
 - Offline pytest was not run because this stage is read-only. No live API calls were made in this environment.
 - Next gate: present and obtain approval for the proposed category hierarchy (Stage 2). Do not edit catalog configuration or navigation before approval. After approval, perform the real category.get check with the user's local credentials, then proceed to catalog quality validation.
 - Audit commit: `6ba7d44bccb5967db8995173af0260d50c7917b2`; the context update follows as a separate documentation-only commit.
+
+
+## 2026-11-12 — Stage 2 taxonomy proposal prepared (awaiting exact hierarchy approval)
+
+- User approved the proposed **15-parent-category direction** as the basis for the new catalogue. This approval is for the top-level direction only; it is not yet approval to change config, callbacks or Telegram navigation.
+- Added `docs/catalog-taxonomy-proposal-stage-2-2026-11-12.md` with the proposed hierarchy, definitions/boundaries, mapping recommendations for all 96 current codes, candidate new shelves, seven disputed decisions and implementation gates.
+- The proposed 15 parents are: Smartphones & accessories; Computers & office; Electronics & gadgets; Home/kitchen/household; Tools & repair; Auto & moto; Sports/tourism/recreation; Beauty & personal care; Kids; Pets; Clothing & shoes; Gaming devices; Toys/hobbies/creativity; Watches & jewelry; Garden & dacha.
+- Key structural recommendations: split generic audio into distinct headphones/speakers and consolidate microphones under streaming/recording in Computers; move gaming keyboards/mice to Computers while gamepads/console accessories/VR stay in Gaming; move watches/jewelry out of fashion accessories; move sportswear to Clothing; move general toys/creative kits to Toys & hobbies; replace broad dog/cat shelves with functional pet needs; consolidate home/table lighting, dash cameras under auto electronics by default, outdoor leisure/furniture, and woodworking under principal tool roles; retire broad `portable_gadgets` and `outdoor` shelves after preserving only concrete relevant routes.
+- New smartphone shelves, full game consoles, hobby/model making, board games and moto accessories are candidates only; they must pass live inventory/quality validation before being enabled.
+- This is a proposal, not an accepted final list. No code, config, callback, UI or menu changes were made. Protected «Умный поиск» and «✨ Находки» remain untouched.
+- The earlier Stage 1 audit document remains unchanged. Its preliminary 14-area hypothesis is superseded as a working direction by the user's approval of 15 parent areas; the detailed subcategory proposal is in the new Stage 2 document.
+- Next gate: user review/approval or corrections to the exact hierarchy and disputed decisions. After that, run the local-credential live category.get check and Stage 3 catalog quality validation before implementing the catalogue.
+- Proposal commit: `f45301b61d24d81c635ea7274ec8fc9dbfbf4d90`; this context update is a separate documentation-only commit.
