@@ -77,7 +77,8 @@ def subcategory_product_type(
     guide diversity without adding a second hand-maintained taxonomy.
     """
 
-    title_tokens = _tokens(product.title)
+    primary_title = re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
+    title_tokens = _tokens(primary_title)
     aliases = tuple(subcategory.product_types or subcategory.keywords)
     token_frequency: dict[str, int] = {}
     for alias in aliases:
@@ -99,7 +100,11 @@ def subcategory_product_type(
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
     """Return a rejection reason, or None when title evidence fits the shelf."""
 
-    tokens = _tokens(product.title)
+    # AliExpress often appends cross-sells after commas or separators.
+    # Only the leading product identity may establish shelf membership;
+    # a later mention of the requested type is not enough.
+    primary_title = re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
+    tokens = _tokens(primary_title)
     if not tokens:
         return "empty_title"
     for phrase in subcategory.exclude_terms:
