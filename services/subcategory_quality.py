@@ -11,6 +11,8 @@ from collections.abc import Sequence
 
 from config.subcategories import Subcategory
 from models.product import Product
+from models.search_request import SearchRequest
+from services.relevance import rejection_reason
 
 
 _WORD_RE = re.compile(r"[a-z0-9]+|[а-яё]+", re.IGNORECASE)
@@ -69,6 +71,42 @@ def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str 
         return "no_subcategory_product_type"
     return None
 
+
+
+def filter_subcategory_relevant(
+    products: Sequence[Product],
+    request: SearchRequest,
+    subcategory: Subcategory,
+) -> tuple[list[Product], dict[str, int]]:
+    """Apply shared hard checks plus subcategory-specific positive evidence.
+
+    A broad marketplace route is only a retrieval hypothesis. A product such
+    as Electric Spin Scrubber can fit cleaning without repeating the route
+    word cleaning. Its explicit product-type alias bypasses only the generic
+    no_query_term_in_title rejection. Invalid URLs, empty titles, and every
+    other shared relevance rejection remain in force.
+    """
+    kept: list[Product] = []
+    dropped: dict[str, int] = {}
+
+    for product in products:
+        shared_reason = rejection_reason(product, request)
+        if shared_reason in {"invalid_product_url", "empty_title"}:
+            dropped[shared_reason] = dropped.get(shared_reason, 0) + 1
+            continue
+
+        shelf_reason = subcategory_match_reason(product, subcategory)
+        if shelf_reason is not None:
+            dropped[shelf_reason] = dropped.get(shelf_reason, 0) + 1
+            continue
+
+        if shared_reason is not None and shared_reason != "no_query_term_in_title":
+            dropped[shared_reason] = dropped.get(shared_reason, 0) + 1
+            continue
+
+        kept.append(product)
+
+    return kept, dropped
 
 def filter_subcategory_products(
     products: Sequence[Product], subcategory: Subcategory
