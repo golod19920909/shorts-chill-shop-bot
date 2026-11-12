@@ -678,6 +678,7 @@ async def subcategory_callback(
 
 CATEGORY_NEW_SEARCH_SEEN_KEY = "_category_new_search_seen"
 CATEGORY_NEW_SEARCH_BUSY_KEY = "_category_new_search_busy"
+CATEGORY_NEW_SEARCH_USED_KEY = "_category_new_search_used"
 
 
 @track_usage("category_new_search")
@@ -707,6 +708,11 @@ async def subcategory_new_search_callback(
     subcategory = get_subcategory(previous.request.subcategory_code)
     if subcategory is None:
         await query.answer("Подкатегория больше недоступна.", show_alert=True)
+        return
+
+    used_sessions = context.user_data.setdefault(CATEGORY_NEW_SEARCH_USED_KEY, {})
+    if used_sessions.get(session_id):
+        await query.answer("Эта подборка уже обновлена. Используйте кнопку в новой.", show_alert=True)
         return
 
     busy = context.user_data.setdefault(CATEGORY_NEW_SEARCH_BUSY_KEY, {})
@@ -769,7 +775,7 @@ async def subcategory_new_search_callback(
             f"{CATEGORIES} <b>{common.escape(subcategory.title)}</b>\n"
             f"<i>{common.escape(subcategory.description)}</i>"
         )
-        await send_search_results(
+        new_session_id = await send_search_results(
             context,
             chat_id,
             outcome,
@@ -780,6 +786,8 @@ async def subcategory_new_search_callback(
             telegram_id=telegram_id,
             curation_mode=MODE_CATEGORY,
         )
+        if new_session_id:
+            used_sessions[session_id] = True
     except Exception:
         logger.exception(
             "Subcategory new search failed for %r", subcategory.code
