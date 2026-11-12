@@ -52,7 +52,7 @@ CATEGORIES: tuple[Category, ...] = (
     Category("clothing", "👕 Одежда и обувь", "clothing shoes bags",
              ("одежда", "футболка", "сумка", "джинсы", "куртка", "ремень",
               "шапка", "кошелёк", "кроссовки", "спортивная одежда")),
-    Category("gaming", "🎮 Игровые устройства", "gaming consoles controllers VR",
+    Category("gaming", "🎮 Игры и игровые устройства", "gaming consoles controllers VR",
              ("игра", "геймпад", "консоль", "джойстик", "руль", "vr")),
     Category("hobbies", "🧩 Игрушки, хобби и творчество", "toys hobbies crafts",
              ("игрушка", "конструктор", "творчество", "рисование",
