@@ -89,10 +89,13 @@ def subcategory_product_type(
     if not matches:
         return None
 
-    def specificity(alias: str) -> tuple[float, int, int]:
+    def specificity(alias: str) -> tuple[int, int, float]:
         terms = set(_tokens(alias))
         score = sum(1.0 / token_frequency.get(term, 1) for term in terms)
-        return score, len(terms), len(alias)
+        # Prefer an explicitly named subtype ("facial massager") over a
+        # generic construction phrase ("massage device") when both can match
+        # the same title through harmless inflection matching.
+        return len(terms), len(alias), score
 
     return max(matches, key=specificity).casefold()
 
