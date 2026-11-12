@@ -788,6 +788,9 @@ async def subcategory_new_search_callback(
         )
         if new_session_id:
             used_sessions[session_id] = True
+            # Keep the per-user replay guard bounded across long-lived chats.
+            while len(used_sessions) > 64:
+                used_sessions.pop(next(iter(used_sessions)))
     except Exception:
         logger.exception(
             "Subcategory new search failed for %r", subcategory.code
