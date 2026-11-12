@@ -5841,3 +5841,23 @@ small; and the popular feed performs one curate_findings call after gathering
 its pages. Recording fakes should accept the current kwargs and provide that
 feed curation hook. These are test-double updates only; production discovery
 behavior is unchanged.
+
+
+### Discovery acceptance follow-up — final stale assertions (2026-11-12)
+
+The local run after the fixture refresh passed 48 tests and exposed two
+remaining test expectation issues; production behavior is unchanged:
+
+- The engine intentionally emits multiple INFO diagnostics per turn. The
+  instrumentation test now selects the specific `convsearch action=` line
+  instead of the first arbitrary line containing `convsearch` (which is the
+  semantic-selection metrics line).
+- The popular-feed test now expects the second sampled page to exclude both
+  the pre-existing feed history and the product collected from the first page.
+  This is the production no-repeat guarantee across pages within one opening;
+  expecting the exact same exclusion set on both calls contradicted that
+  behavior.
+
+These are test-only assertion corrections. Re-run
+`tests/test_bot_startup.py` and `tests/test_discovery_acceptance.py` locally
+before proceeding to the 96-subcategory live validation.
