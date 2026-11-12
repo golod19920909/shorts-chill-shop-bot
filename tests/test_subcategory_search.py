@@ -129,7 +129,7 @@ class SubcategorySearchTests(unittest.TestCase):
         self.assertEqual([item.product_id for item in outcome.products], ["scrubber"])
         self.assertEqual(
             outcome.relevance_drop_reasons,
-            {"excluded_title_concept": 2},
+            {"excluded_title_concept": 3},
         )
         run(provider.aclose())
 
