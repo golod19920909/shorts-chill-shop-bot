@@ -23,7 +23,8 @@ from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 from curation.pipeline import MODE_CATEGORY
-from config.subcategories import CATEGORY_DESCRIPTIONS, get_subcategory
+from config.catalog_navigation import CATEGORY_DESCRIPTIONS
+from config.subcategories import get_subcategory
 from database.models import FLOW_FEED
 from handlers import common
 from handlers.search import record_outcome_events, send_search_results
