@@ -189,7 +189,7 @@ DISABLED_UNTIL_LIVE_VALIDATION_CODES: frozenset[str] = frozenset({
     "kitchen", "bathroom", "car_interior", "car_electronics",
     "computer_components", "console_accessories", "vr", "hair_care",
     "personal_care", "power_tools", "workshop_storage", "fitness",
-    "camping", "fishing", "kids_safety", "plant_growing",
+    "camping", "fishing", "cycling", "kids_safety", "plant_growing",
     "outdoor_leisure", "beauty_appliances", "epilators", "water_sports",
     "baby_feeding", "streaming", "skin_care_tools",
 })
@@ -204,7 +204,7 @@ SHELF_TITLE_OVERRIDES: dict[str, str] = {
     "laptop_accessories": "Подставки и док-станции для ноутбуков",
     "car_care": "Автошампуни и полировка",
     "cycling": "Велофонари",
-    "school": "Школьные пеналы",
+    "school": "Школьные пеналы и принадлежности",
     "garden_tools": "Секаторы и садовые инструменты",
     "sports_electronics": "Велокомпьютеры и пульсометры",
     "pet_training": "Кликеры для дрессировки",
