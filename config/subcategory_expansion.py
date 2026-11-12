@@ -5,13 +5,25 @@ buyer-facing shelves and explicit title evidence for deterministic validation.
 """
 from __future__ import annotations
 
-from config.subcategories import Subcategory
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ExtraSubcategory:
+    code: str
+    category_code: str
+    title: str
+    description: str
+    query_routes: tuple[str, ...]
+    keywords: tuple[str, ...]
+    product_types: tuple[str, ...]
+    exclude_terms: tuple[str, ...] = ()
 
 
 def _extra(code: str, category: str, title: str, description: str,
            routes: tuple[str, ...], keywords: tuple[str, ...],
-           product_types: tuple[str, ...], exclude_terms: tuple[str, ...] = ()) -> Subcategory:
-    return Subcategory(
+           product_types: tuple[str, ...], exclude_terms: tuple[str, ...] = ()) -> ExtraSubcategory:
+    return ExtraSubcategory(
         code, category, title, description, routes, keywords,
         product_types, exclude_terms,
     )
