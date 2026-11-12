@@ -21,6 +21,8 @@ from keyboards.main import (
 from services import analytics
 from services.gemini_telemetry import track_usage
 from curation.pipeline import MODE_CATEGORY
+from models.search_request import SearchMode
+from services.product_identity import identity_pair
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,119 @@ async def _show_budget_tiers(context, query) -> None:
     await _edit_screen(context, query, THEME_BUDGET_TEXT, thematic_budget_keyboard())
 
 
+
+_THEME_MORE_BUSY_KEY = "_theme_more_busy"
+
+
+async def _show_more_thematic_products(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    session_id: str,
+) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    previous = common.get_cached_outcome(context, session_id)
+    if (
+        previous is None
+        or previous.request.mode is not SearchMode.CATEGORY
+        or not (previous.request.subcategory_code or "").startswith("theme_")
+    ):
+        await query.answer("Эта подборка уже недоступна. Откройте тему заново.", show_alert=True)
+        return
+    subcategory = get_subcategory(previous.request.subcategory_code)
+    if subcategory is None:
+        await query.answer("Подборка больше недоступна.", show_alert=True)
+        return
+
+    busy = context.user_data.setdefault(_THEME_MORE_BUSY_KEY, set())
+    if session_id in busy:
+        await query.answer("Подборка уже обновляется.")
+        return
+    busy.add(session_id)
+    await query.answer("Ищу ещё подходящие товары…")
+    try:
+        user_id = await common.register_user(update, context)
+        region = await common.get_user_region(context, user_id)
+        country = (region.get("country") or "").strip().upper()
+        country = country if len(country) == 2 else None
+        telegram_id = update.effective_user.id if update.effective_user else None
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if chat_id is None:
+            return
+
+        excluded = set(
+            await common.seen_products(context, user_id, flow=FLOW_THEMES)
+        )
+        excluded.update(identity_pair(product) for product in previous.products)
+        outcome = await common.get_search_service(context).find_by_subcategory(
+            subcategory,
+            country=country,
+            currency="USD" if subcategory.max_price is not None else region.get("currency"),
+            exclude=excluded,
+        )
+        if subcategory.max_price is not None:
+            outcome.products = [
+                product for product in outcome.products
+                if product.price is not None
+                and (product.currency or "").upper() == "USD"
+                and product.price <= subcategory.max_price
+            ]
+        await record_outcome_events(
+            context,
+            outcome,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            source="thematic_collection_more",
+        )
+        if len(outcome.products) < THEME_MINIMUM_PRODUCTS:
+            await common.edit_message_or_replace(
+                context,
+                query,
+                "Пока больше не набралось 12 подходящих товаров. "
+                "Не буду добавлять случайные позиции. Выберите другую тему или попробуйте позже.",
+                parse_mode="HTML",
+                reply_markup=(
+                    thematic_budget_keyboard()
+                    if subcategory.max_price is not None
+                    else thematic_collections_keyboard()
+                ),
+            )
+            return
+
+        header = (
+            f"✨ <b>{common.escape(subcategory.title)}</b>\\n"
+            f"<i>{common.escape(subcategory.description)}</i>"
+        )
+        await send_search_results(
+            context,
+            chat_id,
+            outcome,
+            header=header,
+            wrap_up_keyboard=thematic_collections_keyboard(),
+            back_callback=f"{CB_THEME_PREFIX}:menu",
+            user_id=user_id,
+            telegram_id=telegram_id,
+            pre_curated=True,
+            follow_up=False,
+            origin_query=query,
+            history_flow=FLOW_THEMES,
+            record_views=False,
+            curation_mode=MODE_CATEGORY,
+        )
+    except Exception:
+        logger.exception("Thematic collection refresh failed: %s", subcategory.code)
+        await common.edit_message_or_replace(
+            context,
+            query,
+            "Не удалось обновить подборку. Предыдущая карточка останется доступна.",
+            parse_mode="HTML",
+            reply_markup=thematic_collections_keyboard(),
+        )
+    finally:
+        busy.discard(session_id)
+
+
 @track_usage("thematic_collection_search")
 async def thematic_collection_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -83,6 +198,9 @@ async def thematic_collection_callback(
     if len(parts) == 2 and parts[0] == CB_THEME_PREFIX and parts[1] == "budget":
         await query.answer()
         await _show_budget_tiers(context, query)
+        return
+    if len(parts) == 3 and parts[0] == CB_THEME_PREFIX and parts[1] == "more":
+        await _show_more_thematic_products(update, context, parts[2])
         return
     if len(parts) != 3 or parts[0] != CB_THEME_PREFIX:
         await query.answer("Некорректная кнопка.", show_alert=True)
