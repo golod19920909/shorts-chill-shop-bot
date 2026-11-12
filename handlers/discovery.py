@@ -504,10 +504,7 @@ async def _edit_or_reply(
 
     query = update.callback_query
     if query is not None:
-        if getattr(query.message, "photo", None):
-            await query.edit_message_caption(caption=text, **kwargs)
-        else:
-            await query.edit_message_text(text, **kwargs)
+        await common.edit_message_or_replace(context, query, text, **kwargs)
         return
 
     message = update.effective_message
@@ -529,19 +526,13 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if query is not None:
         await query.answer()
-        message = query.message
-        if message is not None and getattr(message, "photo", None):
-            await query.edit_message_caption(
-                caption=CATEGORIES_TEXT,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
-        else:
-            await query.edit_message_text(
-                text=CATEGORIES_TEXT,
-                parse_mode="HTML",
-                reply_markup=markup,
-            )
+        await common.edit_message_or_replace(
+            context,
+            query,
+            CATEGORIES_TEXT,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
         return
 
     can_send_cover = CATALOG_COVER_PATH.is_file() and isinstance(context.bot, Bot)
@@ -589,20 +580,13 @@ async def category_view_callback(
         "Выберите, какие именно товары вас интересуют:"
     )
     markup = subcategories_keyboard(category.code)
-    if query.message is not None and getattr(query.message, "photo", None):
-        await query.edit_message_caption(
-            caption=screen,
-            parse_mode="HTML",
-            reply_markup=markup,
-        )
-    else:
-        await _edit_or_reply(
-            update,
-            context,
-            screen,
-            parse_mode="HTML",
-            reply_markup=markup,
-        )
+    await common.edit_message_or_replace(
+        context,
+        query,
+        screen,
+        parse_mode="HTML",
+        reply_markup=markup,
+    )
 
 
 @track_usage("category_search")
