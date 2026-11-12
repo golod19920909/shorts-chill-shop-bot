@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from telegram import Update
+from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 from curation.pipeline import MODE_CATEGORY
@@ -516,7 +516,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     query = update.callback_query
     chat_id = update.effective_chat.id if update.effective_chat else None
-    can_send_cover = CATALOG_COVER_PATH.is_file() and hasattr(context.bot, "send_photo")
+    can_send_cover = CATALOG_COVER_PATH.is_file() and isinstance(context.bot, Bot)
 
     if can_send_cover and chat_id is not None:
         if query is not None:
