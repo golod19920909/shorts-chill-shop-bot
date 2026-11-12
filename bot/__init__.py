@@ -30,6 +30,7 @@ from handlers import (
     admin,
     ai_assistant,
     discovery,
+    thematic_collections,
     favorites,
     cross_sell,
     hot_discounts,
@@ -301,6 +302,12 @@ def _register_handlers(application: Application) -> None:
         CallbackQueryHandler(
             hot_discounts.hot_discount_section_callback,
             pattern=f"^{CB_HOT_SECTION_PREFIX}:",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            thematic_collections.thematic_collection_callback,
+            pattern=r"^theme:",
         )
     )
     application.add_handler(
