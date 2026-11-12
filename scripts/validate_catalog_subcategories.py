@@ -11,10 +11,17 @@ import argparse
 import asyncio
 import json
 import logging
+import sys
 import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Support direct execution as `python scripts/validate_catalog_subcategories.py`:
+# Python otherwise places only the scripts/ directory on sys.path.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from bot import build_search_service
 from config.settings import settings
