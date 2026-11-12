@@ -5561,3 +5561,80 @@ pass has no fill-up behavior.
 - Validation status: source changes and test were committed to this branch,
   but tests have NOT yet been executed in a local checkout or CI from this
   environment. No live AliExpress or Telegram validation has been performed.
+
+
+
+## Catalog subcategory quality — unified subtype balancing and adaptive retrieval (2026-11-12)
+
+This update supersedes the previous subcategory-quality implementation note above.
+
+### Implemented on `feat/catalog-quality-and-subcategories`
+
+- Subcategory Gemini selection remains a single bounded call, but may return up to
+  40 ranked IDs (20 primary + up to 20 reserve). The prompt now explicitly asks
+  for the full reserve when enough suitable candidates exist. The selector's
+  ID-cleaning cap accepts the requested bound; the general 20-card feed cap is
+  unchanged.
+- After Gemini selection, the deterministic finalizer now appends the rest of
+  the already-filtered candidate pool as a reserve, ranked by the existing
+  deterministic `value_score` (real discount, rating, orders and availability
+  signals). This allows replacement candidates when Gemini returns only 20 IDs
+  or duplicate/family curation removes some of them. It does not create products
+  or make another Gemini call.
+- Product-type aliases already configured for every subcategory now serve as a
+  shared subtype taxonomy. The most specific matched alias is selected using
+  alias-word specificity (e.g. `neck massager` instead of generic `massager`).
+  The finalizer distributes primary candidates across represented subtypes with
+  an adaptive quota, limits close title families to two primary cards per
+  subtype, then prefers other distinct families before reusing deferred family
+  members. It records the final per-type counts, family deferrals and refill
+  counts.
+- Family similarity is applied within a configured subtype rather than across
+  the entire shelf, so a MIG welder is not grouped with a TIG welder merely
+  because both belong to welding equipment. Near-identical listings are still
+  removed by the existing near-duplicate gate.
+- Subcategory title validation now uses the leading product-title clause
+  (before comma/semicolon/pipe) as the product identity. Multiword aliases must
+  occur within one local title window; scattered words from unrelated title
+  fragments no longer combine into a false product-type match. Exclusion terms
+  use the same primary-identity boundary.
+- Expanded the configured product-type aliases for welding equipment, massage
+  devices and hand tools. Welding aliases include MIG/TIG/MMA, plasma, spot and
+  laser welding variants; dent-puller concepts are excluded from the welding
+  shelf. Massage aliases include body-part-specific massagers, massage guns,
+  rollers and other declared forms.
+- When the filtered subcategory pool remains below the 80-candidate target,
+  retrieval now continues the same bounded configured routes on later pages,
+  up to the deployment's existing `max_search_pages` limit. It stops early
+  once the filtered pool is full. No new endpoint or marketplace is introduced.
+- Added concise subcategory diagnostics: code, route count, pages scanned, raw
+  count, filtered pool size, final count, shortfall reason, subtype distribution,
+  family deferrals and refill counts.
+- The Gemini ranking payload now includes the real positive-feedback percentage
+  and a boolean indicating whether an image exists. No image URL or affiliate
+  URL is sent to Gemini.
+
+### Focused regression coverage added
+
+- 40-ID Gemini selector reserve handling.
+- Refill to 20 when Gemini returns only the first 20 and the rest of the pool
+  contains additional families.
+- Balanced selection across four welding subtypes.
+- Specific subtype alias preference (neck/facial massager).
+- Rejection of a welding mention in a secondary cross-sell clause and rejection
+  of a dent-puller identity.
+- Subtype classification coverage across the full configured subcategory list.
+- Multi-route subcategory pagination onto the next page when the filtered pool
+  remains short.
+- Rank payload includes actual positive feedback and image-presence signals.
+
+### Validation status
+
+- Changes and focused tests are committed to this branch.
+- Tests have NOT yet been executed in a local checkout or CI from this session.
+  The GitHub workflow file is configured to run on pushes to this branch, but
+  the available repository status endpoint does not expose push-triggered run
+  results. No live AliExpress/Telegram validation has been performed yet.
+- Do not merge or apply these changes to `main` or PR #10 without explicit
+  approval. Local checkout still requires a fast-forward pull of this branch
+  before testing the updated implementation.
