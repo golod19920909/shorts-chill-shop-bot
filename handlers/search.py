@@ -1758,19 +1758,31 @@ async def _edit_browsed_card(
         )
         return
 
-    if is_photo:
-        await query.edit_message_caption(
-            caption=common.truncate_for_caption(caption),
-            parse_mode="HTML",
-            reply_markup=reply_markup,
+    try:
+        if is_photo:
+            await query.edit_message_caption(
+                caption=common.truncate_for_caption(caption),
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+        else:
+            await query.edit_message_text(
+                caption, parse_mode="HTML", reply_markup=reply_markup
+            )
+    except Exception:
+        logger.warning(
+            "Text/caption edit failed for %s/%s; replacing the card message",
+            product.marketplace,
+            product.product_id,
+            exc_info=True,
         )
-    else:
-        await query.edit_message_text(
-            caption, parse_mode="HTML", reply_markup=reply_markup
+        await _replace_browsed_card(
+            query, context, product, index, caption, reply_markup
         )
     await _record_browsed_conversation_product(
         context, session_id, product.product_id
     )
+
 
 async def _replace_browsed_card(
     query,
@@ -1782,8 +1794,9 @@ async def _replace_browsed_card(
 ) -> None:
     """Replace a card whose message type cannot be edited in place.
 
-    The old message is deleted and ONE fresh card is sent - the minimal
-    Telegram-supported operation when photo/text media must change.
+    The fresh card is sent first, then the old message is deleted. This is
+    the minimal Telegram-supported fallback when photo/text media cannot be
+    edited or Telegram rejects the in-place edit.
     """
 
     message = getattr(query, "message", None)
