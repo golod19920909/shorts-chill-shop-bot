@@ -6456,3 +6456,14 @@ code changes or select vendors.
 - Current branch head after the correction: `d308d653230b793e5dcf8c487c303591cf5fb130` (branch `feat/catalog-quality-and-subcategories`).
 - Important remaining execution constraint: this GitHub-connected workspace has repository access but not the user's local Windows `.env`, AliExpress credentials, or local runtime. Therefore it cannot perform the credentialed `aliexpress.affiliate.category.get` diagnostic or the existing live 96-shelf runner. Do not invent category IDs, claim live inventory validation, or enable new shelves whose minimum live quality is unconfirmed. Continue source-level implementation only where it can be done safely, and leave those live-dependent gates explicitly pending.
 - The approved 15-parent taxonomy and seven disputed decisions remain the accepted target. Existing «Умный поиск» and «✨ Находки» remain protected; do not touch them. Keep existing catalogue/search infrastructure and Option C contracts intact. The thematic collections must have independent configuration, history, routing and diagnostics.
+
+
+## 2026-11-12 — Catalog implementation started; final collection decisions
+
+- User instructed to execute the approved full catalog/thematic-collections specification.
+- The final thematic collection set is exactly four: «Необычные полезные устройства», «Умные решения для дома», «Гаджеты, о которых мало кто знает», and «Полезные мелочи до определённого бюджета» (price tiers: under $5, under $10, under $20). The proposed automotive editorial collection is fully cancelled and must not be renamed or replaced. Automotive goods remain in the ordinary «Авто и мото» catalogue only.
+- «Гаджеты, о которых мало кто знает» is an independent collection, not a synonym or automatic merge with «Необычные полезные устройства». The former emphasizes low awareness of a device/technology; the latter emphasizes an unusual solution to an everyday task. Avoid repeatedly showing the same product in both.
+- The user requires catalog and thematic-collection navigation to remain in one Telegram message, including parent category, subcategory, back, home, collection entry, and «Показать ещё». Prefer Telegram edit methods; only use a replacement fallback when the message type/API makes editing objectively impossible.
+- This implementation session is not permitted to run tests, CI, or live checks. The user will run validation personally.
+- The 15-parent taxonomy and seven disputed decisions were explicitly approved earlier. New shelves requiring live inventory proof remain disabled until the user runs the credentialed checks. The GitHub workspace has no local .env/AliExpress credentials; do not invent category IDs or claim live validation.
+- Existing «Умный поиск» and «✨ Находки» are protected and must not be changed. Preserve Option C and the existing search service contracts. Do not touch .env, local backups, main, PR #10, or unrelated code.
