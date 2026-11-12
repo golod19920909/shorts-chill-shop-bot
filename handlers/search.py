@@ -1312,6 +1312,8 @@ async def send_search_results(
     follow_up: bool = True,
     conversation_state: ConversationEngineState | None = None,
     origin_query=None,
+    history_flow: str | None = None,
+    record_views: bool = True,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1428,6 +1430,8 @@ async def send_search_results(
         wrap_up_keyboard=wrap_up_keyboard,
         back_callback=back_callback,
         track_shown=track_shown,
+        history_flow=history_flow,
+        record_views=record_views,
     )
     _log_unapplied_constraints(outcome)
     # One INFO block per opened screen: the exact ordered list Telegram is
@@ -1630,7 +1634,8 @@ async def _send_product_cards(
             products[0],
             flow=common.session_flow(context, session_id),
         )
-        await common.remember_views(context, user_id, [products[0]])
+        if meta.get("record_views", True):
+            await common.remember_views(context, user_id, [products[0]])
     except Exception:
         logger.exception(
             "Failed to record post-delivery history for session %s", session_id
@@ -1853,7 +1858,8 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # The browsed card is shown, so it joins the curation layer's novelty
     # history too: the NEXT feed - in this process or after a restart - skips
     # or defers it instead of repeating it as if it were new.
-    await common.remember_views(context, user_id, [product])
+    if common.get_outcome_meta(context, session_id).get("record_views", True):
+        await common.remember_views(context, user_id, [product])
 
     await common.record_event(
         context,
