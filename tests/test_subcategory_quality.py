@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import unittest
 
 from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
-from services.search_service import SearchService
+from models.search_request import SearchMode, SearchRequest
+from services.search_service import SearchOutcome, SearchService
 from services.subcategory_quality import filter_subcategory_products, subcategory_match_reason
 
 
@@ -99,6 +101,48 @@ class SubcategoryQualityTests(unittest.TestCase):
             [item.product_id for item in selected],
             ["a", "c", "d"],
         )
+
+    def test_subcategory_selection_uses_reserve_and_refills_to_twenty(self):
+        variants = ("Portable", "Compact", "Digital", "Mini", "Heavy")
+        products = [
+            listing(
+                f"family-{family}-variant-{variant_index}",
+                f"{variant} family{family} massage device tool",
+            )
+            for family in range(10)
+            for variant_index, variant in enumerate(variants)
+        ]
+
+        class Selector:
+            is_available = True
+
+            def __init__(self):
+                self.wanted = None
+
+            async def select_subcategory_candidates(
+                self, candidates, *, subcategory, wanted
+            ):
+                self.wanted = wanted
+                return [product.product_id for product in candidates[:wanted]]
+
+        selector = Selector()
+        service = SearchService([], ai_service=selector)
+        outcome = SearchOutcome(
+            request=SearchRequest(
+                original_query="Массажёры",
+                normalized_query="massage devices",
+                mode=SearchMode.CATEGORY,
+                category="beauty",
+                subcategory_code="massage_devices",
+            ),
+            products=products,
+        )
+
+        asyncio.run(service.apply_feed_selection(outcome))
+
+        self.assertEqual(selector.wanted, 40)
+        self.assertEqual(len(outcome.products), 20)
+        self.assertEqual(len({item.product_id for item in outcome.products}), 20)
 
 
 if __name__ == "__main__":
