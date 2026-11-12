@@ -546,13 +546,21 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             return
 
-    await _edit_or_reply(
-        update,
-        context,
-        CATEGORIES_TEXT,
-        parse_mode="HTML",
-        reply_markup=categories_keyboard(),
-    )
+    markup = categories_keyboard()
+    if query is not None and query.message is not None and getattr(query.message, "photo", None):
+        await query.edit_message_caption(
+            caption=CATEGORIES_TEXT,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
+    else:
+        await _edit_or_reply(
+            update,
+            context,
+            CATEGORIES_TEXT,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
 
 
 
