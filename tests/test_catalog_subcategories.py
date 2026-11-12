@@ -21,6 +21,21 @@ class SubcategoryCatalogTests(unittest.TestCase):
             with self.subTest(category=code):
                 self.assertGreaterEqual(len(get_subcategories(code)), 4)
 
+    def test_every_parent_has_eight_distinct_buyer_facing_shelves(self):
+        self.assertEqual(len(get_all_subcategories()), 96)
+        for category in CATEGORIES:
+            with self.subTest(category=category.code):
+                shelves = get_subcategories(category.code)
+                self.assertEqual(len(shelves), 8)
+                self.assertEqual(len({item.title for item in shelves}), 8)
+
+    def test_every_subcategory_has_product_identity_evidence(self):
+        for item in get_all_subcategories():
+            with self.subTest(subcategory=item.code):
+                self.assertTrue(item.product_types)
+                self.assertTrue(all(term.strip() for term in item.product_types))
+                self.assertEqual(len(item.exclude_terms), len(set(item.exclude_terms)))
+
     def test_subcategory_codes_are_unique_and_lookup_is_stable(self):
         codes = [item.code for item in SUBCATEGORIES]
         self.assertEqual(len(codes), len(set(codes)))
