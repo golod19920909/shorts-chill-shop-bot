@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import unittest
 from collections import Counter
+import unittest
 
 from config.subcategories import get_all_subcategories, get_subcategory
 from models.product import Marketplace, Product
