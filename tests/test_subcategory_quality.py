@@ -196,6 +196,34 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertIn("neck", subcategory_product_type(neck, subcategory))
         self.assertIn("facial", subcategory_product_type(face, subcategory))
 
+    def test_deterministic_fallback_keeps_twenty_when_gemini_is_unavailable(self):
+        products = [
+            listing(
+                f"fallback-{index}",
+                f"Neck massager model {index + 100}",
+            )
+            for index in range(25)
+        ]
+        service = SearchService([])
+        outcome = SearchOutcome(
+            request=SearchRequest(
+                original_query="Массажёры",
+                normalized_query="neck massager",
+                mode=SearchMode.CATEGORY,
+                category="beauty",
+                subcategory_code="massage_devices",
+            ),
+            products=products,
+        )
+
+        asyncio.run(service.apply_feed_selection(outcome))
+
+        self.assertEqual(len(outcome.products), 20)
+        self.assertEqual(
+            len({product.product_id for product in outcome.products}),
+            20,
+        )
+
     def test_subcategory_selection_uses_reserve_and_refills_to_twenty(self):
         variants = ("Portable", "Compact", "Digital", "Mini", "Heavy")
         products = [
