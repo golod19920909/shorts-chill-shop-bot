@@ -19,6 +19,7 @@ from handlers.search import send_search_results
 from keyboards.main import (
     CB_CATEGORIES,
     CB_THEME_PREFIX,
+    CB_CATALOG_HOME,
     thematic_budget_keyboard,
     thematic_collections_keyboard,
 )
@@ -175,6 +176,7 @@ async def _show_more_thematic_products(
             history_flow=FLOW_THEMES,
             record_views=False,
             curation_mode=MODE_CATEGORY,
+            home_callback=CB_CATALOG_HOME,
         )
     except Exception:
         logger.exception("Thematic collection refresh failed: %s", subcategory.code)
