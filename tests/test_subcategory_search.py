@@ -127,6 +127,10 @@ class SubcategorySearchTests(unittest.TestCase):
         outcome = run(service.find_by_subcategory(sub))
 
         self.assertEqual([item.product_id for item in outcome.products], ["scrubber"])
+        self.assertEqual(
+            outcome.relevance_drop_reasons,
+            {"excluded_title_concept": 2},
+        )
         run(provider.aclose())
 
     def test_subcategory_uses_its_own_gemini_selector_once(self):
