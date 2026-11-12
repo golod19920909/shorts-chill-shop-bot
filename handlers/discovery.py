@@ -781,7 +781,7 @@ async def subcategory_new_search_callback(
             chat_id,
             outcome,
             header=header,
-            wrap_up_keyboard=subcategories_keyboard(catalog_parent_code)
+            wrap_up_keyboard=subcategories_keyboard(catalog_parent_code),
             back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{catalog_parent_code}",
             user_id=user_id,
             telegram_id=telegram_id,
@@ -802,8 +802,8 @@ async def subcategory_new_search_callback(
             update,
             context,
             "Не удалось выполнить новый поиск. Предыдущая подборка осталась доступна — "
-            "нажмите «Новый поиск» ещё раз.",
-            reply_markup=subcategories_keyboard(subcategory.category_code),
+            "нажмите «Показать ещё» ещё раз.",
+            reply_markup=subcategories_keyboard(catalog_parent_code),
         )
     finally:
         busy.pop(subcategory.code, None)
