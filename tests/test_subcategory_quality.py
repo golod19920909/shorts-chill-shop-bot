@@ -4,7 +4,7 @@ import asyncio
 import unittest
 from collections import Counter
 
-from config.subcategories import get_subcategory
+from config.subcategories import get_all_subcategories, get_subcategory
 from models.product import Marketplace, Product
 from models.search_request import SearchMode, SearchRequest
 from services.search_service import SearchOutcome, SearchService
@@ -29,6 +29,22 @@ def listing(product_id: str, title: str) -> Product:
 
 
 class SubcategoryQualityTests(unittest.TestCase):
+    def test_every_catalog_subcategory_has_a_classifiable_product_type(self):
+        subcategories = get_all_subcategories()
+        self.assertGreaterEqual(len(subcategories), 80)
+
+        for subcategory in subcategories:
+            aliases = subcategory.product_types or subcategory.keywords
+            self.assertTrue(aliases, subcategory.code)
+            product = listing(
+                f"sample-{subcategory.code}",
+                aliases[0],
+            )
+            self.assertIsNotNone(
+                subcategory_product_type(product, subcategory),
+                subcategory.code,
+            )
+
     def test_cleaning_shelf_rejects_plumbing_fireplace_and_unrelated_items(self):
         subcategory = get_subcategory("cleaning")
         self.assertIsNotNone(subcategory)
