@@ -138,7 +138,7 @@ def ai_menu_keyboard(
         )
     ]
     rows.append(nav)
-    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
+    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=home_callback or CB_BACK)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -157,6 +157,7 @@ def browse_card_keyboard(
     tracking: bool = False,
     new_search_callback: str | None = None,
     new_search_label: str = LABEL_NEW_SEARCH,
+    home_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     """One-card browsing keyboard: actions + prev/next navigation.
 
