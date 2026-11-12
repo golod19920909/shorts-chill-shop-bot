@@ -29,7 +29,7 @@ def _extra(code: str, category: str, title: str, description: str,
     )
 
 
-EXTRA_SUBCATEGORIES: tuple[Subcategory, ...] = (
+EXTRA_SUBCATEGORIES: tuple[ExtraSubcategory, ...] = (
     # Electronics: split the broad audio shelf into clear product types.
     _extra("headphones", "electronics", "Наушники", "Проводные и беспроводные наушники",
            ("wireless headphones earbuds", "over ear headphones", "in ear bluetooth earphones"),
