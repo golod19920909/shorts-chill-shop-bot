@@ -33,6 +33,7 @@ import logging
 import re
 
 
+from config.subcategories import Subcategory
 from services.gemini_telemetry import record_attempt
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest, SortPreference
@@ -665,6 +666,11 @@ SELECT_PROMPT = """Ты отбираешь и упорядочиваешь УЖ�
 Товары (JSON):
 {products_json}
 """
+
+SUBCATEGORY_SELECTION_GOAL = (
+    "сформировать привлекательную и разнообразную витрину товаров "
+    "строго внутри выбранной подкатегории"
+)
 
 
 SEARCH_PLAN_PROMPT = """Сформулируй короткий поисковый запрос (2–6 слов) для поиска
@@ -1829,6 +1835,77 @@ class AIService:
             self.rank_fallback += 1
             return None
         return ids
+
+
+    async def select_subcategory_candidates(
+        self,
+        candidates: list[Product],
+        *,
+        subcategory: Subcategory,
+        wanted: int = TOP_CANDIDATES,
+    ) -> list[str] | None:
+        """Select an attractive, varied shelf from deterministically gated items.
+
+        The caller has already enforced positive title evidence and excluded
+        unrelated concepts. Gemini makes one bounded selection over the real
+        pool; it cannot add products or override the deterministic gate.
+        None means unavailable/unusable and permits deterministic fallback;
+        an empty list is an explicit semantic no-match.
+        """
+        if not self.is_available or not candidates:
+            return None
+
+        limit = max(1, min(int(wanted or TOP_CANDIDATES), TOP_CANDIDATES))
+        self.rank_requests += 1
+        products_json = json.dumps(
+            [self._rank_payload(candidate) for candidate in candidates],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        allowed = json.dumps(
+            list(subcategory.product_types or subcategory.keywords),
+            ensure_ascii=False,
+        )
+        excluded = json.dumps(list(subcategory.exclude_terms), ensure_ascii=False)
+        rules = f"""- Подкатегория: {subcategory.title}. Описание: {subcategory.description}.
+- Допустимые типы товаров и подтверждающие формулировки: {allowed}.
+- Исключаемые понятия: {excluded}.
+- Сначала убедись, что название или описание прямо подтверждает принадлежность товара к этой подкатегории. Не выбирай соседние категории, случайные аксессуары, расходники или запчасти.
+- Выбирай привлекательные и полезные товары: интересные конструкции, понятная практическая польза, необычные или технологичные решения.
+- Формируй разнообразную подборку: разные конструкции, модели, бренды и сценарии использования. Не выбирай несколько почти одинаковых товаров, отличающихся только цветом, комплектом или названием продавца.
+- Не выбирай товар только из-за низкой цены или большого числа заказов. Используй только реально переданные поля; отсутствие рейтинга, описания или характеристик не разрешает ничего додумывать.
+- Если подходящих и достаточно разных товаров меньше лимита, верни меньше ID. Не заполняй список неподходящими товарами.
+- Не используй категорию AliExpress как единственное доказательство релевантности."""
+        raw = await self._generate(
+            SELECT_PROMPT.format(
+                goal=SUBCATEGORY_SELECTION_GOAL,
+                query=f"{subcategory.title}: {subcategory.description}",
+                rules=rules,
+                products_json=products_json,
+            ),
+            models=(self.fast_model,),
+            operation="subcategory_candidate_selection",
+        )
+        payload = self._extract_json_object(raw) if raw else None
+        if not isinstance(payload, dict) or not isinstance(payload.get("ids"), list):
+            self.rank_fallback += 1
+            logger.warning("Gemini subcategory selection was unusable")
+            return None
+        raw_ids = payload["ids"]
+        if not raw_ids:
+            return []
+        ids = self._clean_ids(raw_ids, limit=limit)
+        if not ids:
+            self.rank_fallback += 1
+            logger.warning("Gemini subcategory selection contained no usable ids")
+            return None
+        known = {candidate.product_id for candidate in candidates}
+        valid = [product_id for product_id in ids if product_id in known]
+        if not valid:
+            self.rank_fallback += 1
+            logger.warning("Gemini subcategory selection named no candidate from the pool")
+            return None
+        return valid
 
     async def select_conversation_candidates(
         self,
