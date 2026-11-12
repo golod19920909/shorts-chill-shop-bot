@@ -2612,6 +2612,7 @@ class SearchService:
             keywords=list(category.keywords),
             country=country,
             currency=currency,
+            max_price=subcategory.max_price,
         )
         return await self.find_products(request, exclude=exclude)
 
@@ -2644,6 +2645,7 @@ class SearchService:
                     keywords=list(subcategory.keywords),
                     country=country,
                     currency=currency,
+                    max_price=subcategory.max_price,
                 )
             )
         request = SearchRequest(
