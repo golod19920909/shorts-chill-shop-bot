@@ -23,11 +23,12 @@ from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 from curation.pipeline import MODE_CATEGORY
-from config.subcategories import CATEGORY_DESCRIPTIONS
+from config.subcategories import CATEGORY_DESCRIPTIONS, get_subcategory
 from database.models import FLOW_FEED
 from handlers import common
 from handlers.search import record_outcome_events, send_search_results
 from services import analytics
+from keyboards.products import CB_PREFIX_CATEGORY_NEW_SEARCH
 from keyboards.main import (
     CB_CATEGORIES,
     CB_CATEGORY_VIEW_PREFIX,
@@ -673,6 +674,124 @@ async def subcategory_callback(
         telegram_id=telegram_id,
         curation_mode=MODE_CATEGORY,
     )
+
+
+CATEGORY_NEW_SEARCH_SEEN_KEY = "_category_new_search_seen"
+CATEGORY_NEW_SEARCH_BUSY_KEY = "_category_new_search_busy"
+
+
+@track_usage("category_new_search")
+async def subcategory_new_search_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Fetch the next unique batch for the subcategory on the current card."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    parts = (query.data or "").split(":")
+    if len(parts) != 2 or parts[0] != CB_PREFIX_CATEGORY_NEW_SEARCH:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+
+    session_id = parts[1]
+    previous = common.get_cached_outcome(context, session_id)
+    if (
+        previous is None
+        or previous.request.mode is not SearchMode.CATEGORY
+        or not previous.request.subcategory_code
+    ):
+        await query.answer("Эта подборка уже недоступна. Откройте подкатегорию заново.", show_alert=True)
+        return
+
+    subcategory = get_subcategory(previous.request.subcategory_code)
+    if subcategory is None:
+        await query.answer("Подкатегория больше недоступна.", show_alert=True)
+        return
+
+    busy = context.user_data.setdefault(CATEGORY_NEW_SEARCH_BUSY_KEY, {})
+    if busy.get(subcategory.code):
+        await query.answer("Поиск уже выполняется.", show_alert=True)
+        return
+    busy[subcategory.code] = True
+    await query.answer("Ищу новые товары…")
+
+    user_id = await common.register_user(update, context)
+    telegram_id = update.effective_user.id if update.effective_user else None
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    if chat_id is None:
+        busy.pop(subcategory.code, None)
+        return
+
+    try:
+        # Reaching this action requires browsing to the last card. Treat the
+        # whole previous batch as shown, then exclude it from the next batch.
+        seen_by_subcategory = context.user_data.setdefault(
+            CATEGORY_NEW_SEARCH_SEEN_KEY, {}
+        )
+        sequence_seen = set(seen_by_subcategory.get(subcategory.code, []))
+        sequence_seen.update(identity_pair(product) for product in previous.products)
+        seen_by_subcategory[subcategory.code] = list(sequence_seen)
+
+        region = await common.get_user_region(context, user_id)
+        country = (region.get("country") or "").strip().upper()
+        country = country if len(country) == 2 else None
+        persistent_seen = (
+            await common.seen_products(context, user_id)
+            if user_id is not None else set()
+        )
+        exclude = set(persistent_seen or ()) | sequence_seen
+
+        outcome = await common.get_search_service(context).find_by_subcategory(
+            subcategory,
+            country=country,
+            currency=region.get("currency"),
+            exclude=exclude,
+        )
+        await record_outcome_events(
+            context,
+            outcome,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            source="subcategory_new_search",
+        )
+
+        if not outcome.products:
+            await context.bot.send_message(
+                chat_id,
+                "Пока не нашлось новых подходящих товаров в этой подкатегории. "
+                "Попробуйте ещё раз позже или выберите другое направление.",
+                reply_markup=subcategories_keyboard(subcategory.category_code),
+            )
+            return
+
+        header = (
+            f"{CATEGORIES} <b>{common.escape(subcategory.title)}</b>\n"
+            f"<i>{common.escape(subcategory.description)}</i>"
+        )
+        await send_search_results(
+            context,
+            chat_id,
+            outcome,
+            header=header,
+            wrap_up_keyboard=subcategories_keyboard(subcategory.category_code),
+            back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{subcategory.category_code}",
+            user_id=user_id,
+            telegram_id=telegram_id,
+            curation_mode=MODE_CATEGORY,
+        )
+    except Exception:
+        logger.exception(
+            "Subcategory new search failed for %r", subcategory.code
+        )
+        await context.bot.send_message(
+            chat_id,
+            "Не удалось выполнить новый поиск. Предыдущая подборка осталась доступна — "
+            "нажмите «Новый поиск» ещё раз.",
+            reply_markup=subcategories_keyboard(subcategory.category_code),
+        )
+    finally:
+        busy.pop(subcategory.code, None)
 
 
 @track_usage("category_search")
