@@ -296,7 +296,7 @@ async def thematic_collection_callback(
             query,
             "Пока не удалось собрать достаточно подходящих товаров для этой подборки. "
             "Я не буду заполнять её случайными позициями. Попробуйте позже или выберите другую тему.",
-            thematic_budget_keyboard() if subcategory.max_price is not None
+            thematic_budget_keyboard() if max_price is not None
             else thematic_collections_keyboard(),
         )
         return
