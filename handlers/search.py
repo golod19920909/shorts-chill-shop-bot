@@ -1477,6 +1477,10 @@ def _browse_keyboard(
         product,
         back_callback=back_callback,
         tracking=tracked,
+        new_search_callback=(
+            f"pcnew:{session_id}"
+            if outcome.request.subcategory_code else None
+        ),
     )
 
 def _card_caption(outcome: SearchOutcome, _index: int, header: str | None) -> str:
