@@ -376,8 +376,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         kept, dropped = filter_subcategory_products(products, subcategory)
 
         self.assertEqual([item.product_id for item in kept], ["brush"])
-        self.assertEqual(dropped.get("excluded_title_concept"), 2)
-        self.assertEqual(dropped.get("no_subcategory_product_type"), 1)
+        self.assertEqual(dropped, {"excluded_title_concept": 3})
 
     def test_finalizer_revalidates_gemini_and_reserve_candidates(self):
         subcategory = get_subcategory("window_cleaners")
