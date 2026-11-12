@@ -7,7 +7,11 @@ from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
 from models.search_request import SearchMode, SearchRequest
 from services.search_service import SearchOutcome, SearchService
-from services.subcategory_quality import filter_subcategory_products, subcategory_match_reason
+from services.subcategory_quality import (
+    filter_subcategory_products,
+    subcategory_match_reason,
+    subcategory_product_type,
+)
 
 
 def listing(product_id: str, title: str) -> Product:
@@ -95,19 +99,50 @@ class SubcategoryQualityTests(unittest.TestCase):
             listing("d", "8BitDo Ultimate 2 Wireless Controller"),
         ]
 
-        selected = SearchService._finalize_subcategory_selection(products, limit=20)
+        selected = SearchService._finalize_subcategory_selection(
+            products, subcategory=get_subcategory("controllers"), limit=20
+        )
 
         self.assertEqual(
             [item.product_id for item in selected],
             ["a", "c", "d"],
         )
 
+    def test_welding_identity_does_not_combine_distant_title_fragments(self):
+        subcategory = get_subcategory("welding_equipment")
+        self.assertIsNotNone(subcategory)
+
+        self.assertIsNone(
+            subcategory_match_reason(
+                listing("welder", "MIG 250 welding machine inverter"),
+                subcategory,
+            )
+        )
+        self.assertEqual(
+            subcategory_match_reason(
+                listing(
+                    "dent-kit",
+                    "Spot welding car dent puller repair kit machine",
+                ),
+                subcategory,
+            ),
+            "no_subcategory_product_type",
+        )
+
+    def test_product_type_prefers_specific_alias_over_generic_alias(self):
+        subcategory = get_subcategory("massage_devices")
+        self.assertIsNotNone(subcategory)
+        neck = listing("neck", "Electric neck shoulder massager with heat")
+        face = listing("face", "Portable facial massager beauty device")
+        self.assertIn("neck", subcategory_product_type(neck, subcategory))
+        self.assertIn("facial", subcategory_product_type(face, subcategory))
+
     def test_subcategory_selection_uses_reserve_and_refills_to_twenty(self):
         variants = ("Portable", "Compact", "Digital", "Mini", "Heavy")
         products = [
             listing(
                 f"family-{family}-variant-{variant_index}",
-                f"{variant} family{family} massage device tool",
+                f"{variant} family{family} model{family} massage device tool",
             )
             for family in range(10)
             for variant_index, variant in enumerate(variants)
@@ -123,7 +158,7 @@ class SubcategoryQualityTests(unittest.TestCase):
                 self, candidates, *, subcategory, wanted
             ):
                 self.wanted = wanted
-                return [product.product_id for product in candidates[:wanted]]
+                return [product.product_id for product in candidates[:20]]
 
         selector = Selector()
         service = SearchService([], ai_service=selector)
