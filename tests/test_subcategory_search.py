@@ -112,6 +112,63 @@ class SubcategorySearchTests(unittest.TestCase):
         self.assertEqual(len(provider.requests), len(sub.query_routes))
         self.assertIn("kitchen-tool", {item.product_id for item in outcome.products})
 
+    def test_subcategory_uses_its_own_gemini_selector_once(self):
+        sub = get_subcategory("controllers")
+        self.assertIsNotNone(sub)
+        products = [
+            listing("pad-a", "Wireless Bluetooth Gamepad Controller"),
+            listing("pad-b", "8BitDo Ultimate 2 Game Controller"),
+            listing("pad-c", "GameSir Nova Lite Controller"),
+        ]
+        provider = PhraseProvider({
+            sub.query_routes[0]: [products[0]],
+            sub.query_routes[1]: [products[1]],
+            sub.query_routes[2]: [products[2]],
+        })
+
+        class Selector:
+            is_available = True
+
+            def __init__(self):
+                self.calls = []
+
+            async def select_feed_candidates(self, candidates, **kwargs):
+                raise AssertionError("generic selector must not handle a subcategory")
+
+            async def select_subcategory_candidates(self, candidates, *, subcategory, wanted):
+                self.calls.append((subcategory.code, wanted, len(candidates)))
+                return ["pad-a", "pad-c"]
+
+        selector = Selector()
+        service = SearchService([provider], ai_service=selector)
+        outcome = run(service.find_by_subcategory(sub))
+
+        self.assertEqual(len(selector.calls), 1)
+        self.assertEqual(selector.calls[0][0], "controllers")
+        self.assertEqual([item.product_id for item in outcome.products], ["pad-a", "pad-c"])
+        run(provider.aclose())
+
+    def test_explicit_empty_subcategory_selection_does_not_restore_pool(self):
+        sub = get_subcategory("controllers")
+        self.assertIsNotNone(sub)
+        product = listing("pad-a", "Wireless Bluetooth Gamepad Controller")
+        provider = PhraseProvider({route: [product] if index == 0 else [] for index, route in enumerate(sub.query_routes)})
+
+        class Selector:
+            is_available = True
+
+            async def select_feed_candidates(self, candidates, **kwargs):
+                return ["pad-a"]
+
+            async def select_subcategory_candidates(self, candidates, *, subcategory, wanted):
+                return []
+
+        service = SearchService([provider], ai_service=Selector())
+        outcome = run(service.find_by_subcategory(sub))
+
+        self.assertEqual(outcome.products, [])
+        run(provider.aclose())
+
     def test_subcategory_routes_do_not_inherit_parent_category_expansion(self):
         sub = get_subcategory("kitchen")
         provider = PhraseProvider({sub.query_routes[0]: []})
