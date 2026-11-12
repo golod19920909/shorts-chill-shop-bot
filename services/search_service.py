@@ -1401,7 +1401,10 @@ class SearchService:
 
         by_type: dict[str, list[Product]] = {}
         for candidate in near:
-            type_key = subcategory_product_type(candidate, subcategory) or "__unclassified__"
+            type_key = (
+                subcategory_product_type(candidate, subcategory)
+                or "__unclassified__"
+            )
             by_type.setdefault(type_key, []).append(candidate)
 
         primary_by_type: dict[str, list[Product]] = {}
@@ -1462,9 +1465,33 @@ class SearchService:
             if not added:
                 break
 
-        # Second pass: refill from the extra members of each family, one
-        # candidate per family per round, then relax the subtype cap only if
-        # the represented types could not fill the shelf.
+        family_deferred_total = sum(
+            len(items)
+            for queues in deferred_by_type.values()
+            for items in queues
+        )
+        family_refill_count = 0
+        overflow_refill_count = 0
+
+        # Second pass: if the type quota left room, take additional distinct
+        # families before reusing a family already represented twice.
+        while len(selected) < max(0, int(limit)):
+            added = False
+            for type_key in type_keys:
+                cursor = primary_cursor[type_key]
+                primary = primary_by_type[type_key]
+                if cursor < len(primary):
+                    selected.append(primary[cursor])
+                    primary_cursor[type_key] += 1
+                    added = True
+                    overflow_refill_count += 1
+                    if len(selected) >= max(0, int(limit)):
+                        break
+            if not added:
+                break
+
+        # Final refill: only after all distinct families have had a chance,
+        # reuse deferred family members one per family per round.
         deferred_cursors = {
             key: [0] * len(deferred_by_type[key]) for key in type_keys
         }
@@ -1477,6 +1504,7 @@ class SearchService:
                         continue
                     selected.append(family_items[cursor])
                     deferred_cursors[type_key][family_index] += 1
+                    family_refill_count += 1
                     added = True
                     if len(selected) >= max(0, int(limit)):
                         break
@@ -1485,26 +1513,18 @@ class SearchService:
             if not added:
                 break
 
-        # Final honest fill: when the pool is narrow, use remaining distinct
-        # candidates in their Gemini/quality order rather than returning a
-        # short shelf or inventing products.
-        while len(selected) < max(0, int(limit)):
-            added = False
-            for type_key in type_keys:
-                cursor = primary_cursor[type_key]
-                primary = primary_by_type[type_key]
-                if cursor < len(primary):
-                    selected.append(primary[cursor])
-                    primary_cursor[type_key] += 1
-                    added = True
-                    if len(selected) >= max(0, int(limit)):
-                        break
-            if not added:
-                break
+        selected_type_summary = ",".join(
+            f"{key}:{selected_by_type[key] + sum("
+            f"deferred_cursors.get(key, []) or []) + max(0, "
+            f"primary_cursor[key] - min(primary_cursor[key], type_cap))}"
+            for key in type_keys
+            if selected_by_type[key] or primary_cursor[key]
+        )
 
         logger.info(
             "Subcategory final curation: code=%s input=%d exact=%d near=%d "
-            "types=%d families=%d type_cap=%d refill=%d final=%d shortfall=%d",
+            "types=%d families=%d type_cap=%d family_deferred=%d "
+            "family_refill=%d overflow_refill=%d final=%d shortfall=%d",
             subcategory.code,
             len(products),
             len(exact),
@@ -1512,7 +1532,9 @@ class SearchService:
             type_count,
             family_count_total,
             type_cap,
-            max(0, len(selected) - min(limit, len(primary_by_type) * type_cap)),
+            family_deferred_total,
+            family_refill_count,
+            overflow_refill_count,
             max(0, min(len(selected), int(limit))),
             max(0, int(limit) - len(selected)),
         )
