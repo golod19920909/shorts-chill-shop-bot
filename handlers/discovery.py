@@ -23,7 +23,11 @@ from telegram import Bot, Update
 from telegram.ext import ContextTypes
 
 from curation.pipeline import MODE_CATEGORY
-from config.catalog_navigation import CATEGORY_DESCRIPTIONS
+from config.catalog_navigation import (
+    CATEGORY_DESCRIPTIONS,
+    get_catalog_parent_code,
+    get_catalog_shelf,
+)
 from config.subcategories import get_subcategory
 from database.models import FLOW_FEED
 from handlers import common
@@ -603,7 +607,9 @@ async def subcategory_callback(
     if subcategory is None:
         await query.answer("Подкатегория не найдена.", show_alert=True)
         return
-    await query.answer(f"{subcategory.title}: ищу товары…")
+    catalog_shelf = get_catalog_shelf(subcategory.code) or subcategory
+    catalog_parent_code = get_catalog_parent_code(subcategory.code) or subcategory.category_code
+    await query.answer(f"{catalog_shelf.title}: ищу товары…")
 
     user_id = await common.register_user(update, context)
     region = await common.get_user_region(context, user_id)
@@ -638,7 +644,7 @@ async def subcategory_callback(
             update,
             context,
             f"{WARNING} Не удалось выполнить поиск по этому направлению.",
-            reply_markup=subcategories_keyboard(subcategory.category_code),
+            reply_markup=subcategories_keyboard(catalog_parent_code),
         )
         return
 
@@ -650,16 +656,16 @@ async def subcategory_callback(
         source="subcategory",
     )
     header = (
-        f"{CATEGORIES} <b>{common.escape(subcategory.title)}</b>\n"
-        f"<i>{common.escape(subcategory.description)}</i>"
+        f"{CATEGORIES} <b>{common.escape(catalog_shelf.title)}</b>\n"
+        f"<i>{common.escape(catalog_shelf.description)}</i>"
     )
     await send_search_results(
         context,
         chat_id,
         outcome,
         header=header,
-        wrap_up_keyboard=subcategories_keyboard(subcategory.category_code),
-        back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{subcategory.category_code}",
+        wrap_up_keyboard=subcategories_keyboard(catalog_parent_code),
+        back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{catalog_parent_code}",
         user_id=user_id,
         telegram_id=telegram_id,
         curation_mode=MODE_CATEGORY,
@@ -701,6 +707,8 @@ async def subcategory_new_search_callback(
     if subcategory is None:
         await query.answer("Подкатегория больше недоступна.", show_alert=True)
         return
+    catalog_shelf = get_catalog_shelf(subcategory.code) or subcategory
+    catalog_parent_code = get_catalog_parent_code(subcategory.code) or subcategory.category_code
 
     used_sessions = context.user_data.setdefault(CATEGORY_NEW_SEARCH_USED_KEY, {})
     if used_sessions.get(session_id):
@@ -760,21 +768,21 @@ async def subcategory_new_search_callback(
                 context,
                 "Пока не нашлось новых подходящих товаров в этой подкатегории. "
                 "Попробуйте ещё раз позже или выберите другое направление.",
-                reply_markup=subcategories_keyboard(subcategory.category_code),
+                reply_markup=subcategories_keyboard(catalog_parent_code)
             )
             return
 
         header = (
-            f"{CATEGORIES} <b>{common.escape(subcategory.title)}</b>\n"
-            f"<i>{common.escape(subcategory.description)}</i>"
+            f"{CATEGORIES} <b>{common.escape(catalog_shelf.title)}</b>\n"
+            f"<i>{common.escape(catalog_shelf.description)}</i>"
         )
         new_session_id = await send_search_results(
             context,
             chat_id,
             outcome,
             header=header,
-            wrap_up_keyboard=subcategories_keyboard(subcategory.category_code),
-            back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{subcategory.category_code}",
+            wrap_up_keyboard=subcategories_keyboard(catalog_parent_code)
+            back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{catalog_parent_code}",
             user_id=user_id,
             telegram_id=telegram_id,
             curation_mode=MODE_CATEGORY,
