@@ -27,6 +27,7 @@ from config.catalog_navigation import (
     CATEGORY_DESCRIPTIONS,
     get_catalog_parent_code,
     get_catalog_shelf,
+    MIN_LIVE_SUBCATEGORY_PRODUCTS,
 )
 from config.subcategories import get_subcategory
 from database.models import FLOW_FEED
@@ -673,6 +674,15 @@ async def subcategory_callback(
         telegram_id=telegram_id,
         source="subcategory",
     )
+    if 0 < len(outcome.products) < MIN_LIVE_SUBCATEGORY_PRODUCTS:
+        await _edit_catalog_or_reply(
+            update,
+            context,
+            f"Пока найдено только {len(outcome.products)} подходящих товаров. "
+            f"Для показа этой подкатегории нужно не меньше {MIN_LIVE_SUBCATEGORY_PRODUCTS}.",
+            reply_markup=subcategories_keyboard(catalog_parent_code),
+        )
+        return
     header = (
         f"{CATEGORIES} <b>{common.escape(catalog_shelf.title)}</b>\n"
         f"<i>{common.escape(catalog_shelf.description)}</i>"
@@ -787,7 +797,17 @@ async def subcategory_new_search_callback(
                 context,
                 "Пока не нашлось новых подходящих товаров в этой подкатегории. "
                 "Попробуйте ещё раз позже или выберите другое направление.",
-                reply_markup=subcategories_keyboard(catalog_parent_code)
+                reply_markup=subcategories_keyboard(catalog_parent_code),
+            )
+            return
+        if len(outcome.products) < MIN_LIVE_SUBCATEGORY_PRODUCTS:
+            await _edit_catalog_or_reply(
+                update,
+                context,
+                f"Новых товаров пока только {len(outcome.products)}. "
+                f"Покажу следующую подборку, когда наберётся минимум "
+                f"{MIN_LIVE_SUBCATEGORY_PRODUCTS} подходящих позиций.",
+                reply_markup=subcategories_keyboard(catalog_parent_code),
             )
             return
 
