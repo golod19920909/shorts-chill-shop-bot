@@ -66,15 +66,41 @@ def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
     return False
 
 
+def _phrase_position(title_tokens: tuple[str, ...], phrase: str) -> int | None:
+    """Return the earliest local title window supporting an alias."""
+
+    wanted = _tokens(phrase)
+    if not wanted:
+        return None
+    if len(wanted) == 1:
+        term = wanted[0]
+        if len(term) < 3:
+            return None
+        return next(
+            (index for index, token in enumerate(title_tokens)
+             if _token_matches(token, term)),
+            None,
+        )
+    window_size = min(6, max(3, len(wanted) + 2))
+    for start in range(len(title_tokens)):
+        window = title_tokens[start : start + window_size]
+        if all(
+            any(_token_matches(token, term) for token in window)
+            for term in wanted
+        ):
+            return start
+    return None
+
+
 def subcategory_product_type(
     product: Product, subcategory: Subcategory
 ) -> str | None:
-    """Return the most specific configured product-type alias in the title.
+    """Classify by the earliest validated principal product identity.
 
-    The alias vocabulary is already the deterministic identity gate for this
-    shelf. Prefer aliases carrying rarer, more specific words (for example
-    "neck massager" over the generic "massager") so the same vocabulary can
-    guide diversity without adding a second hand-maintained taxonomy.
+    AliExpress titles often mention several products (for example, a speaker
+    with a microphone). A matching word is not enough to assign a subtype:
+    the shared principal-item validator must approve that alias, and earlier
+    product identity evidence takes precedence over later add-ons.
     """
 
     primary_title = re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
@@ -85,19 +111,31 @@ def subcategory_product_type(
         for token in set(_tokens(alias)):
             token_frequency[token] = token_frequency.get(token, 0) + 1
 
-    matches = [alias for alias in aliases if _phrase_matches(title_tokens, alias)]
+    from services.convsearch.type_validation import validate_product_type
+
+    principal_product = product.model_copy(update={"title": primary_title})
+    matches: list[tuple[str, int]] = []
+    for alias in aliases:
+        position = _phrase_position(title_tokens, alias)
+        if position is None:
+            continue
+        if validate_product_type(principal_product, alias).qualifies:
+            matches.append((alias, position))
     if not matches:
         return None
 
     def specificity(alias: str) -> tuple[int, int, float]:
         terms = set(_tokens(alias))
         score = sum(1.0 / token_frequency.get(term, 1) for term in terms)
-        # Prefer an explicitly named subtype ("facial massager") over a
-        # generic construction phrase ("massage device") when both can match
-        # the same title through harmless inflection matching.
         return len(terms), len(alias), score
 
-    return max(matches, key=specificity).casefold()
+    # The first supported product identity wins. Specificity breaks ties
+    # between aliases that describe the same title span.
+    earliest = min(position for _, position in matches)
+    leading_matches = [
+        alias for alias, position in matches if position == earliest
+    ]
+    return max(leading_matches, key=specificity).casefold()
 
 
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
