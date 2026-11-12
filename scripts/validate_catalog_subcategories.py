@@ -134,14 +134,32 @@ async def _run(args: argparse.Namespace) -> int:
                 else:
                     provider_status = "ok"
 
+                if len(products) >= 20:
+                    shortfall_reason = None
+                elif provider_status in {"failed", "unavailable"}:
+                    shortfall_reason = "provider_unavailable_or_failed"
+                elif (selection_diagnostics or {}).get("candidate_pool", 0) < 20:
+                    shortfall_reason = "filtered_candidate_pool_below_20"
+                elif (
+                    (selection_diagnostics or {}).get("gemini_approved_candidates") is not None
+                    and (selection_diagnostics or {}).get("gemini_approved_candidates") < 20
+                ):
+                    shortfall_reason = "selector_approved_fewer_than_20"
+                else:
+                    shortfall_reason = "finalizer_or_deduplication_shortfall"
+
                 row = {
                     "code": subcategory.code,
                     "category_code": subcategory.category_code,
                     "title": subcategory.title,
+                    "query_routes": list(subcategory.query_routes),
+                    "route_count": len(subcategory.query_routes),
                     "status": status,
                     "provider_status": provider_status,
+                    "shortfall_reason": shortfall_reason,
                     "raw_candidates": outcome.products_before_filtering,
                     "dropped_as_irrelevant": outcome.products_dropped_as_irrelevant,
+                    "relevance_drop_reasons": dict(outcome.relevance_drop_reasons),
                     "after_constraints": outcome.products_after_constraints,
                     "final_count": len(products),
                     "type_counts": dict(type_counts),
