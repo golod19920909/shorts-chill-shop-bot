@@ -27,7 +27,9 @@ Guidance for AI agents and maintainers working in this repository.
 6. **Honest data.** Never fabricate products, prices, attributes, availability,
    or affiliate URLs. Gemini may select only IDs in the real candidate pool.
 7. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
-   selection defaults to 20; these are separate limits.
+   selection defaults to 20; these are separate limits. Curated subcategory
+   shelves are the bounded exception: one selector call may return up to 40
+   approved IDs (20 primary + 20 reserve), while final presentation stays at 20.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
 
