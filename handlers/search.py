@@ -1577,6 +1577,7 @@ async def _send_product_cards(
         index=None,
         caption_prefix=_card_caption(outcome, 0, header),
     )
+    replacement_attempted = False
     try:
         if origin_query is None:
             await common.send_product_card(
@@ -1602,6 +1603,7 @@ async def _send_product_cards(
                 else:
                     # Telegram cannot convert a photo message into text.
                     # Replace only for this objectively unsupported media transition.
+                    replacement_attempted = True
                     await _replace_browsed_card(
                         origin_query, context, products[0], 0, caption, reply_markup
                     )
@@ -1612,8 +1614,22 @@ async def _send_product_cards(
                     caption, parse_mode="HTML", reply_markup=reply_markup
                 )
     except Exception:
-        logger.exception("Failed to deliver the browsing card of session %s", session_id)
-        return False
+        if origin_query is not None and not replacement_attempted:
+            try:
+                # A Telegram edit/API rejection is the only reason to replace
+                # the active message. The replacement helper sends first.
+                await _replace_browsed_card(
+                    origin_query, context, products[0], 0, caption, reply_markup
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to edit or replace the browsing card of session %s",
+                    session_id,
+                )
+                return False
+        else:
+            logger.exception("Failed to deliver the browsing card of session %s", session_id)
+            return False
 
     # Only a successfully sent card is a shown product. Keep user-facing
     # histories and analytics behind the same delivery boundary. These
