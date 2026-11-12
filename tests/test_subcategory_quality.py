@@ -105,7 +105,7 @@ class SubcategoryQualityTests(unittest.TestCase):
 
         self.assertEqual(
             [item.product_id for item in selected],
-            ["a", "c", "d"],
+            ["a", "d", "c"],
         )
 
     def test_welding_identity_does_not_combine_distant_title_fragments(self):
@@ -178,6 +178,10 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertEqual(selector.wanted, 40)
         self.assertEqual(len(outcome.products), 20)
         self.assertEqual(len({item.product_id for item in outcome.products}), 20)
+        self.assertEqual(
+            len({item.title.split()[1] for item in outcome.products}),
+            10,
+        )
 
 
 if __name__ == "__main__":
