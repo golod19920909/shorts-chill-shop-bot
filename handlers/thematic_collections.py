@@ -6,7 +6,11 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from config.thematic_collections import THEMATIC_COLLECTIONS, BUDGET_TIERS
+from config.thematic_collections import (
+    THEMATIC_COLLECTIONS,
+    BUDGET_TIERS,
+    THEME_MAX_PRICE_BY_CODE,
+)
 from config.subcategories import get_subcategory
 from database.models import FLOW_THEMES
 from handlers import common
@@ -115,18 +119,20 @@ async def _show_more_thematic_products(
             await common.seen_products(context, user_id, flow=FLOW_THEMES)
         )
         excluded.update(identity_pair(product) for product in previous.products)
+        max_price = THEME_MAX_PRICE_BY_CODE.get(subcategory.code)
         outcome = await common.get_search_service(context).find_by_subcategory(
             subcategory,
             country=country,
-            currency="USD" if subcategory.max_price is not None else region.get("currency"),
+            currency="USD" if max_price is not None else region.get("currency"),
             exclude=excluded,
+            max_price=max_price,
         )
-        if subcategory.max_price is not None:
+        if max_price is not None:
             outcome.products = [
                 product for product in outcome.products
                 if product.price is not None
                 and (product.currency or "").upper() == "USD"
-                and product.price <= subcategory.max_price
+                and product.price <= max_price
             ]
         await record_outcome_events(
             context,
@@ -144,7 +150,7 @@ async def _show_more_thematic_products(
                 parse_mode="HTML",
                 reply_markup=(
                     thematic_budget_keyboard()
-                    if subcategory.max_price is not None
+                    if max_price is not None
                     else thematic_collections_keyboard()
                 ),
             )
@@ -241,22 +247,24 @@ async def thematic_collection_callback(
         return
 
     try:
+        max_price = THEME_MAX_PRICE_BY_CODE.get(subcategory.code)
         outcome = await common.get_search_service(context).find_by_subcategory(
             subcategory,
             country=country,
-            currency="USD" if subcategory.max_price is not None else region.get("currency"),
+            currency="USD" if max_price is not None else region.get("currency"),
             exclude=await common.seen_products(
                 context, user_id, flow=FLOW_THEMES
             ),
+            max_price=max_price,
         )
-        if subcategory.max_price is not None:
+        if max_price is not None:
             # A budget shelf is a USD promise, not merely a numeric ceiling.
             # Reject unknown/mismatched currencies and missing prices.
             outcome.products = [
                 product for product in outcome.products
                 if product.price is not None
                 and (product.currency or "").upper() == "USD"
-                and product.price <= subcategory.max_price
+                and product.price <= max_price
             ]
     except Exception:
         logger.exception("Thematic collection search failed: %s", shelf_code)
