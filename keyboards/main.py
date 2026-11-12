@@ -21,8 +21,14 @@ from collections.abc import Sequence
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from config.catalog import CATEGORIES, CURRENCIES, CURRENCY_FLAGS, Category, get_category
-from config.subcategories import get_subcategory, get_subcategories
+from config.catalog import CURRENCIES, CURRENCY_FLAGS
+from config.catalog_navigation import (
+    CATEGORIES,
+    CatalogCategory as Category,
+    get_catalog_category as get_category,
+    get_catalog_subcategories,
+)
+from config.subcategories import get_subcategory
 from config.thematic_collections import THEMATIC_COLLECTIONS, BUDGET_TIERS
 
 # -- callback data (kept short and stable: handlers match on these) --------
@@ -265,7 +271,7 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
 
     for category in CATEGORIES:
-        if not get_subcategories(category.code):
+        if not get_catalog_subcategories(category.code):
             continue
         row.append(
             InlineKeyboardButton(
@@ -310,7 +316,7 @@ def subcategories_keyboard(category_code: str) -> InlineKeyboardMarkup:
 
     values = [
         (item.code, item.title)
-        for item in get_subcategories(category_code)
+        for item in get_catalog_subcategories(category_code)
     ]
     rows = _chunked_buttons(values, 2, CB_SUBCATEGORY_PREFIX)
     rows.append([
@@ -469,7 +475,5 @@ def category_by_callback(data: str) -> Category | None:
     prefix, _, code = data.partition(":")
     if prefix != CB_CATEGORY_PREFIX:
         return None
-
-    from config.catalog import get_category\nfrom config.subcategories import get_subcategories
 
     return get_category(code)
