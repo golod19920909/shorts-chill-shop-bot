@@ -409,5 +409,96 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertEqual([item.product_id for item in selected], ["robot"])
 
 
+    def test_cycling_subtypes_do_not_share_a_broad_four_letter_stem(self):
+        subcategory = get_subcategory("cycling")
+        self.assertIsNotNone(subcategory)
+        light = listing(
+            "bike-light",
+            "Велосипедный задний фонарь LED USB rechargeable",
+        )
+        spoke_tool = listing(
+            "spoke-tool",
+            "Измеритель натяжения спиц велосипедных колес, инструмент для проверки",
+        )
+
+        self.assertEqual(
+            subcategory_product_type(light, subcategory),
+            "велосипедный фонарь",
+        )
+        self.assertEqual(
+            subcategory_product_type(spoke_tool, subcategory),
+            "измеритель натяжения спиц",
+        )
+        self.assertIsNone(subcategory_match_reason(spoke_tool, subcategory))
+
+    def test_portable_gadgets_requires_a_concrete_device_identity(self):
+        subcategory = get_subcategory("portable_gadgets")
+        self.assertIsNotNone(subcategory)
+
+        generic = listing("generic", "Mini electronic device for everyday use")
+        projector = listing("projector", "Mini Portable Projector 1080P")
+        fan = listing("fan", "Rechargeable Handheld Fan")
+
+        self.assertEqual(
+            subcategory_match_reason(generic, subcategory),
+            "no_subcategory_product_type",
+        )
+        self.assertIsNone(subcategory_match_reason(projector, subcategory))
+        self.assertIsNone(subcategory_match_reason(fan, subcategory))
+
+    def test_bathroom_shelf_covers_common_principal_products(self):
+        subcategory = get_subcategory("bathroom")
+        self.assertIsNotNone(subcategory)
+
+        for product in (
+            listing("mat", "Non Slip Bath Mat for Bathroom"),
+            listing("curtain", "Waterproof Shower Curtain"),
+            listing("dispenser", "Automatic Soap Dispenser"),
+        ):
+            self.assertIsNone(
+                subcategory_match_reason(product, subcategory),
+                product.title,
+            )
+
+        self.assertEqual(
+            subcategory_match_reason(
+                listing("sticker", "Decorative Bathroom Wall Sticker"),
+                subcategory,
+            ),
+            "no_subcategory_product_type",
+        )
+
+    def test_console_controller_and_accessory_shelves_keep_distinct_roles(self):
+        controllers = get_subcategory("console_controllers")
+        accessories = get_subcategory("console_accessories")
+        self.assertIsNotNone(controllers)
+        self.assertIsNotNone(accessories)
+
+        gamepad = listing("gamepad", "Wireless Gamepad Controller for PS5")
+        dock = listing("dock", "Controller Charging Dock for Nintendo Switch")
+
+        self.assertIsNone(subcategory_match_reason(gamepad, controllers))
+        self.assertEqual(
+            subcategory_match_reason(dock, controllers),
+            "no_subcategory_product_type",
+        )
+        self.assertIsNone(subcategory_match_reason(dock, accessories))
+
+    def test_sports_electronics_identifies_heart_rate_strap_before_bike_computer(self):
+        subcategory = get_subcategory("sports_electronics")
+        self.assertIsNotNone(subcategory)
+        strap = listing(
+            "heart-rate-strap",
+            "CYCPLUS H2 Датчик сердечного ритма Нагрудный ремень "
+            "ANT BLE Велосипедный компьютер Аксессуары для велосипеда",
+        )
+
+        self.assertEqual(
+            subcategory_product_type(strap, subcategory),
+            "датчик сердечного ритма",
+        )
+        self.assertIsNone(subcategory_match_reason(strap, subcategory))
+
+
 if __name__ == "__main__":
     unittest.main()
