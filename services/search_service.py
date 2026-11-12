@@ -1467,6 +1467,7 @@ class SearchService:
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
             outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            outcome.comparisons = build_comparison(outcome.products)
             if selector_failed:
                 reason = "AI selector raised an exception"
             elif chosen is None:
