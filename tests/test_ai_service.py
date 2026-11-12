@@ -11,6 +11,7 @@ import asyncio
 import json
 import unittest
 
+from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest, SortPreference
 from services.ai_service import AIService
