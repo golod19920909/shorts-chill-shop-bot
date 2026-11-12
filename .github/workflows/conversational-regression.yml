@@ -38,6 +38,9 @@ jobs:
           tests/test_convsearch_engine.py
           tests/test_convsearch_type_validation.py
           tests/test_search_service.py
+          tests/test_catalog_subcategories.py
+          tests/test_subcategory_search.py
+          tests/test_subcategory_navigation.py
           tests/test_eval_consultant_dialogue_dataset.py
           tests/test_eval_consultant_benchmark_runner.py
           tests/test_eval_consultant_auxiliary_dataset.py
