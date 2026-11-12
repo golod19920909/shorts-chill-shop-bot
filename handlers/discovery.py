@@ -17,6 +17,7 @@ Nothing here invents products:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -50,6 +51,8 @@ from services.search_service import SearchOutcome
 from utils.emoji import CATEGORIES, FINDINGS, PHOTO, WARNING
 
 logger = logging.getLogger(__name__)
+
+CATALOG_COVER_PATH = Path(__file__).resolve().parents[1] / "assets" / "catalog_categories.jpg"
 
 #: Engaging consumer categories pool for Popular category discovery
 ENGAGING_CONSUMER_CATEGORIES: tuple[str, ...] = (
@@ -509,7 +512,39 @@ async def _edit_or_reply(
 
 
 async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Render the compact category list."""
+    """Render the image-backed catalog landing screen with a text fallback."""
+
+    query = update.callback_query
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    can_send_cover = CATALOG_COVER_PATH.is_file() and hasattr(context.bot, "send_photo")
+
+    if can_send_cover and chat_id is not None:
+        if query is not None:
+            await query.answer()
+            if query.message is not None:
+                try:
+                    await query.message.delete()
+                except Exception:
+                    logger.debug("Could not remove previous catalog screen", exc_info=True)
+        try:
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=CATALOG_COVER_PATH,
+                caption=CATEGORIES_TEXT,
+                parse_mode="HTML",
+                reply_markup=categories_keyboard(),
+            )
+            return
+        except Exception:
+            logger.exception("Catalog cover could not be sent; using text fallback")
+            if query is None:
+                await context.bot.send_message(
+                    chat_id,
+                    CATEGORIES_TEXT,
+                    parse_mode="HTML",
+                    reply_markup=categories_keyboard(),
+                )
+                return
 
     await _edit_or_reply(
         update,
@@ -540,13 +575,21 @@ async def category_view_callback(
         f"{common.escape(description)}\n\n"
         "Выберите, какие именно товары вас интересуют:"
     )
-    await _edit_or_reply(
-        update,
-        context,
-        screen,
-        parse_mode="HTML",
-        reply_markup=subcategories_keyboard(category.code),
-    )
+    markup = subcategories_keyboard(category.code)
+    if query.message is not None and getattr(query.message, "photo", None):
+        await query.edit_message_caption(
+            caption=screen,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
+    else:
+        await _edit_or_reply(
+            update,
+            context,
+            screen,
+            parse_mode="HTML",
+            reply_markup=markup,
+        )
 
 
 @track_usage("category_search")
