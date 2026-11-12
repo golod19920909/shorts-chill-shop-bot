@@ -5724,3 +5724,64 @@ page 2 remain a failure. This change is diagnostic only and does not alter
 provider requests or search ranking. Pull commit
 `755555dfa0ce575ba102a579cc1325c9d0909599` and rerun the live smoke before
 proceeding with category/subcategory quality validation.
+
+
+---
+
+## 2026-11-12 — Catalog-wide quality gate and subcategory repeat search
+
+Implementation branch: `feat/catalog-quality-and-subcategories`.
+
+### Scope and current changes
+
+The category shelf pipeline remains the shared `SearchService.find_by_subcategory`
+flow for the complete catalog (currently 96 configured subcategories). The
+first implementation pass strengthens the common identity boundary rather than
+adding special cases for the two live examples (window cleaners and hand tools).
+
+- `services/subcategory_quality.py::subcategory_match_reason` still requires
+  positive evidence for a configured product-type alias in the primary title,
+  then additionally checks whether the listing is the principal requested
+  product rather than an accessory/part that merely mentions its host device.
+  It reuses the category-general
+  `services.convsearch.type_validation.validate_product_type` logic.
+- A rejected role relation is diagnosed as
+  `accessory_or_component`, separately from a missing product-type match.
+- `SearchService._finalize_subcategory_selection` repeats this identity gate
+  over the entire selected + reserve stream before exact/near duplicate removal,
+  family balancing and the 20-card cap. Gemini-approved IDs and reserve
+  candidates therefore cannot bypass the final check.
+- The Telegram card browser exposes `🔄 Новый поиск` only on the final card
+  of a subcategory result set. The callback reuses the same configured
+  subcategory and country/currency, excludes previous batches plus the
+  user's persisted shown history, prevents concurrent requests and marks a
+  successfully replaced session as consumed so an old card cannot replay the
+  same next batch.
+- Favorites, price tracking, ordinary text search and non-category card
+  keyboards are not changed by the new-search action.
+
+### Tests added (not yet executed locally)
+
+- Window-cleaner accessory/spare-part rejection.
+- Hand-tool holder rejection while retaining a legitimate hand-tool set.
+- Finalizer revalidation of selected and reserve candidates.
+- New-search button visibility on the last card only.
+
+### Remaining acceptance work
+
+This is an implementation increment, not a claim that the complete TЗ is
+finished. The user must run the focused local test commands after pulling the
+branch. Then continue with:
+1. Fix any test or integration failures.
+2. Audit the shared subtype taxonomy and diversity behavior, including
+   cross-language aliases that currently split one real subtype into multiple
+   log buckets.
+3. Verify the new-search callback end-to-end in Telegram, including retries,
+   stale callbacks and successive batches.
+4. Run real AliExpress Affiliate API checks for all 96 subcategories and
+   record per-subcategory quality/shortfall evidence. Offline fixtures do not
+   satisfy this live acceptance requirement.
+5. Complete the broader regression suite and report the exact commands/results.
+
+Do not mark the TЗ complete until every configured subcategory has real
+provider validation and the remaining acceptance work above is closed.
