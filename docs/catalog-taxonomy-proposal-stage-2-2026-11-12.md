@@ -305,3 +305,8 @@
 - затем выполнить этап 3: актуальный offline regression + повторный live-прогон, не ослабляя principal-product identity, Gemini approved-ID boundary и diversity rules.
 
 **Никакие конфигурации, обработчики, callback-контракты или меню в рамках этого документа не менялись.**
+
+
+## 7. Approval record — 2026-11-12
+
+The user explicitly approved the complete proposed hierarchy and all seven disputed decisions in Section 5. This is approval of the taxonomy as the working target for the catalogue redesign. It authorizes the next validation stages and, once their acceptance gates pass, implementation of the approved catalogue structure. It does not waive live inventory checks, provider/API constraints, migration review, offline regression requirements, or the protected-feature rules. New candidate shelves remain disabled until live quality is demonstrated. «Умный поиск» and «✨ Находки» remain out of scope and must not be changed.
