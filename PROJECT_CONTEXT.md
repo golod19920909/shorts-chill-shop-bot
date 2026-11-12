@@ -5890,3 +5890,20 @@ implemented.
 Focused regression coverage was added for speaker/microphone principal-type
 classification, household storage intent and cleaning false positives.
 Re-run the focused catalog tests locally before another live 96-shelf run.
+
+
+### Subcategory selection diagnostics (2026-11-12)
+
+The live acceptance runner now captures the per-shelf
+last_subcategory_selection_stats from SearchService. For each shelf it records
+selector status/latency, requested and returned IDs, IDs matched to the real
+pool and approved by Gemini, selection source/fallback reason, finalizer
+input, identity-gate drop reasons, exact/near duplicate drops, subtype/family
+counts and deferrals/refills, final count and shortfall. These are measurement
+only: the one-call selector, 8-second timeout, strict Gemini approval boundary
+and deterministic fallback policy are unchanged.
+
+Focused tests assert both successful 40-ID reserve selection and the no-AI
+deterministic fallback diagnostics. The next live report can now distinguish
+a short Gemini-approved set from losses in the finalizer instead of inferring
+the cause from the final card count alone.
