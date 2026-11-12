@@ -89,7 +89,9 @@ class _FakeQuery:
 class CatalogHandlerScreenTests(unittest.TestCase):
     def test_catalog_landing_has_text_fallback(self):
         query = _FakeQuery("menu:categories")
-        update = SimpleNamespace(callback_query=query)
+        update = SimpleNamespace(
+            callback_query=query, effective_chat=SimpleNamespace(id=47)
+        )
         context = SimpleNamespace(bot=object())
 
         asyncio.run(discovery.show_categories(update, context))
