@@ -520,19 +520,12 @@ async def _show_main_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
         context, getattr(getattr(query, "from_user", None), "id", None)
     )
     try:
-        if getattr(message, "photo", None):
-            await query.edit_message_caption(
-                caption=WELCOME_TEXT,
-                parse_mode="HTML",
-                reply_markup=reply_markup,
-            )
-        else:
-            await query.edit_message_text(
-                WELCOME_TEXT, parse_mode="HTML", reply_markup=reply_markup
-            )
+        await query.edit_message_text(
+            WELCOME_TEXT, parse_mode="HTML", reply_markup=reply_markup
+        )
         return
-    except Exception:  # noqa: BLE001 - retain replacement only when Telegram rejects the edit
-        logger.debug("Menu edit failed; trying the Telegram media fallback", exc_info=True)
+    except Exception:  # noqa: BLE001 - media messages cannot be text-edited
+        logger.debug("edit_message_text failed; sending a fresh menu", exc_info=True)
 
     chat_id = getattr(message, "chat_id", None)
     if chat_id is None:
