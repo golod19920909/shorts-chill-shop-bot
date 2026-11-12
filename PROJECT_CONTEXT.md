@@ -5861,3 +5861,32 @@ remaining test expectation issues; production behavior is unchanged:
 These are test-only assertion corrections. Re-run
 `tests/test_bot_startup.py` and `tests/test_discovery_acceptance.py` locally
 before proceeding to the 96-subcategory live validation.
+
+
+### Live catalog report follow-up (2026-11-12)
+
+The first 96-subcategory provider run returned 1,452/1,920 cards (59 shelves
+at 20, 33 short, 3 empty, 1 full provider error). Review found that subtype
+classification counted matching title aliases without applying the principal
+product validator, so add-ons (for example, a microphone bundled with a
+speaker) could be counted as the shelf's main subtype. It now requires the
+shared validator to approve each alias and prefers the earliest validated
+product identity in the primary title clause.
+
+Catalog configuration was tightened for the clearest false-positive shelves:
+storage now uses household-specific organizer/container aliases and excludes
+known unrelated title concepts; cleaning now uses concrete cleaning-tool
+aliases and excludes pet-care, food-preparation and industrial-cleaning
+concepts. These are data-driven catalog policies; do not add query-specific
+branches to shared code.
+
+The live validation JSON now reports provider_status independently from
+shelf card-count status, so partial route/provider failures are visible even
+when another route returned rows. It also includes positive_rate and
+documents that the AliExpress Affiliate API's evaluate_rate is not a 0-5
+star rating; rating: null is expected unless a distinct rating source is
+implemented.
+
+Focused regression coverage was added for speaker/microphone principal-type
+classification, household storage intent and cleaning false positives.
+Re-run the focused catalog tests locally before another live 96-shelf run.
