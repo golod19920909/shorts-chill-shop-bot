@@ -138,6 +138,8 @@ async def _run(args: argparse.Namespace) -> int:
                     shortfall_reason = None
                 elif provider_status in {"failed", "unavailable"}:
                     shortfall_reason = "provider_unavailable_or_failed"
+                elif provider_status == "partial_failure":
+                    shortfall_reason = "provider_partial_failure"
                 elif (selection_diagnostics or {}).get("candidate_pool", 0) < 20:
                     shortfall_reason = "filtered_candidate_pool_below_20"
                 elif (
