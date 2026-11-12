@@ -6430,3 +6430,14 @@ code changes or select vendors.
 - The earlier Stage 1 audit document remains unchanged. Its preliminary 14-area hypothesis is superseded as a working direction by the user's approval of 15 parent areas; the detailed subcategory proposal is in the new Stage 2 document.
 - Next gate: user review/approval or corrections to the exact hierarchy and disputed decisions. After that, run the local-credential live category.get check and Stage 3 catalog quality validation before implementing the catalogue.
 - Proposal commit: `f45301b61d24d81c635ea7274ec8fc9dbfbf4d90`; this context update is a separate documentation-only commit.
+
+
+## 2026-11-12 — Stage 2 taxonomy explicitly approved; Stage 3 validation started
+
+- User explicitly approved the complete 15-parent hierarchy in `docs/catalog-taxonomy-proposal-stage-2-2026-11-12.md` and all seven disputed decisions in its Section 5. This supersedes the previous 'awaiting exact hierarchy approval' status.
+- Approval authorizes validation and subsequent implementation only after the defined quality gates. It does not authorize guessed AliExpress category IDs, bypassing live inventory checks, weakening identity/diversity filters, or changing protected features.
+- Stage 3 initial GitHub review confirms the current feature branch still contains the legacy 12-parent catalogue (`config/catalog.py`) and the existing 96-shelf configuration (`config/subcategories.py` plus expansion/override modules). The approved 15-parent hierarchy has not yet been implemented in code.
+- The branch's `.github/workflows/conversational-regression.yml` includes the catalog tests and a filtered repository suite. This workflow is an offline CI path; it does not perform the credentialed live AliExpress run.
+- Environment limitation: the GitHub-connected workspace cannot access the user's local `.env` or execute the repository's Windows `.venv`. Therefore the official `aliexpress.affiliate.category.get` call and `scripts/validate_catalog_subcategories.py` live run cannot honestly be reported as completed here. Do not infer category IDs or live shelf quality from docs or prior reports. A credential-safe local execution/report handoff is required for that gate.
+- The initial Stage 3 source review has begun; no catalog code, callbacks, menu, or UI have been changed yet. «Умный поиск» and «✨ Находки» remain strictly protected.
+- Approval record was appended to the Stage 2 proposal in commit `c8bb778b7433ccf8cf469f1c096ceee42be914ff`.
