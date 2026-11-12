@@ -5445,3 +5445,53 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   run a limited live check across representative subcategories, review the
   category cover on an actual Telegram screen, and tune only the routes whose
   marketplace results prove weak or irrelevant.
+
+
+## Catalog quality and subcategory expansion — implementation in progress (2026-11-12)
+
+- Work is isolated on `feat/catalog-quality-and-subcategories`, based on
+  `audit/aliexpress-portals-smoke-test`. No changes to `main`, PR #10,
+  local `.env`, production or the user's local working copy.
+- Expanded the visual catalog from 60 to 96 subcategories: exactly 8 under
+  each of the 12 existing parent categories. All existing subcategory codes
+  remain unchanged; 36 new shelves are defined in
+  `config/subcategory_expansion.py`.
+- Extended `Subcategory` with `product_types` and `exclude_terms`.
+  Existing shelves default to their curated Russian keywords; new focused
+  shelves carry explicit Russian/English product identity phrases. The
+  previously broad cleaning, lighting and game-controller shelves also have
+  more specific title evidence and exclusion terms.
+- Added `services/subcategory_quality.py`: a deterministic title-evidence
+  gate applied only to curated subcategory requests after the shared
+  relevance filter and before constraints/ranking. It rejects candidates
+  without a declared product-type match and honors configured excluded title
+  concepts. It does not add product data or make claims about missing fields.
+- Added a dedicated bounded Gemini subcategory selector in
+  `services/ai_service.py`. It replaces (does not add to) the existing
+  single category/feed selection call for subcategory screens. The prompt
+  includes the shelf description, allowed product types and exclusions, and
+  explicitly asks for attractive, useful and varied candidates without
+  padding. A valid empty ID list is treated as a no-match; unavailable or
+  malformed responses use deterministic fallback.
+- Updated `services/search_service.py` to apply the deterministic gate,
+  route subcategory screens through the specialized selector, cap subcategory
+  output at 20, and run final exact/near-duplicate and product-family checks.
+  The final family pass has no fill-up behavior: if there are not enough
+  distinct candidates, the screen stays shorter rather than restoring twins.
+  The normal search/feed selector path remains unchanged.
+- Added/extended offline tests:
+  `tests/test_catalog_subcategories.py` (96 shelves, 8 per parent, metadata),
+  `tests/test_subcategory_quality.py` (cleaning leaks, controller/router
+  separation, lighting identity, family diversity), and
+  `tests/test_subcategory_search.py` (strict gate in shared search, dedicated
+  selector, explicit empty selection). Added the new quality test to the
+  focused conversational CI workflow and enabled push runs for this branch.
+- Test execution and CI status are NOT YET VERIFIED from this environment.
+  The user's local AliExpress credentials are unavailable here, so no live
+  marketplace smoke tests or cost/latency measurements have been run. Do not
+  report live validation or test success until confirmed.
+- Next: inspect the updated diff, run the focused offline catalog tests and
+  the repository's existing focused regression workflow, correct any failures,
+  then ask the owner to pull the branch and run a limited live smoke across
+  representative categories. Recheck the three previously documented
+  unrelated CI failures without modifying them.
