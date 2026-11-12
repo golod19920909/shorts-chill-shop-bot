@@ -1513,18 +1513,24 @@ class SearchService:
             if not added:
                 break
 
+        selected_type_counts: dict[str, int] = {}
+        for product in selected[: max(0, int(limit))]:
+            type_key = (
+                subcategory_product_type(product, subcategory)
+                or "__unclassified__"
+            )
+            selected_type_counts[type_key] = (
+                selected_type_counts.get(type_key, 0) + 1
+            )
         selected_type_summary = ",".join(
-            f"{key}:{selected_by_type[key] + sum("
-            f"deferred_cursors.get(key, []) or []) + max(0, "
-            f"primary_cursor[key] - min(primary_cursor[key], type_cap))}"
-            for key in type_keys
-            if selected_by_type[key] or primary_cursor[key]
+            f"{key}:{count}" for key, count in selected_type_counts.items()
         )
 
         logger.info(
             "Subcategory final curation: code=%s input=%d exact=%d near=%d "
             "types=%d families=%d type_cap=%d family_deferred=%d "
-            "family_refill=%d overflow_refill=%d final=%d shortfall=%d",
+            "family_refill=%d overflow_refill=%d type_counts=%s "
+            "final=%d shortfall=%d",
             subcategory.code,
             len(products),
             len(exact),
@@ -1535,6 +1541,7 @@ class SearchService:
             family_deferred_total,
             family_refill_count,
             overflow_refill_count,
+            selected_type_summary,
             max(0, min(len(selected), int(limit))),
             max(0, int(limit) - len(selected)),
         )
