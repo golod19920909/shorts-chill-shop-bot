@@ -65,6 +65,8 @@ CATEGORIES: tuple[CatalogCategory, ...] = (
                      "шланг", "газон", "удобрение", "садовая техника")),
 )
 
+MIN_LIVE_SUBCATEGORY_PRODUCTS = 12
+
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
     "smartphones": "Смартфоны и аксессуары к ним",
     "computers": "Компьютерная техника, офис и оборудование для записи",
