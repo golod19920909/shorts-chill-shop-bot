@@ -86,9 +86,10 @@ DEFAULT_MAX_RESULTS = 30
 #: keeps both its breadth and its API cost.
 RAW_POOL_TARGET = 80
 
-#: How many cards an AI selection keeps for the carousel - the "строго 20 лучших"
-#: rule of the feed. It applies to a real selection only; a deterministic list
-#: keeps ``DEFAULT_MAX_RESULTS``, because an AI outage must not shrink a feed.
+#: Visible cards in an AI-curated shelf - the "20 best" presentation target.
+#: Curated subcategories may ask Gemini for a separate ranked reserve
+#: (:data:`services.ai_service.SUBCATEGORY_SELECTION_MAX`), but this is the
+#: final visible-card cap. Other deterministic feeds keep DEFAULT_MAX_RESULTS.
 AI_FEED_RESULTS = 20
 #: Hard wall-clock bound on ONE AI feed-selection request. The selector already
 #: degrades to the deterministic list on any failure (``apply_feed_selection``),
