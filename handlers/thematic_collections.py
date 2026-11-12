@@ -322,4 +322,5 @@ async def thematic_collection_callback(
         history_flow=FLOW_THEMES,
         record_views=False,
         curation_mode=MODE_CATEGORY,
+        home_callback=CB_CATALOG_HOME,
     )
