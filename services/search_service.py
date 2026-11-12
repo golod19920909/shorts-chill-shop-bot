@@ -37,6 +37,7 @@ from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService, SUBCATEGORY_SELECTION_MAX
 from services.subcategory_quality import (
     filter_subcategory_relevant,
+    subcategory_match_reason,
     subcategory_product_type,
 )
 from services.comparison_service import (
@@ -1408,7 +1409,32 @@ class SearchService:
         real candidates remain eligible for balanced refill.
         """
 
-        exact = deduplicate_products(products)
+        # Revalidate the complete Gemini-approved + reserve stream at the
+        # final boundary. Earlier retrieval filtering is not sufficient:
+        # reserve refill and future selector changes must never reintroduce
+        # accessories or spare parts into a primary-product shelf.
+        quality_kept: list[Product] = []
+        quality_dropped: dict[str, int] = {}
+        for candidate in products:
+            reason = subcategory_match_reason(candidate, subcategory)
+            if reason is None:
+                quality_kept.append(candidate)
+            else:
+                quality_dropped[reason] = quality_dropped.get(reason, 0) + 1
+        if quality_dropped:
+            logger.info(
+                "Subcategory final identity gate: code=%s input=%d kept=%d "
+                "dropped=%s",
+                subcategory.code,
+                len(products),
+                len(quality_kept),
+                ",".join(
+                    f"{reason}={count}"
+                    for reason, count in sorted(quality_dropped.items())
+                ),
+            )
+
+        exact = deduplicate_products(quality_kept)
         near = feed_curation.drop_near_duplicates(exact)
         family_gate = DeduplicationFilter(threshold=0.35)
 
