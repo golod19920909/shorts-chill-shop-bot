@@ -21,7 +21,8 @@ from collections.abc import Sequence
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from config.catalog import CATEGORIES, CURRENCIES, CURRENCY_FLAGS, Category
+from config.catalog import CATEGORIES, CURRENCIES, CURRENCY_FLAGS, Category, get_category
+from config.subcategories import get_subcategory, get_subcategories
 
 # -- callback data (kept short and stable: handlers match on these) --------
 CB_SEARCH = "menu:search"
@@ -98,6 +99,8 @@ REMOVED_CALLBACK_PATTERN = r"^(menu:random|menu:deals|dfeed|promos|rdeal|promo:)
 SHORTS_CHILL_URL = "https://t.me/Shorts_Chill"
 
 CB_CATEGORY_PREFIX = "cat"
+CB_CATEGORY_VIEW_PREFIX = "catview"
+CB_SUBCATEGORY_PREFIX = "sub"
 CB_CURRENCY_PREFIX = "cur"
 #: Legacy only: buttons of the removed «Промокоды» campaign list still sit
 #: on old messages as ``pcamp:<index>``. Nothing builds such a button any
@@ -262,7 +265,7 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     for category in CATEGORIES:
         row.append(
             InlineKeyboardButton(
-                category.title, callback_data=f"{CB_CATEGORY_PREFIX}:{category.code}"
+                category.title, callback_data=f"{CB_CATEGORY_VIEW_PREFIX}:{category.code}"
             )
         )
         if len(row) == 2:
@@ -272,6 +275,40 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
 
+    rows.append(home_row())
+    return InlineKeyboardMarkup(rows)
+
+
+
+def category_view_by_callback(data: str) -> Category | None:
+    """Resolve a catalog-navigation callback into its parent category."""
+
+    prefix, _, code = data.partition(":")
+    if prefix != CB_CATEGORY_VIEW_PREFIX:
+        return None
+    return get_category(code)
+
+
+def subcategory_by_callback(data: str):
+    """Resolve a subcategory-navigation callback into its configured topic."""
+
+    prefix, _, code = data.partition(":")
+    if prefix != CB_SUBCATEGORY_PREFIX:
+        return None
+    return get_subcategory(code)
+
+
+def subcategories_keyboard(category_code: str) -> InlineKeyboardMarkup:
+    """Two-column topic list with explicit return-to-catalog navigation."""
+
+    values = [
+        (item.code, item.title)
+        for item in get_subcategories(category_code)
+    ]
+    rows = _chunked_buttons(values, 2, CB_SUBCATEGORY_PREFIX)
+    rows.append([
+        InlineKeyboardButton("◀️ Все категории", callback_data=CB_CATEGORIES)
+    ])
     rows.append(home_row())
     return InlineKeyboardMarkup(rows)
 
