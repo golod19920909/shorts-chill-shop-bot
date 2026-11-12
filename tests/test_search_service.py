@@ -19,7 +19,7 @@ import httpx
 
 from config.settings import MarketplaceCredentials
 from models.product import Marketplace, Product
-from models.search_request import SearchRequest, SortPreference
+from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
 from services.marketplaces.base import MarketplaceProvider
 from services.search_service import SearchService
@@ -122,6 +122,63 @@ class SearchServiceTestCase(unittest.TestCase):
             credentials=CONFIGURED_CREDENTIALS,
             **kwargs,
         )
+
+
+class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
+    def test_subcategory_search_continues_all_routes_on_next_page_when_pool_is_short(self):
+        provider = self.ali_express([])
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            return [
+                make_product(
+                    Marketplace.ALIEXPRESS,
+                    f"massage-{request.page_no}-{len(calls)}",
+                    12.0,
+                    title=f"Electric neck shoulder massager model {request.page_no}-{len(calls)}",
+                )
+            ]
+
+        provider.search_products = search_variant
+
+        class Selector:
+            is_available = True
+
+            async def select_subcategory_candidates(
+                self, candidates, *, subcategory, wanted
+            ):
+                return [product.product_id for product in candidates]
+
+        service = SearchService(
+            [provider], ai_service=Selector(), max_search_pages=2
+        )
+        request = SearchRequest(
+            original_query="Массажёры",
+            normalized_query="electric massage devices",
+            mode=SearchMode.CATEGORY,
+            category="beauty",
+            subcategory_code="massage_devices",
+            retrieval_queries=[
+                "facial body massagers",
+                "neck shoulder massager",
+            ],
+        )
+
+        outcome = self.run_async(service.find_products(request))
+
+        self.assertEqual(len(calls), 6)
+        self.assertEqual({page for page, _phrase in calls}, {1, 2})
+        self.assertEqual(
+            {phrase for _page, phrase in calls},
+            {
+                "electric massage devices",
+                "facial body massagers",
+                "neck shoulder massager",
+            },
+        )
+        self.assertEqual(outcome.found_count, 6)
 
 
 class RawConversationalRetrievalTests(SearchServiceTestCase):
