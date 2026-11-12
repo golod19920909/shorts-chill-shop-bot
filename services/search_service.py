@@ -561,6 +561,9 @@ class SearchService:
             findings_selector if callable(findings_selector) else None
         )
         self.last_findings_stats: dict | None = None
+        # Last curated subcategory shelf diagnostics, consumed by the explicit
+        # live acceptance runner. Reset for every subcategory selection.
+        self.last_subcategory_selection_stats: dict | None = None
 
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
@@ -1398,7 +1401,8 @@ class SearchService:
 
     @staticmethod
     def _finalize_subcategory_selection(
-        products: list[Product], *, subcategory: Subcategory, limit: int
+        products: list[Product], *, subcategory: Subcategory, limit: int,
+        stats: dict | None = None,
     ) -> list[Product]:
         """Build a full, subtype-balanced shelf from approved + reserve candidates.
 
@@ -1565,6 +1569,24 @@ class SearchService:
             f"{key}:{count}" for key, count in selected_type_counts.items()
         )
 
+        if stats is not None:
+            stats.update({
+                "finalizer_input": len(products),
+                "identity_kept": len(quality_kept),
+                "identity_dropped": dict(quality_dropped),
+                "exact_duplicates_dropped": len(quality_kept) - len(exact),
+                "near_duplicates_dropped": len(exact) - len(near),
+                "subtype_count": type_count,
+                "family_count": family_count_total,
+                "family_deferred": family_deferred_total,
+                "family_refill": family_refill_count,
+                "overflow_refill": overflow_refill_count,
+                "subtype_cap": type_cap,
+                "final_count": max(0, min(len(selected), int(limit))),
+                "shortfall": max(0, int(limit) - len(selected)),
+                "final_type_counts": selected_type_counts,
+            })
+
         logger.info(
             "Subcategory final curation: code=%s input=%d exact=%d near=%d "
             "types=%d families=%d type_cap=%d family_deferred=%d "
@@ -1620,6 +1642,8 @@ class SearchService:
             get_subcategory(outcome.request.subcategory_code)
             if outcome.request.subcategory_code else None
         )
+        selection_stats = {} if subcategory is not None else None
+        self.last_subcategory_selection_stats = selection_stats
         selector = (
             self._subcategory_selector
             if subcategory is not None and self._subcategory_selector is not None
@@ -1637,7 +1661,8 @@ class SearchService:
             )
             outcome.products = (
                 self._finalize_subcategory_selection(
-                    fallback, subcategory=subcategory, limit=limit
+                    fallback, subcategory=subcategory, limit=limit,
+                    stats=selection_stats,
                 )
                 if subcategory is not None else fallback
             )
@@ -1659,6 +1684,11 @@ class SearchService:
             return
 
         pool = list(outcome.products)
+        if selection_stats is not None:
+            selection_stats.update({
+                "candidate_pool": len(pool),
+                "selection_source": "pending",
+            })
         selection_limit = (
             min(SUBCATEGORY_SELECTION_MAX, len(pool))
             if subcategory is not None else limit
@@ -1692,6 +1722,18 @@ class SearchService:
                 )
             else:
                 logger.exception("AI feed selection failed; keeping the deterministic list")
+        if selection_stats is not None:
+            selection_stats.update({
+                "selector_status": (
+                    "timeout" if feed_timed_out else
+                    "failed" if selector_failed else
+                    "empty" if chosen == [] else
+                    "success" if chosen else "no_usable_selection"
+                ),
+                "selector_requested": selection_limit,
+                "selector_returned_ids": len(chosen) if chosen is not None else None,
+                "selector_duration_ms": round((time.perf_counter() - t_feed) * 1000),
+            })
         # B4 latency diagnostics: how long the AI selection held the finished
         # pool (measurement only - the flow, its fallbacks and its list are
         # exactly as before).
@@ -1705,6 +1747,13 @@ class SearchService:
 
         if chosen == [] and subcategory is not None:
             # An explicit empty semantic selection means no candidate passed.
+            if selection_stats is not None:
+                selection_stats.update({
+                    "selection_source": "gemini_empty",
+                    "gemini_approved_candidates": 0,
+                    "final_count": 0,
+                    "shortfall": limit,
+                })
             outcome.products = []
             outcome.comparisons = []
             log_ai_selection_outcome(
@@ -1731,11 +1780,20 @@ class SearchService:
             )
             outcome.products = (
                 self._finalize_subcategory_selection(
-                    fallback, subcategory=subcategory, limit=limit
+                    fallback, subcategory=subcategory, limit=limit,
+                    stats=selection_stats,
                 )
                 if subcategory is not None else fallback
             )
             outcome.comparisons = build_comparison(outcome.products)
+            if selection_stats is not None:
+                selection_stats.update({
+                    "selection_source": "deterministic_fallback",
+                    "fallback_reason": (
+                        "selector_failed" if selector_failed
+                        else "no_usable_selector_answer"
+                    ),
+                })
             if selector_failed:
                 reason = "AI selector raised an exception"
             elif chosen is None:
@@ -1761,6 +1819,8 @@ class SearchService:
         selected = feed_curation.apply_selection(
             pool, chosen, limit=selection_limit
         )
+        if selection_stats is not None:
+            selection_stats["gemini_approved_candidates"] = len(selected)
         if subcategory is not None and selected:
             # The selector is asked for up to SUBCATEGORY_SELECTION_MAX IDs:
             # its tail is the reserve for deterministic refill after quality,
@@ -1783,11 +1843,17 @@ class SearchService:
             )
             outcome.products = (
                 self._finalize_subcategory_selection(
-                    fallback, subcategory=subcategory, limit=limit
+                    fallback, subcategory=subcategory, limit=limit,
+                    stats=selection_stats,
                 )
                 if subcategory is not None else fallback
             )
             outcome.comparisons = build_comparison(outcome.products)
+            if selection_stats is not None:
+                selection_stats.update({
+                    "selection_source": "deterministic_fallback",
+                    "fallback_reason": "no_gemini_ids_matched_pool",
+                })
             log_ai_selection_outcome(
                 logger,
                 context=context_query,
@@ -1809,7 +1875,8 @@ class SearchService:
 
         final_products = (
             self._finalize_subcategory_selection(
-                selected, subcategory=subcategory, limit=limit
+                selected, subcategory=subcategory, limit=limit,
+                stats=selection_stats,
             )
             if subcategory is not None else selected
         )
@@ -1824,6 +1891,8 @@ class SearchService:
             logger, final_products, context=context_query, origin="ai-selected"
         )
         outcome.products = final_products
+        if selection_stats is not None:
+            selection_stats["selection_source"] = "gemini_approved"
         outcome.comparisons = build_comparison(outcome.products)
 
     def _collect_raw(
