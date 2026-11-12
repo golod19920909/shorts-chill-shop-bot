@@ -128,6 +128,49 @@ async def register_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         return None
 
 
+
+async def edit_message_or_replace(
+    context: ContextTypes.DEFAULT_TYPE,
+    query,
+    text: str,
+    **kwargs,
+) -> bool:
+    """Edit the active navigation message; replace only if Telegram rejects it.
+
+    The replacement is sent before the old message is removed. If sending
+    fails, the user keeps the message they were already looking at.
+    """
+
+    message = getattr(query, "message", None)
+    try:
+        if getattr(message, "photo", None):
+            await query.edit_message_caption(caption=text, **kwargs)
+        else:
+            await query.edit_message_text(text, **kwargs)
+        return True
+    except Exception:
+        logger.warning(
+            "Telegram rejected an in-place navigation edit; trying a safe replacement",
+            exc_info=True,
+        )
+
+    chat_id = getattr(message, "chat_id", None)
+    if chat_id is None:
+        return False
+    try:
+        await context.bot.send_message(chat_id, text, **kwargs)
+    except Exception:
+        logger.exception("Could not send the navigation replacement; old message kept")
+        return False
+
+    if message is not None:
+        try:
+            await message.delete()
+        except Exception:
+            logger.debug("Could not delete the replaced navigation message", exc_info=True)
+    return True
+
+
 def remember_outcome(
     context: ContextTypes.DEFAULT_TYPE,
     outcome: SearchOutcome,
