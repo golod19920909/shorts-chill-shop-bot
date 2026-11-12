@@ -22,15 +22,20 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from curation.pipeline import MODE_CATEGORY
+from config.subcategories import CATEGORY_DESCRIPTIONS
 from database.models import FLOW_FEED
 from handlers import common
 from handlers.search import record_outcome_events, send_search_results
 from services import analytics
 from keyboards.main import (
     CB_CATEGORIES,
+    CB_CATEGORY_VIEW_PREFIX,
     back_to_menu_keyboard,
     categories_keyboard,
     category_by_callback,
+    category_view_by_callback,
+    subcategory_by_callback,
+    subcategories_keyboard,
     feed_exhausted_keyboard,
     photo_retry_keyboard,
 )
@@ -510,6 +515,110 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         CATEGORIES_TEXT,
         parse_mode="HTML",
         reply_markup=categories_keyboard(),
+    )
+
+
+
+async def category_view_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Show the subcategory directory for one top-level category."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    category = category_view_by_callback(query.data or "")
+    if category is None:
+        await query.answer("Категория не найдена.", show_alert=True)
+        return
+    await query.answer()
+    description = CATEGORY_DESCRIPTIONS.get(category.code, "")
+    screen = (
+        f"{CATEGORIES} <b>{common.escape(category.title)}</b>\n\n"
+        f"{common.escape(description)}\n\n"
+        "Выберите, какие именно товары вас интересуют:"
+    )
+    await _edit_or_reply(
+        update,
+        context,
+        screen,
+        parse_mode="HTML",
+        reply_markup=subcategories_keyboard(category.code),
+    )
+
+
+@track_usage("category_search")
+async def subcategory_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Search a selected subcategory using the shared category pipeline."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    subcategory = subcategory_by_callback(query.data or "")
+    if subcategory is None:
+        await query.answer("Подкатегория не найдена.", show_alert=True)
+        return
+    await query.answer(f"{subcategory.title}: ищу товары…")
+
+    user_id = await common.register_user(update, context)
+    region = await common.get_user_region(context, user_id)
+    country = (region.get("country") or "").strip().upper()
+    country = country if len(country) == 2 else None
+    telegram_id = update.effective_user.id if update.effective_user else None
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    if chat_id is None:
+        return
+
+    try:
+        outcome = await common.get_search_service(context).find_by_subcategory(
+            subcategory,
+            country=country,
+            currency=region.get("currency"),
+            exclude=await common.seen_products(context, user_id),
+        )
+    except Exception:
+        logger.exception("Subcategory search failed for %r", subcategory.code)
+        await common.record_event(
+            context,
+            analytics.EVENT_SEARCH_FAILED,
+            user_id=user_id,
+            telegram_id=telegram_id,
+            metadata={
+                "source": "subcategory",
+                "subcategory": subcategory.code,
+                "reason": "error",
+            },
+        )
+        await context.bot.send_message(
+            chat_id,
+            f"{WARNING} Не удалось выполнить поиск по этому направлению.",
+            reply_markup=subcategories_keyboard(subcategory.category_code),
+        )
+        return
+
+    await record_outcome_events(
+        context,
+        outcome,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        source="subcategory",
+    )
+    header = (
+        f"{CATEGORIES} <b>{common.escape(subcategory.title)}</b>\n"
+        f"<i>{common.escape(subcategory.description)}</i>"
+    )
+    await send_search_results(
+        context,
+        chat_id,
+        outcome,
+        header=header,
+        wrap_up_keyboard=subcategories_keyboard(subcategory.category_code),
+        back_callback=f"{CB_CATEGORY_VIEW_PREFIX}:{subcategory.category_code}",
+        user_id=user_id,
+        telegram_id=telegram_id,
+        curation_mode=MODE_CATEGORY,
     )
 
 
