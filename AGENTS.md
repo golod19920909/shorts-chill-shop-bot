@@ -60,3 +60,22 @@ unfiltered full-suite pass.
 | AliExpress API and provider | `services/marketplaces/aliexpress.py`, `aliexpress_client.py` |
 | Telegram integration and card delivery | `handlers/search.py` |
 | Provider orchestration and performance diagnostics | `services/search_service.py` |
+
+
+## Catalog subcategory quality and repeat search (2026-11-12)
+
+- Catalog shelf quality is a shared contract for all configured subcategories;
+  do not solve live examples with one-off product/category keyword exceptions.
+- Apply the principal-product/accessory role gate both during subcategory
+  retrieval filtering and again at the finalizer boundary, after Gemini
+  selection and reserve refill. Reserve candidates are not trusted merely
+  because they came from the same earlier pool.
+- Reuse the category-general validator in
+  `services/convsearch/type_validation.py`; keep category-specific product
+  types and exclusions in catalog configuration.
+- The `🔄 Новый поиск` callback is only for a category subcategory shelf and
+  appears on its final card. It must retain the same subcategory, exclude
+  prior batches and persistent shown history, prevent concurrent/replayed
+  callbacks, and never mutate favorites or price tracking.
+- Offline tests must cover accessory/spare-part rejection, legitimate product
+  sets, finalizer revalidation, and final-card-only button visibility.
