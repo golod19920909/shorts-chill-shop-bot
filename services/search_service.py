@@ -1762,18 +1762,15 @@ class SearchService:
             pool, chosen, limit=selection_limit
         )
         if subcategory is not None and selected:
-            selected_ids = {product.product_id for product in selected}
-            reserve = [
-                product for product in pool
-                if product.product_id not in selected_ids
-            ]
-            reserve.sort(key=value_score, reverse=True)
+            # The selector is asked for up to SUBCATEGORY_SELECTION_MAX IDs:
+            # its tail is the reserve for deterministic refill after quality,
+            # family and subtype checks. Never append candidates Gemini did
+            # not approve — that would undo an explicit semantic rejection.
             logger.info(
-                "Subcategory reserve: code=%s gemini_approved=%d "
-                "reserve_candidates=%d",
-                subcategory.code, len(selected), len(reserve),
+                "Subcategory approved pool: code=%s gemini_approved=%d "
+                "unapproved_candidates=%d",
+                subcategory.code, len(selected), len(pool) - len(selected),
             )
-            selected = [*selected, *reserve]
         if not selected:
             # The model named nothing usable: the honest deterministic list is
             # better than an empty screen - still cut with the same bounded
