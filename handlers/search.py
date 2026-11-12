@@ -1394,13 +1394,13 @@ async def send_search_results(
                     context,
                     origin_query,
                     SEARCH_UNAVAILABLE_TEXT,
-                    reply_markup=back_to_menu_keyboard(),
+                    reply_markup=empty_keyboard,
                 )
             else:
                 await context.bot.send_message(
                     chat_id,
                     SEARCH_UNAVAILABLE_TEXT,
-                    reply_markup=back_to_menu_keyboard(),
+                    reply_markup=empty_keyboard,
                 )
             if conversation_state is not None:
                 conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
@@ -1410,7 +1410,7 @@ async def send_search_results(
                 context,
                 origin_query,
                 EMPTY_RESULT_TEXT,
-                reply_markup=back_to_menu_keyboard(),
+                reply_markup=empty_keyboard,
             )
         else:
             await context.bot.send_message(
