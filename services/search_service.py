@@ -34,7 +34,7 @@ from config.settings import settings as app_settings
 from curation.pipeline import DeduplicationFilter
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
-from services.ai_service import AIService
+from services.ai_service import AIService, SUBCATEGORY_SELECTION_MAX
 from services.subcategory_quality import filter_subcategory_relevant
 from services.comparison_service import (
     ProductComparison,
@@ -1349,23 +1349,56 @@ class SearchService:
         )
 
     @staticmethod
-    def _finalize_subcategory_selection(products: list[Product], *, limit: int) -> list[Product]:
-        """Remove near-copies and keep one representative per product family."""
+    def _finalize_subcategory_selection(
+        products: list[Product], *, limit: int
+    ) -> list[Product]:
+        """Deduplicate and spread product families, then refill from the reserve.
+
+        Gemini supplies up to 30 ranked, approved IDs: 20 primary positions
+        plus 10 reserves. Near-identical listings are removed first. The
+        family pass prefers no more than two products from one title family,
+        but deferred candidates refill any remaining slots when the pool has
+        fewer distinct families. This keeps diversity a preference, not a
+        reason to silently turn a 20-card shelf into a 10-card shelf.
+        """
+
         exact = deduplicate_products(products)
         near = feed_curation.drop_near_duplicates(exact)
-        family_gate = DeduplicationFilter(threshold=0.72)
+        family_gate = DeduplicationFilter(threshold=0.50)
         diverse: list[Product] = []
+        deferred: list[Product] = []
+        families: list[tuple[Product, int]] = []
+
         for candidate in near:
-            if any(family_gate.similar(candidate, kept) for kept in diverse):
-                continue
-            diverse.append(candidate)
-            if len(diverse) >= max(0, int(limit)):
+            for index, (representative, count) in enumerate(families):
+                if not family_gate.similar(candidate, representative):
+                    continue
+                if count < 2:
+                    families[index] = (representative, count + 1)
+                    diverse.append(candidate)
+                else:
+                    deferred.append(candidate)
                 break
+            else:
+                families.append((candidate, 1))
+                diverse.append(candidate)
+
+        refill_count = min(max(0, int(limit) - len(diverse)), len(deferred))
+        if refill_count:
+            diverse.extend(deferred[:refill_count])
+
         logger.info(
-            "Subcategory final curation: input=%d exact=%d near=%d family=%d final=%d",
-            len(products), len(exact), len(near), len(near) - len(diverse), len(diverse),
+            "Subcategory final curation: input=%d exact=%d near=%d "
+            "families=%d family_deferred=%d refill=%d final=%d",
+            len(products),
+            len(exact),
+            len(near),
+            len(families),
+            len(deferred),
+            refill_count,
+            min(len(diverse), max(0, int(limit))),
         )
-        return diverse
+        return diverse[: max(0, int(limit))]
 
     async def apply_feed_selection(self, outcome: SearchOutcome) -> None:
         """Let the AI drop the junk of a deep pool, keeping the best cards.
@@ -1397,8 +1430,17 @@ class SearchService:
         if selector is None or not bool(getattr(self.ai_service, "is_available", True)):
             before = len(outcome.products)
             fallback_limit = limit if subcategory is not None else self.max_results
-            fallback = _cut_with_numeric_protection(outcome.products, fallback_limit, outcome.request)
-            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            fallback = (
+                list(outcome.products)
+                if subcategory is not None
+                else _cut_with_numeric_protection(
+                    outcome.products, fallback_limit, outcome.request
+                )
+            )
+            outcome.products = (
+                self._finalize_subcategory_selection(fallback, limit=limit)
+                if subcategory is not None else fallback
+            )
             outcome.comparisons = build_comparison(outcome.products)
             log_ai_selection_outcome(
                 logger,
@@ -1417,13 +1459,17 @@ class SearchService:
             return
 
         pool = list(outcome.products)
+        selection_limit = (
+            min(SUBCATEGORY_SELECTION_MAX, len(pool))
+            if subcategory is not None else limit
+        )
         chosen: list[str] | None = None
         selector_failed = False
         feed_timed_out = False
         t_feed = time.perf_counter()
         try:
             chosen = await asyncio.wait_for(
-                (selector(pool, wanted=limit, subcategory=subcategory)
+                (selector(pool, wanted=selection_limit, subcategory=subcategory)
                  if subcategory is not None and selector is self._subcategory_selector
                  else selector(
                      pool, wanted=limit,
@@ -1465,8 +1511,15 @@ class SearchService:
             # exact Stage-9 loss point (pool 80 -> pre-curation 30), so it
             # carries the same bounded numeric-spec pool protection.
             fallback_limit = limit if subcategory is not None else self.max_results
-            fallback = _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
-            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            fallback = (
+                list(pool)
+                if subcategory is not None
+                else _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
+            )
+            outcome.products = (
+                self._finalize_subcategory_selection(fallback, limit=limit)
+                if subcategory is not None else fallback
+            )
             outcome.comparisons = build_comparison(outcome.products)
             if selector_failed:
                 reason = "AI selector raised an exception"
@@ -1490,14 +1543,23 @@ class SearchService:
             )
             return
 
-        selected = feed_curation.apply_selection(pool, chosen, limit=limit)
+        selected = feed_curation.apply_selection(
+            pool, chosen, limit=selection_limit
+        )
         if not selected:
             # The model named nothing usable: the honest deterministic list is
             # better than an empty screen - still cut with the same bounded
             # numeric-spec pool protection as every deterministic fallback.
             fallback_limit = limit if subcategory is not None else self.max_results
-            fallback = _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
-            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            fallback = (
+                list(pool)
+                if subcategory is not None
+                else _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
+            )
+            outcome.products = (
+                self._finalize_subcategory_selection(fallback, limit=limit)
+                if subcategory is not None else fallback
+            )
             outcome.comparisons = build_comparison(outcome.products)
             log_ai_selection_outcome(
                 logger,
