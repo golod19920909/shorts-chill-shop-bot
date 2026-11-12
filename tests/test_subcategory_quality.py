@@ -126,7 +126,7 @@ class SubcategoryQualityTests(unittest.TestCase):
                 ),
                 subcategory,
             ),
-            "no_subcategory_product_type",
+            "excluded_title_concept",
         )
 
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
