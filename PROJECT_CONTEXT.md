@@ -5504,3 +5504,25 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   identity aliases from the override map; the three previously broad shelves
   keep their targeted aliases/exclusions. AI-selection telemetry now reports
   the final post-deduplication product count.
+
+
+### First focused local test feedback and corrections (2026-11-12)
+
+- The user's first focused run reported 24 passed, 15 failed and 491 subtests
+  passed. The 15 failures reduced to three causes: 13 expanded shelves had
+  only two Russian relevance keywords; the cleaning unit test expected two
+  exclusions although the configured policy explicitly excludes drain tools,
+  fireplace kits and kitchen aprons (three); and the shared generic query-word
+  gate rejected English-title products such as "Electric Spin Scrubber" before
+  the new subcategory product-type aliases could validate them.
+- Corrected all 13 missing Russian keyword sets.
+- Added `filter_subcategory_relevant`: it retains the shared invalid-URL and
+  empty-title checks and all other shared rejection reasons, but allows the
+  generic `no_query_term_in_title` case only when the candidate independently
+  matches an explicit product-type alias for the selected shelf. The strict
+  shelf exclusion and positive product-type checks still run; this does not
+  weaken the gate for unrelated items.
+- Updated the cleaning assertion to reflect the three configured exclusions.
+- The corrected code has NOT yet been re-run by the user or confirmed by CI.
+  Next: pull the latest branch commit and rerun the same four focused test
+  modules. Do not proceed to live marketplace checks until this passes.
