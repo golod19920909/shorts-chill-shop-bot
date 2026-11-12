@@ -30,6 +30,10 @@ Guidance for AI agents and maintainers working in this repository.
    selection defaults to 20; these are separate limits. Curated subcategory
    shelves are the bounded exception: one selector call may return up to 40
    approved IDs (20 primary + 20 reserve), while final presentation stays at 20.
+   Their deterministic finalizer uses the subcategory's configured product-type
+   aliases to balance represented types and refill from the already-filtered
+   pool. Additional provider pages remain bounded by `max_search_pages`; never
+   bypass the positive title-identity gate or add per-product Gemini calls.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
 
