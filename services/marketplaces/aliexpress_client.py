@@ -535,3 +535,13 @@ class AliExpressClient:
         self.last_ok_at = timestamp_now()
         self.last_error_class = None
         return result
+
+    async def get_categories(self) -> dict[str, Any]:
+        """Fetch the Affiliate API category tree for an explicit diagnostic.
+
+        The documented category.get method accepts optional app_signature and
+        has no required business parameters. Keep this as a read-only client
+        operation; production search does not consume category IDs until the
+        returned tree has been inspected and mapped deliberately.
+        """
+        return await self.call(METHOD_CATEGORY_GET, {})
