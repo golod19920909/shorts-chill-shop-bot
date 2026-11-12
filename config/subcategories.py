@@ -7,7 +7,7 @@ being enabled by the shared SearchService.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 
 @dataclass(frozen=True)
@@ -260,8 +260,16 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
 
 
 from config.subcategory_expansion import EXTRA_SUBCATEGORIES
+from config.subcategory_type_overrides import PRODUCT_TYPE_OVERRIDES
 
 SUBCATEGORIES = (*SUBCATEGORIES, *EXTRA_SUBCATEGORIES)
+SUBCATEGORIES = tuple(
+    replace(
+        item,
+        product_types=PRODUCT_TYPE_OVERRIDES.get(item.code, item.product_types),
+    )
+    for item in SUBCATEGORIES
+)
 
 
 _SUBCATEGORIES_BY_CODE = {item.code: item for item in SUBCATEGORIES}
