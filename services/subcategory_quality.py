@@ -32,10 +32,17 @@ def _token_matches(token: str, term: str) -> bool:
         return False
     if token.startswith(term) or term.startswith(token):
         return True
-    if len(token) >= 4 and len(term) >= 4:
-        if token[:4] == term[:4] and token[0] in "абвгдеёжзийклмнопрстуфхцчшщьыъэюя":
-            return True
-    return len(token) >= 5 and len(term) >= 5 and token[:5] == term[:5]
+    # Russian inflection can share a five-character stem, but a four-letter
+    # prefix is too broad for catalog identities: «велосипедный» and
+    # «велофонарь» both start with «вело» but name different products.
+    if (
+        len(token) >= 5
+        and len(term) >= 5
+        and token[:5] == term[:5]
+        and token[0] in "абвгдеёжзийклмнопрстуфхцчшщьыъэюя"
+    ):
+        return True
+    return False
 
 
 def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
