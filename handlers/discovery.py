@@ -36,6 +36,7 @@ from services import analytics
 from keyboards.products import CB_PREFIX_CATEGORY_NEW_SEARCH
 from keyboards.main import (
     CB_CATEGORIES,
+    CB_CATALOG_HOME,
     CB_CATEGORY_VIEW_PREFIX,
     back_to_menu_keyboard,
     categories_keyboard,
@@ -669,6 +670,7 @@ async def subcategory_callback(
         user_id=user_id,
         telegram_id=telegram_id,
         curation_mode=MODE_CATEGORY,
+        home_callback=CB_CATALOG_HOME,
         follow_up=False,
         origin_query=query,
     )
@@ -786,6 +788,7 @@ async def subcategory_new_search_callback(
             user_id=user_id,
             telegram_id=telegram_id,
             curation_mode=MODE_CATEGORY,
+        home_callback=CB_CATALOG_HOME,
             follow_up=False,
             origin_query=query,
         )
@@ -886,6 +889,7 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # ($1..$20 / >= 300 orders / >= 4.5) stays reserved for the feeds
         # it was written for.
         curation_mode=MODE_CATEGORY,
+        home_callback=CB_CATALOG_HOME,
         follow_up=False,
         origin_query=query,
     )
