@@ -1609,7 +1609,8 @@ async def _send_product_cards(
                     # Replace only for this objectively unsupported media transition.
                     replacement_attempted = True
                     await _replace_browsed_card(
-                        origin_query, context, products[0], 0, caption, reply_markup
+                        origin_query, context, products[0], 0, caption, reply_markup,
+                        send_first=True,
                     )
             else:
                 # Text messages cannot be converted to photo media with editMessageMedia.
@@ -1623,7 +1624,8 @@ async def _send_product_cards(
                 # A Telegram edit/API rejection is the only reason to replace
                 # the active message. The replacement helper sends first.
                 await _replace_browsed_card(
-                    origin_query, context, products[0], 0, caption, reply_markup
+                    origin_query, context, products[0], 0, caption, reply_markup,
+                    send_first=True,
                 )
             except Exception:
                 logger.exception(
@@ -1807,8 +1809,13 @@ async def _replace_browsed_card(
     chat_id = getattr(message, "chat_id", None)
     if chat_id is None:
         return
-    # The old media type cannot be edited into the requested one. Send the
-    # replacement first so a failed send never leaves the user with no screen.
+    if not send_first and message is not None:
+        try:
+            await context.bot.delete_message(
+                chat_id=chat_id, message_id=message.message_id
+            )
+        except Exception:  # noqa: BLE001 - deletion is best-effort
+            logger.warning("Could not delete the stale browsing card", exc_info=True)
     await common.send_product_card(
         context,
         chat_id,
@@ -1818,12 +1825,13 @@ async def _replace_browsed_card(
         reply_markup=reply_markup,
         raw_caption=caption,
     )
-    try:
-        await context.bot.delete_message(
-            chat_id=chat_id, message_id=message.message_id
-        )
-    except Exception:  # noqa: BLE001 - deletion is best-effort
-        logger.warning("Could not delete the replaced browsing card", exc_info=True)
+    if send_first and message is not None:
+        try:
+            await context.bot.delete_message(
+                chat_id=chat_id, message_id=message.message_id
+            )
+        except Exception:  # noqa: BLE001 - deletion is best-effort
+            logger.warning("Could not delete the replaced browsing card", exc_info=True)
 
 async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``pnav:<session_id>:<index>`` - move the ONE card to another product.
