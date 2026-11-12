@@ -957,9 +957,12 @@ class SearchService:
                             variant_index,
                             len(page_variants),
                         )
-                    else:
+                    elif not request.subcategory_code:
                         # Legacy non-raw searches retain their prior stop
-                        # behavior after a failed provider round.
+                        # behavior after a failed provider round. A curated
+                        # subcategory has a small, explicit route set: one
+                        # failed alternate must not suppress the remaining
+                        # independent topic phrases.
                         all_failed = True
                 elif raw:
                     successful_page_variant_rows[variant] = sum(
