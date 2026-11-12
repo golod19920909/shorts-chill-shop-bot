@@ -107,7 +107,12 @@ class CatalogHandlerScreenTests(unittest.TestCase):
 
         self.assertEqual(len(query.captions), 1)
         caption, kwargs = query.captions[0]
-        self.assertIn("Умный дом", str(kwargs["reply_markup"].inline_keyboard))
+        callbacks = [
+            button.callback_data
+            for row in kwargs["reply_markup"].inline_keyboard
+            for button in row
+        ]
+        self.assertIn("sub:smart_home", callbacks)
         self.assertIn("Гаджеты, устройства", caption)
         self.assertEqual(query.edits, [])
 
