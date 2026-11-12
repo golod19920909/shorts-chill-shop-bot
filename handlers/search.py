@@ -1512,7 +1512,8 @@ def _browse_keyboard(
         tracking=tracked,
         new_search_callback=(
             f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:{session_id}"
-            if outcome.request.subcategory_code else None
+            if outcome.request.subcategory_code
+            and not outcome.request.subcategory_code.startswith("theme_") else None
         ),
     )
 
@@ -1773,13 +1774,10 @@ async def _replace_browsed_card(
 
     message = getattr(query, "message", None)
     chat_id = getattr(message, "chat_id", None)
-    if chat_id is not None:
-        try:
-            await context.bot.delete_message(
-                chat_id=chat_id, message_id=message.message_id
-            )
-        except Exception:  # noqa: BLE001 - deletion is best-effort
-            logger.warning("Could not delete the stale browsing card", exc_info=True)
+    if chat_id is None:
+        return
+    # The old media type cannot be edited into the requested one. Send the
+    # replacement first so a failed send never leaves the user with no screen.
     await common.send_product_card(
         context,
         chat_id,
@@ -1789,6 +1787,12 @@ async def _replace_browsed_card(
         reply_markup=reply_markup,
         raw_caption=caption,
     )
+    try:
+        await context.bot.delete_message(
+            chat_id=chat_id, message_id=message.message_id
+        )
+    except Exception:  # noqa: BLE001 - deletion is best-effort
+        logger.warning("Could not delete the replaced browsing card", exc_info=True)
 
 async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``pnav:<session_id>:<index>`` - move the ONE card to another product.
