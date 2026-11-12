@@ -1860,7 +1860,14 @@ class AIService:
         if not self.is_available or not candidates:
             return None
 
-        limit = max(1, min(int(wanted or TOP_CANDIDATES), SUBCATEGORY_SELECTION_MAX, len(candidates)))
+        limit = max(
+            1,
+            min(
+                int(wanted or TOP_CANDIDATES),
+                SUBCATEGORY_SELECTION_MAX,
+                len(candidates),
+            ),
+        )
         self.rank_requests += 1
         products_json = json.dumps(
             [self._rank_payload(candidate) for candidate in candidates],
