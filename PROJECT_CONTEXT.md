@@ -5348,3 +5348,58 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   SearchService via a bounded shared retrieval path. Preserve the category
   curation profile, history, country/currency propagation and common product
   card renderer.
+
+
+## Visual catalog rebuild — navigation and retrieval foundation (2026-11-12)
+
+- Added structured search fields to SearchRequest: subcategory_code and
+  at most two retrieval_queries. Existing request payloads remain compatible
+  because both fields are optional/defaulted.
+- Added SearchService.find_by_subcategory. It builds a CATEGORY-mode request
+  using the parent category code, the subcategory's narrower Russian relevance
+  keywords, and up to three configured English query routes. Results still
+  pass through the shared provider, deduplication, relevance, ranking,
+  category curation and Telegram card pipeline.
+- Subcategory requests do not also receive the legacy parent-category
+  expansion keyword; the configured topic routes are the complete bounded
+  route set for that request.
+- A failed individual alternate route no longer prevents later configured
+  subcategory routes from being attempted. Legacy category requests retain
+  their existing failure-stop behavior. A regression covers a failed middle
+  route while preserving primary results and attempting the final route.
+- Main catalog category buttons now use new catview:<category> callbacks
+  and open a subcategory directory. Existing cat:<category> callbacks are
+  preserved as the legacy direct broad-category search path.
+- Added sub:<subcategory> navigation, a two-column subcategory keyboard,
+  parent-category return navigation, and a handler that passes user country,
+  currency and shown-product history to find_by_subcategory. Product cards
+  keep the existing CATEGORY curation mode and shared renderer.
+- Updated the catalog landing copy to describe the new directory and
+  subcategory structure.
+- Added focused tests:
+  tests/test_catalog_subcategories.py,
+  tests/test_subcategory_search.py,
+  tests/test_subcategory_navigation.py.
+  The conversational regression workflow now runs these modules.
+- CI on commit 26d18da7390192799d3f8e37c422c461f202516c ran the catalog
+  tests successfully as part of 459 passed. The workflow still reports
+  3 unrelated existing failures:
+  two conversational type-gate reason expectation mismatches and one Gemini
+  timeout fallback retry-count expectation. These failures are outside the
+  catalog changes and were not modified. The monetization workflow also
+  reports its previously documented unrelated cross-sell wording assertion.
+- No live AliExpress query validation was run because the user's local .env
+  is not accessible in this environment. The subcategory routes are therefore
+  code-configured and offline-tested, but their real marketplace coverage
+  still requires a limited live smoke test with the user's local credentials.
+- No category image asset has been committed yet. Telegram inline keyboards
+  cannot embed images; the next visual-UI step must add a real Telegram photo
+  cover (or a small set of category cover media) with a text/keyboard fallback.
+  Do not claim the image-based storefront is complete until this asset and
+  media rendering are implemented.
+- Current branch remains audit/aliexpress-portals-smoke-test; no changes to
+  main, PR #10, .env, local files or production deployment.
+- Next: complete image-backed catalog rendering, add explicit handler-level
+  regression coverage for category/subcategory navigation, then run a bounded
+  live search smoke across representative subcategories before considering
+  the catalog ready for local use.
