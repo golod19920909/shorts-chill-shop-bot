@@ -18,6 +18,8 @@ class Subcategory:
     description: str
     query_routes: tuple[str, ...]
     keywords: tuple[str, ...]
+    product_types: tuple[str, ...] = ()
+    exclude_terms: tuple[str, ...] = ()
 
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
@@ -37,8 +39,11 @@ CATEGORY_DESCRIPTIONS: dict[str, str] = {
 
 
 def _item(code: str, category: str, title: str, description: str,
-          routes: tuple[str, ...], keywords: tuple[str, ...]) -> Subcategory:
-    return Subcategory(code, category, title, description, routes, keywords)
+          routes: tuple[str, ...], keywords: tuple[str, ...],
+          product_types: tuple[str, ...] = (),
+          exclude_terms: tuple[str, ...] = ()) -> Subcategory:
+    return Subcategory(code, category, title, description, routes, keywords,
+                       product_types, exclude_terms)
 
 
 SUBCATEGORIES: tuple[Subcategory, ...] = (
