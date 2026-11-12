@@ -135,10 +135,10 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("геймпад", "джойстик", "контроллер", "руль"),
           ("gamepad", "game controller", "controller", "gaming joystick", "racing wheel", "геймпад", "игровой контроллер", "джойстик", "игровой руль"),
           ("wifi router", "wireless router", "network router", "router", "wifi роутер", "remote control", "remote controller")),
-    _item("gaming_peripherals", "gaming", "Игровая периферия", "Клавиатуры, мыши, коврики и гарнитуры",
+    _item("gaming_peripherals", "computers", "Игровая периферия", "Клавиатуры, мыши, коврики и гарнитуры",
           ("gaming keyboard mouse headset", "gaming mouse pads", "gaming headsets"),
           ("игровая клавиатура", "игровая мышь", "гарнитура", "коврик")),
-    _item("streaming", "gaming", "Стриминг и запись", "Микрофоны, свет и оборудование для трансляций",
+    _item("streaming", "computers", "Стриминг и запись", "Микрофоны, свет и оборудование для трансляций",
           ("streaming equipment accessories", "USB microphones webcams ring lights", "video capture cards stream decks audio mixers"),
           ("стриминг", "микрофон", "вебкамера", "свет")),
     _item("vr", "gaming", "VR-аксессуары", "Аксессуары для виртуальной реальности",
@@ -297,7 +297,7 @@ SUBCATEGORIES = tuple(
 # offered as separate navigation rows.
 HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
     "portable_gadgets", "audio", "table_lamps", "dash_cameras",
-    "pc_controllers", "console_controllers", "watches", "jewelry",
+    "pc_controllers", "console_controllers",
     "dog_supplies", "cat_supplies", "outdoor", "woodworking_tools",
     "outdoor_furniture",
 })
