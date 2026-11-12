@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 from config.catalog import CATEGORIES
 from config.subcategories import get_subcategories
+from keyboards.products import CB_PREFIX_CATEGORY_NEW_SEARCH, browse_card_keyboard
+from models.product import Marketplace, Product
 from keyboards.main import (
     CB_CATEGORIES,
     CB_CATEGORY_VIEW_PREFIX,
@@ -84,6 +86,41 @@ class _FakeQuery:
 
     async def edit_message_caption(self, caption, **kwargs):
         self.captions.append((caption, kwargs))
+
+
+class CatalogNewSearchKeyboardTests(unittest.TestCase):
+    def test_new_search_button_is_present_only_on_the_last_card(self):
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="catalog-item",
+            title="Window cleaning robot",
+            product_url="https://www.aliexpress.com/item/catalog-item.html",
+            image_url="https://ae01.alicdn.com/kf/catalog-item.jpg",
+            price=10.0,
+            currency="USD",
+        )
+
+        first = browse_card_keyboard(
+            "session1", 0, 20, product,
+            new_search_callback=f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:session1",
+        )
+        last = browse_card_keyboard(
+            "session1", 19, 20, product,
+            new_search_callback=f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:session1",
+        )
+        first_callbacks = [
+            button.callback_data
+            for row in first.inline_keyboard
+            for button in row
+        ]
+        last_callbacks = [
+            button.callback_data
+            for row in last.inline_keyboard
+            for button in row
+        ]
+
+        self.assertNotIn("pcnew:session1", first_callbacks)
+        self.assertIn("pcnew:session1", last_callbacks)
 
 
 class CatalogHandlerScreenTests(unittest.TestCase):
