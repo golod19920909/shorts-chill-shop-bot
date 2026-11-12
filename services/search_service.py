@@ -1154,6 +1154,18 @@ class SearchService:
                         len(raw_route_pairs),
                     )
                     break
+            elif (
+                deep_subcategory
+                and page_no > first_page
+                and page_rows == 0
+            ):
+                logger.info(
+                    "Subcategory retrieval stopped: code=%s page=%d "
+                    "returned no rows on any configured route",
+                    request.subcategory_code,
+                    page_no,
+                )
+                break
             elif len(outcome.products) >= pool_target:
                 break
 
