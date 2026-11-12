@@ -805,7 +805,7 @@ async def subcategory_new_search_callback(
             user_id=user_id,
             telegram_id=telegram_id,
             curation_mode=MODE_CATEGORY,
-        home_callback=CB_CATALOG_HOME,
+            home_callback=CB_CATALOG_HOME,
             follow_up=False,
             origin_query=query,
         )
