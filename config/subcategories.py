@@ -103,7 +103,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("car_charging", "auto", "Зарядка в автомобиль", "Автомобильные зарядки и адаптеры",
           ("car chargers USB adapters", "12V car power adapters", "wireless car chargers"),
           ("автомобильная зарядка", "прикуриватель", "зарядное устройство")),
-    _item("car_care", "auto", "Уход за автомобилем", "Инструменты для ухода и очистки",
+    _item("car_care", "auto", "Автошампуни и полировка", "Средства для мойки, очистки и полировки кузова",
           ("car care cleaning accessories", "car detailing tools", "car wash accessories"),
           ("уход за автомобилем", "мойка", "полировка", "очистка")),
     _item("car_tools", "auto", "Инструменты для авто", "Инструменты для ремонта и обслуживания",
@@ -111,10 +111,10 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("автомобильный инструмент", "ремонт", "ключ", "съёмник")),
 
     # Компьютеры
-    _item("keyboards_mice", "computers", "Клавиатуры и мыши", "Периферия для работы и игр",
+    _item("keyboards_mice", "computers", "Клавиатуры и мыши", "Клавиатуры для работы и игр; игровые модели остаются в этом же разделе",
           ("computer keyboards mice", "wireless keyboard mouse", "mechanical keyboards"),
           ("клавиатура", "мышь", "компьютерная мышь")),
-    _item("laptop_accessories", "computers", "Аксессуары для ноутбуков", "Подставки, док-станции и дополнения",
+    _item("laptop_accessories", "computers", "Подставки и док-станции для ноутбуков", "Подставки, охлаждающие платформы и док-станции",
           ("laptop accessories stands docks", "laptop docking stations", "notebook cooling stands"),
           ("ноутбук", "подставка", "докстанция", "охлаждение")),
     _item("usb_hubs", "computers", "USB-хабы и адаптеры", "Разветвители портов и переходники",
@@ -204,7 +204,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("camping", "sport", "Туризм и кемпинг", "Снаряжение для походов и отдыха на природе",
           ("camping hiking equipment", "camping tents sleeping bags mats stoves", "camping lanterns chairs tables portable showers"),
           ("туризм", "кемпинг", "палатка", "спальник")),
-    _item("cycling", "sport", "Велосипедные аксессуары", "Оснащение и принадлежности для велосипеда",
+    _item("cycling", "sport", "Велофонари", "Передние и задние фонари для велосипедов",
           ("bicycle accessories", "bike lights pumps bags repair tools", "bicycle seat covers locks racks bottle cages pedals"),
           ("велосипед", "велофонарь", "насос", "велосумка")),
     _item("fishing", "sport", "Рыбалка", "Снасти и принадлежности для рыбалки",
@@ -244,7 +244,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("kids_safety", "kids", "Детская безопасность", "Защитные аксессуары и товары для дома",
           ("baby child safety products", "childproof home safety", "baby safety accessories"),
           ("детская безопасность", "защита", "блокиратор", "замок")),
-    _item("school", "kids", "Школьные принадлежности", "Канцелярия и полезные вещи для учёбы",
+    _item("school", "kids", "Школьные пеналы", "Пеналы и компактные органайзеры для школьных принадлежностей",
           ("school supplies stationery", "school bags pencil cases", "student desk accessories"),
           ("школьный", "канцелярия", "пенал", "рюкзак")),
 
@@ -252,7 +252,7 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("watering", "garden", "Полив и орошение", "Шланги, распылители и системы полива",
           ("garden watering irrigation", "garden hoses sprinklers", "drip irrigation systems"),
           ("полив", "шланг", "распылитель", "орошение")),
-    _item("garden_tools", "garden", "Садовые инструменты", "Инструменты для ухода за участком",
+    _item("garden_tools", "garden", "Секаторы и садовые инструменты", "Ручной инвентарь для обрезки и ухода за участком",
           ("garden hand tools", "pruning shears garden tools", "gardening tool sets"),
           ("садовый инструмент", "секатор", "лопата", "грабли")),
     _item("plant_growing", "garden", "Выращивание растений", "Товары для рассады, теплиц и растений",
@@ -319,12 +319,28 @@ THEMATIC_SUBCATEGORIES: tuple[Subcategory, ...] = tuple(
 
 # Consolidated shelves remain resolvable for legacy callbacks but are not
 # offered as separate navigation rows.
+# Latest user-provided live run: catalog_subcategory_live_20261112_132853.json.
+# Shelves below 12 verified products are withheld, as are shelves whose live
+# output exposed a wrong/overlapping product family. Re-enable only after a
+# fresh live run confirms >=12 relevant, diverse products.
+MIN_LIVE_SUBCATEGORY_PRODUCTS = 12
+DISABLED_UNTIL_LIVE_VALIDATION_CODES: frozenset[str] = frozenset({
+    "kitchen", "bathroom", "car_interior", "car_electronics",
+    "computer_components", "console_accessories", "vr", "hair_care",
+    "personal_care", "power_tools", "workshop_storage", "fitness",
+    "camping", "fishing", "kids_safety", "plant_growing",
+    "outdoor_leisure", "beauty_appliances", "epilators", "water_sports",
+    "baby_feeding", "streaming",
+})
+
+# Consolidated or retired shelves remain resolvable for legacy callbacks but
+# are not offered as separate menu rows.
 HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
     "portable_gadgets", "audio", "table_lamps", "dash_cameras",
-    "pc_controllers", "console_controllers", "microphones", "gaming_peripherals",
-    "dog_supplies", "cat_supplies", "outdoor", "woodworking_tools",
-    "outdoor_furniture",
-})
+    "pc_controllers", "console_controllers", "microphones",
+    "gaming_peripherals", "dog_supplies", "cat_supplies", "outdoor",
+    "woodworking_tools", "outdoor_furniture",
+}) | DISABLED_UNTIL_LIVE_VALIDATION_CODES
 
 
 _SUBCATEGORIES_BY_CODE = {
