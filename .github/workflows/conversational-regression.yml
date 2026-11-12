@@ -49,6 +49,8 @@ jobs:
           tests/test_ai_service.py::OperationAttributionTests
           tests/test_ai_service.py::FindingsSelectorTests
           tests/test_ai_service.py::ConversationSelectionEvidenceTests
+          tests/test_ai_service.py::SubcategorySelectorReserveTests
+          tests/test_ai_service.py::CandidatePayloadTests
           tests/test_query_intent.py
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
