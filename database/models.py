@@ -175,6 +175,7 @@ FLOW_SEARCH = "search"
 
 #: See :data:`FLOW_SEARCH`. The «✨ Находки» feed scope (G24).
 FLOW_FEED = "feed"
+FLOW_THEMES = "themes"
 
 #: Retention of ONE user's feed history (``popular_shown`` rows of
 #: :data:`FLOW_FEED`): the newest rows are kept, older ones expire, so the
