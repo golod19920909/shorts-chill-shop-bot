@@ -502,6 +502,28 @@ async def _edit_to(update: Update, text: str, reply_markup) -> None:
         await message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup)
 
 
+
+async def catalog_home_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Return from catalog/thematic screens without changing protected flows."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+    reply_markup = await _main_menu_markup(
+        context, getattr(getattr(query, "from_user", None), "id", None)
+    )
+    await common.edit_message_or_replace(
+        context,
+        query,
+        WELCOME_TEXT,
+        parse_mode="HTML",
+        reply_markup=reply_markup,
+    )
+
+
 async def _show_main_menu(query, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show the menu on the message a button was pressed on.
 
