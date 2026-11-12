@@ -151,7 +151,7 @@ async def _show_more_thematic_products(
             return
 
         header = (
-            f"✨ <b>{common.escape(subcategory.title)}</b>\\n"
+            f"✨ <b>{common.escape(subcategory.title)}</b>\n"
             f"<i>{common.escape(subcategory.description)}</i>"
         )
         await send_search_results(
