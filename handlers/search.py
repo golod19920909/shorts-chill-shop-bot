@@ -1316,6 +1316,8 @@ async def send_search_results(
     history_flow: str | None = None,
     record_views: bool = True,
     home_callback: str | None = None,
+    curation_history: bool = True,
+    minimum_products: int = 0,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1357,13 +1359,36 @@ async def send_search_results(
         outcome.products = await common.curate_products(
             context,
             outcome.products,
-            user_id=user_id,
+            user_id=user_id if curation_history else None,
             mode=curation_mode or _curation_mode(outcome, track_shown),
             # G24.8 P1.1: the request travels to the wiring layer, which
             # reads it for MODE_CATEGORY only (the relevance map of the
             # category ranker); every other mode ignores it.
             request=outcome.request,
         )
+
+    if (
+        minimum_products > 0
+        and 0 < len(outcome.products) < minimum_products
+    ):
+        minimum_text = (
+            f"Пока удалось подтвердить только {len(outcome.products)} подходящих товаров. "
+            f"Для показа нужно не меньше {minimum_products}. "
+            "Не буду добавлять случайные позиции."
+        )
+        minimum_keyboard = wrap_up_keyboard or back_to_menu_keyboard()
+        if origin_query is not None:
+            await common.edit_message_or_replace(
+                context,
+                origin_query,
+                minimum_text,
+                reply_markup=minimum_keyboard,
+            )
+        else:
+            await context.bot.send_message(
+                chat_id, minimum_text, reply_markup=minimum_keyboard
+            )
+        return None
 
     if not outcome.products:
         empty_keyboard = (
