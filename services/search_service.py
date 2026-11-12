@@ -773,9 +773,17 @@ class SearchService:
         # whatever that flow already promised. How deep a deployment may walk
         # at all is its own setting (``SEARCH_MAX_PAGES``).
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
+        deep_subcategory = (
+            broaden
+            and request.mode is SearchMode.CATEGORY
+            and bool(request.subcategory_code)
+            and self.has_feed_selector
+        )
         pages = (
             list(range(first_page, self.max_search_pages + 1))
-            if broaden and request.mode is SearchMode.SEARCH
+            if broaden and (
+                request.mode is SearchMode.SEARCH or deep_subcategory
+            )
             else [first_page]
         )
 
@@ -813,6 +821,10 @@ class SearchService:
             # still-live phrase, preserving independent marketplace rankings
             # for RRF instead of deepening only whichever route ran first.
             if page_no == pages[0]:
+                page_variants = variants
+            elif request.subcategory_code and request.mode is SearchMode.CATEGORY:
+                # A curated shelf continues every bounded, configured route
+                # on deeper pages while its relevant pool is still short.
                 page_variants = variants
             elif raw:
                 page_variants = list(deep_page_variants)
@@ -1227,7 +1239,25 @@ class SearchService:
             return outcome
 
         if broaden and feed_selection:
+            subcategory_pool_size = len(outcome.products)
             await self.apply_feed_selection(outcome)
+            if request.subcategory_code:
+                logger.info(
+                    "Subcategory search metrics: code=%s routes=%d pages=%d "
+                    "raw=%d filtered_pool=%d final=%d target=%d shortfall_reason=%s",
+                    request.subcategory_code,
+                    len(variants),
+                    pages_scanned,
+                    outcome.products_before_filtering,
+                    subcategory_pool_size,
+                    outcome.found_count,
+                    AI_FEED_RESULTS,
+                    (
+                        "selection_or_curation"
+                        if subcategory_pool_size >= AI_FEED_RESULTS
+                        else "fewer_than_20_filtered_candidates"
+                    ) if outcome.found_count < AI_FEED_RESULTS else "none",
+                )
         elif broaden:
             # The agent tool path: the AI selection is skipped (the agent turn
             # already spends its own Gemini calls), but the deterministic cut
