@@ -262,7 +262,22 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
 from config.subcategory_expansion import EXTRA_SUBCATEGORIES
 from config.subcategory_type_overrides import PRODUCT_TYPE_OVERRIDES
 
-SUBCATEGORIES = (*SUBCATEGORIES, *EXTRA_SUBCATEGORIES)
+SUBCATEGORIES = (
+    *SUBCATEGORIES,
+    *(
+        Subcategory(
+            item.code,
+            item.category_code,
+            item.title,
+            item.description,
+            item.query_routes,
+            item.keywords,
+            item.product_types,
+            item.exclude_terms,
+        )
+        for item in EXTRA_SUBCATEGORIES
+    ),
+)
 SUBCATEGORIES = tuple(
     replace(
         item,
