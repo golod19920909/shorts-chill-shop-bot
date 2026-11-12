@@ -346,6 +346,10 @@ PRODUCT_TYPE_OVERRIDES: dict[str, tuple[str, ...]] = {
     ),
     "cycling": (
         "bike light",
+        "велосипедный фонарь",
+        "передний велосипедный фонарь",
+        "задний велосипедный фонарь",
+        "фонарь для велосипеда",
         "bicycle pump",
         "bike bag",
         "bike repair tool",
