@@ -805,8 +805,9 @@ async def subcategory_new_search_callback(
         logger.exception(
             "Subcategory new search failed for %r", subcategory.code
         )
-        await context.bot.send_message(
-            chat_id,
+        await _edit_or_reply(
+            update,
+            context,
             "Не удалось выполнить новый поиск. Предыдущая подборка осталась доступна — "
             "нажмите «Новый поиск» ещё раз.",
             reply_markup=subcategories_keyboard(subcategory.category_code),
