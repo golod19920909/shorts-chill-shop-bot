@@ -125,7 +125,9 @@ class SearchServiceTestCase(unittest.TestCase):
 
 
 class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
-    def test_subcategory_search_continues_all_routes_on_next_page_when_pool_is_short(self):
+    def test_subcategory_search_continues_all_routes_on_next_page(
+        self,
+    ):
         provider = self.ali_express([])
         calls: list[tuple[int, str]] = []
 
