@@ -5496,3 +5496,11 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   then ask the owner to pull the branch and run a limited live smoke across
   representative categories. Recheck the three previously documented
   unrelated CI failures without modifying them.
+
+
+- Follow-up hardening: the expansion data module now uses an independent
+  `ExtraSubcategory` dataclass, avoiding a circular import with the base
+  catalog. The original 57 non-special shelves receive explicit bilingual
+  identity aliases from the override map; the three previously broad shelves
+  keep their targeted aliases/exclusions. AI-selection telemetry now reports
+  the final post-deduplication product count.
