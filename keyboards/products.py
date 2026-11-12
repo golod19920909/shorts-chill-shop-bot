@@ -284,7 +284,7 @@ def browse_card_keyboard(
     # Spec: every product card must reach the main menu directly, even
     # when the card is a PHOTO message (the handler falls back to a
     # fresh message when Telegram cannot edit media into text).
-    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
+    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=home_callback or CB_BACK)])
 
     return InlineKeyboardMarkup(rows)
 
