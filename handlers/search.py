@@ -33,6 +33,7 @@ from keyboards.main import back_to_menu_keyboard
 from utils.formatting import is_openable_url
 from keyboards.products import (
     CB_PREFIX_BUY,
+    CB_PREFIX_CATEGORY_NEW_SEARCH,
     CB_PREFIX_FAVORITE,
     CB_PREFIX_TRACK,
     browse_card_keyboard,
@@ -1478,7 +1479,7 @@ def _browse_keyboard(
         back_callback=back_callback,
         tracking=tracked,
         new_search_callback=(
-            f"pcnew:{session_id}"
+            f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:{session_id}"
             if outcome.request.subcategory_code else None
         ),
     )
