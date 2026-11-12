@@ -696,6 +696,46 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         self.assertIn("цена не должна превышать указанную границу", prompt)
 
 
+class SubcategorySelectorReserveTests(unittest.TestCase):
+    def test_subcategory_selector_can_return_forty_ranked_ids(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        captured: list[tuple[str, str | None]] = []
+        products = [
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id=f"massage-{index}",
+                title=f"Neck massager model {index}",
+                product_url=f"https://example.com/massage-{index}",
+                price=12.0,
+                currency="USD",
+            )
+            for index in range(45)
+        ]
+
+        async def fake_generate(
+            contents, *, models=None, operation="generate"
+        ):
+            captured.append((contents, operation))
+            return json.dumps(
+                {"ids": [product.product_id for product in products[:40]]}
+            )
+
+        service._generate = fake_generate
+        selected = asyncio.run(
+            service.select_subcategory_candidates(
+                products,
+                subcategory=get_subcategory("massage_devices"),
+                wanted=40,
+            )
+        )
+
+        self.assertEqual(len(selected), 40)
+        self.assertEqual(captured[0][1], "subcategory_candidate_selection")
+        self.assertIn("первые 20", captured[0][0])
+        self.assertIn("резерв", captured[0][0])
+
+
 class CandidatePayloadTests(unittest.TestCase):
     def test_rank_payload_carries_real_marketplace_category_context(self) -> None:
         product = Product(
