@@ -153,6 +153,7 @@ def browse_card_keyboard(
     *,
     back_callback: str | None = None,
     tracking: bool = False,
+    new_search_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     """One-card browsing keyboard: actions + prev/next navigation.
 
@@ -262,6 +263,19 @@ def browse_card_keyboard(
             )
         )
     rows.append(nav)
+
+    # Curated catalog shelves expose a fresh provider search only after the
+    # user reaches the final card. Other browsing flows keep their existing
+    # keyboard and never receive this category-only action.
+    if new_search_callback and index == count - 1:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    LABEL_NEW_SEARCH,
+                    callback_data=new_search_callback,
+                )
+            ]
+        )
 
     # Spec: every product card must reach the main menu directly, even
     # when the card is a PHOTO message (the handler falls back to a
