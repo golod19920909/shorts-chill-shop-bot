@@ -46,6 +46,8 @@ from keyboards.hot_discounts import CB_HOT_SECTION_PREFIX
 from keyboards.sales import CB_SALE_PREFIX
 from keyboards.main import (
     CB_CATEGORY_PREFIX,
+    CB_CATEGORY_VIEW_PREFIX,
+    CB_SUBCATEGORY_PREFIX,
     CB_CURRENCY_PREFIX,
     CB_NAV_BACK,
     CB_NEXT_PREFIX,
@@ -303,6 +305,18 @@ def _register_handlers(application: Application) -> None:
     application.add_handler(
         CallbackQueryHandler(
             discovery.category_callback, pattern=f"^{CB_CATEGORY_PREFIX}:"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            discovery.category_view_callback,
+            pattern=f"^{CB_CATEGORY_VIEW_PREFIX}:",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            discovery.subcategory_callback,
+            pattern=f"^{CB_SUBCATEGORY_PREFIX}:",
         )
     )
     # The exhausted «✨ Находки» screen: an explicit restart of the
