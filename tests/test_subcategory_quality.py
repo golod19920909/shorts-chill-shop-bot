@@ -223,6 +223,14 @@ class SubcategoryQualityTests(unittest.TestCase):
             len({product.product_id for product in outcome.products}),
             20,
         )
+        self.assertEqual(
+            service.last_subcategory_selection_stats["selector_status"],
+            "unavailable",
+        )
+        self.assertEqual(
+            service.last_subcategory_selection_stats["finalizer_input"],
+            25,
+        )
 
     def test_subcategory_selection_uses_reserve_and_refills_to_twenty(self):
         variants = ("Portable", "Compact", "Digital", "Mini", "Heavy")
@@ -278,6 +286,13 @@ class SubcategoryQualityTests(unittest.TestCase):
             len({item.title.split()[1] for item in outcome.products}),
             10,
         )
+        diagnostics = service.last_subcategory_selection_stats
+        self.assertEqual(diagnostics["selector_status"], "success")
+        self.assertEqual(diagnostics["selector_returned_ids"], 40)
+        self.assertEqual(diagnostics["gemini_approved_candidates"], 40)
+        self.assertEqual(diagnostics["finalizer_input"], 40)
+        self.assertEqual(diagnostics["final_count"], 20)
+        self.assertEqual(diagnostics["shortfall"], 0)
 
 
     def test_window_cleaner_shelf_rejects_accessories_and_spare_parts(self):
