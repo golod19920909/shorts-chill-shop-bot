@@ -8,6 +8,7 @@ on:
       - fix/option-c-state-integrity
       - work/consultant-reliability
       - audit/aliexpress-portals-smoke-test
+      - feat/catalog-quality-and-subcategories
       - fix/conversational-search-completion-20
   pull_request:
     branches:
@@ -41,6 +42,7 @@ jobs:
           tests/test_catalog_subcategories.py
           tests/test_subcategory_search.py
           tests/test_subcategory_navigation.py
+          tests/test_subcategory_quality.py
           tests/test_eval_consultant_dialogue_dataset.py
           tests/test_eval_consultant_benchmark_runner.py
           tests/test_eval_consultant_auxiliary_dataset.py
