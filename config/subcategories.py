@@ -23,18 +23,21 @@ class Subcategory:
 
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
-    "electronics": "Гаджеты, устройства и полезная электроника",
+    "electronics": "Устройства, электроника и повседневные гаджеты",
     "home": "Практичные вещи для дома, кухни и хранения",
-    "auto": "Аксессуары и полезные устройства для автомобиля",
-    "computers": "Периферия, комплектующие и аксессуары",
-    "games": "Игровые устройства, аксессуары и развлечения",
-    "clothing": "Одежда, обувь, сумки и аксессуары",
+    "auto": "Автоэлектроника, обслуживание и аксессуары",
+    "computers": "Компьютерная техника, офис и оборудование для записи",
+    "gaming": "Игровые устройства, контроллеры и VR",
+    "clothing": "Одежда, обувь и повседневные аксессуары",
     "beauty": "Устройства и аксессуары для ухода",
     "tools": "Инструменты для ремонта, мастерской и дома",
-    "sport": "Фитнес, туризм и активный отдых",
+    "sport": "Фитнес, туризм, кемпинг и спорт",
     "pets": "Всё необходимое для домашних питомцев",
-    "kids": "Игрушки, развитие и полезные детские товары",
-    "garden": "Всё для сада, участка и дачного отдыха",
+    "kids": "Детские товары, безопасность и обучение",
+    "garden": "Садовые товары, техника и уход за участком",
+    "hobbies": "Игрушки, конструкторы, хобби и творчество",
+    "watches": "Наручные часы, украшения и бижутерия",
+    "smartphones": "Смартфоны и аксессуары к ним",
 }
 
 
@@ -290,10 +293,19 @@ SUBCATEGORIES = tuple(
     for item in SUBCATEGORIES
 )
 
+# Consolidated shelves remain resolvable for legacy callbacks but are not
+# offered as separate navigation rows.
+HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
+    "portable_gadgets", "audio", "table_lamps", "dash_cameras",
+    "pc_controllers", "console_controllers", "watches", "jewelry",
+    "dog_supplies", "cat_supplies", "outdoor", "woodworking_tools",
+    "outdoor_furniture",
+})
+
 
 _SUBCATEGORIES_BY_CODE = {item.code: item for item in SUBCATEGORIES}
 _SUBCATEGORIES_BY_CATEGORY = {
-    code: tuple(item for item in SUBCATEGORIES if item.category_code == code)
+    code: tuple(item for item in SUBCATEGORIES if item.category_code == code and item.code not in HIDDEN_SUBCATEGORY_CODES)
     for code in CATEGORY_DESCRIPTIONS
 }
 
