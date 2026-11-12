@@ -23,6 +23,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from config.catalog import CATEGORIES, CURRENCIES, CURRENCY_FLAGS, Category, get_category
 from config.subcategories import get_subcategory, get_subcategories
+from config.thematic_collections import THEMATIC_COLLECTIONS, BUDGET_TIERS
 
 # -- callback data (kept short and stable: handlers match on these) --------
 CB_SEARCH = "menu:search"
@@ -101,6 +102,7 @@ SHORTS_CHILL_URL = "https://t.me/Shorts_Chill"
 CB_CATEGORY_PREFIX = "cat"
 CB_CATEGORY_VIEW_PREFIX = "catview"
 CB_SUBCATEGORY_PREFIX = "sub"
+CB_THEME_PREFIX = "theme"
 CB_CURRENCY_PREFIX = "cur"
 #: Legacy only: buttons of the removed «Промокоды» campaign list still sit
 #: on old messages as ``pcamp:<index>``. Nothing builds such a button any
@@ -332,6 +334,44 @@ def _chunked_buttons(
     if row:
         rows.append(row)
     return rows
+
+
+
+def thematic_collections_keyboard() -> InlineKeyboardMarkup:
+    """The four approved editorial collections, separate from the catalog tree."""
+
+    rows = [
+        [InlineKeyboardButton(
+            "✨ " + item["title"],
+            callback_data=f"{CB_THEME_PREFIX}:item:{item['code']}",
+        )]
+        for item in THEMATIC_COLLECTIONS
+        if item["code"] != "budget_finds"
+    ]
+    rows.append([
+        InlineKeyboardButton(
+            "💸 " + next(item["title"] for item in THEMATIC_COLLECTIONS if item["code"] == "budget_finds"),
+            callback_data=f"{CB_THEME_PREFIX}:budget",
+        )
+    ])
+    rows.append([InlineKeyboardButton("◀️ Каталог", callback_data=CB_CATEGORIES)])
+    rows.append(home_row())
+    return InlineKeyboardMarkup(rows)
+
+
+def thematic_budget_keyboard() -> InlineKeyboardMarkup:
+    """Three explicit USD ceilings inside the single budget collection."""
+
+    rows = [
+        [InlineKeyboardButton(
+            label,
+            callback_data=f"{CB_THEME_PREFIX}:tier:{code}",
+        )]
+        for code, label in BUDGET_TIERS
+    ]
+    rows.append([InlineKeyboardButton("◀️ Тематические подборки", callback_data=f"{CB_THEME_PREFIX}:menu")])
+    rows.append(home_row())
+    return InlineKeyboardMarkup(rows)
 
 
 def currencies_keyboard() -> InlineKeyboardMarkup:
