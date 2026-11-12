@@ -74,6 +74,16 @@ class SubcategoryQualityTests(unittest.TestCase):
             "no_subcategory_product_type",
         )
 
+    def test_russian_inflections_match_catalog_aliases(self):
+        subcategory = get_subcategory("kitchen")
+        self.assertIsNotNone(subcategory)
+        self.assertIsNone(
+            subcategory_match_reason(
+                listing("kitchen-tool", "Кухонная принадлежность для кухни"),
+                subcategory,
+            )
+        )
+
     def test_final_subcategory_selection_drops_near_identical_families(self):
         products = [
             listing("a", "GuliKit KingKong 3 Max Wireless Gamepad Controller"),
