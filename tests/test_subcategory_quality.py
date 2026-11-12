@@ -245,7 +245,16 @@ class SubcategoryQualityTests(unittest.TestCase):
                 self, candidates, *, subcategory, wanted
             ):
                 self.wanted = wanted
-                return [product.product_id for product in candidates[:20]]
+                # Simulate Gemini using the full 40-ID budget while spreading
+                # its approved primary + reserve candidates across all ten
+                # product families. The selector must not return only the
+                # first 20 family-clustered rows when the test exercises refill.
+                diverse = [
+                    candidates[family * len(variants) + variant_index]
+                    for variant_index in range(4)
+                    for family in range(10)
+                ]
+                return [product.product_id for product in diverse[:wanted]]
 
         selector = Selector()
         service = SearchService([], ai_service=selector)
