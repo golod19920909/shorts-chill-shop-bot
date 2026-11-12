@@ -527,8 +527,7 @@ class ShownHistoryTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self) -> None:
                 self.exclude = "unset"
 
-            async def find_products(self, request, *, exclude=None, broaden=True,
-                                    feed_selection=False):
+            async def find_products(self, request, *, exclude=None, **kwargs):
                 self.exclude = exclude
                 return SearchOutcome(request=request)
 
@@ -570,7 +569,7 @@ class EngineInstrumentationTests(unittest.TestCase):
         from services.convsearch.state import ConversationEngineState
 
         class RecordingService:
-            async def find_products(self, request, *, exclude=None, feed_selection=False):
+            async def find_products(self, request, *, exclude=None, **kwargs):
                 return SearchOutcome(request=request)
 
         engine = ConversationSearchEngine()
@@ -652,6 +651,7 @@ class _RecordingDiscoveryService:
         self.broadened: list[bool] = []
         self.category_kwargs: list[dict] = []
         self.feed_pages: list[int] = []
+        self.last_findings_stats: dict = {}
         self._product = product
 
     def _result(self, query: str) -> SearchOutcome:
@@ -682,12 +682,17 @@ class _RecordingDiscoveryService:
         self.calls.append(("photo", exclude))
         return self._result(text)
 
-    async def find_products(self, request, *, exclude=None, broaden=True):
-        # The photo flow builds its own concept request and searches with
-        # it directly (handlers.discovery.photo_message).
+    async def find_products(self, request, *, exclude=None, broaden=True, **kwargs):
+        # The current photo flow may issue a second bounded request for its
+        # grounded fallback category when the primary result set is too small.
         self.calls.append(("photo", exclude))
         self.broadened.append(broaden)
         return self._result(request.original_query)
+
+    async def curate_findings(self, outcome, *, wanted=20):
+        # The production feed performs one post-page curation step. This fake
+        # records retrieval wiring only, so keep the supplied real-shaped pool.
+        self.last_findings_stats = {"selected": len(outcome.products)}
 
 
 class _FakeVision:
@@ -868,11 +873,13 @@ class MenuWiringTests(unittest.TestCase):
 
         run(discovery.photo_message(FakeUpdate(message=message), context))
 
+        # The current photo handler performs a primary search and, for this
+        # deliberately tiny fixture, a bounded fallback-category search.
         self.assertEqual(
             [flow for flow, _ in service.calls],
-            ["photo"],
+            ["photo", "photo"],
         )
-        self.assertEqual(service.calls[0][1], self.seen)
+        self.assertEqual([exclude for _, exclude in service.calls], [self.seen, self.seen])
         rows = run(self.db.get_shown_products(self.user_id))
         self.assertIn(("aliexpress", "400"), rows)
 
