@@ -1460,7 +1460,7 @@ class SearchService:
         primary_cursor = {key: 0 for key in type_keys}
 
         # First pass: spread the strongest family representatives across
-        # product types, with a small adaptive allowance above equal shares.
+        # product types, using an equal-share cap adapted to represented types.
         while len(selected) < max(0, int(limit)):
             added = False
             for type_key in type_keys:
