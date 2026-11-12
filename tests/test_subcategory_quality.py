@@ -128,6 +128,16 @@ class SubcategoryQualityTests(unittest.TestCase):
             ),
             "excluded_title_concept",
         )
+        self.assertEqual(
+            subcategory_match_reason(
+                listing(
+                    "cross-sell",
+                    "Car body repair kit, spot welding machine included",
+                ),
+                subcategory,
+            ),
+            "no_subcategory_product_type",
+        )
 
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
         subcategory = get_subcategory("massage_devices")
