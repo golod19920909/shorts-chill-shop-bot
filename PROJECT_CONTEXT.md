@@ -5821,3 +5821,11 @@ preserves the one-call selector and avoids additional model calls.
 
 Latest correction commit: `4417cc5e4f94470dc06b4634a78ff354ff78a816`.
 Local execution of the tests after this commit is still required.
+
+### Subcategory reserve-test contract (2026-11-12)
+
+The subcategory selector test fixture must model the production contract: when
+it is asked for up to 40 IDs, it must actually return a representative approved
+set of primary and reserve candidates. A fixture that returns only the first
+20 family-clustered IDs cannot test reserve refill or ten-family diversity;
+the production finalizer must not silently reintroduce IDs omitted by Gemini.
