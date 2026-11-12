@@ -581,7 +581,7 @@ class EngineInstrumentationTests(unittest.TestCase):
                     "logtest", "наушники беспроводные", state=state
                 )
             )
-        line = next(entry for entry in logs.output if "convsearch" in entry)
+        line = next(entry for entry in logs.output if "convsearch action=" in entry)
         self.assertIn("action=", line)
         self.assertIn("reason=", line)
 
@@ -854,7 +854,7 @@ class MenuWiringTests(unittest.TestCase):
             service.calls,
             [
                 ("feed", {("aliexpress", "rotated")}),
-                ("feed", {("aliexpress", "rotated")}),
+                ("feed", {("aliexpress", "rotated"), ("aliexpress", "300")}),
             ],
         )
         self.assertEqual(service.feed_pages, [1, 40])
