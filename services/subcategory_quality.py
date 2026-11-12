@@ -24,7 +24,11 @@ def _tokens(value: str | None) -> tuple[str, ...]:
 
 
 def _token_matches(token: str, term: str) -> bool:
-    if token == term or token.startswith(term) or term.startswith(token):
+    if token == term:
+        return True
+    if len(token) < 3 or len(term) < 3:
+        return False
+    if token.startswith(term) or term.startswith(token):
         return True
     if len(token) >= 4 and len(term) >= 4:
         if token[:4] == term[:4] and token[0] in "абвгдеёжзийклмнопрстуфхцчшщьыъэюя":
