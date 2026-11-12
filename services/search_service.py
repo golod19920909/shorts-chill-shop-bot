@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from config.catalog import Category
 from config.subcategories import Subcategory, get_subcategory
 from config.settings import settings as app_settings
+from curation.pipeline import DeduplicationFilter
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
@@ -1352,8 +1353,18 @@ class SearchService:
         """Remove near-copies and keep one representative per product family."""
         exact = deduplicate_products(products)
         near = feed_curation.drop_near_duplicates(exact)
-        diverse = feed_curation.family_select(near, limit=max(0, int(limit)), per_family=1, threshold=0.58)
-        logger.info("Subcategory final curation: input=%d exact=%d near=%d final=%d", len(products), len(exact), len(near), len(diverse))
+        family_gate = DeduplicationFilter(threshold=0.72)
+        diverse: list[Product] = []
+        for candidate in near:
+            if any(family_gate.similar(candidate, kept) for kept in diverse):
+                continue
+            diverse.append(candidate)
+            if len(diverse) >= max(0, int(limit)):
+                break
+        logger.info(
+            "Subcategory final curation: input=%d exact=%d near=%d family=%d final=%d",
+            len(products), len(exact), len(near), len(near) - len(diverse), len(diverse),
+        )
         return diverse
 
     async def apply_feed_selection(self, outcome: SearchOutcome) -> None:
@@ -1388,6 +1399,7 @@ class SearchService:
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = _cut_with_numeric_protection(outcome.products, fallback_limit, outcome.request)
             outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            outcome.comparisons = build_comparison(outcome.products)
             log_ai_selection_outcome(
                 logger,
                 context=context_query,
@@ -1482,9 +1494,10 @@ class SearchService:
             # The model named nothing usable: the honest deterministic list is
             # better than an empty screen - still cut with the same bounded
             # numeric-spec pool protection as every deterministic fallback.
-            outcome.products = _cut_with_numeric_protection(
-                pool, self.max_results, outcome.request
-            )
+            fallback_limit = limit if subcategory is not None else self.max_results
+            fallback = _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
+            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
+            outcome.comparisons = build_comparison(outcome.products)
             log_ai_selection_outcome(
                 logger,
                 context=context_query,
