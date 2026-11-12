@@ -79,3 +79,8 @@ unfiltered full-suite pass.
   callbacks, and never mutate favorites or price tracking.
 - Offline tests must cover accessory/spare-part rejection, legitimate product
   sets, finalizer revalidation, and final-card-only button visibility.
+
+- The bounded real-provider acceptance runner is
+  `scripts/validate_catalog_subcategories.py`. Use it only for explicit
+  live validation, not in offline pytest; default run checks every configured
+  subcategory and writes a JSON report under `reports/`.
