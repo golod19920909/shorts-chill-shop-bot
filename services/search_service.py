@@ -1354,8 +1354,8 @@ class SearchService:
     ) -> list[Product]:
         """Deduplicate and spread product families, then refill from the reserve.
 
-        Gemini supplies up to 30 ranked, approved IDs: 20 primary positions
-        plus 10 reserves. Near-identical listings are removed first. The
+        Gemini supplies up to 40 ranked, approved IDs: 20 primary positions
+        plus 20 reserves. Near-identical listings are removed first. The
         family pass prefers no more than two products from one title family,
         but deferred candidates refill any remaining slots when the pool has
         fewer distinct families. This keeps diversity a preference, not a
@@ -1366,8 +1366,8 @@ class SearchService:
         near = feed_curation.drop_near_duplicates(exact)
         family_gate = DeduplicationFilter(threshold=0.50)
         diverse: list[Product] = []
-        deferred: list[Product] = []
         families: list[tuple[Product, int]] = []
+        deferred_by_family: list[list[Product]] = []
 
         for candidate in near:
             for index, (representative, count) in enumerate(families):
@@ -1377,15 +1377,30 @@ class SearchService:
                     families[index] = (representative, count + 1)
                     diverse.append(candidate)
                 else:
-                    deferred.append(candidate)
+                    deferred_by_family[index].append(candidate)
                 break
             else:
                 families.append((candidate, 1))
+                deferred_by_family.append([])
                 diverse.append(candidate)
 
-        refill_count = min(max(0, int(limit) - len(diverse)), len(deferred))
-        if refill_count:
-            diverse.extend(deferred[:refill_count])
+        # If there are fewer than ten distinct families, refill in rounds:
+        # take one additional candidate from each family before taking a
+        # third/fourth from any one family. This keeps the fallback balanced.
+        refill_count = 0
+        while len(diverse) < max(0, int(limit)):
+            added_in_round = False
+            for deferred in deferred_by_family:
+                if not deferred:
+                    continue
+                diverse.append(deferred.pop(0))
+                refill_count += 1
+                added_in_round = True
+                if len(diverse) >= max(0, int(limit)):
+                    break
+            if not added_in_round:
+                break
+        deferred_count = sum(len(items) for items in deferred_by_family) + refill_count
 
         logger.info(
             "Subcategory final curation: input=%d exact=%d near=%d "
@@ -1394,7 +1409,7 @@ class SearchService:
             len(exact),
             len(near),
             len(families),
-            len(deferred),
+            deferred_count,
             refill_count,
             min(len(diverse), max(0, int(limit))),
         )
