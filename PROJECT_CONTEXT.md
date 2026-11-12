@@ -5907,3 +5907,54 @@ Focused tests assert both successful 40-ID reserve selection and the no-AI
 deterministic fallback diagnostics. The next live report can now distinguish
 a short Gemini-approved set from losses in the finalizer instead of inferring
 the cause from the final card count alone.
+
+---
+
+## 2026-11-12 — Final catalog completion pass (in progress)
+
+### Baseline live acceptance
+
+Latest real AliExpress/Gemini report before this pass:
+- 96 subcategories checked; 57 returned 20 cards, 37 were short, 1 empty,
+  and 1 had a full provider error.
+- 1,450 / 1,920 cards (75.5%); 92 provider successes, 3 partial failures,
+  1 full failure.
+- In 36 of 39 short shelves, the filtered candidate pool was below 20.
+- Many shelves had 200–290 raw rows but only 1–18 candidates after the
+  subcategory identity gate. The primary problem is catalog identity coverage
+  and classification, not raw API row volume alone.
+
+### First implementation pass on feat/catalog-quality-and-subcategories
+
+- Tightened catalog-local Russian token matching from a four-character to a
+  five-character stem. This prevents unrelated identities sharing «вело»
+  from being merged (for example, «велосипедный» vs «велофонарь»).
+  The shared conversational type validator was deliberately not changed.
+- Expanded concrete product-type aliases for weak broad shelves, including
+  portable gadgets, bathroom, car interior/electronics, computer components,
+  console accessories, cycling, outdoor, power tools, fishing, fitness,
+  camping, streaming and outdoor leisure.
+- Expanded configured routes for those shelves and for console controllers,
+  network equipment, PC controllers, woodworking tools, water sports,
+  sports electronics, pet training and outdoor furniture.
+- Added explicit cycling light aliases so Russian titles such as
+  «велосипедный фонарь» remain valid after the stricter stem rule.
+- SearchOutcome now retains the exact relevance rejection breakdown.
+  The live runner reports routes, route count, rejection reasons and a
+  shortfall reason separately from provider health and Gemini diagnostics.
+- Added offline regressions for cycling subtype identity, concrete portable
+  gadget identity, bathroom product coverage, console controller/accessory
+  separation, sports heart-rate strap identity and rejection diagnostics.
+
+### Validation status
+
+- Source and test updates are committed to this feature branch only.
+- Offline pytest and real AliExpress/Gemini live validation have NOT yet been
+  executed after this pass. Do not mark the catalog task complete.
+- Next required actions: pull the feature branch locally, run focused catalog
+  tests, correct any failures, then run the 96-subcategory live validator and
+  compare its JSON with the baseline above.
+- Preserve main, PR #10, .env and unrelated local files. Do not relax the
+  Gemini-approved-ID boundary, selector call count, timeout or deterministic
+  fallback to inflate shelf counts.
+
