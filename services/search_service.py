@@ -263,6 +263,9 @@ class SearchOutcome:
     #: marketplace returned no affiliate link for them. Both are reported
     #: instead of being silently swallowed.
     products_dropped_as_irrelevant: int = 0
+    #: Category-specific rejection breakdown for live shelf diagnostics.
+    #: This is observation only and never changes the filtering decision.
+    relevance_drop_reasons: dict[str, int] = field(default_factory=dict)
     products_without_affiliate_url: int = 0
 
     #: How many products this open hid because THIS user had already been
@@ -2019,6 +2022,7 @@ class SearchService:
         else:
             relevant, dropped = filter_relevant(collected, request)
         outcome.products_dropped_as_irrelevant = sum(dropped.values())
+        outcome.relevance_drop_reasons = dict(dropped)
         if dropped:
             logger.info(
                 "Relevance filter for %r removed %d of %d products (%s)",
