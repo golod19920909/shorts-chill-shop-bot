@@ -6441,3 +6441,6 @@ code changes or select vendors.
 - Environment limitation: the GitHub-connected workspace cannot access the user's local `.env` or execute the repository's Windows `.venv`. Therefore the official `aliexpress.affiliate.category.get` call and `scripts/validate_catalog_subcategories.py` live run cannot honestly be reported as completed here. Do not infer category IDs or live shelf quality from docs or prior reports. A credential-safe local execution/report handoff is required for that gate.
 - The initial Stage 3 source review has begun; no catalog code, callbacks, menu, or UI have been changed yet. «Умный поиск» and «✨ Находки» remain strictly protected.
 - Approval record was appended to the Stage 2 proposal in commit `c8bb778b7433ccf8cf469f1c096ceee42be914ff`.
+
+
+- Stage 3 source-review report added at `docs/catalog-stage-3-validation-2026-11-12.md` (commit `30eed60a751c155ca7f50afe402a0375dae38d8b`). It records the legacy 12-parent/96-shelf implementation, existing offline test coverage, the category.get integration gap, the available live shelf runner, and the exact local validation gates. No code/config/UI changes and no tests/live calls were made. Stage 3 remains open pending local offline and live results plus a credential-safe category-tree diagnostic.
