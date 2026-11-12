@@ -181,6 +181,7 @@ def remember_outcome(
     track_shown: bool = False,
     history_flow: str | None = None,
     record_views: bool = True,
+    home_callback: str | None = None,
 ) -> str:
     """Cache a search outcome in memory and return a short session id.
 
@@ -214,6 +215,7 @@ def remember_outcome(
         "track_shown": track_shown,
         "history_flow": history_flow,
         "record_views": record_views,
+        "home_callback": home_callback,
     }
 
     while len(cache) > MAX_CACHED_SESSIONS:
