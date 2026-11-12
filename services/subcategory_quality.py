@@ -34,30 +34,12 @@ def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
         if len(term) < 3:
             return False
         return any(token == term or token.startswith(term) for token in title_tokens)
-    matched_positions: list[int] = []
-    cursor = 0
-    for term in wanted:
-        found = next(
-            (
-                index for index in range(cursor, len(title_tokens))
-                if title_tokens[index] == term or title_tokens[index].startswith(term)
-            ),
-            None,
-        )
-        if found is None:
-            # Multi-word aliases may be reordered in marketplace titles.
-            found = next(
-                (
-                    index for index, token in enumerate(title_tokens)
-                    if token == term or token.startswith(term)
-                ),
-                None,
-            )
-        if found is None:
-            return False
-        matched_positions.append(found)
-        cursor = found + 1
-    return True
+    # Multi-word aliases may be reordered in marketplace titles; every
+    # meaningful component must still be present.
+    return all(
+        any(token == term or token.startswith(term) for token in title_tokens)
+        for term in wanted
+    )
 
 
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
