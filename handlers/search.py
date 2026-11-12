@@ -596,7 +596,7 @@ async def _narrow_shown_results(
         await context.bot.send_message(
             message.chat_id,
             follow_up,
-            reply_markup=back_to_menu_keyboard(),
+            reply_markup=empty_keyboard,
         )
     return True
 
@@ -1365,6 +1365,7 @@ async def send_search_results(
         )
 
     if not outcome.products:
+        empty_keyboard = wrap_up_keyboard or back_to_menu_keyboard()
         # Technical reasons (missing keys, a failing source, how many
         # candidates the gate dropped) are for the log only: the chat must
         # never explain the bot's internals to the user.
@@ -1408,7 +1409,7 @@ async def send_search_results(
             )
         else:
             await context.bot.send_message(
-                chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
+                chat_id, EMPTY_RESULT_TEXT, reply_markup=empty_keyboard
             )
         if conversation_state is not None:
             conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
