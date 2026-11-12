@@ -84,3 +84,11 @@ unfiltered full-suite pass.
   `scripts/validate_catalog_subcategories.py`. Use it only for explicit
   live validation, not in offline pytest; default run checks every configured
   subcategory and writes a JSON report under `reports/`.
+
+- Subcategory subtype reporting must use only aliases approved by the shared
+  principal-product validator; when multiple valid aliases occur in one title,
+  the earliest principal identity wins over later bundled add-ons. Keep shelf
+  intent/exclusions in catalog configuration, not query-specific code.
+- Live catalog reports distinguish provider health from shelf card-count
+  status. AliExpress evaluate_rate is a positive-feedback percentage, not
+  a 0-5 star rating; preserve it as positive_rate and never derive stars.
