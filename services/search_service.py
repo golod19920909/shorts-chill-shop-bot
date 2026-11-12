@@ -1452,7 +1452,7 @@ class SearchService:
             if type_count <= 1
             else min(
                 max(1, int(limit)),
-                max(2, (max(0, int(limit)) + type_count - 1) // type_count + 1),
+                max(1, (max(0, int(limit)) + type_count - 1) // type_count),
             )
         )
         selected: list[Product] = []
