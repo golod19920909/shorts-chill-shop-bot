@@ -148,7 +148,9 @@ async def edit_message_or_replace(
         else:
             await query.edit_message_text(text, **kwargs)
         return True
-    except Exception:
+    except Exception as exc:
+        if "message is not modified" in str(exc).lower():
+            return True
         logger.warning(
             "Telegram rejected an in-place navigation edit; trying a safe replacement",
             exc_info=True,
