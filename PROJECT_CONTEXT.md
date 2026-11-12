@@ -6402,3 +6402,18 @@ discount feed have been implemented or accepted. This note records the user's
 strategic direction and the actual code seams discovered; it does not authorize
 code changes or select vendors.
 
+
+
+## 2026-11-12 — Stage 1 catalog taxonomy audit completed (documentation only)
+
+- Completed a read-only review of all **12 current parent categories and 96 configured subcategories** on `feat/catalog-quality-and-subcategories`.
+- Added the detailed 96-row audit, per-shelf live metrics, product-type distribution, preliminary recommendations, overlap analysis, API findings and draft taxonomy direction to `docs/catalog-taxonomy-audit-2026-11-12.md`.
+- Live baseline used: `catalog_subcategory_live_20261112_132853.json` (96 shelves; 57 full 20-card shelves, 37 short, 1 empty, 1 provider failure; 1,450/1,920 cards; provider health 92 ok / 3 partial failures / 1 failed). Previous run at 12:34 returned 1,452 cards, so the later run is not a net improvement by total count.
+- Confirmed official AliExpress Affiliate documentation for `aliexpress.affiliate.category.get` and `product.query.category_ids`. The repository only declares `METHOD_CATEGORY_GET`; it does not call or normalize that method. The current provider path does not use category_ids, and the normalized product category path stores category names rather than category IDs.
+- No live category.get call was possible in this environment because the user's local credentials are not available. No category IDs have been guessed or written into configuration.
+- Preliminary structural issues: duplicated audio/headphone/speaker/microphone and streaming/webcam boundaries; home lighting/table lamps; overlapping controllers/console accessories; watches/jewelry duplicated under fashion accessories; pet-by-species shelves overlap with pet beds/toys; camping/outdoor and outdoor leisure/furniture; hand tools/woodworking and power tools/garden power tools/lawn care.
+- Preliminary hierarchy proposal (14 areas) is recorded in the audit document only. It is not approved and does not authorize moving, deleting or renaming catalog entries.
+- **No code/configuration/navigation changes were made.** Protected «Умный поиск» and «✨ Находки», photo search, favorites, price tracking, currencies, Option C and Gemini limits remain untouched. `main`, PR #10, `.env` and unrelated files were not changed.
+- Offline pytest was not run because this stage is read-only. No live API calls were made in this environment.
+- Next gate: present and obtain approval for the proposed category hierarchy (Stage 2). Do not edit catalog configuration or navigation before approval. After approval, perform the real category.get check with the user's local credentials, then proceed to catalog quality validation.
+- Audit commit: `6ba7d44bccb5967db8995173af0260d50c7917b2`; the context update follows as a separate documentation-only commit.
