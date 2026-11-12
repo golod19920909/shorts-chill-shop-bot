@@ -65,6 +65,7 @@ def _product_report(product, subcategory) -> dict:
         "price": product.price,
         "currency": product.currency,
         "rating": product.rating,
+        "positive_rate": product.positive_rate,
         "orders_count": product.orders_count,
         "has_image": bool(product.image_url),
         "has_affiliate_url": bool(product.has_affiliate_url),
@@ -116,11 +117,24 @@ async def _run(args: argparse.Namespace) -> int:
                 else:
                     status = "empty"
 
+                # Shelf result count and provider health are separate facts.
+                # A route can return useful rows while another route fails;
+                # don't hide that partial failure behind "short" or "empty".
+                if outcome.failed_marketplaces and outcome.searched_marketplaces:
+                    provider_status = "partial_failure"
+                elif outcome.failed_marketplaces:
+                    provider_status = "failed"
+                elif outcome.unavailable_marketplaces:
+                    provider_status = "unavailable"
+                else:
+                    provider_status = "ok"
+
                 row = {
                     "code": subcategory.code,
                     "category_code": subcategory.category_code,
                     "title": subcategory.title,
                     "status": status,
+                    "provider_status": provider_status,
                     "raw_candidates": outcome.products_before_filtering,
                     "dropped_as_irrelevant": outcome.products_dropped_as_irrelevant,
                     "after_constraints": outcome.products_after_constraints,
@@ -157,7 +171,7 @@ async def _run(args: argparse.Namespace) -> int:
             summary[row["status"]] += 1
             logger.info(
                 "LIVE SUBCATEGORY %d/%d code=%s status=%s raw=%d "
-                "dropped=%d final=%d types=%s duration_ms=%d",
+                "dropped=%d final=%d provider_status=%s types=%s duration_ms=%d",
                 index,
                 len(subcategories),
                 row["code"],
@@ -165,6 +179,7 @@ async def _run(args: argparse.Namespace) -> int:
                 row.get("raw_candidates", 0),
                 row.get("dropped_as_irrelevant", 0),
                 row.get("final_count", 0),
+                row.get("provider_status", "exception"),
                 row.get("type_counts", {}),
                 row["duration_ms"],
             )
@@ -185,6 +200,14 @@ async def _run(args: argparse.Namespace) -> int:
         "max_pages_per_route": search_service.max_search_pages,
         "total_subcategories": len(subcategories),
         "summary": dict(summary),
+        "provider_status_summary": dict(Counter(
+            row.get("provider_status", "exception") for row in results
+        )),
+        "rating_semantics": (
+            "AliExpress Affiliate product.query exposes evaluate_rate "
+            "(positive feedback percentage), not a 0-5 star rating. "
+            "rating may therefore be null while positive_rate is populated."
+        ),
         "results": results,
     }
 
