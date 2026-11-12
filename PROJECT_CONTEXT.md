@@ -5958,3 +5958,256 @@ Latest real AliExpress/Gemini report before this pass:
   Gemini-approved-ID boundary, selector call count, timeout or deterministic
   fallback to inflate shelf counts.
 
+---
+
+## 2026-11-12 — Consolidated handoff: work from the last week and next direction
+
+This section consolidates the recent work and decisions so a new session can resume
+without relying on chat history. It supplements, and does not replace, the detailed
+architecture and historical implementation notes above.
+
+### Hard product/UI boundaries — MUST PRESERVE
+
+- The existing main-menu **«Умный поиск»** and **«✨ Находки»** are protected,
+  production features. They took substantial effort to stabilize.
+- Do not rename, move, redesign, replace, refactor, reroute, change callbacks,
+  alter search/feed behavior, or otherwise touch either feature while working
+  on catalog navigation or new discovery ideas.
+- Any change that could affect either feature requires the user's explicit,
+  separate approval first. A broad approval to work on catalog/categories does
+  NOT authorize changes to these two main-menu features.
+- The only currently discussed extension is an independent, optional
+  **«Тематические подборки»** area. It must be additive and isolated; it must
+  not be implemented by repurposing «Умный поиск» or «Находки».
+- Candidate themes (not yet approved as a final taxonomy or implementation):
+  1. «Необычные полезные устройства»
+  2. «Умные решения для дома»
+  3. «Интересные автомобильные аксессуары»
+  4. «Гаджеты, о которых мало кто знает»
+  5. «Полезные мелочи до определённого бюджета»
+- These are editorial/product-discovery collections, NOT new AliExpress taxonomy
+  categories. Each needs explicit inclusion/exclusion criteria, concrete product
+  types and real-provider validation before UI implementation. Do not create
+  broad queries and hope that they produce relevant results. Do not fill a
+  collection with irrelevant products to reach a target count.
+- Budget collections must use current/verified price data and must not present
+  stale or missing prices as current.
+- Collections may overlap naturally (a product can qualify for more than one),
+  but each collection must be independently useful and avoid repetitive
+  near-identical products.
+- Do not start implementation until the user approves the proposed collection
+  definitions and the acceptance criteria.
+
+### Mandatory workflow for EVERY future task / TZ
+
+1. Read the current `AGENTS.md` and `PROJECT_CONTEXT.md` before making changes.
+2. Check the actual current branch, HEAD, worktree state where available,
+   and inspect relevant source/call sites. Never assume a historical branch
+   or commit is still current.
+3. Translate the user's TZ into explicit scope, protected areas, acceptance
+   criteria and non-goals before editing.
+4. Make minimal, task-scoped changes only. Do not touch `main`, PR #10,
+   `.env`, user backups, reports, temporary JSON files or unrelated features
+   without explicit authorization.
+5. Run the exact relevant offline tests; clearly distinguish tests actually
+   executed from tests merely added or recommended. Never claim CI/live checks
+   passed without evidence.
+6. For live AliExpress/Gemini checks, use the user's local configured
+   environment and report the exact run/report. Offline tests do not replace
+   live validation.
+7. After every completed TZ, update this existing `PROJECT_CONTEXT.md` with
+   scope, decisions, changed files, commit/branch, exact test commands/results,
+   live evidence and remaining work. Preserve prior useful history; do not
+   replace the file with a short summary.
+8. Review the final diff and confirm protected features and unrelated files
+   were not changed.
+9. If local execution or credentials are unavailable to the assistant, state
+   that plainly and provide the smallest necessary user-side verification step.
+
+### Recent work areas (approximately 2026-11-05 through 2026-11-12)
+
+#### 1. Conversational search / reliability work
+
+- The authoritative architecture is hybrid **Option C**:
+  Gemini interprets the user's conversational turn and returns a validated
+  structured decision; deterministic state, retrieval, validation, constraints,
+  ranking and Telegram delivery remain authoritative.
+- The removed full Gemini ShoppingAgent/tool loop must not return.
+- Retrieval uses AliExpress Affiliate API only, bounded grounded routes and
+  deterministic RRF. Product identity, hard budget, required features,
+  exclusions and accessory compatibility are validated deterministically.
+- Gemini candidate selection is bounded and may approve only real candidate
+  IDs. Timeouts/errors use the documented deterministic fallback; no invented
+  products/specifications/links/prices.
+- Recent regressions addressed contextual refinements, explicit product
+  switches, stale conversational slots, material/use-case follow-ups, product
+  identity versus accessories/genitive mentions, and candidate relevance.
+- Relevant historical branches/commits in the wider recent work include
+  `work/consultant-reliability`, `fix/gemini-quality-preserving-selection`,
+  and the conversational Option C changes documented earlier in this file.
+  These are historical references, not an assertion about the user's current
+  local checkout. Always inspect the actual current branch before proceeding.
+- Previous local test evidence from the reliability pass included 2,210 tests
+  plus 730 subtests in a filtered regression run, and a separate
+  2,029-test/668-subtest run in the later work history. These counts belong to
+  their respective historical runs only; do not treat them as validation of
+  the current catalog branch.
+- A separate focused catalog run previously reported 137 passed, 2 failed,
+  6 subtests passed; the two failures were identified as pre-existing
+  `GroundedProductQuestionTests` return-contract mismatches in
+  `AIService.answer_product_question_with_recommendation`, also present on
+  the baseline branch. Do not change that unrelated method as part of catalog
+  work without a separate TZ.
+
+#### 2. AliExpress provider / Affiliate API smoke and diagnostics
+
+- The project uses AliExpress Affiliate API / Portals, not ordinary-page
+  scraping. Do not introduce scraping, another marketplace, Alibaba or Temu.
+- A live provider smoke previously returned normalized products and affiliate
+  links across eight broad query families with 0 API errors and 0 retries.
+  One product ID overlapped between page 1 and page 2 for wireless headphones;
+  this was treated as a cross-page overlap handled by pipeline deduplication,
+  not as an API failure. Page 2 must contain at least one unseen ID; duplicates
+  within the same page remain a failure.
+- A separate official Portals monetization diagnostic (gateway
+  `https://api-sg.aliexpress.com/sync`) found:
+  - featured campaigns call succeeded but returned 0 campaigns;
+  - product lookup was skipped because no exact campaign name/date range was
+    available;
+  - order-list call succeeded but returned 0 orders / empty response fields;
+  - 2 calls succeeded, 0 failed;
+  - the client normalized HTTP 405 "The result is empty" to an empty object,
+    hiding some response structure. Improve safe diagnostics (response code,
+    message, nested field shape and empty-result counters) before treating an
+    empty response as a usable campaign/order result.
+- No monetization implementation was authorized from that diagnostic alone.
+  The bot remains free; Premium, subscriptions, Telegram Stars and paid query
+  limits remain deferred. Monetization roadmap is a separate workstream and
+  must not be mixed into catalog changes.
+
+#### 3. Gemini cost / latency / usage analytics
+
+- A separate benchmark compared Gemini Flash and Flash-Lite:
+  - Flash-Lite: 43 requests / 32 accepted (74.4%);
+  - Flash: 43 / 19 accepted (44.2%) in the measured sample;
+  - measured conversation-turn p50: approximately 970 ms for Lite versus
+    3,628 ms for Flash;
+  - chat-action p50: approximately 826 ms for Lite versus 3,849 ms for Flash.
+- Flash-Lite was materially faster and had better acceptance in that sample.
+  These are historical benchmark observations, not a universal model-quality
+  claim or a current production setting guarantee.
+- Usage analytics/dashboard work tracks request ID, operation, model, prompt
+  size/tokens, candidate counts, thoughts, total tokens, cost status and
+  latency. The local dashboard was previously configured at
+  `http://127.0.0.1:8765` with HTTP Basic authentication.
+- Gemini quota exhaustion / RESOURCE_EXHAUSTED occurred during earlier testing;
+  the user later added funds. Preserve fallback and cost visibility. Do not
+  weaken search quality or change model routing/limits during catalog tasks.
+
+#### 4. Catalog categories / subcategories — current active workstream
+
+- The current feature branch identified in the recent project context is
+  `feat/catalog-quality-and-subcategories`. The last explicitly documented
+  commit in the earlier handoff was
+  `db6e3912357ceeeeabf371954220b4206d0c370a`; this must be rechecked against
+  the live branch HEAD before any pull, update or new commit.
+- Catalog work has included:
+  - a shared principal-product/accessory identity gate at retrieval and
+    finalizer boundaries;
+  - subtype aliases, routes, family balancing and deterministic dedup/refill;
+  - a 40-ID Gemini approval/reserve contract, with strict approval boundary;
+  - repeat-search button on the final card of a subcategory shelf, excluding
+    prior batches and persisted shown history and preventing replay/concurrency;
+  - provider health separated from shelf card-count status;
+  - positive_rate reporting without misrepresenting AliExpress evaluate_rate
+    as a 0–5 star rating;
+  - live acceptance diagnostics for selection, finalizer, subtype/family and
+    relevance rejection reasons.
+- A first 96-subcategory live report returned 1,452/1,920 products (75.6%):
+  59 shelves at 20, 33 short, 3 empty, 1 provider error.
+- The latest baseline report before the final completion pass returned
+  1,450/1,920 (75.5%): 57 shelves at 20, 37 short, 1 empty, 1 full provider
+  error; provider status 92 ok, 3 partial_failure, 1 failed.
+- In 36 of 39 short shelves, the filtered candidate pool was below 20. This
+  points mainly to taxonomy/identity/retrieval coverage rather than simply
+  increasing raw page counts. Examples of problematic shelves and quality
+  observations are documented in the catalog sections above and in the
+  timestamped JSON reports.
+- Latest known baseline report:
+  `catalog_subcategory_live_20261112_132853.json`
+  (conversation file reference `turn1file0`). Earlier report:
+  `catalog_subcategory_live_20261112_123423.json`.
+- The subsequent final catalog completion pass expanded routes/aliases and
+  added diagnostics/tests, but no post-change local pytest run or 96-shelf
+  live run has been verified. Treat the branch as **unverified/in progress**,
+  not accepted.
+- Outstanding catalog acceptance:
+  1. inspect current branch diff and confirm latest HEAD;
+  2. pull/fast-forward locally without overwriting local work, `.env`,
+     backups or reports;
+  3. run focused catalog tests and resolve only task-related failures;
+  4. inspect real product relevance/diversity, not just card counts;
+  5. validate the repeat-search flow in Telegram;
+  6. rerun the real 96-shelf validator and compare with the baseline;
+  7. complete regression checks and document the exact outcome.
+- Do not force every shelf to 20 if only fewer relevant products exist. Never
+  fill with irrelevant or fabricated products. Do not weaken the Gemini
+  approved-ID boundary, selector call count, 8-second timeout, identity gate,
+  duplicate/family rules or deterministic fallback just to inflate counts.
+
+#### 5. Catalog strategy decision reached on 2026-11-12
+
+- The user questioned whether the original 96 subcategories were correctly
+  designed. The agreed direction is to reassess the taxonomy before more
+  search-route tuning: compare AliExpress's real category tree with current
+  shelves, identify clear mappings, duplicates, overly broad/ambiguous groups,
+  and categories with insufficient relevant supply.
+- Prefer recognizable AliExpress-style product taxonomy, adapted to a curated
+  bot catalog. Do not copy the entire AliExpress tree blindly and do not add
+  categories merely to make the menu look full.
+- A proposed 12-section top-level map was discussed (electronics/phones;
+  computers/office; home/garden; tools/repair; auto/moto; sports/recreation;
+  beauty/personal care; baby/kids; pets; clothing/accessories; toys/hobbies;
+  jewelry/watches). This is only a discussion draft, not an approved final
+  category structure.
+- Before coding taxonomy changes, prepare a mapping table for each existing
+  subcategory: current name, exact product intent, AliExpress category/ID
+  mapping if available, overlap/conflicts, actual relevant supply, quality,
+  and proposed action (keep, rename, merge, remove). Present the proposed
+  structure to the user for approval first.
+- Verify what category IDs/fields are actually available through the current
+  AliExpress Affiliate API. Do not assume the public AliExpress website's
+  navigation tree is directly queryable by this bot's API.
+
+### Current next project direction: additive thematic collections (not started)
+
+The user is considering a separate «Тематические подборки» feature with these
+candidate editorial shelves:
+- unusual useful devices;
+- smart home solutions;
+- interesting car accessories;
+- little-known gadgets;
+- useful small items under a chosen budget.
+
+These are not yet a committed implementation task. First define precise product
+inclusion/exclusion criteria, product-type routes, minimum evidence of live
+assortment, price freshness rules for budget collections, diversity and
+no-repeat behavior. Validate candidate shelves against real AliExpress
+Affiliate API data before proposing UI or writing code.
+
+**Critical:** these collections must be a new, separate feature. Do not alter
+the existing main-menu «Умный поиск» or «✨ Находки» for any reason without
+explicit separate permission. Reuse shared low-level provider/validation
+services only if doing so does not change the behavior or public contracts of
+the protected features; add regression tests proving their behavior is
+unchanged.
+
+### Honest status at this handoff
+
+- No thematic collections have been implemented or approved yet.
+- The AliExpress-inspired category map is a proposal only.
+- The 96-subcategory catalog quality task is not complete; the latest changes
+  still require local and live verification.
+- Do not merge to `main`, merge PR #10, or claim final acceptance.
+- Keep the current task scope explicit and ask for approval before moving from
+  taxonomy analysis to implementation.
