@@ -256,11 +256,15 @@ class AIOutputValidationTests(unittest.TestCase):
             product_url="https://example.com/ae-1",
             price=12.5,
             currency="USD",
+            positive_rate=98.0,
+            image_url="https://example.com/earbuds.jpg",
         )
         payload = AIService._rank_payload(product)
 
         self.assertEqual(payload["id"], "ae-1")
         self.assertEqual(payload["price"], 12.5)
+        self.assertEqual(payload["positive_rate"], 98.0)
+        self.assertTrue(payload["has_image"])
         # No URLs are sent to the model, so it cannot invent links.
         self.assertNotIn("product_url", payload)
         self.assertNotIn("affiliate_url", payload)
