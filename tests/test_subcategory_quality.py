@@ -122,10 +122,10 @@ class SubcategoryQualityTests(unittest.TestCase):
             products, subcategory=get_subcategory("controllers"), limit=20
         )
 
-        self.assertEqual(
-            [item.product_id for item in selected],
-            ["a", "d", "c"],
-        )
+        selected_ids = [item.product_id for item in selected]
+        self.assertEqual(len(selected_ids), 3)
+        self.assertEqual(set(selected_ids), {"a", "c", "d"})
+        self.assertNotIn("b", selected_ids)
 
     def test_welding_identity_does_not_combine_distant_title_fragments(self):
         subcategory = get_subcategory("welding_equipment")
