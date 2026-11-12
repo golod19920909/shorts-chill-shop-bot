@@ -1572,8 +1572,15 @@ class SearchService:
 
         limit = max(1, min(AI_FEED_RESULTS, self.max_results))
         context_query = outcome.request.original_query or ""
-        subcategory = get_subcategory(outcome.request.subcategory_code) if outcome.request.subcategory_code else None
-        selector = self._subcategory_selector if subcategory is not None and self._subcategory_selector is not None else self._feed_selector
+        subcategory = (
+            get_subcategory(outcome.request.subcategory_code)
+            if outcome.request.subcategory_code else None
+        )
+        selector = (
+            self._subcategory_selector
+            if subcategory is not None and self._subcategory_selector is not None
+            else self._feed_selector
+        )
         if selector is None or not bool(getattr(self.ai_service, "is_available", True)):
             before = len(outcome.products)
             fallback_limit = limit if subcategory is not None else self.max_results
@@ -1622,7 +1629,11 @@ class SearchService:
                  if subcategory is not None and selector is self._subcategory_selector
                  else selector(
                      pool, wanted=limit,
-                     query=outcome.request.normalized_query or outcome.request.original_query or None,
+                     query=(
+                         outcome.request.normalized_query
+                         or outcome.request.original_query
+                         or None
+                     ),
                  )),
                 timeout=FEED_SELECTION_TIMEOUT_SECONDS,
             )
@@ -1652,7 +1663,16 @@ class SearchService:
             # An explicit empty semantic selection means no candidate passed.
             outcome.products = []
             outcome.comparisons = []
-            log_ai_selection_outcome(logger, context=context_query, pool_size=len(pool), chosen_ids=chosen, selected_size=0, fallback_reason="subcategory selector confirmed no suitable candidates")
+            log_ai_selection_outcome(
+                logger,
+                context=context_query,
+                pool_size=len(pool),
+                chosen_ids=chosen,
+                selected_size=0,
+                fallback_reason=(
+                    "subcategory selector confirmed no suitable candidates"
+                ),
+            )
             return
 
         if not chosen:
@@ -1870,7 +1890,10 @@ class SearchService:
             else:
                 outcome.titles_other_script += 1
 
-        subcategory = get_subcategory(request.subcategory_code) if request.subcategory_code else None
+        subcategory = (
+            get_subcategory(request.subcategory_code)
+            if request.subcategory_code else None
+        )
         if subcategory is not None:
             relevant, dropped = filter_subcategory_relevant(collected, request, subcategory)
         else:
