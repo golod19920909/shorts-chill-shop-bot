@@ -5438,8 +5438,9 @@ stale high page. Gemini curation and the per-user shown history remain intact.
 - Not implemented in this first version: analytics event expansion and
   thematic collections. They remain second-queue enhancements from the
   approved specification and should follow after live catalog validation.
-- Current branch head at this update: fb852fad4b4469904ce1726c8a9f3fc7cf0bb579.
-  No changes to main, PR #10, local working copy, .env or production.
+- Code changes last tested at fb852fad4b4469904ce1726c8a9f3fc7cf0bb579;
+  this final context update is documentation-only. No changes to main, PR #10,
+  local working copy, .env or production.
 - Next action: the user pulls this branch and starts the bot locally; then
   run a limited live check across representative subcategories, review the
   category cover on an actual Telegram screen, and tune only the routes whose
