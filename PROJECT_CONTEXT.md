@@ -5829,3 +5829,15 @@ it is asked for up to 40 IDs, it must actually return a representative approved
 set of primary and reserve candidates. A fixture that returns only the first
 20 family-clustered IDs cannot test reserve refill or ten-family diversity;
 the production finalizer must not silently reintroduce IDs omitted by Gemini.
+
+### Discovery acceptance test-double refresh (2026-11-12)
+
+The legacy discovery acceptance fixtures must follow current production
+contracts without constraining them to old call shapes: the conversation
+retrieval adapter forwards raw/broaden/continuation kwargs to
+SearchService.find_products; the photo handler may execute both a primary
+hypothesis and its bounded fallback-category search when the primary pool is
+small; and the popular feed performs one curate_findings call after gathering
+its pages. Recording fakes should accept the current kwargs and provide that
+feed curation hook. These are test-double updates only; production discovery
+behavior is unchanged.
