@@ -35,8 +35,9 @@ class SubcategoryQualityTests(unittest.TestCase):
         kept, dropped = filter_subcategory_products(products, subcategory)
 
         self.assertEqual([item.product_id for item in kept], ["scrubber"])
-        self.assertEqual(dropped["excluded_title_concept"], 2)
-        self.assertEqual(dropped["no_subcategory_product_type"], 1)
+        # Drain tools, fireplace ash kits and kitchen aprons are all
+        # explicitly excluded by this shelf's current title policy.
+        self.assertEqual(dropped, {"excluded_title_concept": 3})
 
     def test_gamepad_shelf_rejects_network_equipment(self):
         subcategory = get_subcategory("controllers")
