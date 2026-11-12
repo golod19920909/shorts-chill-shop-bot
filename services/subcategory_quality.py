@@ -128,8 +128,9 @@ def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str 
     # belongs to the conversational-search package.
     from services.convsearch.type_validation import validate_product_type
 
+    principal_product = product.model_copy(update={"title": primary_title})
     if not any(
-        validate_product_type(product, alias).qualifies
+        validate_product_type(principal_product, alias).qualifies
         for alias in matching_aliases
     ):
         return "accessory_or_component"
