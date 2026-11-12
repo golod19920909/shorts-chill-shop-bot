@@ -306,6 +306,12 @@ def _register_handlers(application: Application) -> None:
     )
     application.add_handler(
         CallbackQueryHandler(
+            start.catalog_home_callback,
+            pattern=r"^catalog:home$",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
             thematic_collections.thematic_collection_callback,
             pattern=r"^theme:",
         )
