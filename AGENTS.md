@@ -98,3 +98,19 @@ unfiltered full-suite pass.
   Keep this measurement-only: do not change the one-call selector, 8-second
   timeout, strict Gemini-approved-ID boundary, or deterministic fallback
   semantics just to improve report counts.
+
+## Final catalog completion pass (2026-11-12)
+
+- Catalog subtype matching must not use four-character Russian prefixes: they
+  conflate distinct identities such as «велосипедный» and «велофонарь».
+  Keep the stricter five-character catalog stem rule local to
+  services/subcategory_quality.py; do not change the shared conversational
+  services/convsearch/type_validation.py matcher for a catalog-only issue.
+- Broad shelves require concrete principal-product aliases. Generic labels
+  such as «mini device» / «мини устройство» are not sufficient identity
+  evidence. Keep the category intent in configured product types and routes.
+- Preserve SearchOutcome.relevance_drop_reasons as measurement-only
+  diagnostics and include it in the real 96-shelf acceptance report.
+- A larger alias set is not permission to weaken the principal-product gate,
+  Gemini-approved-ID boundary, duplicate/family rules, or 20-card target.
+
