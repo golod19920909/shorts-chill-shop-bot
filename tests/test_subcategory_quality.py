@@ -338,6 +338,47 @@ class SubcategoryQualityTests(unittest.TestCase):
             )
         )
 
+    def test_audio_subtype_uses_validated_leading_product_not_add_on(self):
+        subcategory = get_subcategory("audio")
+        self.assertIsNotNone(subcategory)
+
+        speaker = listing(
+            "speaker-mic",
+            "Bluetooth Karaoke Speaker with Wireless Microphone",
+        )
+        self.assertIn("speaker", subcategory_product_type(speaker, subcategory))
+
+    def test_storage_shelf_rejects_non_household_storage_products(self):
+        subcategory = get_subcategory("storage")
+        self.assertIsNotNone(subcategory)
+        products = [
+            listing("closet", "Adjustable Closet Organizer Storage Shelves"),
+            listing("ammo", "Ammunition Storage Box for 5.56 Cartridges"),
+            listing("tobacco", "Tobacco Storage Container Humidor Box"),
+            listing("car", "Car Seat Gap Organizer Storage Box"),
+        ]
+
+        kept, dropped = filter_subcategory_products(products, subcategory)
+
+        self.assertEqual([item.product_id for item in kept], ["closet"])
+        self.assertEqual(dropped, {"excluded_title_concept": 3})
+
+    def test_cleaning_shelf_rejects_pet_food_and_industrial_products(self):
+        subcategory = get_subcategory("cleaning")
+        self.assertIsNotNone(subcategory)
+        products = [
+            listing("brush", "Electric Spin Scrubber Cleaning Brush"),
+            listing("pet", "Pet Paw Washer Cleaning Brush"),
+            listing("churn", "Electric Butter Churn Machine"),
+            listing("industrial", "Industrial Floor Scrubber Machine"),
+        ]
+
+        kept, dropped = filter_subcategory_products(products, subcategory)
+
+        self.assertEqual([item.product_id for item in kept], ["brush"])
+        self.assertEqual(dropped.get("excluded_title_concept"), 2)
+        self.assertEqual(dropped.get("no_subcategory_product_type"), 1)
+
     def test_finalizer_revalidates_gemini_and_reserve_candidates(self):
         subcategory = get_subcategory("window_cleaners")
         self.assertIsNotNone(subcategory)
