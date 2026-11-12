@@ -1,7 +1,9 @@
 """Tests for catalog navigation callback identities and keyboards."""
 from __future__ import annotations
 
+import asyncio
 import unittest
+from types import SimpleNamespace
 
 from config.catalog import CATEGORIES
 from config.subcategories import get_subcategories
@@ -14,6 +16,7 @@ from keyboards.main import (
     subcategories_keyboard,
     subcategory_by_callback,
 )
+from handlers import discovery
 
 
 class CatalogNavigationTests(unittest.TestCase):
@@ -61,6 +64,52 @@ class CatalogNavigationTests(unittest.TestCase):
         self.assertTrue(subcodes.issubset(set(callback_data)))
         self.assertIn(CB_CATEGORIES, callback_data)
         self.assertIn("menu:back", callback_data)
+
+
+
+
+class _FakeQuery:
+    def __init__(self, data: str, *, photo: bool = False):
+        self.data = data
+        self.answers = []
+        self.edits = []
+        self.captions = []
+        self.message = SimpleNamespace(photo=[object()] if photo else [])
+
+    async def answer(self, text=None, show_alert=False):
+        self.answers.append(text or "")
+
+    async def edit_message_text(self, text, **kwargs):
+        self.edits.append((text, kwargs))
+
+    async def edit_message_caption(self, caption, **kwargs):
+        self.captions.append((caption, kwargs))
+
+
+class CatalogHandlerScreenTests(unittest.TestCase):
+    def test_catalog_landing_has_text_fallback(self):
+        query = _FakeQuery("menu:categories")
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(bot=object())
+
+        asyncio.run(discovery.show_categories(update, context))
+
+        self.assertEqual(len(query.edits), 1)
+        self.assertIn("Каталог товаров", query.edits[0][0])
+        self.assertEqual(query.edits[0][1]["reply_markup"], categories_keyboard())
+
+    def test_category_directory_edits_photo_caption_when_present(self):
+        query = _FakeQuery("catview:electronics", photo=True)
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(bot=object())
+
+        asyncio.run(discovery.category_view_callback(update, context))
+
+        self.assertEqual(len(query.captions), 1)
+        caption, kwargs = query.captions[0]
+        self.assertIn("Умный дом", str(kwargs["reply_markup"].inline_keyboard))
+        self.assertIn("Гаджеты, устройства", caption)
+        self.assertEqual(query.edits, [])
 
 
 if __name__ == "__main__":
