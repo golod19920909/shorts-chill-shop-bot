@@ -1651,6 +1651,16 @@ class SearchService:
         )
         if selector is None or not bool(getattr(self.ai_service, "is_available", True)):
             before = len(outcome.products)
+            if selection_stats is not None:
+                selection_stats.update({
+                    "candidate_pool": before,
+                    "selector_status": "unavailable",
+                    "selector_requested": 0,
+                    "selector_returned_ids": None,
+                    "gemini_approved_candidates": None,
+                    "selection_source": "deterministic_fallback",
+                    "fallback_reason": "no_selector_or_service_unavailable",
+                })
             fallback_limit = limit if subcategory is not None else self.max_results
             fallback = (
                 sorted(outcome.products, key=value_score, reverse=True)
