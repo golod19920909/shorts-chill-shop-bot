@@ -1762,15 +1762,13 @@ async def _edit_browsed_card(
                 caption, parse_mode="HTML", reply_markup=reply_markup
             )
     except Exception:
-        if not catalog_navigation:
-            raise
         logger.warning(
-            "Telegram rejected an in-place catalog card edit; replacing the card",
+            "Telegram rejected an in-place card edit; replacing the card",
             exc_info=True,
         )
         await _replace_browsed_card(
             query, context, product, index, caption, reply_markup,
-            send_first=True,
+            send_first=catalog_navigation,
         )
     await _record_browsed_conversation_product(
         context, session_id, product.product_id
