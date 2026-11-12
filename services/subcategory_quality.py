@@ -23,6 +23,15 @@ def _tokens(value: str | None) -> tuple[str, ...]:
     )
 
 
+def _token_matches(token: str, term: str) -> bool:
+    if token == term or token.startswith(term) or term.startswith(token):
+        return True
+    if len(token) >= 4 and len(term) >= 4:
+        if token[:4] == term[:4] and token[0] in "абвгдеёжзийклмнопрстуфхцчшщьыъэюя":
+            return True
+    return len(token) >= 5 and len(term) >= 5 and token[:5] == term[:5]
+
+
 def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
     wanted = _tokens(phrase)
     if not wanted:
@@ -33,11 +42,11 @@ def _phrase_matches(title_tokens: tuple[str, ...], phrase: str) -> bool:
         term = wanted[0]
         if len(term) < 3:
             return False
-        return any(token == term or token.startswith(term) for token in title_tokens)
+        return any(_token_matches(token, term) for token in title_tokens)
     # Multi-word aliases may be reordered in marketplace titles; every
     # meaningful component must still be present.
     return all(
-        any(token == term or token.startswith(term) for token in title_tokens)
+        any(_token_matches(token, term) for token in title_tokens)
         for term in wanted
     )
 
