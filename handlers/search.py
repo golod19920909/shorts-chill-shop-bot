@@ -1311,6 +1311,7 @@ async def send_search_results(
     pre_curated: bool = False,
     follow_up: bool = True,
     conversation_state: ConversationEngineState | None = None,
+    origin_query=None,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1379,17 +1380,43 @@ async def send_search_results(
             # "nothing exists" would be a lie. Every other empty shape -
             # zero rows answered, all filtered, partial answers - keeps the
             # honest "nothing found" message below.
-            await context.bot.send_message(
-                chat_id,
-                SEARCH_UNAVAILABLE_TEXT,
-                reply_markup=back_to_menu_keyboard(),
-            )
+            if origin_query is not None:
+                message = getattr(origin_query, "message", None)
+                if getattr(message, "photo", None):
+                    await origin_query.edit_message_caption(
+                        caption=SEARCH_UNAVAILABLE_TEXT,
+                        reply_markup=back_to_menu_keyboard(),
+                    )
+                else:
+                    await origin_query.edit_message_text(
+                        SEARCH_UNAVAILABLE_TEXT,
+                        reply_markup=back_to_menu_keyboard(),
+                    )
+            else:
+                await context.bot.send_message(
+                    chat_id,
+                    SEARCH_UNAVAILABLE_TEXT,
+                    reply_markup=back_to_menu_keyboard(),
+                )
             if conversation_state is not None:
                 conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
             return None
-        await context.bot.send_message(
-            chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
-        )
+        if origin_query is not None:
+            message = getattr(origin_query, "message", None)
+            if getattr(message, "photo", None):
+                await origin_query.edit_message_caption(
+                    caption=EMPTY_RESULT_TEXT,
+                    reply_markup=back_to_menu_keyboard(),
+                )
+            else:
+                await origin_query.edit_message_text(
+                    EMPTY_RESULT_TEXT,
+                    reply_markup=back_to_menu_keyboard(),
+                )
+        else:
+            await context.bot.send_message(
+                chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
+            )
         if conversation_state is not None:
             conversation_state.record_assistant_turn(EMPTY_RESULT_TEXT)
         return None
@@ -1421,6 +1448,7 @@ async def send_search_results(
         session_id,
         user_id=user_id,
         telegram_id=telegram_id,
+        origin_query=origin_query,
     )
     if not delivered:
         return None
@@ -1518,6 +1546,7 @@ async def _send_product_cards(
     *,
     user_id: int | None = None,
     telegram_id: int | None = None,
+    origin_query=None,
 ) -> bool:
     """Send ONE card - the first product of the deduplicated result set.
 
@@ -1537,19 +1566,50 @@ async def _send_product_cards(
         context, user_id, products[0].product_id
     )
 
+    reply_markup = _browse_keyboard(
+        context, outcome, session_id, 0, tracked=tracked
+    )
+    caption = common.product_card_text(
+        products[0],
+        index=None,
+        caption_prefix=_card_caption(outcome, 0, header),
+    )
     try:
-        await common.send_product_card(
-            context,
-            chat_id,
-            products[0],
-            None,
-            caption_prefix=_card_caption(outcome, 0, header),
-            reply_markup=_browse_keyboard(
-                context, outcome, session_id, 0, tracked=tracked
-            ),
-        )
+        if origin_query is None:
+            await common.send_product_card(
+                context,
+                chat_id,
+                products[0],
+                None,
+                caption_prefix=_card_caption(outcome, 0, header),
+                reply_markup=reply_markup,
+            )
+        else:
+            message = getattr(origin_query, "message", None)
+            if getattr(message, "photo", None):
+                if products[0].image_url:
+                    await origin_query.edit_message_media(
+                        media=InputMediaPhoto(
+                            media=products[0].image_url,
+                            caption=common.truncate_for_caption(caption),
+                            parse_mode="HTML",
+                        ),
+                        reply_markup=reply_markup,
+                    )
+                else:
+                    # Telegram cannot convert a photo message into text.
+                    # Replace only for this objectively unsupported media transition.
+                    await _replace_browsed_card(
+                        origin_query, context, products[0], 0, caption, reply_markup
+                    )
+            else:
+                # Text messages cannot be converted to photo media with editMessageMedia.
+                # Keep the same message and render the complete product card as text.
+                await origin_query.edit_message_text(
+                    caption, parse_mode="HTML", reply_markup=reply_markup
+                )
     except Exception:
-        logger.exception("Failed to send the browsing card of session %s", session_id)
+        logger.exception("Failed to deliver the browsing card of session %s", session_id)
         return False
 
     # Only a successfully sent card is a shown product. Keep user-facing
