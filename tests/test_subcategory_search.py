@@ -112,6 +112,23 @@ class SubcategorySearchTests(unittest.TestCase):
         self.assertEqual(len(provider.requests), len(sub.query_routes))
         self.assertIn("kitchen-tool", {item.product_id for item in outcome.products})
 
+    def test_deterministic_subcategory_gate_runs_before_delivery(self):
+        sub = get_subcategory("cleaning")
+        self.assertIsNotNone(sub)
+        products = [
+            listing("scrubber", "Electric Spin Scrubber Brush for Bathroom"),
+            listing("drain", "Drain Pipe Cleaning Snake Tool"),
+            listing("ash", "Fireplace Ash Cleaning Kit"),
+            listing("apron", "Kitchen Apron for Cleaning"),
+        ]
+        provider = PhraseProvider({sub.query_routes[0]: products})
+        service = SearchService([provider], ai_service=None)
+
+        outcome = run(service.find_by_subcategory(sub))
+
+        self.assertEqual([item.product_id for item in outcome.products], ["scrubber"])
+        run(provider.aclose())
+
     def test_subcategory_uses_its_own_gemini_selector_once(self):
         sub = get_subcategory("controllers")
         self.assertIsNotNone(sub)
