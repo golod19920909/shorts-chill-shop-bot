@@ -5308,3 +5308,43 @@ stale high page. Gemini curation and the per-user shown history remain intact.
 - Monetization regression workflow on final code commit `630a101bfbff58f31d2848554303ab7f4b689f3d`: **44 passed, 1 failed, 45 subtests passed**. The one failure is the already documented unrelated cross-sell wording assertion in `tests/test_cross_sell.py`; the discovery acceptance tests, including spaced page sampling and history isolation, passed.
 - Deployment script syntax validation and monetization-code compilation passed. No live AliExpress API smoke test was run here; credentials remain in the user's local `.env`.
 - Local user verification remains required: pull the branch, open «Находки» several times, and inspect whether the 1/40, 2/41 sampling produces a wider category mix and up to 20 distinct cards. Do not claim live acceptance until that check is complete.
+
+
+## Visual catalog rebuild — foundation (2026-11-12)
+
+- Started the approved «Категории» redesign on the isolated branch
+  `audit/aliexpress-portals-smoke-test`; no changes to `main`, PR #10,
+  production configuration or local `.env`.
+- Read current `AGENTS.md`, `PROJECT_CONTEXT.md`, catalog/keyboard/
+  discovery handlers, category search service, SearchRequest, relevance
+  logic and category regression tests before changing files.
+- Added `config/subcategories.py` with a static, configuration-driven
+  hierarchy: descriptions for all 12 existing category codes and 60
+  subcategories (five per category). Each subcategory has a stable code,
+  parent category, Russian UI title/description, bounded set of up to three
+  English retrieval hypotheses and Russian relevance keywords.
+- Added `tests/test_catalog_subcategories.py` for parent coverage, unique
+  identifiers, stable lookup, bounded/unique routes and keyword presence.
+- The query routes are initial hypotheses, NOT live-validated AliExpress
+  queries. They must not be activated for marketplace calls until the shared
+  SearchService integration, deterministic relevance behavior and bounded
+  API budget are implemented and tested. Do not interpret configuration
+  presence as proof of live product coverage.
+- Existing category codes are preserved exactly (`electronics`, `home`,
+  `auto`, `computers`, `games`, `clothing`, `beauty`, `tools`,
+  `sport`, `pets`, `kids`, `garden`). No existing category handler,
+  keyboard, SearchRequest, relevance, ranking or product-card behavior has
+  been changed yet.
+- Telegram inline buttons cannot contain images. The UI implementation must
+  send cover media as Telegram messages and keep callback navigation separate;
+  avoid a long image-per-message scroll. A Web App or external domain is not
+  part of the first release.
+- Commits created: `f277f2a` (subcategory configuration),
+  `a93d721` (configuration tests). Test execution and CI status are not yet
+  verified; do not report these tests as passing until an Actions/local run
+  confirms them.
+- Next: implement the catalog screen and category/subcategory navigation
+  with stable callbacks; then connect subcategory requests to the existing
+  SearchService via a bounded shared retrieval path. Preserve the category
+  curation profile, history, country/currency propagation and common product
+  card renderer.
