@@ -114,8 +114,26 @@ def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str 
         if _phrase_matches(tokens, phrase):
             return "excluded_title_concept"
     aliases = subcategory.product_types or subcategory.keywords
-    if not any(_phrase_matches(tokens, phrase) for phrase in aliases):
+    matching_aliases = [
+        phrase for phrase in aliases if _phrase_matches(tokens, phrase)
+    ]
+    if not matching_aliases:
         return "no_subcategory_product_type"
+
+    # A title may contain the configured product type while the listing is
+    # actually a replacement part or accessory FOR that product. Reuse the
+    # conversation engine's category-general principal-item validator rather
+    # than maintaining a second list of accessory words for the catalog.
+    # Import locally: SearchService imports this module, while the validator
+    # belongs to the conversational-search package.
+    from services.convsearch.type_validation import validate_product_type
+
+    if not any(
+        validate_product_type(product, alias).qualifies
+        for alias in matching_aliases
+    ):
+        return "accessory_or_component"
+
     return None
 
 
