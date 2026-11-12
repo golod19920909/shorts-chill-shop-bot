@@ -191,7 +191,7 @@ class SubcategoryQualityTests(unittest.TestCase):
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
         subcategory = get_subcategory("massage_devices")
         self.assertIsNotNone(subcategory)
-        neck = listing("neck", "Electric neck shoulder massager with heat")
+        neck = listing("neck", "Electric neck massager with heat")
         face = listing("face", "Portable facial massager beauty device")
         self.assertIn("neck", subcategory_product_type(neck, subcategory))
         self.assertIn("facial", subcategory_product_type(face, subcategory))
