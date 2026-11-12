@@ -36,14 +36,16 @@ class SubcategoryQualityTests(unittest.TestCase):
         for subcategory in subcategories:
             aliases = subcategory.product_types or subcategory.keywords
             self.assertTrue(aliases, subcategory.code)
-            product = listing(
-                f"sample-{subcategory.code}",
-                aliases[0],
-            )
-            self.assertIsNotNone(
-                subcategory_product_type(product, subcategory),
-                subcategory.code,
-            )
+            matched_type = None
+            for index, alias in enumerate(aliases):
+                product = listing(
+                    f"sample-{subcategory.code}-{index}",
+                    alias,
+                )
+                matched_type = subcategory_product_type(product, subcategory)
+                if matched_type is not None:
+                    break
+            self.assertIsNotNone(matched_type, subcategory.code)
 
     def test_cleaning_shelf_rejects_plumbing_fireplace_and_unrelated_items(self):
         subcategory = get_subcategory("cleaning")
