@@ -214,7 +214,28 @@ SHELF_TITLE_OVERRIDES: dict[str, str] = {
 
 
 def get_catalog_category(code: str) -> CatalogCategory | None:
+    # Old category-view messages may still carry the pre-refactor code.
+    if code == "games":
+        code = "gaming"
     return next((item for item in CATEGORIES if item.code == code), None)
+
+
+def get_catalog_parent_code(subcategory_code: str) -> str | None:
+    return SHELF_PARENT_BY_CODE.get(subcategory_code)
+
+
+def get_catalog_shelf(subcategory_code: str) -> Subcategory | None:
+    item = next(
+        (value for value in get_all_subcategories() if value.code == subcategory_code),
+        None,
+    )
+    if item is None:
+        return None
+    return replace(
+        item,
+        category_code=SHELF_PARENT_BY_CODE.get(item.code, item.category_code),
+        title=SHELF_TITLE_OVERRIDES.get(item.code, item.title),
+    )
 
 
 def get_catalog_subcategories(category_code: str) -> tuple[Subcategory, ...]:
