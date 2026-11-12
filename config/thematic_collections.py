@@ -174,3 +174,10 @@ BUDGET_TIERS: tuple[tuple[str, str], ...] = (
     ("theme_budget_10", "До $10"),
     ("theme_budget_20", "До $20"),
 )
+
+
+THEME_MAX_PRICE_BY_CODE: dict[str, float] = {
+    shelf.code: shelf.max_price
+    for shelf in THEME_SHELVES
+    if shelf.max_price is not None
+}
