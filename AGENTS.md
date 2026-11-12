@@ -92,3 +92,9 @@ unfiltered full-suite pass.
 - Live catalog reports distinguish provider health from shelf card-count
   status. AliExpress evaluate_rate is a positive-feedback percentage, not
   a 0-5 star rating; preserve it as positive_rate and never derive stars.
+
+- The live subcategory acceptance report includes
+  `selection_diagnostics` from `SearchService.last_subcategory_selection_stats`.
+  Keep this measurement-only: do not change the one-call selector, 8-second
+  timeout, strict Gemini-approved-ID boundary, or deterministic fallback
+  semantics just to improve report counts.
