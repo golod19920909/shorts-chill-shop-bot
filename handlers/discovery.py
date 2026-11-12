@@ -504,7 +504,10 @@ async def _edit_or_reply(
 
     query = update.callback_query
     if query is not None:
-        await query.edit_message_text(text, **kwargs)
+        if getattr(query.message, "photo", None):
+            await query.edit_message_caption(caption=text, **kwargs)
+        else:
+            await query.edit_message_text(text, **kwargs)
         return
 
     message = update.effective_message
@@ -646,8 +649,9 @@ async def subcategory_callback(
                 "reason": "error",
             },
         )
-        await context.bot.send_message(
-            chat_id,
+        await _edit_or_reply(
+            update,
+            context,
             f"{WARNING} Не удалось выполнить поиск по этому направлению.",
             reply_markup=subcategories_keyboard(subcategory.category_code),
         )
@@ -674,6 +678,8 @@ async def subcategory_callback(
         user_id=user_id,
         telegram_id=telegram_id,
         curation_mode=MODE_CATEGORY,
+        follow_up=False,
+        origin_query=query,
     )
 
 
@@ -764,8 +770,9 @@ async def subcategory_new_search_callback(
         )
 
         if not outcome.products:
-            await context.bot.send_message(
-                chat_id,
+            await _edit_or_reply(
+                update,
+                context,
                 "Пока не нашлось новых подходящих товаров в этой подкатегории. "
                 "Попробуйте ещё раз позже или выберите другое направление.",
                 reply_markup=subcategories_keyboard(subcategory.category_code),
@@ -786,6 +793,8 @@ async def subcategory_new_search_callback(
             user_id=user_id,
             telegram_id=telegram_id,
             curation_mode=MODE_CATEGORY,
+            follow_up=False,
+            origin_query=query,
         )
         if new_session_id:
             used_sessions[session_id] = True
@@ -850,8 +859,9 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             telegram_id=telegram_id,
             metadata={"source": "category", "reason": "error"},
         )
-        await context.bot.send_message(
-            chat_id,
+        await _edit_or_reply(
+            update,
+            context,
             f"{WARNING} Не удалось выполнить поиск по категории.",
             reply_markup=back_to_menu_keyboard(),
         )
@@ -882,6 +892,8 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         # ($1..$20 / >= 300 orders / >= 4.5) stays reserved for the feeds
         # it was written for.
         curation_mode=MODE_CATEGORY,
+        follow_up=False,
+        origin_query=query,
     )
 
 
