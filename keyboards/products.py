@@ -70,6 +70,8 @@ LABEL_STOP = "\u23F9 Остановить"
 LABEL_CARD_BACK = "\u25C0\uFE0F Назад"
 LABEL_CARD_NEXT = "\u27A1\uFE0F Следующий"
 LABEL_CARD_RESTART = "\U0001F501 Сначала"
+LABEL_NEW_SEARCH = "🔄 Новый поиск"
+CB_PREFIX_CATEGORY_NEW_SEARCH = "pcnew"
 
 #: The 🤖 AI button exists ONLY on a product card (never in the main menu):
 #: it opens the AI menu of the product the user is looking at.
