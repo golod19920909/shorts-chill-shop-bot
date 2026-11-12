@@ -5457,10 +5457,11 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   remain unchanged; 36 new shelves are defined in
   `config/subcategory_expansion.py`.
 - Extended `Subcategory` with `product_types` and `exclude_terms`.
-  Existing shelves default to their curated Russian keywords; new focused
-  shelves carry explicit Russian/English product identity phrases. The
-  previously broad cleaning, lighting and game-controller shelves also have
-  more specific title evidence and exclusion terms.
+  All 60 original shelves now have curated Russian/English product identity
+  aliases (57 in `config/subcategory_type_overrides.py`, plus targeted
+  overrides for cleaning, lighting and game controllers); all 36 new shelves
+  carry their own explicit identity phrases. Focused shelves also declare
+  excluded title concepts where live tests exposed likely category leakage.
 - Added `services/subcategory_quality.py`: a deterministic title-evidence
   gate applied only to curated subcategory requests after the shared
   relevance filter and before constraints/ranking. It rejects candidates
