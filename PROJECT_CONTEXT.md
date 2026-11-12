@@ -5638,3 +5638,28 @@ This update supersedes the previous subcategory-quality implementation note abov
 - Do not merge or apply these changes to `main` or PR #10 without explicit
   approval. Local checkout still requires a fast-forward pull of this branch
   before testing the updated implementation.
+
+
+
+### Follow-up hardening — CI coverage and fallback behavior (2026-11-12)
+
+- The adaptive subtype quota is now an equal-share cap based on the number of
+  represented configured product types (one type may use the full 20 slots;
+  two types receive up to 10 each, three up to 7 each, etc.). If some types do
+  not have enough distinct candidates, remaining distinct families are used
+  before deferred family repeats.
+- Added deterministic fallback coverage for the case where Gemini is
+  unavailable: a filtered pool with at least 20 distinct candidates still
+  produces 20 cards.
+- Added a four-way welding subtype distribution test and a full-catalog test
+  confirming that every configured subcategory has at least one classifiable
+  product-type alias.
+- Added a primary-title identity test: a requested product type appearing only
+  after a comma/semicolon/pipe cross-sell separator cannot qualify the listing.
+- The conversational regression workflow now explicitly includes the new
+  `SubcategorySelectorReserveTests` and `CandidatePayloadTests` classes from
+  `tests/test_ai_service.py`, in addition to the existing subcategory/search
+  test modules.
+- Validation is still pending: no test command has been executed from this
+  session. The changes are on the feature branch only; `main` and PR #10 remain
+  untouched.
