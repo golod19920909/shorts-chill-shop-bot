@@ -698,6 +698,7 @@ async def subcategory_callback(
         telegram_id=telegram_id,
         curation_mode=MODE_CATEGORY,
         home_callback=CB_CATALOG_HOME,
+        minimum_products=MIN_LIVE_SUBCATEGORY_PRODUCTS,
         follow_up=False,
         origin_query=query,
     )
