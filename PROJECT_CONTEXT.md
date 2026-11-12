@@ -6300,13 +6300,28 @@ Important design distinction:
 ### Candidate marketplace policy
 
 - No additional marketplace has been selected or approved yet.
-- The earlier chat's exact vendor shortlist could not be recovered from the
-  available conversation/project records. Do not invent a claim that the user
-  previously approved particular sites.
-- Possible candidates for a future feasibility review may include Ukraine-facing
-  marketplaces/retailers and international marketplaces (for example Rozetka,
-  Prom.ua, Epicentr, Amazon or eBay). These are research candidates only, not
-  approved integrations or a remembered historical selection.
+- Historical discussion recovered from 2026-10-06 confirms that Alibaba and
+  Temu had already been tried/evaluated and were dropped because of API access
+  problems. The user explicitly said not to recommend them again as new options.
+  Their enum values were subsequently removed from the normalized
+  `Marketplace` model; do not silently re-add them.
+- The agreed next candidates in that discussion were **Amazon first, eBay
+  second**. Walmart, Banggood and Etsy were mentioned as later alternatives,
+  not as the immediate implementation sequence.
+- Historical Amazon notes (2026-10-06): Amazon Associates did not require the
+  user to have a Seller account; the discussion cited 3 qualifying sales in
+  180 days for the Associates review. The then-discussed Creators API access
+  required an accepted Associates account and 10 qualifying sales in 30 days.
+  These are historical notes, NOT verified current requirements; re-check
+  official current eligibility, API access and Ukraine availability before
+  planning implementation.
+- Historical eBay notes (2026-10-06): eBay Partner Network did not require a
+  seller account; production Buy API access required separate approval. Again,
+  verify current official EPN/API requirements and Ukraine coverage before
+  implementation.
+- Amazon and eBay are the remembered next candidates for a feasibility audit,
+  not already approved integrations. Do not replace them with an unrelated
+  shortlist without discussing it with the user.
 - For each candidate, first verify official product-search access, API terms,
   affiliate/partner eligibility, price/stock/shipping fields, Ukraine delivery
   coverage, rate limits, attribution requirements and operational cost.
