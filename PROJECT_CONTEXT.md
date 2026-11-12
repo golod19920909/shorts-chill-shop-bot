@@ -5403,3 +5403,44 @@ stale high page. Gemini curation and the per-user shown history remain intact.
   regression coverage for category/subcategory navigation, then run a bounded
   live search smoke across representative subcategories before considering
   the catalog ready for local use.
+
+
+## Visual catalog rebuild — image-backed first version (2026-11-12)
+
+- Added the Telegram catalog cover at assets/catalog_categories.jpg. It is a
+  compact collage showing all 12 top-level categories; it is a catalog cover,
+  not a live product listing or a set of individual category photos.
+- The main catalog screen sends that cover as a Telegram photo with the
+  existing 12-button inline keyboard and a short caption. If the cover is
+  unavailable or photo sending fails, the handler falls back to a text screen.
+- Selecting a category edits the caption of the cover message into the
+  category's subcategory directory; text messages use edit_message_text.
+  Returning to the catalog replaces the current screen with the cover again.
+- Added handler-screen tests for the text fallback and photo-caption
+  navigation. The fake bot is deliberately not treated as a real Telegram Bot,
+  so tests do not attempt network/file uploads.
+- The focused conversational CI run on commit
+  fb852fad4b4469904ce1726c8a9f3fc7cf0bb579 completed with **461 passed**,
+  **3 unrelated pre-existing failures**, 1 deselected and 330 subtests passed.
+  All catalog configuration, subcategory retrieval, keyboard and handler
+  screen tests passed. The three failures are two existing conversational
+  type-gate reason mismatches and one existing Gemini timeout retry-count
+  assertion; no catalog test failed.
+- The full legacy discovery acceptance module was briefly added to the
+  focused CI list, then removed because it exposes unrelated pre-existing
+  failures in other discovery/feed/photo tests. It is not a reliable
+  acceptance gate for this isolated catalog change. Targeted catalog handler
+  coverage is maintained in test_subcategory_navigation.py instead.
+- Live AliExpress searches have not been run: the user's local .env is not
+  accessible here. The initial query routes are offline-tested only; their
+  actual coverage, result relevance, response time and API call count require
+  a limited local live smoke test.
+- Not implemented in this first version: analytics event expansion and
+  thematic collections. They remain second-queue enhancements from the
+  approved specification and should follow after live catalog validation.
+- Current branch head at this update: fb852fad4b4469904ce1726c8a9f3fc7cf0bb579.
+  No changes to main, PR #10, local working copy, .env or production.
+- Next action: the user pulls this branch and starts the bot locally; then
+  run a limited live check across representative subcategories, review the
+  category cover on an actual Telegram screen, and tune only the routes whose
+  marketplace results prove weak or irrelevant.
