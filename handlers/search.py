@@ -1366,7 +1366,11 @@ async def send_search_results(
         )
 
     if not outcome.products:
-        empty_keyboard = wrap_up_keyboard or back_to_menu_keyboard()
+        empty_keyboard = (
+            wrap_up_keyboard
+            if origin_query is not None and wrap_up_keyboard is not None
+            else back_to_menu_keyboard()
+        )
         # Technical reasons (missing keys, a failing source, how many
         # candidates the gate dropped) are for the log only: the chat must
         # never explain the bot's internals to the user.
@@ -1687,32 +1691,11 @@ async def _edit_browsed_card(
     user_id: int | None = None,
     tracked: bool = False,
 ) -> None:
-    """Rewrite the browsed card to another product of the same session.
-
-    Everything the user sees must belong to ONE product: the image, the
-    caption text and the keyboard (including the Buy URL). A photo
-    message therefore gets ``edit_message_media`` with an
-    :class:`~telegram.InputMediaPhoto` that carries the NEW product's
-    image URL, its caption and the fresh keyboard - editing only the
-    caption would leave the old photo on screen above Product B's text,
-    which is exactly the stale-image bug.
-
-    Telegram cannot turn a photo message into a text one (or back), so
-    when the new product's image presence differs from the current
-    message type, the card is replaced: the stale message is deleted and
-    a fresh card is sent as a single new message - the only Telegram
-    operation that fits. ``tracked`` reflects the user's price-tracking
-    state for the NEW product, so the 🔔/🔕 toggle stays honest in the
-    same card.
-
-    The caption is rebuilt by the very same renderer that sent the card
-    (``common.product_card_text``); buttons still carry only
-    ``(session_id, index)`` and no URL is ever constructed here - the
-    affiliate link comes from the cached ``Product`` at render time.
-    """
+    """Edit one card in place, with catalog-scoped safe replacement fallback."""
 
     product = outcome.products[index]
     meta = common.get_outcome_meta(context, session_id)
+    catalog_navigation = bool(meta.get("home_callback"))
     caption = common.product_card_text(
         product,
         index=None,
@@ -1727,7 +1710,6 @@ async def _edit_browsed_card(
     has_image = bool(product.image_url)
 
     if has_image and is_photo:
-        # Replace image + caption + keyboard in ONE call.
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(
@@ -1742,22 +1724,26 @@ async def _edit_browsed_card(
             )
             return
         except Exception:
-            # The new image URL may be unfetchable by Telegram; fall
-            # back to a full card replacement instead of a stale screen.
             logger.warning(
                 "Media edit failed for %s/%s; replacing the card message",
                 product.marketplace,
                 product.product_id,
+                exc_info=True,
             )
             await _replace_browsed_card(
-                query, context, product, index, caption, reply_markup
+                query, context, product, index, caption, reply_markup,
+                send_first=catalog_navigation,
+            )
+            await _record_browsed_conversation_product(
+                context, session_id, product.product_id
             )
             return
 
     if has_image != is_photo:
-        # Text <-> photo transition: Telegram has no edit for it.
+        # Telegram cannot convert a text message into a photo or vice versa.
         await _replace_browsed_card(
-            query, context, product, index, caption, reply_markup
+            query, context, product, index, caption, reply_markup,
+            send_first=catalog_navigation,
         )
         await _record_browsed_conversation_product(
             context, session_id, product.product_id
@@ -1776,14 +1762,15 @@ async def _edit_browsed_card(
                 caption, parse_mode="HTML", reply_markup=reply_markup
             )
     except Exception:
+        if not catalog_navigation:
+            raise
         logger.warning(
-            "Text/caption edit failed for %s/%s; replacing the card message",
-            product.marketplace,
-            product.product_id,
+            "Telegram rejected an in-place catalog card edit; replacing the card",
             exc_info=True,
         )
         await _replace_browsed_card(
-            query, context, product, index, caption, reply_markup
+            query, context, product, index, caption, reply_markup,
+            send_first=True,
         )
     await _record_browsed_conversation_product(
         context, session_id, product.product_id
@@ -1797,18 +1784,21 @@ async def _replace_browsed_card(
     index: int,
     caption: str,
     reply_markup,
+    *,
+    send_first: bool = False,
 ) -> None:
-    """Replace a card whose message type cannot be edited in place.
+    """Replace only when Telegram cannot edit the existing media/message.
 
-    The fresh card is sent first, then the old message is deleted. This is
-    the minimal Telegram-supported fallback when photo/text media cannot be
-    edited or Telegram rejects the in-place edit.
+    The default keeps the pre-existing behavior for protected search/feed
+    flows. Catalog/thematic sessions opt into send-first so a failed
+    replacement never removes the user's current screen.
     """
 
     message = getattr(query, "message", None)
     chat_id = getattr(message, "chat_id", None)
     if chat_id is None:
         return
+
     if not send_first and message is not None:
         try:
             await context.bot.delete_message(
@@ -1816,6 +1806,7 @@ async def _replace_browsed_card(
             )
         except Exception:  # noqa: BLE001 - deletion is best-effort
             logger.warning("Could not delete the stale browsing card", exc_info=True)
+
     await common.send_product_card(
         context,
         chat_id,
@@ -1825,6 +1816,7 @@ async def _replace_browsed_card(
         reply_markup=reply_markup,
         raw_caption=caption,
     )
+
     if send_first and message is not None:
         try:
             await context.bot.delete_message(
@@ -1832,6 +1824,7 @@ async def _replace_browsed_card(
             )
         except Exception:  # noqa: BLE001 - deletion is best-effort
             logger.warning("Could not delete the replaced browsing card", exc_info=True)
+
 
 async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """``pnav:<session_id>:<index>`` - move the ONE card to another product.
