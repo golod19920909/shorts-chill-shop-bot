@@ -1383,17 +1383,12 @@ async def send_search_results(
             # zero rows answered, all filtered, partial answers - keeps the
             # honest "nothing found" message below.
             if origin_query is not None:
-                message = getattr(origin_query, "message", None)
-                if getattr(message, "photo", None):
-                    await origin_query.edit_message_caption(
-                        caption=SEARCH_UNAVAILABLE_TEXT,
-                        reply_markup=back_to_menu_keyboard(),
-                    )
-                else:
-                    await origin_query.edit_message_text(
-                        SEARCH_UNAVAILABLE_TEXT,
-                        reply_markup=back_to_menu_keyboard(),
-                    )
+                await common.edit_message_or_replace(
+                    context,
+                    origin_query,
+                    SEARCH_UNAVAILABLE_TEXT,
+                    reply_markup=back_to_menu_keyboard(),
+                )
             else:
                 await context.bot.send_message(
                     chat_id,
@@ -1404,17 +1399,12 @@ async def send_search_results(
                 conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
             return None
         if origin_query is not None:
-            message = getattr(origin_query, "message", None)
-            if getattr(message, "photo", None):
-                await origin_query.edit_message_caption(
-                    caption=EMPTY_RESULT_TEXT,
-                    reply_markup=back_to_menu_keyboard(),
-                )
-            else:
-                await origin_query.edit_message_text(
-                    EMPTY_RESULT_TEXT,
-                    reply_markup=back_to_menu_keyboard(),
-                )
+            await common.edit_message_or_replace(
+                context,
+                origin_query,
+                EMPTY_RESULT_TEXT,
+                reply_markup=back_to_menu_keyboard(),
+            )
         else:
             await context.bot.send_message(
                 chat_id, EMPTY_RESULT_TEXT, reply_markup=back_to_menu_keyboard()
