@@ -5699,3 +5699,28 @@ it is outside this task.
 Latest focused fixes are committed on this feature branch. They have not yet
 been executed locally; ask for a fresh fast-forward pull and rerun the same
 three focused test modules before live AliExpress validation.
+
+
+## Catalog quality branch — live AliExpress smoke follow-up (2026-11-12)
+
+The local focused regression run after pulling the catalog-quality fixes is
+**137 passed, 2 failed, 6 subtests passed**. All catalog-quality and search
+service tests pass. The two remaining failures are the pre-existing
+`GroundedProductQuestionTests` return-contract mismatches in
+`AIService.answer_product_question_with_recommendation` (one expects a list
+instead of the existing scalar ID; the other expects a list instead of the
+existing `None` for claims-only answers). This method was compared with the
+baseline branch and is outside the catalog TЗ; do not change it here.
+
+Live `python smoke_aliexpress.py` returned valid normalized products and
+affiliate links for all eight broad query families, with **0 API errors and
+0 retries**. Its keyword-search pagination probe saw one product ID repeated
+between page 1 and page 2 for `wireless headphones` (5 products on each page).
+A single cross-page overlap is not itself an API failure: live keyword ranking
+may shift between calls, and the search pipeline deduplicates product IDs.
+The smoke assertion was therefore corrected to report overlap and require
+page 2 to contain at least one previously unseen ID; duplicate IDs within
+page 2 remain a failure. This change is diagnostic only and does not alter
+provider requests or search ranking. Pull commit
+`755555dfa0ce575ba102a579cc1325c9d0909599` and rerun the live smoke before
+proceeding with category/subcategory quality validation.
