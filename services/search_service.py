@@ -1518,17 +1518,21 @@ class SearchService:
             )
             return
 
+        final_products = (
+            self._finalize_subcategory_selection(selected, limit=limit)
+            if subcategory is not None else selected
+        )
         log_ai_selection_outcome(
             logger,
             context=context_query,
             pool_size=len(pool),
             chosen_ids=chosen,
-            selected_size=len(selected),
+            selected_size=len(final_products),
         )
         log_final_pool(
-            logger, selected, context=context_query, origin="ai-selected"
+            logger, final_products, context=context_query, origin="ai-selected"
         )
-        outcome.products = self._finalize_subcategory_selection(selected, limit=limit) if subcategory is not None else selected
+        outcome.products = final_products
         outcome.comparisons = build_comparison(outcome.products)
 
     def _collect_raw(
