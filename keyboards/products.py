@@ -156,6 +156,7 @@ def browse_card_keyboard(
     back_callback: str | None = None,
     tracking: bool = False,
     new_search_callback: str | None = None,
+    new_search_label: str = LABEL_NEW_SEARCH,
 ) -> InlineKeyboardMarkup:
     """One-card browsing keyboard: actions + prev/next navigation.
 
@@ -273,7 +274,7 @@ def browse_card_keyboard(
         rows.append(
             [
                 InlineKeyboardButton(
-                    LABEL_NEW_SEARCH,
+                    new_search_label,
                     callback_data=new_search_callback,
                 )
             ]
