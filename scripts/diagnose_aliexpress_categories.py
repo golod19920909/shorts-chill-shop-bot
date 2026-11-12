@@ -25,7 +25,7 @@ from services.marketplaces.aliexpress_client import (
 
 
 def _normalize_categories(result: dict[str, Any]) -> list[dict[str, Any]]:
-    node = result.get("categories")
+    node = result.get("categories", result.get("category"))
     if isinstance(node, dict):
         raw = node.get("category", [])
     else:
@@ -72,14 +72,16 @@ async def _fetch() -> dict[str, Any]:
 
     result = response.get("result")
     if not isinstance(result, dict):
+        result = response
+    if not isinstance(result, dict):
         result = {}
 
     categories = _normalize_categories(result)
     return {
         "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
         "method": METHOD_CATEGORY_GET,
-        "response_code": result.get("resp_code"),
-        "response_message": result.get("resp_msg"),
+        "response_code": result.get("resp_code", response.get("resp_code")),
+        "response_message": result.get("resp_msg", response.get("resp_msg")),
         "total_result_count": result.get("total_result_count"),
         "category_count": len(categories),
         "categories": categories,
