@@ -20,6 +20,7 @@ class Subcategory:
     keywords: tuple[str, ...]
     product_types: tuple[str, ...] = ()
     exclude_terms: tuple[str, ...] = ()
+    max_price: float | None = None
 
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
@@ -293,6 +294,24 @@ SUBCATEGORIES = tuple(
     for item in SUBCATEGORIES
 )
 
+
+from config.thematic_collections import THEME_SHELVES
+
+THEMATIC_SUBCATEGORIES: tuple[Subcategory, ...] = tuple(
+    Subcategory(
+        code=item.code,
+        category_code=item.category_code,
+        title=item.title,
+        description=item.description,
+        query_routes=item.query_routes,
+        keywords=item.keywords,
+        product_types=item.product_types,
+        exclude_terms=item.exclude_terms,
+        max_price=item.max_price,
+    )
+    for item in THEME_SHELVES
+)
+
 # Consolidated shelves remain resolvable for legacy callbacks but are not
 # offered as separate navigation rows.
 HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
@@ -303,7 +322,9 @@ HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
 })
 
 
-_SUBCATEGORIES_BY_CODE = {item.code: item for item in SUBCATEGORIES}
+_SUBCATEGORIES_BY_CODE = {
+    item.code: item for item in (*SUBCATEGORIES, *THEMATIC_SUBCATEGORIES)
+}
 _SUBCATEGORIES_BY_CATEGORY = {
     code: tuple(item for item in SUBCATEGORIES if item.category_code == code and item.code not in HIDDEN_SUBCATEGORY_CODES)
     for code in CATEGORY_DESCRIPTIONS
