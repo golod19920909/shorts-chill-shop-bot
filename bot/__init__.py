@@ -60,6 +60,7 @@ from keyboards.main import (
     REMOVED_CALLBACK_PATTERN,
 )
 from keyboards.products import (
+    CB_PREFIX_CATEGORY_NEW_SEARCH,
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
     CB_PREFIX_BUY,
@@ -317,6 +318,12 @@ def _register_handlers(application: Application) -> None:
         CallbackQueryHandler(
             discovery.subcategory_callback,
             pattern=f"^{CB_SUBCATEGORY_PREFIX}:",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            discovery.subcategory_new_search_callback,
+            pattern=f"^{CB_PREFIX_CATEGORY_NEW_SEARCH}:",
         )
     )
     # The exhausted «✨ Находки» screen: an explicit restart of the
