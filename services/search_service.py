@@ -29,6 +29,7 @@ import time
 from dataclasses import dataclass, field
 
 from config.catalog import Category
+from config.subcategories import Subcategory
 from config.settings import settings as app_settings
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
@@ -228,7 +229,11 @@ def category_expansion_phrase(request: SearchRequest) -> str | None:
     every other parameter stay identical (P1.4/P1.8-C behavior preserved).
     """
 
-    if request.mode is not SearchMode.CATEGORY or not request.category:
+    if (
+        request.mode is not SearchMode.CATEGORY
+        or not request.category
+        or request.subcategory_code
+    ):
         return None
     return CATEGORY_EXPANSION_KEYWORDS.get(request.category) or None
 
@@ -706,6 +711,18 @@ class SearchService:
             " ".join((request.normalized_query or request.original_query or "").split())
         ]
         primary = variants[0]
+
+        # Curated subcategories own a small, explicit set of additional
+        # marketplace routes. They are configuration-only phrases, bounded
+        # to two alternates by SearchRequest and evaluated together through
+        # this one existing provider/dedup/relevance/ranking pipeline.
+        if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            routes = [
+                " ".join(str(route).split())
+                for route in request.retrieval_queries
+                if str(route).strip()
+            ]
+            variants = list(dict.fromkeys([primary, *routes]))[:3]
 
         # G24.8 P1.9: a category with a P1.8-C validated candidate asks its
         # ONE extra keyword as a second phrase of the SAME search («primary
@@ -2169,6 +2186,50 @@ class SearchService:
             mode=SearchMode.CATEGORY,
             category=category.code,
             keywords=list(category.keywords),
+            country=country,
+            currency=currency,
+        )
+        return await self.find_products(request, exclude=exclude)
+
+    async def find_by_subcategory(
+        self,
+        subcategory: Subcategory,
+        country: str | None = None,
+        currency: str | None = None,
+        exclude: set[tuple[str, str]] | None = None,
+    ) -> SearchOutcome:
+        """Search a curated catalog topic through the shared category pipeline.
+
+        The parent category code is retained for category-mode ranking and
+        curation. The narrower keyword set and bounded route list describe
+        the selected subcategory; no second search engine is introduced.
+        """
+
+        routes = tuple(
+            " ".join(route.split())
+            for route in subcategory.query_routes
+            if route and route.strip()
+        )[:3]
+        if not routes:
+            return SearchOutcome(
+                request=SearchRequest(
+                    original_query=subcategory.title,
+                    mode=SearchMode.CATEGORY,
+                    category=subcategory.category_code,
+                    subcategory_code=subcategory.code,
+                    keywords=list(subcategory.keywords),
+                    country=country,
+                    currency=currency,
+                )
+            )
+        request = SearchRequest(
+            original_query=subcategory.title,
+            normalized_query=routes[0],
+            mode=SearchMode.CATEGORY,
+            category=subcategory.category_code,
+            subcategory_code=subcategory.code,
+            retrieval_queries=list(routes[1:]),
+            keywords=list(subcategory.keywords),
             country=country,
             currency=currency,
         )
