@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from collections import Counter
 
 from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
@@ -138,6 +139,36 @@ class SubcategoryQualityTests(unittest.TestCase):
             ),
             "no_subcategory_product_type",
         )
+
+    def test_finalizer_balances_distinct_welding_types(self):
+        subcategory = get_subcategory("welding_equipment")
+        self.assertIsNotNone(subcategory)
+        products = []
+        for kind, title in (
+            ("mig", "MIG welding machine"),
+            ("tig", "TIG welding machine"),
+            ("mma", "MMA welding machine"),
+            ("plasma", "plasma cutter"),
+        ):
+            for model in range(10):
+                products.append(
+                    listing(
+                        f"{kind}-{model}",
+                        f"{title} model {model + 100}",
+                    )
+                )
+
+        selected = SearchService._finalize_subcategory_selection(
+            products, subcategory=subcategory, limit=20
+        )
+        type_counts = Counter(
+            subcategory_product_type(product, subcategory)
+            for product in selected
+        )
+
+        self.assertEqual(len(selected), 20)
+        self.assertEqual(set(type_counts.values()), {5})
+        self.assertEqual(len(type_counts), 4)
 
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
         subcategory = get_subcategory("massage_devices")
