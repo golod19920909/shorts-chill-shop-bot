@@ -271,5 +271,57 @@ class SubcategoryQualityTests(unittest.TestCase):
         )
 
 
+    def test_window_cleaner_shelf_rejects_accessories_and_spare_parts(self):
+        subcategory = get_subcategory("window_cleaners")
+        self.assertIsNotNone(subcategory)
+        products = [
+            listing("robot", "HUTT window cleaning robot automatic glass cleaner"),
+            listing("battery", "Replacement battery for HUTT window cleaning robot"),
+            listing("pads", "Microfiber cleaning pads for window cleaner"),
+            listing("case", "Storage case for robotic window cleaner"),
+        ]
+
+        kept, dropped = filter_subcategory_products(products, subcategory)
+
+        self.assertEqual([item.product_id for item in kept], ["robot"])
+        self.assertEqual(
+            dropped,
+            {"accessory_or_component": 3},
+        )
+
+    def test_hand_tools_shelf_rejects_holder_but_keeps_real_tool_set(self):
+        subcategory = get_subcategory("hand_tools")
+        self.assertIsNotNone(subcategory)
+        holder = listing(
+            "holder",
+            "Wall-mounted holder for pliers and wrenches",
+        )
+        tool_set = listing(
+            "tool-set",
+            "Hand tool set with screwdriver, pliers and wrench",
+        )
+
+        self.assertEqual(
+            subcategory_match_reason(holder, subcategory),
+            "accessory_or_component",
+        )
+        self.assertIsNone(subcategory_match_reason(tool_set, subcategory))
+
+    def test_finalizer_revalidates_gemini_and_reserve_candidates(self):
+        subcategory = get_subcategory("window_cleaners")
+        self.assertIsNotNone(subcategory)
+        products = [
+            listing("robot", "HUTT window cleaning robot automatic glass cleaner"),
+            listing("battery", "Replacement battery for HUTT window cleaning robot"),
+            listing("pads", "Microfiber cleaning pads for window cleaner"),
+        ]
+
+        selected = SearchService._finalize_subcategory_selection(
+            products, subcategory=subcategory, limit=20
+        )
+
+        self.assertEqual([item.product_id for item in selected], ["robot"])
+
+
 if __name__ == "__main__":
     unittest.main()
