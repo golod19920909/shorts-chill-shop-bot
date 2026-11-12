@@ -6299,7 +6299,7 @@ Important design distinction:
 
 ### Candidate marketplace policy
 
-- No additional marketplace has been selected or approved yet.
+- No additional marketplace has been integrated; Amazon and eBay are the historical next candidates for feasibility review, not yet approved implementations.
 - Historical discussion recovered from 2026-10-06 confirms that Alibaba and
   Temu had already been tried/evaluated and were dropped because of API access
   problems. The user explicitly said not to recommend them again as new options.
