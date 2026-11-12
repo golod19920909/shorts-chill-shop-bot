@@ -42,16 +42,16 @@ def _theme_description(code: str) -> str:
     return item["description"] if item else ""
 
 
-async def _edit_screen(query, text: str, keyboard) -> None:
-    message = getattr(query, "message", None)
-    if getattr(message, "photo", None):
-        await query.edit_message_caption(
-            caption=text, parse_mode="HTML", reply_markup=keyboard
-        )
-    else:
-        await query.edit_message_text(
-            text, parse_mode="HTML", reply_markup=keyboard
-        )
+async def _edit_screen(
+    context: ContextTypes.DEFAULT_TYPE, query, text: str, keyboard
+) -> None:
+    await common.edit_message_or_replace(
+        context,
+        query,
+        text,
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
 
 
 async def show_thematic_collections(
@@ -61,11 +61,11 @@ async def show_thematic_collections(
     if query is None:
         return
     await query.answer()
-    await _edit_screen(query, THEME_MENU_TEXT, thematic_collections_keyboard())
+    await _edit_screen(context, query, THEME_MENU_TEXT, thematic_collections_keyboard())
 
 
-async def _show_budget_tiers(query) -> None:
-    await _edit_screen(query, THEME_BUDGET_TEXT, thematic_budget_keyboard())
+async def _show_budget_tiers(context, query) -> None:
+    await _edit_screen(context, query, THEME_BUDGET_TEXT, thematic_budget_keyboard())
 
 
 @track_usage("thematic_collection_search")
@@ -82,7 +82,7 @@ async def thematic_collection_callback(
         return
     if len(parts) == 2 and parts[0] == CB_THEME_PREFIX and parts[1] == "budget":
         await query.answer()
-        await _show_budget_tiers(query)
+        await _show_budget_tiers(context, query)
         return
     if len(parts) != 3 or parts[0] != CB_THEME_PREFIX:
         await query.answer("Некорректная кнопка.", show_alert=True)
@@ -150,6 +150,7 @@ async def thematic_collection_callback(
             metadata={"source": "thematic_collection", "collection": shelf_code},
         )
         await _edit_screen(
+            context,
             query,
             "Не удалось получить подборку. Попробуйте ещё раз позже.",
             thematic_collections_keyboard(),
@@ -165,6 +166,7 @@ async def thematic_collection_callback(
     )
     if len(outcome.products) < THEME_MINIMUM_PRODUCTS:
         await _edit_screen(
+            context,
             query,
             "Пока не удалось собрать достаточно подходящих товаров для этой подборки. "
             "Я не буду заполнять её случайными позициями. Попробуйте позже или выберите другую тему.",
