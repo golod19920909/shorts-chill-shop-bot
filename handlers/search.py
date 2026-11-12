@@ -1315,6 +1315,7 @@ async def send_search_results(
     origin_query=None,
     history_flow: str | None = None,
     record_views: bool = True,
+    home_callback: str | None = None,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1424,6 +1425,7 @@ async def send_search_results(
         track_shown=track_shown,
         history_flow=history_flow,
         record_views=record_views,
+        home_callback=home_callback,
     )
     _log_unapplied_constraints(outcome)
     # One INFO block per opened screen: the exact ordered list Telegram is
@@ -1514,6 +1516,7 @@ def _browse_keyboard(
         new_search_label=(
             "Показать ещё" if outcome.request.subcategory_code else LABEL_NEW_SEARCH
         ),
+        home_callback=meta.get("home_callback"),
     )
 
 def _card_caption(outcome: SearchOutcome, _index: int, header: str | None) -> str:
