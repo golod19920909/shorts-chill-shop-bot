@@ -261,9 +261,14 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
     _item("garden_lighting", "garden", "Освещение участка", "Уличные светильники и садовая подсветка",
           ("outdoor garden lighting", "solar garden lights", "landscape pathway lights"),
           ("садовое освещение", "уличный светильник", "солнечный фонарь")),
-    _item("outdoor_leisure", "garden", "Отдых на даче", "Аксессуары для отдыха и комфорта на участке",
-          ("garden outdoor leisure accessories", "garden hammocks swings umbrellas", "patio shade gazebos outdoor relaxation"),
-          ("дача", "отдых", "гамак", "садовая мебель")),
+    _item("outdoor_leisure", "garden", "Мебель и отдых на участке", "Садовая мебель, гамаки, качели и решения для отдыха",
+          ("outdoor garden furniture", "patio chairs tables benches", "garden swings loungers outdoor seating"),
+          ("садовая мебель", "уличный стол", "садовое кресло", "гамак", "качели", "зонт для сада"),
+          ("garden furniture", "patio chair", "outdoor table", "garden bench", "outdoor sofa",
+           "garden lounge chair", "patio set", "outdoor dining set", "hammock", "garden swing",
+           "patio umbrella", "садовая мебель", "уличный стол", "садовое кресло",
+           "садовая скамейка", "уличный диван", "комплект мебели для террасы",
+           "обеденный комплект для сада", "гамак", "садовые качели", "садовый зонт")),
 )
 
 
@@ -316,7 +321,7 @@ THEMATIC_SUBCATEGORIES: tuple[Subcategory, ...] = tuple(
 # offered as separate navigation rows.
 HIDDEN_SUBCATEGORY_CODES: frozenset[str] = frozenset({
     "portable_gadgets", "audio", "table_lamps", "dash_cameras",
-    "pc_controllers", "console_controllers",
+    "pc_controllers", "console_controllers", "microphones", "gaming_peripherals",
     "dog_supplies", "cat_supplies", "outdoor", "woodworking_tools",
     "outdoor_furniture",
 })
