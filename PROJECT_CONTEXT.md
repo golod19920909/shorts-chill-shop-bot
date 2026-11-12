@@ -5663,3 +5663,39 @@ This update supersedes the previous subcategory-quality implementation note abov
 - Validation is still pending: no test command has been executed from this
   session. The changes are on the feature branch only; `main` and PR #10 remain
   untouched.
+
+
+
+### First local test feedback and focused corrections (2026-11-12)
+
+The first local run after pulling commit `e491204` executed:
+
+```powershell
+python -m pytest tests/test_subcategory_quality.py tests/test_search_service.py tests/test_ai_service.py -q
+```
+
+Result: **134 passed, 5 failed, 6 subtests passed**. Three failures were in
+new/affected catalog coverage and have been corrected in subsequent commits:
+
+- Family-dedup test now checks the actual contract (same-family duplicate is
+  removed; remaining candidates survive) without asserting an arbitrary order
+  across distinct subtype buckets.
+- Subtype specificity now prefers explicit, longer product-type identities
+  (e.g. `facial massager`) over generic phrases that happen to match by
+  inflection (e.g. `massage device`).
+- Pagination regression fixture now returns six genuinely different massage
+  subtypes. The previous fixture returned six near-identical neck massagers,
+  so a final result count of one was correct deduplication, not failed route
+  expansion.
+
+The two remaining failures concern the pre-existing return contract of
+`AIService.answer_product_question_with_recommendation`: its implementation
+returns a single product ID string for a recommendation, while two existing
+tests expect a list. The same tests and the exact method body are present on
+baseline branch `audit/aliexpress-portals-smoke-test`; this behavior was not
+introduced by the catalog changes. It is intentionally left untouched because
+it is outside this task.
+
+Latest focused fixes are committed on this feature branch. They have not yet
+been executed locally; ask for a fresh fast-forward pull and rerun the same
+three focused test modules before live AliExpress validation.
