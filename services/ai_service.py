@@ -91,7 +91,7 @@ DEFAULT_FALLBACK_MODEL = "gemini-3.8-flash"
 #: with invented or repeated items.
 TOP_CANDIDATES = 20
 
-#: Subcategory selection keeps a small ranked reserve so deterministic
+#: Subcategory selection keeps a bounded ranked reserve so deterministic
 #: duplicate/family curation can still produce a full 20-card shelf without
 #: spending another Gemini request.
 SUBCATEGORY_SELECTION_MAX = TOP_CANDIDATES * 2
