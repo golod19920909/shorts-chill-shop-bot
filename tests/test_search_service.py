@@ -130,16 +130,25 @@ class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
     ):
         provider = self.ali_express([])
         calls: list[tuple[int, str]] = []
+        distinct_titles = (
+            "Electric neck massager",
+            "Portable facial massager",
+            "Electric foot massager",
+            "Handheld hand massager",
+            "Wireless eye massager",
+            "Percussion massage gun",
+        )
 
         async def search_variant(request):
             phrase = request.normalized_query or request.original_query
             calls.append((request.page_no, phrase))
+            title = distinct_titles[len(calls) - 1]
             return [
                 make_product(
                     Marketplace.ALIEXPRESS,
                     f"massage-{request.page_no}-{len(calls)}",
                     12.0,
-                    title=f"Electric neck shoulder massager model {request.page_no}-{len(calls)}",
+                    title=f"{title} model {request.page_no}-{len(calls)}",
                 )
             ]
 
