@@ -307,6 +307,28 @@ class SubcategoryQualityTests(unittest.TestCase):
         )
         self.assertIsNone(subcategory_match_reason(tool_set, subcategory))
 
+    def test_accessory_items_remain_valid_in_accessory_subcategories(self):
+        laptop = get_subcategory("laptop_accessories")
+        console = get_subcategory("console_accessories")
+        self.assertIsNotNone(laptop)
+        self.assertIsNotNone(console)
+
+        self.assertIsNone(
+            subcategory_match_reason(
+                listing("stand", "Aluminum adjustable laptop stand"),
+                laptop,
+            )
+        )
+        self.assertIsNone(
+            subcategory_match_reason(
+                listing(
+                    "dock",
+                    "Controller charging station for Nintendo Switch",
+                ),
+                console,
+            )
+        )
+
     def test_finalizer_revalidates_gemini_and_reserve_candidates(self):
         subcategory = get_subcategory("window_cleaners")
         self.assertIsNotNone(subcategory)
