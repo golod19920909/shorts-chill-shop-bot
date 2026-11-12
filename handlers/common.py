@@ -136,6 +136,8 @@ def remember_outcome(
     wrap_up_keyboard: InlineKeyboardMarkup | None = None,
     back_callback: str | None = None,
     track_shown: bool = False,
+    history_flow: str | None = None,
+    record_views: bool = True,
 ) -> str:
     """Cache a search outcome in memory and return a short session id.
 
@@ -167,6 +169,8 @@ def remember_outcome(
         "wrap_up_keyboard": wrap_up_keyboard,
         "back_callback": back_callback,
         "track_shown": track_shown,
+        "history_flow": history_flow,
+        "record_views": record_views,
     }
 
     while len(cache) > MAX_CACHED_SESSIONS:
@@ -340,6 +344,9 @@ def session_flow(context: ContextTypes.DEFAULT_TYPE, session_id: str) -> str:
     """
 
     meta = get_outcome_meta(context, session_id)
+    explicit_flow = meta.get("history_flow")
+    if isinstance(explicit_flow, str) and explicit_flow:
+        return explicit_flow
     return FLOW_FEED if meta.get("track_shown") else FLOW_SEARCH
 
 
