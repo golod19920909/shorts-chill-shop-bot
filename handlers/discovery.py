@@ -527,24 +527,24 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 except Exception:
                     logger.debug("Could not remove previous catalog screen", exc_info=True)
         try:
-            await context.bot.send_photo(
-                chat_id=chat_id,
-                photo=CATALOG_COVER_PATH,
-                caption=CATEGORIES_TEXT,
+            with CATALOG_COVER_PATH.open("rb") as cover:
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=cover,
+                    caption=CATEGORIES_TEXT,
+                    parse_mode="HTML",
+                    reply_markup=categories_keyboard(),
+                )
+            return
+        except Exception:
+            logger.exception("Catalog cover could not be sent; using text fallback")
+            await context.bot.send_message(
+                chat_id,
+                CATEGORIES_TEXT,
                 parse_mode="HTML",
                 reply_markup=categories_keyboard(),
             )
             return
-        except Exception:
-            logger.exception("Catalog cover could not be sent; using text fallback")
-            if query is None:
-                await context.bot.send_message(
-                    chat_id,
-                    CATEGORIES_TEXT,
-                    parse_mode="HTML",
-                    reply_markup=categories_keyboard(),
-                )
-                return
 
     await _edit_or_reply(
         update,
