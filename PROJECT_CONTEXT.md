@@ -6444,3 +6444,15 @@ code changes or select vendors.
 
 
 - Stage 3 source-review report added at `docs/catalog-stage-3-validation-2026-11-12.md` (commit `30eed60a751c155ca7f50afe402a0375dae38d8b`). It records the legacy 12-parent/96-shelf implementation, existing offline test coverage, the category.get integration gap, the available live shelf runner, and the exact local validation gates. No code/config/UI changes and no tests/live calls were made. Stage 3 remains open pending local offline and live results plus a credential-safe category-tree diagnostic.
+
+
+## 2026-11-12 — User clarification and catalog navigation correction
+
+- User clarified that the automotive editorial collection must not look like a rigid marketplace category among discovery-oriented themes. Use the collection title **«Автонаходки и полезные штуки»** (replacing «Интересные автомобильные аксессуары»). Its scope remains unusual/practical driver and vehicle solutions, not a duplicate of the full «Авто и мото» catalogue.
+- User reported a live Telegram UX regression: tapping a category caused the current screen to disappear and a new message/window to be sent. User explicitly requires catalog navigation to remain in one message: category/subcategory/back navigation must edit the current message/caption in place.
+- Corrected `handlers/discovery.py::show_categories` on this branch. Callback entry now answers the callback and edits the existing text message or photo caption. The catalog cover is sent only when the screen is opened as a fresh command (not as a replacement for an active callback message). Removed the callback-path delete-and-send behavior.
+- Change commit: `d308d653230b793e5dcf8c487c303591cf5fb130`.
+- User explicitly requested that implementation continue through the specification but **no tests be run**; the user will run tests personally. No pytest, CI workflow, or live validation command was run for this correction.
+- Current branch head after the correction: `d308d653230b793e5dcf8c487c303591cf5fb130` (branch `feat/catalog-quality-and-subcategories`).
+- Important remaining execution constraint: this GitHub-connected workspace has repository access but not the user's local Windows `.env`, AliExpress credentials, or local runtime. Therefore it cannot perform the credentialed `aliexpress.affiliate.category.get` diagnostic or the existing live 96-shelf runner. Do not invent category IDs, claim live inventory validation, or enable new shelves whose minimum live quality is unconfirmed. Continue source-level implementation only where it can be done safely, and leave those live-dependent gates explicitly pending.
+- The approved 15-parent taxonomy and seven disputed decisions remain the accepted target. Existing «Умный поиск» and «✨ Находки» remain protected; do not touch them. Keep existing catalogue/search infrastructure and Option C contracts intact. The thematic collections must have independent configuration, history, routing and diagnostics.
