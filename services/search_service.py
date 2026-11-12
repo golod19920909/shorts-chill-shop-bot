@@ -2612,7 +2612,7 @@ class SearchService:
             keywords=list(category.keywords),
             country=country,
             currency=currency,
-            max_price=subcategory.max_price,
+            max_price=max_price,
         )
         return await self.find_products(request, exclude=exclude)
 
@@ -2622,6 +2622,7 @@ class SearchService:
         country: str | None = None,
         currency: str | None = None,
         exclude: set[tuple[str, str]] | None = None,
+        max_price: float | None = None,
     ) -> SearchOutcome:
         """Search a curated catalog topic through the shared category pipeline.
 
