@@ -29,11 +29,12 @@ import time
 from dataclasses import dataclass, field
 
 from config.catalog import Category
-from config.subcategories import Subcategory
+from config.subcategories import Subcategory, get_subcategory
 from config.settings import settings as app_settings
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
+from services.subcategory_quality import filter_subcategory_products
 from services.comparison_service import (
     ProductComparison,
     build_comparison,
@@ -541,6 +542,10 @@ class SearchService:
         #: before (no deeper retrieval, no AI round-trip).
         selector = getattr(ai_service, "select_feed_candidates", None)
         self._feed_selector = selector if callable(selector) else None
+        subcategory_selector = getattr(ai_service, "select_subcategory_candidates", None)
+        self._subcategory_selector = (
+            subcategory_selector if callable(subcategory_selector) else None
+        )
 
         # Broad «Находки» has no target query, so it uses its own selection
         # policy rather than the keyword-search selector above.
@@ -572,7 +577,7 @@ class SearchService:
         deep pool that nothing is going to filter.
         """
 
-        if self._feed_selector is None:
+        if self._feed_selector is None and self._subcategory_selector is None:
             return False
         return bool(getattr(self.ai_service, "is_available", True))
 
@@ -1342,6 +1347,15 @@ class SearchService:
             duration_ms,
         )
 
+    @staticmethod
+    def _finalize_subcategory_selection(products: list[Product], *, limit: int) -> list[Product]:
+        """Remove near-copies and keep one representative per product family."""
+        exact = deduplicate_products(products)
+        near = feed_curation.drop_near_duplicates(exact)
+        diverse = feed_curation.family_select(near, limit=max(0, int(limit)), per_family=1, threshold=0.58)
+        logger.info("Subcategory final curation: input=%d exact=%d near=%d final=%d", len(products), len(exact), len(near), len(diverse))
+        return diverse
+
     async def apply_feed_selection(self, outcome: SearchOutcome) -> None:
         """Let the AI drop the junk of a deep pool, keeping the best cards.
 
@@ -1367,11 +1381,13 @@ class SearchService:
 
         limit = max(1, min(AI_FEED_RESULTS, self.max_results))
         context_query = outcome.request.original_query or ""
-        if not self.has_feed_selector:
+        subcategory = get_subcategory(outcome.request.subcategory_code) if outcome.request.subcategory_code else None
+        selector = self._subcategory_selector if subcategory is not None and self._subcategory_selector is not None else self._feed_selector
+        if selector is None or not bool(getattr(self.ai_service, "is_available", True)):
             before = len(outcome.products)
-            outcome.products = _cut_with_numeric_protection(
-                outcome.products, self.max_results, outcome.request
-            )
+            fallback_limit = limit if subcategory is not None else self.max_results
+            fallback = _cut_with_numeric_protection(outcome.products, fallback_limit, outcome.request)
+            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
             log_ai_selection_outcome(
                 logger,
                 context=context_query,
@@ -1395,13 +1411,12 @@ class SearchService:
         t_feed = time.perf_counter()
         try:
             chosen = await asyncio.wait_for(
-                self._feed_selector(
-                    pool,
-                    wanted=limit,
-                    query=outcome.request.normalized_query
-                    or outcome.request.original_query
-                    or None,
-                ),
+                (selector(pool, wanted=limit, subcategory=subcategory)
+                 if subcategory is not None and selector is self._subcategory_selector
+                 else selector(
+                     pool, wanted=limit,
+                     query=outcome.request.normalized_query or outcome.request.original_query or None,
+                 )),
                 timeout=FEED_SELECTION_TIMEOUT_SECONDS,
             )
         except Exception as exc:  # noqa: BLE001 - an AI failure must not break a search
@@ -1426,13 +1441,20 @@ class SearchService:
             feed_timed_out,
         )
 
+        if chosen == [] and subcategory is not None:
+            # An explicit empty semantic selection means no candidate passed.
+            outcome.products = []
+            outcome.comparisons = []
+            log_ai_selection_outcome(logger, context=context_query, pool_size=len(pool), chosen_ids=chosen, selected_size=0, fallback_reason="subcategory selector confirmed no suitable candidates")
+            return
+
         if not chosen:
             # DETERMINISTIC FALLBACK: this top-``max_results`` cut is the
             # exact Stage-9 loss point (pool 80 -> pre-curation 30), so it
             # carries the same bounded numeric-spec pool protection.
-            outcome.products = _cut_with_numeric_protection(
-                pool, self.max_results, outcome.request
-            )
+            fallback_limit = limit if subcategory is not None else self.max_results
+            fallback = _cut_with_numeric_protection(pool, fallback_limit, outcome.request)
+            outcome.products = self._finalize_subcategory_selection(fallback, limit=limit) if subcategory is not None else fallback
             if selector_failed:
                 reason = "AI selector raised an exception"
             elif chosen is None:
@@ -1492,8 +1514,8 @@ class SearchService:
         log_final_pool(
             logger, selected, context=context_query, origin="ai-selected"
         )
-        outcome.products = selected
-        outcome.comparisons = build_comparison(selected)
+        outcome.products = self._finalize_subcategory_selection(selected, limit=limit) if subcategory is not None else selected
+        outcome.comparisons = build_comparison(outcome.products)
 
     def _collect_raw(
         self,
@@ -1601,6 +1623,18 @@ class SearchService:
                 outcome.titles_other_script += 1
 
         relevant, dropped = filter_relevant(collected, request)
+        if request.subcategory_code:
+            subcategory = get_subcategory(request.subcategory_code)
+            if subcategory is not None:
+                before_subcategory_gate = len(relevant)
+                relevant, subcategory_dropped = filter_subcategory_products(relevant, subcategory)
+                if subcategory_dropped:
+                    logger.info(
+                        "Subcategory gate %s removed %d of %d candidates (%s)",
+                        subcategory.code, sum(subcategory_dropped.values()),
+                        before_subcategory_gate,
+                        ", ".join(f"{reason}={count}" for reason, count in sorted(subcategory_dropped.items())),
+                    )
         outcome.products_dropped_as_irrelevant = sum(dropped.values())
         if dropped:
             logger.info(
