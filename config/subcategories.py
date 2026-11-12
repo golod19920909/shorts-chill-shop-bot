@@ -43,7 +43,7 @@ def _item(code: str, category: str, title: str, description: str,
           product_types: tuple[str, ...] = (),
           exclude_terms: tuple[str, ...] = ()) -> Subcategory:
     return Subcategory(code, category, title, description, routes, keywords,
-                       product_types, exclude_terms)
+                       product_types or keywords, exclude_terms)
 
 
 SUBCATEGORIES: tuple[Subcategory, ...] = (
@@ -73,10 +73,13 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("органайзер", "хранение", "контейнер", "коробка", "полка")),
     _item("cleaning", "home", "Уборка и чистота", "Инвентарь и аксессуары для уборки",
           ("home cleaning tools", "cleaning brushes mops", "household cleaning accessories"),
-          ("уборка", "щётка", "швабра", "салфетка", "чистка")),
+          ("уборка", "щётка", "швабра", "салфетка", "чистка"),
+          ("cleaning brush", "scrubber", "mop", "duster", "vacuum cleaner", "швабра", "щетка для уборки", "электрощетка"),
+          ("drain", "pipe", "sewer", "plumbing", "fireplace", "ash bucket", "apron", "hair catcher")),
     _item("home_lighting", "home", "Освещение", "Светильники и подсветка помещений",
           ("indoor home lighting", "LED room lights", "desk bedside lamps"),
-          ("светильник", "лампа", "освещение", "подсветка")),
+          ("светильник", "лампа", "освещение", "подсветка"),
+          ("lamp", "light fixture", "ceiling light", "LED strip", "светильник", "лампа", "светодиодная лента")),
     _item("bathroom", "home", "Ванная комната", "Аксессуары и решения для ванной",
           ("bathroom accessories organizers", "bathroom storage", "shower accessories"),
           ("ванная", "душ", "держатель", "мыльница", "дозатор")),
@@ -121,7 +124,9 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("консоль", "приставка", "аксессуар", "зарядная станция")),
     _item("controllers", "games", "Геймпады и контроллеры", "Устройства игрового управления",
           ("game controllers gamepads", "wireless gaming controllers", "joystick controllers"),
-          ("геймпад", "джойстик", "контроллер", "руль")),
+          ("геймпад", "джойстик", "контроллер", "руль"),
+          ("gamepad", "game controller", "gaming joystick", "racing wheel", "геймпад", "игровой контроллер", "джойстик", "игровой руль"),
+          ("wifi router", "wireless router", "network router", "router", "wifi роутер")),
     _item("gaming_peripherals", "games", "Игровая периферия", "Клавиатуры, мыши, коврики и гарнитуры",
           ("gaming keyboard mouse headset", "gaming mouse pads", "gaming headsets"),
           ("игровая клавиатура", "игровая мышь", "гарнитура", "коврик")),
@@ -251,6 +256,11 @@ SUBCATEGORIES: tuple[Subcategory, ...] = (
           ("garden outdoor leisure accessories", "patio camping garden accessories", "outdoor furniture accessories"),
           ("дача", "отдых", "гамак", "садовая мебель")),
 )
+
+
+from config.subcategory_expansion import EXTRA_SUBCATEGORIES
+
+SUBCATEGORIES = (*SUBCATEGORIES, *EXTRA_SUBCATEGORIES)
 
 
 _SUBCATEGORIES_BY_CODE = {item.code: item for item in SUBCATEGORIES}
