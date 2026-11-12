@@ -35,7 +35,7 @@ from curation.pipeline import DeduplicationFilter
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
-from services.subcategory_quality import filter_subcategory_products
+from services.subcategory_quality import filter_subcategory_relevant
 from services.comparison_service import (
     ProductComparison,
     build_comparison,
@@ -1640,19 +1640,11 @@ class SearchService:
             else:
                 outcome.titles_other_script += 1
 
-        relevant, dropped = filter_relevant(collected, request)
-        if request.subcategory_code:
-            subcategory = get_subcategory(request.subcategory_code)
-            if subcategory is not None:
-                before_subcategory_gate = len(relevant)
-                relevant, subcategory_dropped = filter_subcategory_products(relevant, subcategory)
-                if subcategory_dropped:
-                    logger.info(
-                        "Subcategory gate %s removed %d of %d candidates (%s)",
-                        subcategory.code, sum(subcategory_dropped.values()),
-                        before_subcategory_gate,
-                        ", ".join(f"{reason}={count}" for reason, count in sorted(subcategory_dropped.items())),
-                    )
+        subcategory = get_subcategory(request.subcategory_code) if request.subcategory_code else None
+        if subcategory is not None:
+            relevant, dropped = filter_subcategory_relevant(collected, request, subcategory)
+        else:
+            relevant, dropped = filter_relevant(collected, request)
         outcome.products_dropped_as_irrelevant = sum(dropped.values())
         if dropped:
             logger.info(
