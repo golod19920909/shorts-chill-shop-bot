@@ -279,6 +279,9 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
 
+    rows.append([
+        InlineKeyboardButton("✨ Тематические подборки", callback_data=f"{CB_THEME_PREFIX}:menu")
+    ])
     rows.append(home_row())
     return InlineKeyboardMarkup(rows)
 
