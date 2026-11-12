@@ -6211,3 +6211,179 @@ unchanged.
 - Do not merge to `main`, merge PR #10, or claim final acceptance.
 - Keep the current task scope explicit and ask for approval before moving from
   taxonomy analysis to implementation.
+
+---
+
+## 2026-11-12 — Strategic direction: discounts and multi-marketplace price comparison
+
+This section records the product direction discussed on 2026-11-12. It is a
+strategic roadmap note, NOT authorization to start implementation and NOT a
+claim that these features already exist.
+
+### Current implementation — facts from the repository at this handoff
+
+- The production bot is still **AliExpress-only**.
+- There is exactly one concrete provider module:
+  `services/marketplaces/aliexpress.py`, built on the generic
+  `services/marketplaces/base.py::MarketplaceProvider`.
+- `models/product.py::Product` is already marketplace-independent:
+  it carries marketplace identity, product ID, title, URL, price/currency,
+  old price/discount, rating/orders, shipping, availability and affiliate data.
+- `models/product.py::Marketplace` currently contains only
+  `ALIEXPRESS`. Its documentation says Temu and Alibaba were deliberately
+  removed; do not silently re-add them.
+- `models/search_request.py::SearchRequest` already has
+  `preferred_marketplaces`, so the request contract can express a marketplace
+  preference.
+- `services/search_service.py::SearchService` accepts a list of providers,
+  filters by `preferred_marketplaces`, runs active providers concurrently,
+  and records searched/failed/unavailable marketplace names. This is a
+  multi-provider orchestration seam, not proof that multiple providers are
+  wired into production.
+- `bot/__init__.py::build_providers()` currently returns only
+  `[AliExpressProvider(settings.aliexpress)]`. `Settings` currently has
+  only AliExpress API credentials. There is no second marketplace adapter.
+- There is no implemented cross-marketplace offer-matching / same-model
+  comparison UI. `services/comparison_service.py` filters, ranks and scores
+  normalized products; it is not yet a complete "where is this exact item
+  cheapest?" engine.
+- Main menu currently has «Умный поиск», «Найти по фото», «✨ Находки»,
+  «Категории», «Избранное», «Отслеживание цен», «Валюта», «Настройки»,
+  «🔥 Горячие скидки» and «🎟 Промокоды», plus the Shorts Chill channel link.
+  Configured sale-event buttons can be appended separately.
+- «🔥 Горячие скидки» currently opens four fixed AliExpress partner
+  destinations (super discounts, brand discounts, bundles, coins). It is NOT
+  a verified product-level discount feed.
+- «🎟 Промокоды» currently opens one configured AliExpress partner/referral
+  destination. It is NOT a live coupon catalogue.
+- Product-level coupon information can be displayed only when
+  `promo_code_info` is actually returned for a product. Do not invent coupon
+  codes, discount percentages, minimum spends or expiry dates.
+- «Умный поиск» and «✨ Находки» are protected production features. They must
+  remain untouched unless the user separately authorizes a change.
+
+### Multi-marketplace comparison — user-confirmed strategic idea, not implemented
+
+The intended user value is broader than adding several search APIs:
+when a person asks for a product, the bot should help answer **where it is
+better to buy that product**, by searching supported marketplaces and
+comparing trustworthy offers.
+
+Target experience to evaluate:
+1. User names/describes a product (possibly with model, required specs and
+   budget).
+2. Search the enabled marketplaces in parallel using their own official,
+   permitted APIs / feeds.
+3. Normalize real listings into the common `Product` model.
+4. Identify the same exact product/model across sources. Compare exact matches
+   separately from merely similar alternatives; never present different
+   models as the same item.
+5. Compare the best available price on a genuinely comparable basis:
+   currency conversion using a fresh, documented rate; shipping and destination
+   costs when the source exposes them; stock; delivery estimate; seller/store
+   quality; and timestamp/freshness of the quote.
+6. Show a clear per-marketplace offer, source and direct/affiliate URL. Explain
+   what is unknown (for example shipping, taxes, delivery or missing seller
+   data) instead of claiming an unverified "cheapest" offer.
+7. Rank by the user's goal: lowest verified total cost, fastest delivery,
+   trusted seller, or best overall balance. "Best" must be explainable and
+   grounded in actual source fields.
+
+Important design distinction:
+- **Exact-product comparison**: same brand/model/variant and compatible
+  configuration. Only these offers can be called prices for the same item.
+- **Alternative-product comparison**: different models that meet the user's
+  requirements. Show as alternatives, not as the same product.
+- A lower item price alone is not enough to claim a better deal if shipping,
+  destination, currency or other material cost fields are unknown.
+
+### Candidate marketplace policy
+
+- No additional marketplace has been selected or approved yet.
+- The earlier chat's exact vendor shortlist could not be recovered from the
+  available conversation/project records. Do not invent a claim that the user
+  previously approved particular sites.
+- Possible candidates for a future feasibility review may include Ukraine-facing
+  marketplaces/retailers and international marketplaces (for example Rozetka,
+  Prom.ua, Epicentr, Amazon or eBay). These are research candidates only, not
+  approved integrations or a remembered historical selection.
+- For each candidate, first verify official product-search access, API terms,
+  affiliate/partner eligibility, price/stock/shipping fields, Ukraine delivery
+  coverage, rate limits, attribution requirements and operational cost.
+- Do not scrape ordinary marketplace pages as a shortcut. Do not use a
+  marketplace's API without documented permission. Preserve the historical
+  exclusions of Temu and Alibaba unless the user explicitly reopens them.
+- Some sources may not offer an affiliate program/API suitable for this bot.
+  The product comparison value and affiliate monetization must be treated as
+  separate questions: a direct-link source may still be useful, but its link
+  must be labelled honestly and its economics assessed separately.
+
+### Architecture implications and likely future work
+
+The existing provider abstraction is a useful starting point, but adding a
+provider alone is insufficient. Before implementation, design and validate:
+- provider-specific credentials/configuration and a provider registry;
+- normalized source identity and stable product identifiers;
+- marketplace-specific query translation and pagination/rate limits;
+- cross-source product identity / variant matching with confidence and
+  "unknown" outcomes;
+- comparable currency and destination-aware total-cost calculation;
+- freshness timestamps and cache policy for volatile prices/stock;
+- provider-specific affiliate/direct-link handling and analytics;
+- partial-provider failure behavior and per-source diagnostics;
+- UI for source selection and comparison without changing protected features.
+
+Do not change the existing AliExpress retrieval pipeline or the protected
+«Умный поиск» / «✨ Находки» contracts as a side effect. A future multi-source
+comparison feature should first be prototyped behind a separate, explicitly
+approved flow, with regression coverage proving existing AliExpress behavior
+is unchanged.
+
+### Discounts and thematic discovery — separate but complementary layers
+
+The user and assistant discussed keeping the ordinary category catalogue AND
+adding separate editorial «Тематические подборки». A discount surface may
+complement both:
+- «Выгодные предложения» could become a dedicated product-level deals feed
+  only after reliable source data and freshness rules are verified.
+- Thematic shelves can optionally highlight a verified discounted item, but
+  their primary purpose remains discovery and relevance, not chasing the
+  largest advertised percentage.
+- Existing «🔥 Горячие скидки» and «🎟 Промокоды» must not be described as
+  verified deal/coupon feeds; they are currently partner landing destinations.
+- Do not trust a crossed-out old price or headline percentage by itself.
+  Validate current price, old-price basis, discount source, product relevance,
+  seller quality, shipping/currency context and timestamp. If the evidence is
+  incomplete, do not call the item a genuine bargain.
+- First audit the current AliExpress discount/coupon capabilities and actual
+  account permissions. The earlier Portals diagnostic returned zero featured
+  campaigns and zero order rows; empty/ambiguous responses are not proof that
+  an operational campaign or coupon feed is available.
+- Do not build a new discount feed until a live sample proves sufficient,
+  relevant and fresh inventory. A smaller honest feed is preferable to a full
+  screen of weak deals.
+
+### Agreed sequencing / current status
+
+1. Finish the current catalogue taxonomy review and verify the latest
+   subcategory quality work. Do not divert the active task into provider
+   expansion.
+2. Separately prepare a marketplace feasibility matrix and compare potential
+   sources for API access, affiliate terms, Ukraine delivery, data quality,
+   coverage and cost.
+3. Prototype a small cross-marketplace comparison for a narrow product set
+   only after the user approves the provider shortlist and acceptance rules.
+4. Validate exact-model matching, currency/landed-cost comparison, source
+   freshness, provider failures and affiliate/direct links with real permitted
+   data.
+5. Only then decide whether to expose a new menu entry or integrate the
+   comparison as an additional mode. Preserve all protected existing sections.
+6. Audit AliExpress discounts/coupons separately; implement a verified
+   «Выгодные предложения» feed only if live evidence supports it.
+
+At this handoff: no second marketplace provider, no cross-marketplace
+comparison UI, no live multi-marketplace benchmark and no product-level
+discount feed have been implemented or accepted. This note records the user's
+strategic direction and the actual code seams discovered; it does not authorize
+code changes or select vendors.
+
