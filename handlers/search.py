@@ -29,13 +29,14 @@ from telegram.ext import ContextTypes
 
 from curation.integration import mode_for_feed, mode_for_request
 from handlers import common, cross_sell
-from keyboards.main import back_to_menu_keyboard
+from keyboards.main import CB_THEME_PREFIX, back_to_menu_keyboard
 from utils.formatting import is_openable_url
 from keyboards.products import (
     CB_PREFIX_BUY,
     CB_PREFIX_CATEGORY_NEW_SEARCH,
     CB_PREFIX_FAVORITE,
     CB_PREFIX_TRACK,
+    LABEL_NEW_SEARCH,
     browse_card_keyboard,
 )
 from models.product import Product
@@ -1501,9 +1502,16 @@ def _browse_keyboard(
         back_callback=back_callback,
         tracking=tracked,
         new_search_callback=(
-            f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:{session_id}"
+            f"{CB_THEME_PREFIX}:more:{session_id}"
             if outcome.request.subcategory_code
-            and not outcome.request.subcategory_code.startswith("theme_") else None
+            and outcome.request.subcategory_code.startswith("theme_")
+            else (
+                f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:{session_id}"
+                if outcome.request.subcategory_code else None
+            )
+        ),
+        new_search_label=(
+            "Показать ещё" if outcome.request.subcategory_code else LABEL_NEW_SEARCH
         ),
     )
 
