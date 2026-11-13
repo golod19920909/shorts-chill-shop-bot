@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from bot import build_search_service
 from config.settings import settings
+from database.database import Database
 from config.subcategories import get_subcategory
 from config.thematic_collections import THEME_SHELVES, THEMATIC_COLLECTIONS
 from curation.integration import CurationGate
@@ -55,6 +56,12 @@ def _arguments() -> argparse.Namespace:
         "--currency",
         default=None,
         help="Optional target currency for non-budget collections.",
+    )
+    parser.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="Optional internal users.id; read (never write) that user's history for each shelf.",
     )
     parser.add_argument(
         "--output-dir",
@@ -128,6 +135,7 @@ async def _run(args: argparse.Namespace) -> int:
         max(1, int(search_service.max_search_pages)),
     )
     gate = CurationGate()
+    history_db = Database(settings.database_full_path) if args.user_id is not None else None
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
     results: list[dict] = []
@@ -191,8 +199,19 @@ async def _run(args: argparse.Namespace) -> int:
                 )
                 curation_stages = _curation_report(gate) if after_search else []
                 unique_count = len({_identity(product) for product in curated})
+                seen_for_shelf = set()
+                if history_db is not None:
+                    seen_for_shelf = set(
+                        await history_db.get_shown_products(
+                            args.user_id, flow=f"themes:{shelf.code}"
+                        )
+                    )
+                after_history = [
+                    product for product in curated
+                    if _identity(product) not in seen_for_shelf
+                ]
                 provider_status = _provider_status(outcome)
-                if len(curated) >= MINIMUM_PRODUCTS:
+                if len(after_history) >= MINIMUM_PRODUCTS:
                     status = "ready"
                     shortfall_reason = None
                 else:
@@ -253,6 +272,12 @@ async def _run(args: argparse.Namespace) -> int:
                         "after_search_and_price_validation": len(after_search),
                         "after_curation": len(curated),
                         "unique_after_curation": unique_count,
+                        "availability_without_history": len(curated),
+                        "availability_with_history": len(after_history),
+                        "history_checked": history_db is not None,
+                        "history_scope": f"themes:{shelf.code}" if history_db is not None else None,
+                        "history_excluded": len(curated) - len(after_history),
+                        "displayable_products": len(after_history),
                         "price_rejections": dict(price_rejections),
                         "curation_stages": curation_stages,
                         "type_counts": dict(type_counts),
@@ -261,9 +286,13 @@ async def _run(args: argparse.Namespace) -> int:
                         "unavailable_marketplaces": outcome.unavailable_marketplaces,
                         "checked_at": checked_at,
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
-                        "products": [
+                        "products_without_history": [
                             _product_report(product, subcategory, checked_at)
                             for product in curated
+                        ],
+                        "products_after_history": [
+                            _product_report(product, subcategory, checked_at)
+                            for product in after_history
                         ],
                     }
                 )
@@ -287,7 +316,9 @@ async def _run(args: argparse.Namespace) -> int:
                         "error": f"{type(exc).__name__}: {exc}",
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
                         "after_curation": 0,
-                        "products": [],
+                        "displayable_products": 0,
+                        "products_without_history": [],
+                        "products_after_history": [],
                     }
                 )
             summary[results[-1]["status"]] += 1
@@ -359,7 +390,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     finished = time.perf_counter()
     ready_groups = {
-        row["code"]: row.get("after_curation", 0) >= MINIMUM_PRODUCTS
+        row["code"]: row.get("displayable_products", row.get("after_curation", 0)) >= MINIMUM_PRODUCTS
         for row in results
     }
     report = {
@@ -393,10 +424,13 @@ async def _run(args: argparse.Namespace) -> int:
             "checked_at is the retrieval timestamp, not a provider update timestamp."
         ),
         "history_policy": (
-            "This diagnostic does not write shown-product history. Production "
-            "Telegram history is isolated by user and thematic shelf using a "
-            "persistent popular_shown.flow scope."
+            "No history rows are written. Without --user-id the report shows "
+            "base availability only. With --user-id it also reads that user's "
+            "existing themes:<shelf_code> scope and reports post-history "
+            "availability. This is a diagnostic estimate over the curated "
+            "baseline, not a second marketplace/Gemini run."
         ),
+        "history_user_id": args.user_id,
         "results": results,
     }
 
