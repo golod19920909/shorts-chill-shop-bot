@@ -275,7 +275,13 @@ async def _run(args: argparse.Namespace) -> int:
                         "status": status,
                         "shortfall_reason": shortfall_reason,
                         "provider_status": provider_status,
-                        "raw_candidates": outcome.products_before_filtering,
+                        "raw_candidates": sum(search_service.last_subcategory_route_stats.values()),
+                        "unique_candidates_before_filtering": outcome.products_before_filtering,
+                        "exact_duplicates_across_route_rows": max(
+                            0,
+                            sum(search_service.last_subcategory_route_stats.values())
+                            - outcome.products_before_filtering,
+                        ),
                         "dropped_as_irrelevant": outcome.products_dropped_as_irrelevant,
                         "relevance_drop_reasons": dict(outcome.relevance_drop_reasons),
                         "after_constraints": outcome.products_after_constraints,
