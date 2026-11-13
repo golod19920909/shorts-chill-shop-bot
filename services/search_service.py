@@ -850,18 +850,38 @@ class SearchService:
         routes_requested = 0
         routes_completed = 0
         routes_failed = 0
+        thematic_required_types = (
+            min(5, len(shelf_config.product_type_groups))
+            if is_thematic_request and shelf_config is not None
+            else 0
+        )
+
+        def represented_thematic_types(products: list[Product]) -> set[str]:
+            if not is_thematic_request or shelf_config is None:
+                return set()
+            return {
+                product_type
+                for product in products
+                if (product_type := subcategory_product_type(product, shelf_config))
+            }
 
         for page_no in pages:
-            # Thematic shelves get at most one deeper pass, and only when
-            # the first pass has not yet produced a full eligible candidate pool.
+            # A full pool is not enough if it still represents too few
+            # canonical types: the one deeper pass may discover more variety.
             if (
                 is_thematic_request
                 and page_no > first_page
                 and outcome.found_count >= pool_target
+                and len(represented_thematic_types(outcome.products))
+                >= thematic_required_types
             ):
                 logger.info(
-                    "Thematic retrieval stopped at pool target: code=%s pool=%d target=%d",
-                    request.subcategory_code, outcome.found_count, pool_target,
+                    "Thematic retrieval stopped: code=%s pool=%d/%d types=%d/%d",
+                    request.subcategory_code,
+                    outcome.found_count,
+                    pool_target,
+                    len(represented_thematic_types(outcome.products)),
+                    thematic_required_types,
                 )
                 break
             # Page 1 asks every grounded phrase. Later pages continue every
@@ -1258,7 +1278,14 @@ class SearchService:
                     page_no,
                 )
                 break
-            elif len(outcome.products) >= pool_target:
+            elif (
+                len(outcome.products) >= pool_target
+                and (
+                    not is_thematic_request
+                    or len(represented_thematic_types(outcome.products))
+                    >= thematic_required_types
+                )
+            ):
                 break
 
         if raw:
