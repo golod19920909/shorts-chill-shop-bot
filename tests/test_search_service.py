@@ -147,6 +147,29 @@ class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
         # Empty routes are retired; the optional second page is not wasted.
         self.assertEqual(provider.search_calls, len(expected))
 
+    def test_thematic_search_skips_extra_routes_when_pool_and_type_coverage_are_sufficient(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        products = [
+            make_product(Marketplace.ALIEXPRESS, "theme-phone-stand", 3.0,
+                         title="Adjustable phone stand holder for desk"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cable-organizer", 2.0,
+                         title="Cable organizer clips set"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cable-tie", 1.5,
+                         title="Silicone cable tie straps"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cleaning-brush", 4.0,
+                         title="Small household cleaning brush"),
+            make_product(Marketplace.ALIEXPRESS, "theme-screen-kit", 3.5,
+                         title="Screen cleaning kit for phone and tablet"),
+        ]
+        provider = self.ali_express(products)
+        service = SearchService([provider], max_results=5, max_search_pages=5)
+
+        outcome = self.run_async(service.find_by_subcategory(shelf))
+
+        self.assertEqual(outcome.found_count, 5)
+        self.assertEqual(provider.search_queries, [shelf.query_routes[0]])
+
     def test_subcategory_search_continues_all_routes_on_next_page(
         self,
     ):
