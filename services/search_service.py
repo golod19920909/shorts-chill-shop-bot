@@ -570,6 +570,7 @@ class SearchService:
         # Per-route row counts for the latest curated-subcategory retrieval;
         # consumed by the explicit operator diagnostic only.
         self.last_subcategory_route_stats: dict[str, int] = {}
+        self.last_subcategory_rejection_samples: dict[str, list[str]] = {}
 
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
@@ -2066,7 +2067,11 @@ class SearchService:
             if request.subcategory_code else None
         )
         if subcategory is not None:
-            relevant, dropped = filter_subcategory_relevant(collected, request, subcategory)
+            rejection_samples: dict[str, list[str]] = {}
+            relevant, dropped = filter_subcategory_relevant(
+                collected, request, subcategory, rejection_samples=rejection_samples
+            )
+            self.last_subcategory_rejection_samples = rejection_samples
         else:
             relevant, dropped = filter_relevant(collected, request)
         outcome.products_dropped_as_irrelevant = sum(dropped.values())
