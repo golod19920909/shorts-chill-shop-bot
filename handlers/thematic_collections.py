@@ -12,7 +12,6 @@ from config.thematic_collections import (
     THEME_MAX_PRICE_BY_CODE,
 )
 from config.subcategories import get_subcategory
-from database.models import FLOW_THEMES
 from handlers import common
 from handlers.catalog_navigation import edit_catalog_message_or_replace
 from handlers.discovery import record_outcome_events
