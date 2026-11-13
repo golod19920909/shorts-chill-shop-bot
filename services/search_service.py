@@ -281,6 +281,9 @@ class SearchOutcome:
     #: result to the stage that actually emptied it; it never influences
     #: ranking, filtering or what the user sees.
     products_after_constraints: int = 0
+    #: Count removed by the explicit request constraints (for thematic
+    #: budget shelves this is the strict max-price stage).
+    products_dropped_by_constraints: int = 0
 
     #: B4 cross-language diagnostics: the raw candidate titles split by
     #: writing system relative to the query's own dominant script
@@ -2110,6 +2113,7 @@ class SearchService:
             )
 
         filtered = filter_products(relevant, request)
+        outcome.products_dropped_by_constraints = max(0, len(relevant) - len(filtered))
         # B4: how many candidates the EXPLICIT constraints (price/rating/
         # orders) let through - the boundary that separates "constraints
         # removed everything" from "relevance removed everything".
