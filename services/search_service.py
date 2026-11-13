@@ -714,6 +714,7 @@ class SearchService:
         # the finished outcome through ``_record_search_outcome``.
         t_search_started = time.perf_counter()
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            self.last_subcategory_selection_stats = None
             self.last_subcategory_rejection_samples = {}
             self.last_subcategory_candidate_routes = {}
             self.last_subcategory_route_stats = {}
