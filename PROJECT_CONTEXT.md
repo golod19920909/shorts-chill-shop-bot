@@ -6646,3 +6646,10 @@ code changes or select vendors.
 - Replaced the fixed five-type route stop with an adaptive coverage target: `min(6, max(3, ceil(configured_type_groups / 3)))`. The six shelves therefore scale search continuation with their declared type breadth.
 - This target controls whether to spend the one additional page; it is not a minimum display count. If the route/page budget is exhausted with fewer types, the finalizer returns only validated distinct products.
 - Updated the staged-route regression fixture to provide six canonical types for the broad $5 shelf's early-stop case. Tests were not run.
+
+
+## 2026-11-13 — Gemini candidate context and route-plan reporting
+
+- The thematic-only Gemini candidate payload now includes the deterministic `canonical_product_type` assigned by `subcategory_product_type`, plus `shelf_title` and `shelf_purpose`. The same deterministic identity gate runs again after AI selection. Ordinary subcategory payloads and their previous prompt diversity wording are unchanged.
+- The diagnostic reports the complete planned route list separately from the actually executed route counts, includes candidate route provenance, and states the actual thematic route/page budget (maximum 20 routes and two pages).
+- Added an offline AI-service regression source verifying the thematic Gemini prompt contains the canonical product type and shelf purpose. No tests or live calls were run.
