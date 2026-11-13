@@ -1085,6 +1085,29 @@ class SearchService:
                         exclude=exclude,
                         cap=pool_target,
                     )
+                    if (
+                        is_thematic_request
+                        and outcome.found_count >= pool_target
+                        and shelf_config is not None
+                    ):
+                        represented_types = {
+                            subcategory_product_type(product, shelf_config)
+                            for product in outcome.products
+                        } - {None}
+                        required_types = min(
+                            5, len(shelf_config.product_type_groups)
+                        )
+                        if len(represented_types) >= required_types:
+                            logger.info(
+                                "Thematic route expansion stopped: code=%s "
+                                "pool=%d/%d represented_types=%d/%d",
+                                request.subcategory_code,
+                                outcome.found_count,
+                                pool_target,
+                                len(represented_types),
+                                required_types,
+                            )
+                            break
                     if expansion and variant == expansion:
                         # G24.8 P1.9: one concise line per category expansion -
                         # counts only, no product lists, no user-visible text.
