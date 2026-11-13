@@ -168,3 +168,12 @@ The category diagnostic must be reviewed before any category ID is committed. Th
 - The thematic entry is a standalone row immediately after the existing Categories row. The original pairings/order of the other main-menu buttons remain unchanged: Search/Photo, Findings/Categories, Favorites/Tracking, Currency/Settings, and Hot Discounts/Promo Codes.
 - The focused UI test fake now supplies an existing callback message so the strict catalog/theme edit helper is exercised as an edit rather than an artificial no-message early return. It asserts that opening the top-level thematic screen does not send a replacement message.
 - No tests were run.
+
+
+### Thematic retrieval correction — 2026-11-13
+
+- User live logs showed all three configured routes for «Необычные полезные устройства» returning the Affiliate API's documented empty-result response (resp_code=405); no products reached relevance filtering or curation. This is a valid empty query result, not evidence of a broken signature or general API outage.
+- The previous thematic routes were broad editorial phrases (for example, “clever practical everyday gadgets”), rather than phrases naming actual products in the shelf's own product-type allowlist. The same pattern existed in the other thematic shelves and budget tiers.
+- Replaced the six thematic route sets with three concrete product-type queries per shelf: jar opener / bag sealer / cleaning brush; smart plug / smart switch / motion sensor; digital microscope / USB tester / endoscope camera; and concrete small-item queries for each USD tier. The strict product-type gate, exclusions, USD price checks, 12-product minimum, isolated theme history and category curation remain unchanged.
+- Added an offline contract assertion that every thematic query route must exactly match a declared product type. This guards against reintroducing generic editorial wording as an API query.
+- This is a source-level correction only. No tests, syntax checks, CI, Telegram, AliExpress or Gemini calls were run. The route phrases are not yet live-validated; the user must pull the fix branch and repeat the six thematic checks. If any route still returns 405, inspect its exact normalized query and response before changing filters or relaxing product-type rules.
