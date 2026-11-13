@@ -1,6 +1,7 @@
 """Offline contract checks for the independent editorial collections."""
 from __future__ import annotations
 
+import inspect
 import unittest
 
 from config.subcategories import get_all_subcategories, get_subcategory
@@ -12,6 +13,7 @@ from config.thematic_collections import (
 )
 from database.models import FLOW_FEED, FLOW_SEARCH
 from models.search_request import SearchRequest
+from handlers import thematic_collections as thematic_handlers
 from keyboards.main import (
     CB_THEMATIC_COLLECTIONS,
     MAIN_MENU_CALLBACKS,
@@ -145,6 +147,12 @@ class ThematicCollectionConfigTests(unittest.TestCase):
             retrieval_queries=[f"route {index}" for index in range(19)],
         )
         self.assertEqual(len(request.retrieval_queries), 19)
+
+    def test_thematic_handlers_show_any_positive_result_count(self) -> None:
+        source = inspect.getsource(thematic_handlers)
+        self.assertNotIn("THEME_MINIMUM_PRODUCTS", source)
+        self.assertEqual(source.count("minimum_products=1"), 2)
+        self.assertGreaterEqual(source.count("if not outcome.products:"), 2)
 
     def test_thematic_collections_are_a_top_level_menu_entry(self) -> None:
         self.assertIn(CB_THEMATIC_COLLECTIONS, MAIN_MENU_CALLBACKS)
