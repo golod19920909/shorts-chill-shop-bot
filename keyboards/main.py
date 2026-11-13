@@ -1,7 +1,7 @@
 """Main menu, navigation labels and shared keyboards.
 
-Final spec: the menu is exactly eleven buttons (ten callback sections +
-the Shorts Chill channel URL). Navigation keeps TWO separate concepts:
+The menu contains the established sections plus the independent thematic
+collections entry and the Shorts Chill channel URL. Navigation keeps TWO separate concepts:
 
 - ``◀️ Назад`` (``nav:back``) - the real previous screen, restored from
   ``context.user_data`` (see ``handlers.start.nav_back_callback``);
@@ -49,6 +49,7 @@ CB_HOT_DISCOUNTS = "menu:hot"
 #: tombstone belongs to the old removed deals hub, not to this section.
 CB_PROMO_CODES = "menu:pcodes"
 CB_CATEGORIES = "menu:categories"
+CB_THEMATIC_COLLECTIONS = "menu:themes"
 CB_FAVORITES = "menu:favorites"
 CB_TRACKING = "menu:tracking"
 CB_CURRENCY_SCREEN = "menu:currency"
@@ -85,6 +86,7 @@ MAIN_MENU_CALLBACKS = (
     CB_HOT_DISCOUNTS,
     CB_PROMO_CODES,
     CB_CATEGORIES,
+    CB_THEMATIC_COLLECTIONS,
     CB_FAVORITES,
     CB_TRACKING,
     CB_CURRENCY_SCREEN,
@@ -134,6 +136,7 @@ LABEL_FEED = "\u2728 Находки"
 LABEL_HOT_DISCOUNTS = "\U0001F525 Горячие скидки"
 LABEL_PROMO_CODES = "\U0001F39F Промокоды"
 LABEL_CATEGORIES = "\U0001F4C2 Категории"
+LABEL_THEMATIC_COLLECTIONS = "\u2728 Тематические подборки"
 LABEL_FAVORITES = "\u2764\uFE0F Избранное"
 LABEL_TRACKING = "\U0001F514 Отслеживание цен"
 LABEL_CURRENCY = "\U0001F30D Валюта"
@@ -148,12 +151,13 @@ LABEL_BACK = "\u25C0\uFE0F Назад"
 
 #: The callback sections of the menu, in display order. The URL button
 #: (Shorts Chill) is appended by :func:`main_menu_keyboard`, making the
-#: final ten-button menu of the spec.
+#: main-menu layout.
 MAIN_MENU_ITEMS: tuple[tuple[str, str], ...] = (
     (CB_SEARCH, LABEL_SEARCH),
     (CB_PHOTO, LABEL_PHOTO),
     (CB_FEED, LABEL_FEED),
     (CB_CATEGORIES, LABEL_CATEGORIES),
+    (CB_THEMATIC_COLLECTIONS, LABEL_THEMATIC_COLLECTIONS),
     (CB_FAVORITES, LABEL_FAVORITES),
     (CB_TRACKING, LABEL_TRACKING),
     (CB_CURRENCY_SCREEN, LABEL_CURRENCY),
@@ -170,9 +174,10 @@ MAIN_MENU_ITEMS: tuple[tuple[str, str], ...] = (
 MAIN_MENU_ROWS: tuple[tuple[str, ...], ...] = (
     (CB_SEARCH, CB_PHOTO),
     (CB_FEED, CB_CATEGORIES),
-    (CB_FAVORITES, CB_TRACKING),
-    (CB_CURRENCY_SCREEN, CB_SETTINGS),
-    (CB_HOT_DISCOUNTS, CB_PROMO_CODES),
+    (CB_THEMATIC_COLLECTIONS, CB_FAVORITES),
+    (CB_TRACKING, CB_CURRENCY_SCREEN),
+    (CB_SETTINGS, CB_HOT_DISCOUNTS),
+    (CB_PROMO_CODES,),
 )
 
 
@@ -294,9 +299,6 @@ def categories_keyboard() -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
 
-    rows.append([
-        InlineKeyboardButton("✨ Тематические подборки", callback_data=f"{CB_THEME_PREFIX}:menu")
-    ])
     rows.append(catalog_home_row())
     return InlineKeyboardMarkup(rows)
 
