@@ -787,8 +787,8 @@ class SearchService:
             expansion = None  # the primary already IS this question
         if expansion:
             variants = [*variants, expansion]
-        # Raw rows each phrase returned (tracked while a category expansion
-        # is active - only for the one runtime log line of that call).
+        # Raw row counts by phrase support both the existing mapped-category
+        # expansion log and the thematic route diagnostics.
         raw_rows_by_phrase: dict[str, int] = {}
         candidate_route_sources: dict[tuple[str, str], list[str]] = {}
 
@@ -1103,6 +1103,10 @@ class SearchService:
                         "Subcategory route: code=%s route=%d/%d rows=%d page=%d",
                         request.subcategory_code, variant_index,
                         len(page_variants), route_rows, page_no,
+                    )
+                if expansion:
+                    raw_rows_by_phrase[variant] = sum(
+                        len(result) for result in results if isinstance(result, list)
                     )
 
                 # The pipeline runs over everything retrieved SO FAR, so the
