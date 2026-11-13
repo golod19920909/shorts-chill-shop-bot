@@ -1654,6 +1654,8 @@ async def _send_product_cards(
                 )
     except Exception as exc:
         if origin_query is not None and not replacement_attempted:
+            if strict_navigation and "message is not modified" in str(exc).lower():
+                return True
             if strict_navigation and not telegram_edit_is_unsupported(exc):
                 logger.exception(
                     "Catalog/theme card edit failed; active message left intact"
