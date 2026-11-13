@@ -144,9 +144,16 @@ class ThematicCollectionConfigTests(unittest.TestCase):
     def test_search_request_accepts_the_bounded_thematic_route_budget(self) -> None:
         request = SearchRequest(
             original_query="thematic shelf",
-            retrieval_queries=[f"route {index}" for index in range(19)],
+            thematic_retrieval_queries=[
+                f"route {index}" for index in range(19)
+            ],
         )
-        self.assertEqual(len(request.retrieval_queries), 19)
+        self.assertEqual(len(request.thematic_retrieval_queries), 19)
+        ordinary = SearchRequest(
+            original_query="ordinary subcategory",
+            retrieval_queries=["route one", "route two"],
+        )
+        self.assertEqual(len(ordinary.retrieval_queries), 2)
 
     def test_thematic_handlers_show_any_positive_result_count(self) -> None:
         source = inspect.getsource(thematic_handlers)
