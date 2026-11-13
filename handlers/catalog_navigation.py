@@ -21,8 +21,8 @@ _EDIT_NOT_POSSIBLE_MARKERS = (
 )
 
 
-async def telegram_edit_is_unsupported(exc: BaseException) -> bool:
-    \"\"\"Whether Telegram explicitly rejects editing this message type/state.\"\"\"
+def telegram_edit_is_unsupported(exc: BaseException) -> bool:
+    """Whether Telegram explicitly rejects editing this message type/state."""
 
     if not isinstance(exc, BadRequest):
         return False
@@ -30,7 +30,7 @@ async def telegram_edit_is_unsupported(exc: BaseException) -> bool:
     return any(marker in reason for marker in _EDIT_NOT_POSSIBLE_MARKERS)
 
 
-def edit_catalog_message_or_replace(
+async def edit_catalog_message_or_replace(
     context,
     query,
     text: str,
