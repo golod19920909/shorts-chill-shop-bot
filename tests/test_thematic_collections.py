@@ -142,13 +142,11 @@ class ThematicCollectionConfigTests(unittest.TestCase):
         self.assertNotIn("themes", scopes)
 
     def test_search_request_accepts_the_bounded_thematic_route_budget(self) -> None:
-        request = SearchRequest(
-            original_query="thematic shelf",
-            thematic_retrieval_queries=[
-                f"route {index}" for index in range(19)
-            ],
-        )
-        self.assertEqual(len(request.thematic_retrieval_queries), 19)
+        request = SearchRequest(original_query="thematic shelf")
+        request._thematic_retrieval_queries = [
+            f"route {index}" for index in range(19)
+        ]
+        self.assertEqual(len(request._thematic_retrieval_queries), 19)
         ordinary = SearchRequest(
             original_query="ordinary subcategory",
             retrieval_queries=["route one", "route two"],
