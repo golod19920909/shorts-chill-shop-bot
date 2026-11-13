@@ -161,3 +161,10 @@ The category diagnostic must be reviewed before any category ID is committed. Th
 ```powershell
 .venv\Scripts\python.exe -m pytest -q tests/test_catalog_subcategories.py tests/test_subcategory_quality.py tests/test_subcategory_search.py tests/test_subcategory_navigation.py tests/test_thematic_collections.py tests/test_handlers_ui.py
 ```
+
+
+### Main-menu layout preservation — 2026-11-13
+
+- The thematic entry is a standalone row immediately after the existing Categories row. The original pairings/order of the other main-menu buttons remain unchanged: Search/Photo, Findings/Categories, Favorites/Tracking, Currency/Settings, and Hot Discounts/Promo Codes.
+- The focused UI test fake now supplies an existing callback message so the strict catalog/theme edit helper is exercised as an edit rather than an artificial no-message early return. It asserts that opening the top-level thematic screen does not send a replacement message.
+- No tests were run.
