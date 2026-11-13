@@ -29,6 +29,7 @@ from telegram.ext import ContextTypes
 
 from curation.integration import mode_for_feed, mode_for_request
 from handlers import common, cross_sell
+from handlers.catalog_navigation import telegram_edit_is_unsupported
 from keyboards.main import CB_THEME_PREFIX, back_to_menu_keyboard
 from utils.formatting import is_openable_url
 from keyboards.products import (
