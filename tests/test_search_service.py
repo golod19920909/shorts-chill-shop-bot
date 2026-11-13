@@ -170,6 +170,45 @@ class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
         self.assertEqual(outcome.found_count, 5)
         self.assertEqual(provider.search_queries, [shelf.query_routes[0]])
 
+    def test_thematic_full_pool_with_few_types_uses_bounded_deeper_page(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        repeated_type = [
+            make_product(
+                Marketplace.ALIEXPRESS,
+                f"same-stand-{index}",
+                3.0,
+                title=f"Adjustable phone stand holder model {index}",
+            )
+            for index in range(5)
+        ]
+        provider = self.ali_express(repeated_type)
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            return list(repeated_type)
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_results=5, max_search_pages=5)
+
+        self.run_async(service.find_by_subcategory(shelf))
+
+        expected_routes = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        self.assertEqual(
+            [phrase for page, phrase in calls if page == 1],
+            expected_routes,
+        )
+        self.assertEqual(
+            [phrase for page, phrase in calls if page == 2],
+            expected_routes,
+        )
+        self.assertLessEqual(len(calls), 40)
+
     def test_subcategory_search_continues_all_routes_on_next_page(
         self,
     ):
