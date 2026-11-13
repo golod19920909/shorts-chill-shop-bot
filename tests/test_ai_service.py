@@ -819,6 +819,44 @@ class FindingsSelectorTests(unittest.TestCase):
             asyncio.run(service.select_findings_candidates([product]))
         )
 
+class ThematicCandidatePayloadTests(unittest.TestCase):
+    def test_gemini_receives_canonical_type_and_shelf_purpose(self) -> None:
+        class CapturingAIService(AIService):
+            def __init__(self) -> None:
+                super().__init__(api_key=None)
+                self.captured_prompt = ""
+
+            @property
+            def is_available(self) -> bool:
+                return True
+
+            async def _generate(self, prompt, **kwargs):
+                self.captured_prompt = prompt
+                return json.dumps({"ids": ["phone-stand-1"]})
+
+        service = CapturingAIService()
+        shelf = get_subcategory("theme_budget_5")
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="phone-stand-1",
+            title="Adjustable phone stand holder for desk",
+            product_url="https://www.aliexpress.com/item/phone-stand-1.html",
+            price=3.0,
+            currency="USD",
+        )
+
+        selected = asyncio.run(
+            service.select_subcategory_candidates(
+                [product], subcategory=shelf, wanted=1
+            )
+        )
+
+        self.assertEqual(selected, ["phone-stand-1"])
+        self.assertIn('"canonical_product_type":"phone stand"', service.captured_prompt)
+        self.assertIn('"shelf_purpose"', service.captured_prompt)
+        self.assertIn(shelf.description, service.captured_prompt)
+
+
 if __name__ == "__main__":
     unittest.main()
 
