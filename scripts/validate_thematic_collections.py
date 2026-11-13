@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from bot import build_search_service
 from config.settings import settings
+from config.subcategories import get_subcategory
 from config.thematic_collections import THEME_SHELVES, THEMATIC_COLLECTIONS
 from curation.integration import CurationGate
 from curation.pipeline import MODE_CATEGORY
@@ -151,10 +152,11 @@ async def _run(args: argparse.Namespace) -> int:
             target_currency = "USD" if ceiling is not None else currency
             price_rejections = Counter()
             try:
+                subcategory = get_subcategory(shelf.code)
+                if subcategory is None:
+                    raise RuntimeError(f"Configured thematic shelf is missing: {shelf.code}")
                 outcome = await search_service.find_by_subcategory(
-                    # Thematic shelves are their own configured Subcategory
-                    # objects; the shared SearchService remains the only engine.
-                    shelf,  # type: ignore[arg-type]
+                    subcategory,
                     country=country,
                     currency=target_currency,
                     max_price=ceiling,
@@ -187,6 +189,7 @@ async def _run(args: argparse.Namespace) -> int:
                     mode=MODE_CATEGORY,
                     request=outcome.request,
                 )
+                curation_stages = _curation_report(gate) if after_search else []
                 unique_count = len({_identity(product) for product in curated})
                 provider_status = _provider_status(outcome)
                 if len(curated) >= MINIMUM_PRODUCTS:
@@ -220,7 +223,7 @@ async def _run(args: argparse.Namespace) -> int:
                     {_identity(product): shelf.code for product in curated}
                 )
                 type_counts = Counter(
-                    subcategory_product_type(product, shelf) or "unclassified"
+                    subcategory_product_type(product, subcategory) or "unclassified"
                     for product in curated
                 )
                 results.append(
@@ -250,7 +253,7 @@ async def _run(args: argparse.Namespace) -> int:
                         "after_curation": len(curated),
                         "unique_after_curation": unique_count,
                         "price_rejections": dict(price_rejections),
-                        "curation_stages": _curation_report(gate),
+                        "curation_stages": curation_stages,
                         "type_counts": dict(type_counts),
                         "searched_marketplaces": outcome.searched_marketplaces,
                         "failed_marketplaces": outcome.failed_marketplaces,
@@ -410,7 +413,11 @@ async def _run(args: argparse.Namespace) -> int:
     print(f"Cross-collection duplicates: {len(cross_collection_duplicates)}")
     print(f"Budget-tier duplicates: {len(budget_tier_duplicates)}")
     print(f"Report: {output_path}")
-    return 0 if summary.get("exception", 0) == 0 else 1
+    if summary.get("exception", 0):
+        return 2
+    if summary.get("not_ready", 0):
+        return 1
+    return 0
 
 
 def main() -> int:
