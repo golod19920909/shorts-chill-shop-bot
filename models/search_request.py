@@ -88,12 +88,15 @@ class SearchRequest(BaseModel):
     #: Stable catalog subcategory identity; category remains the parent code
     #: so the existing CATEGORY ranking/curation policy stays in force.
     subcategory_code: str | None = None
-    #: Bounded additional marketplace phrases for curated catalog topics.
-    #: Only the category/subcategory flow may populate these; user text and
-    #: Gemini output never set this field. Ordinary shelves remain capped at
-    #: two alternates in SearchService; thematic shelves have a separate,
-    #: explicit maximum of nineteen alternates (twenty total routes).
-    retrieval_queries: list[str] = Field(default_factory=list, max_length=19)
+    #: Additional marketplace phrases for ordinary curated subcategories.
+    #: The SearchService preserves the historical two-alternate ceiling.
+    retrieval_queries: list[str] = Field(default_factory=list, max_length=2)
+    #: Thematic-only alternates. This separate field keeps the ordinary
+    #: catalog's request contract unchanged while allowing a finite route
+    #: budget of nineteen alternates (twenty total routes) for thematic shelves.
+    thematic_retrieval_queries: list[str] = Field(
+        default_factory=list, max_length=19
+    )
     keywords: list[str] = Field(default_factory=list)
 
     max_price: float | None = Field(default=None, ge=0)
