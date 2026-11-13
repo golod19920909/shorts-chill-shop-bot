@@ -108,3 +108,11 @@ Until these gates are satisfied, do not modify catalog menu/configuration or ena
 - Static review found no remaining common.edit_message_or_replace calls in handlers/discovery.py or handlers/thematic_collections.py; the shared helper in handlers/common.py and the search/feed delivery path were not changed by this correction.
 - No tests, pytest, CI, Telegram calls, AliExpress calls, or Gemini calls were run. This is a source-level audit only. The 96-shelf report remains historical evidence from before the latest configuration changes.
 - Still blocked for final acceptance: user-local execution of scripts/diagnose_aliexpress_categories.py, a fresh live run of scripts/validate_catalog_subcategories.py, review of the resulting product-level diversity/quality report, and user-authorized offline regression tests. No AliExpress category IDs are verified or configured.
+
+
+## 2026-11-13 — Strict product-card browsing scope clarification
+
+- The catalog-only strict edit policy also applies after the first card: catalog/theme sessions persist an opt-in strict_navigation flag in their session metadata. Previous/next card browsing and first-card delivery replace the message only for a recognized Telegram edit prohibition or an objectively unsupported text/photo media transition.
+- handlers/search.py now exposes strict_navigation=False by default. Only the three catalog category entry points and the two thematic collection entry points opt in. Existing Smart Search, photo search, findings/feed, and other search callers retain the old default path; handlers/common.py remains unchanged.
+- The dedicated catalog home callback in handlers/start.py also uses the catalog-only helper. Callback registrations for catalog home, theme menu/tier/item, category, subcategory, and category repeat-search were confirmed in bot/__init__.py.
+- This is still source-level review only; no syntax checks, tests, CI, or live Telegram interactions were run.
