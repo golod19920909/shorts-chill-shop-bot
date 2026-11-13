@@ -6592,3 +6592,16 @@ code changes or select vendors.
 - Working branch: fix/thematic-collection-retrieval. This correction extends PR #12; do not merge until the user reviews live results and explicitly approves.
 
 - Smart-home component/module candidates observed in the live sample were not blanket-excluded by a generic `module` term: some relay/sensor modules are sold as standalone usable products. A broad ban could remove legitimate devices. If fresh live results still show non-consumer components, classify the exact title patterns/product roles before tightening the shelf gate; do not weaken the shared principal-product validator.
+
+
+## 2026-11-13 — Full thematic retrieval and shelf-isolated history implementation
+
+- Began implementing the user's full thematic-collections TZ on `fix/thematic-collection-retrieval` / PR #12. The PR remains open and unmerged.
+- SearchService now composes thematic routes from the configured priority phrases plus one canonical route per `product_type_groups` entry (up to 20 total). `SearchRequest.retrieval_queries` allows 19 alternates; SearchService preserves the original three-route cap for all ordinary catalog subcategories.
+- Thematic searches may perform one additional bounded page even if Gemini is unavailable, but only when the first page has not reached the eligible pool target. Ordinary catalog page behavior is unchanged. Per-route result counts are retained for the thematic live diagnostic.
+- Thematic shown history now uses `themes:<shelf_code>` as its persistent flow key. Existing SQLite `popular_shown` uniqueness already scopes by user and flow, so no migration is needed. New thematic screens no longer exclude products globally across all shelves. Legacy `FLOW_THEMES="themes"` records are retained, not deleted.
+- Removed the thematic 12-product gate. Both initial and “more” thematic handlers show any positive number of validated results and pass `minimum_products=1` to the shared sender; zero remains an honest empty result. Other search callers keep their existing minimum behavior.
+- Gemini's thematic selection prompt now includes canonical type groups and explicitly prioritizes cross-type selection, treating aliases/translations in one group as the same type. The deterministic post-selection identity check and existing Gemini-approved-ID boundary remain unchanged.
+- Updated the live thematic diagnostic to accept optional internal `users.id` via `--user-id`, read (never write) that user's per-shelf history, compare base vs post-history availability, report route counts, and use a one-product display threshold. Its history-adjusted result is a post-curation estimate; it does not make a second marketplace/Gemini pass.
+- Added source-level tests for route coverage/budget, per-shelf history scopes and the 19-alternate SearchRequest bound. No tests, syntax checks, CI, Telegram, AliExpress, Gemini or bot startup were run, as required by the TZ. The user retains local test and live validation.
+- Still pending before acceptance: deeper route-level loss diagnostics and source-level verification of the updated branch, full test coverage for the new route/history/display behavior, and the user's local offline/live checks. Do not claim the TZ is complete until those checks pass.
