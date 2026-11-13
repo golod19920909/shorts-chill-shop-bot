@@ -1444,6 +1444,9 @@ class SearchService:
         exact = deduplicate_products(quality_kept)
         near = feed_curation.drop_near_duplicates(exact)
         family_gate = DeduplicationFilter(threshold=0.35)
+        # Thematic shelves prefer a shorter honest result to repeated types
+        # or deferred same-family variants. Other catalog shelves are unchanged.
+        thematic_diversity = bool(subcategory.product_type_groups)
 
         by_type: dict[str, list[Product]] = {}
         for candidate in near:
@@ -1521,7 +1524,7 @@ class SearchService:
 
         # Second pass: if the type quota left room, take additional distinct
         # families before reusing a family already represented twice.
-        while len(selected) < max(0, int(limit)):
+        while not thematic_diversity and len(selected) < max(0, int(limit)):
             added = False
             for type_key in type_keys:
                 cursor = primary_cursor[type_key]
@@ -1541,7 +1544,7 @@ class SearchService:
         deferred_cursors = {
             key: [0] * len(deferred_by_type[key]) for key in type_keys
         }
-        while len(selected) < max(0, int(limit)):
+        while not thematic_diversity and len(selected) < max(0, int(limit)):
             added = False
             for type_key in type_keys:
                 for family_index, family_items in enumerate(deferred_by_type[type_key]):
