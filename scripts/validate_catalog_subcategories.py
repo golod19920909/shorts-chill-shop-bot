@@ -26,6 +26,8 @@ if str(PROJECT_ROOT) not in sys.path:
 from bot import build_search_service
 from config.settings import settings
 from config.subcategories import get_all_subcategories
+from curation.integration import CurationGate
+from curation.pipeline import MODE_CATEGORY
 from services.subcategory_quality import subcategory_product_type
 
 logger = logging.getLogger("catalog_subcategory_live")
@@ -95,6 +97,7 @@ async def _run(args: argparse.Namespace) -> int:
     currency = (args.currency or "").strip().upper() or None
 
     search_service, _ai_service = build_search_service(settings)
+    curation_gate = CurationGate()
     search_service.max_search_pages = min(
         max(1, int(args.max_pages)),
         max(1, int(search_service.max_search_pages)),
@@ -122,7 +125,22 @@ async def _run(args: argparse.Namespace) -> int:
                 outcome = await search_service.find_by_subcategory(
                     subcategory, country=country, currency=currency
                 )
-                products = list(outcome.products)
+                search_products = list(outcome.products)
+                products = await curation_gate.curate(
+                    search_products,
+                    user_id=None,
+                    mode=MODE_CATEGORY,
+                    request=outcome.request,
+                )
+                curation_stages = [
+                    {
+                        "stage": stage.name,
+                        "received": stage.received,
+                        "kept": stage.kept,
+                        "dropped": stage.dropped,
+                    }
+                    for stage in curation_gate.pipeline.last_report.stages
+                ] if search_products else []
                 selection_diagnostics = (
                     dict(search_service.last_subcategory_selection_stats)
                     if search_service.last_subcategory_selection_stats is not None
@@ -166,8 +184,10 @@ async def _run(args: argparse.Namespace) -> int:
                     and (selection_diagnostics or {}).get("gemini_approved_candidates") < 20
                 ):
                     shortfall_reason = "selector_approved_fewer_than_20"
+                elif len(search_products) < 20:
+                    shortfall_reason = "search_service_finalization_or_deduplication_shortfall"
                 else:
-                    shortfall_reason = "finalizer_or_deduplication_shortfall"
+                    shortfall_reason = "curation_gate_shortfall"
 
                 row = {
                     "code": subcategory.code,
@@ -176,13 +196,18 @@ async def _run(args: argparse.Namespace) -> int:
                     "query_routes": list(subcategory.query_routes),
                     "route_count": len(subcategory.query_routes),
                     "status": status,
+                    "minimum_status": "ready" if len(products) >= 12 else "below_minimum",
                     "provider_status": provider_status,
                     "shortfall_reason": shortfall_reason,
                     "raw_candidates": outcome.products_before_filtering,
                     "dropped_as_irrelevant": outcome.products_dropped_as_irrelevant,
                     "relevance_drop_reasons": dict(outcome.relevance_drop_reasons),
                     "after_constraints": outcome.products_after_constraints,
+                    "after_search_service": len(search_products),
+                    "unique_after_search_service": len({(str(getattr(p.marketplace, "value", p.marketplace)), p.product_id) for p in search_products}),
+                    "after_curation": len(products),
                     "final_count": len(products),
+                    "curation_stages": curation_stages,
                     "type_counts": dict(type_counts),
                     "selection_diagnostics": selection_diagnostics,
                     "searched_marketplaces": outcome.searched_marketplaces,
@@ -247,6 +272,9 @@ async def _run(args: argparse.Namespace) -> int:
         "currency": currency,
         "total_subcategories": len(subcategories),
         "summary": dict(summary),
+        "minimum_status_summary": dict(Counter(row.get("minimum_status", "exception") for row in results)),
+        "minimum_products": 12,
+        "target_products": 20,
         "provider_status_summary": dict(Counter(
             row.get("provider_status", "exception") for row in results
         )),
