@@ -147,6 +147,38 @@ class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
         # Empty routes are retired; the optional second page is not wasted.
         self.assertEqual(provider.search_calls, len(expected))
 
+    def test_thematic_routes_use_bounded_two_request_prefetch(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        provider = self.ali_express([])
+        active = 0
+        peak_active = 0
+        calls: list[str] = []
+
+        async def delayed_search(request):
+            nonlocal active, peak_active
+            active += 1
+            peak_active = max(peak_active, active)
+            calls.append(request.normalized_query or request.original_query)
+            try:
+                await asyncio.sleep(0.01)
+                return []
+            finally:
+                active -= 1
+
+        provider.search_products = delayed_search
+        service = SearchService([provider], max_results=5, max_search_pages=5)
+
+        self.run_async(service.find_by_subcategory(shelf))
+
+        expected = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        self.assertEqual(calls, expected)
+        self.assertEqual(peak_active, 2)
+        self.assertEqual(active, 0)
+
     def test_thematic_search_skips_extra_routes_when_pool_and_type_coverage_are_sufficient(self):
         shelf = get_subcategory("theme_budget_5")
         self.assertIsNotNone(shelf)
