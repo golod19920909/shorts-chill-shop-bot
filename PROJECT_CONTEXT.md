@@ -6620,3 +6620,10 @@ code changes or select vendors.
 - Thematic routes now execute in priority order. The three configured priority phrases run first; the remaining canonical product-type routes are requested only while the eligible pool is below target or fewer than five canonical types are represented. The search stops when both conditions are met, or when the finite route list is exhausted.
 - The optional second page is still bounded to one page and now continues only routes that returned rows on page one. This prevents empty routes from consuming additional Affiliate API requests.
 - Added offline regression source for both route exhaustion (all canonical routes are attempted when the pool remains empty) and early stopping (a sufficiently large, diverse pool from the priority route skips all extra phrases). Tests were not executed.
+
+
+## 2026-11-13 — Type-coverage-aware deeper-page refinement
+
+- A thematic raw pool reaching its numeric target no longer suppresses the one optional deeper page if fewer than five canonical product types are represented. The page loop now checks both pool size and type coverage before stopping.
+- The second page still runs only productive page-one routes and remains the only extra page for thematic shelves. It stops once both pool size and type coverage are satisfied, or when the route/page budget is exhausted.
+- Added regression-test source for a full but single-type pool to verify that the bounded second page is still used. Tests were not executed.
