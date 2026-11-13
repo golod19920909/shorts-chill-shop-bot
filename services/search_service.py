@@ -1082,7 +1082,7 @@ class SearchService:
                     route_rows = sum(
                         len(result) for result in results if isinstance(result, list)
                     )
-                    if not raw:
+                    if not raw and is_thematic_request:
                         page_rows += route_rows
                     raw_rows_by_phrase[variant] = (
                         raw_rows_by_phrase.get(variant, 0) + route_rows
