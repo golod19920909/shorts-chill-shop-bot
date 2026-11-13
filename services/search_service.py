@@ -1492,6 +1492,12 @@ class SearchService:
                 max(1, (max(0, int(limit)) + type_count - 1) // type_count),
             )
         )
+        if thematic_diversity:
+            # A single dominant type must not occupy half the shelf simply
+            # because only a few types survived the quality/AI gates. Six is
+            # the thematic ceiling; with two represented types this still
+            # permits the existing 12-card minimum, while 3+ types spread out.
+            type_cap = min(type_cap, 6)
         selected: list[Product] = []
         selected_by_type = {key: 0 for key in type_keys}
         primary_cursor = {key: 0 for key in type_keys}
