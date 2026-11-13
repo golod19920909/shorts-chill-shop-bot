@@ -135,7 +135,8 @@ async def _run(args: argparse.Namespace) -> int:
         max(1, int(search_service.max_search_pages)),
     )
     gate = CurationGate()
-    history_db = Database(settings.database_full_path) if args.user_id is not None else None
+    diagnostic_db = Database(settings.database_full_path)
+    history_db = diagnostic_db if args.user_id is not None else None
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
     results: list[dict] = []
@@ -175,6 +176,17 @@ async def _run(args: argparse.Namespace) -> int:
                     if search_service.last_subcategory_selection_stats is not None
                     else None
                 )
+                try:
+                    usage = await diagnostic_db.get_gemini_usage_stats(since=checked_at)
+                    gemini_usage = next(
+                        (
+                            item for item in usage.get("operations", [])
+                            if item.get("operation") == "subcategory_candidate_selection"
+                        ),
+                        None,
+                    )
+                except Exception:
+                    gemini_usage = None
 
                 if ceiling is not None:
                     price_valid = []
@@ -271,6 +283,8 @@ async def _run(args: argparse.Namespace) -> int:
                             (selection_diagnostics or {}).get("gemini_approved_candidates")
                         ),
                         "selection_diagnostics": selection_diagnostics,
+                        "gemini_usage": gemini_usage,
+                        "rejection_samples": dict(search_service.last_subcategory_rejection_samples),
                         "after_search_and_price_validation": len(after_search),
                         "after_curation": len(curated),
                         "unique_after_curation": unique_count,
