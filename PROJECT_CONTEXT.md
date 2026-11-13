@@ -6542,3 +6542,13 @@ code changes or select vendors.
 - Files changed in this continuation: keyboards/main.py, handlers/start.py, handlers/thematic_collections.py, handlers/discovery.py, tests/test_handlers_ui.py, scripts/validate_catalog_subcategories.py, new scripts/validate_thematic_collections.py, docs/catalog-taxonomy-audit-2026-11-12.md, docs/catalog-stage-3-validation-2026-11-12.md, and PROJECT_CONTEXT.md.
 - No tests, pytest, CI, syntax checks, Telegram, AliExpress, or Gemini calls were run. The user's explicit no-test instruction remains in force.
 - Remaining acceptance: user-run scripts/diagnose_aliexpress_categories.py, fresh catalog and thematic live reports with the intended country/currency, manual product-level review, and user-run offline regression suites. Do not claim final acceptance before these are completed.
+
+
+## 2026-11-13 — Thematic offline contracts and final report update
+
+- Added tests/test_thematic_collections.py with offline-only contracts for the exact four approved editorial collections, the $5/$10/$20 USD tiers, six independent thematic shelves, concrete route/product-type configuration, the FLOW_THEMES history scope, and separate main-menu navigation. The tests were not executed.
+- Updated tests/test_handlers_ui.py to check the new top-level theme callback, ensure the catalog menu no longer contains the theme entry, and assert the current catview/catalog:home callback contract. No test command was run.
+- scripts/validate_catalog_subcategories.py now mirrors Telegram's final MODE_CATEGORY CurationGate before reporting final counts, including per-stage curation drops and the 12-product minimum status. scripts/validate_thematic_collections.py also uses canonical get_subcategory objects and reports final curated results.
+- The live catalog runner supports --country and --currency; the thematic runner supports --country and --currency for non-budget themes and forces USD for budget tiers. Both are live API/Gemini diagnostics and remain unexecuted.
+- Current implementation branch remains feat/catalog-quality-and-subcategories. The latest source/documentation changes are recorded in the commit history; fetch the branch head before continuing. No unrelated or protected Smart Search/Findings implementation files were changed by this continuation.
+- No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run. The user retains all final validation.
