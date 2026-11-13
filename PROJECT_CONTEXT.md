@@ -6519,3 +6519,13 @@ code changes or select vendors.
 - handlers/start.py catalog_home_callback now uses the catalog-only helper. Callback registration for catalog home, theme menu/tier/item, category, subcategory and category repeat-search was checked in bot/__init__.py.
 - Catalog/theme card browsing sessions persist strict_navigation metadata; previous/next navigation does not silently create a duplicate message on a transient Telegram error. Per-theme item/tier callbacks are serialized to prevent duplicate concurrent searches.
 - This is not final TZ acceptance. Still required: local credentialed category.get diagnostic, fresh live validation after the latest catalog changes, product-level review of the enabled shelves and cross-theme diversity/repetition, and explicit user permission to run offline regression tests. No tests, CI, syntax checks, Telegram, AliExpress or Gemini requests were run.
+
+
+## 2026-11-13 — Independent thematic collections main-menu entry
+
+- Added «✨ Тематические подборки» as a dedicated top-level main-menu callback (menu:themes) and routed it directly to the existing thematic collection screen. The category keyboard no longer contains a duplicate thematic entry; catalog and thematic navigation remain separate.
+- The main-menu dispatcher already acknowledges callbacks before dispatch. The thematic menu renderer now accepts answer_callback=False for this entry path, preventing a second Telegram callback answer; its existing internal theme:menu route retains the default acknowledgement behavior.
+- Updated the help text to explain the independent thematic discovery section. The four approved collections and three USD budget tiers are unchanged; no automotive collection was introduced.
+- Files changed in this increment: keyboards/main.py, handlers/start.py, handlers/thematic_collections.py, and this context file.
+- No tests, pytest, CI, syntax checks, Telegram, AliExpress, or Gemini requests were run, per the user's explicit instruction. The user will perform all validation after implementation.
+- Remaining acceptance gates are unchanged: local credentialed category.get diagnostic, fresh live catalog and thematic collection runs, product-level relevance/diversity/cross-theme repetition review, and user-run offline regression tests. No AliExpress category IDs are claimed or added.
