@@ -1318,6 +1318,7 @@ async def send_search_results(
     home_callback: str | None = None,
     curation_history: bool = True,
     minimum_products: int = 0,
+    strict_navigation: bool = False,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1476,6 +1477,7 @@ async def send_search_results(
         user_id=user_id,
         telegram_id=telegram_id,
         origin_query=origin_query,
+        strict_navigation=strict_navigation,
     )
     if not delivered:
         return None
@@ -1647,8 +1649,13 @@ async def _send_product_cards(
                 await origin_query.edit_message_text(
                     caption, parse_mode="HTML", reply_markup=reply_markup
                 )
-    except Exception:
+    except Exception as exc:
         if origin_query is not None and not replacement_attempted:
+            if strict_navigation and not telegram_edit_is_unsupported(exc):
+                logger.exception(
+                    \"Catalog/theme card edit failed; active message left intact\"
+                )
+                return False
             try:
                 # A Telegram edit/API rejection is the only reason to replace
                 # the active message. The replacement helper sends first.
