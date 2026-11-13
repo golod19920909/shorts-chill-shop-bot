@@ -133,3 +133,11 @@ unfiltered full-suite pass.
 - The thematic Gemini selector receives each candidate's deterministic `canonical_product_type`, plus the shelf title/purpose. This enrichment is thematic-only; ordinary subcategory candidate payloads and prompt diversity rules remain unchanged.
 - Diagnostic `planned_routes` must list the complete bounded route plan even when early stopping means only a subset was executed; `route_result_counts` and candidate route provenance describe only executed routes.
 - The thematic collections brand symbol is `💡` consistently in the main-menu label, thematic shelf buttons, thematic screen/product headers, and the `/start` usage guide. Keep the separate `✨ Находки` and `💸` budget labels unchanged.
+
+## Thematic retrieval performance boundary
+
+- Thematic-only marketplace routes may prefetch at most two routes concurrently. Keep the result-consumption order deterministic and cancel any prefetched successor when the existing eligible-pool/type-coverage early-stop condition fires.
+- AliExpress API traffic is globally bounded to two concurrent calls across search, detail and price-tracking operations. Never replace this with unbounded fan-out; if live API rate-limit/short-ban counters regress, return the bound to one.
+- Do not weaken the principal-product gate, strict USD budget ceilings, Gemini approved-ID boundary, or type/family diversity to make retrieval appear faster.
+- Per-route thematic timing logs are observational and must not include credentials, signatures, user text, or product data.
+- Ordinary catalog routes, conversational RAW retrieval, «Умный поиск», «Находки», photo search, favorites and price tracking behavior must remain otherwise unchanged.
