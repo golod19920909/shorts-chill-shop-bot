@@ -788,18 +788,18 @@ class SearchService:
         # whatever that flow already promised. How deep a deployment may walk
         # at all is its own setting (``SEARCH_MAX_PAGES``).
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
-        deep_subcategory = (
-            broaden
-            and request.mode is SearchMode.CATEGORY
-            and bool(request.subcategory_code)
-            and self.has_feed_selector
-        )
         shelf_config = (
             get_subcategory(request.subcategory_code)
             if request.mode is SearchMode.CATEGORY and request.subcategory_code
             else None
         )
         is_thematic_request = bool(shelf_config and shelf_config.product_type_groups)
+        deep_subcategory = (
+            broaden
+            and request.mode is SearchMode.CATEGORY
+            and bool(request.subcategory_code)
+            and (self.has_feed_selector or is_thematic_request)
+        )
         thematic_last_page = min(self.max_search_pages, first_page + 1)
         pages = (
             list(range(
