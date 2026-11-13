@@ -63,13 +63,17 @@ async def _edit_screen(
 
 
 async def show_thematic_collections(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    answer_callback: bool = True,
 ) -> None:
     _clear_theme_replay_state(context)
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
+    if answer_callback:
+        await query.answer()
     await _edit_screen(context, query, THEME_MENU_TEXT, thematic_collections_keyboard())
 
 
