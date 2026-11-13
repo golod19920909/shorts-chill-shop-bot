@@ -6605,3 +6605,11 @@ code changes or select vendors.
 - Updated the live thematic diagnostic to accept optional internal `users.id` via `--user-id`, read (never write) that user's per-shelf history, compare base vs post-history availability, report route counts, and use a one-product display threshold. Its history-adjusted result is a post-curation estimate; it does not make a second marketplace/Gemini pass.
 - Added source-level tests for route coverage/budget, per-shelf history scopes and the 19-alternate SearchRequest bound. No tests, syntax checks, CI, Telegram, AliExpress, Gemini or bot startup were run, as required by the TZ. The user retains local test and live validation.
 - Still pending before acceptance: deeper route-level loss diagnostics and source-level verification of the updated branch, full test coverage for the new route/history/display behavior, and the user's local offline/live checks. Do not claim the TZ is complete until those checks pass.
+
+
+## 2026-11-13 — Diagnostic and regression coverage extension
+
+- SearchOutcome now exposes a measurement-only `products_dropped_by_constraints` count. The thematic live diagnostic includes this as a budget-constraint rejection count alongside post-search price/currency checks.
+- The thematic diagnostic retains the raw result count per route, distinct candidates before relevance filtering, duplicate counts across route rows, candidate-to-route provenance, rejection-title samples, finalizer duplicate/family/type statistics, CurationGate stage counts, Gemini selector latency/usage/cost and baseline vs shelf-history availability.
+- Added offline test source for all canonical routes running within the finite 20-route budget, empty routes not consuming the extra page, per-user/per-shelf SQLite history isolation and persistence after opening a new Database object, and the removal of the artificial 12-card display threshold.
+- No tests, syntax checks, CI, bot, Telegram, AliExpress or Gemini calls were run. These are source changes only; user-run validation remains pending.
