@@ -228,6 +228,8 @@ async def _run(args: argparse.Namespace) -> int:
                         shortfall_reason = "candidate_pool_below_minimum"
                     elif approved is not None and approved < MINIMUM_PRODUCTS:
                         shortfall_reason = "gemini_approved_below_minimum"
+                    elif len(curated) >= MINIMUM_PRODUCTS and len(after_history) < MINIMUM_PRODUCTS:
+                        shortfall_reason = "shelf_history_excluded_remaining_candidates"
                     elif len(after_search) >= MINIMUM_PRODUCTS:
                         shortfall_reason = "curation_gate_below_minimum"
                     else:
@@ -371,12 +373,12 @@ async def _run(args: argparse.Namespace) -> int:
     for index, left in enumerate(budget_rows):
         left_ids = {
             (p.get("marketplace"), p.get("product_id")): p
-            for p in left.get("products", [])
+            for p in left.get("products_without_history", [])
         }
         for right in budget_rows[index + 1 :]:
             right_ids = {
                 (p.get("marketplace"), p.get("product_id")): p
-                for p in right.get("products", [])
+                for p in right.get("products_without_history", [])
             }
             for identity in sorted(set(left_ids).intersection(right_ids)):
                 budget_tier_duplicates.append(
