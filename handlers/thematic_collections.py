@@ -35,7 +35,7 @@ def _theme_history_flow(shelf_code: str) -> str:
     """Persistent shown-history scope isolated to one user and one shelf."""
     return f"themes:{shelf_code}"
 THEME_MENU_TEXT = (
-    "✨ <b>Тематические подборки</b>\n\n"
+    "💡 <b>Тематические подборки</b>\n\n"
     "Готовые подборки реальных товаров с AliExpress — по идее, назначению "
     "или бюджету. Выберите интересующую тему:"
 )
@@ -166,7 +166,7 @@ async def _show_more_thematic_products(
             return
 
         header = (
-            f"✨ <b>{common.escape(subcategory.title)}</b>\n"
+            f"💡 <b>{common.escape(subcategory.title)}</b>\n"
             f"<i>{common.escape(subcategory.description)}</i>"
         )
         await send_search_results(
@@ -314,7 +314,7 @@ async def _thematic_collection_callback_impl(
         return
 
     header = (
-        f"✨ <b>{common.escape(subcategory.title)}</b>\n"
+        f"💡 <b>{common.escape(subcategory.title)}</b>\n"
         f"<i>{common.escape(subcategory.description)}</i>"
     )
     await send_search_results(
