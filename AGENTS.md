@@ -132,3 +132,4 @@ unfiltered full-suite pass.
 - Thematic route phrases are carried in the private `SearchRequest._thematic_retrieval_queries` attribute, not a public parser/schema field. Preserve the Gemini parse schema and persisted SearchRequest JSON.
 - The thematic Gemini selector receives each candidate's deterministic `canonical_product_type`, plus the shelf title/purpose. This enrichment is thematic-only; ordinary subcategory candidate payloads and prompt diversity rules remain unchanged.
 - Diagnostic `planned_routes` must list the complete bounded route plan even when early stopping means only a subset was executed; `route_result_counts` and candidate route provenance describe only executed routes.
+- The thematic collections brand symbol is `💡` consistently in the main-menu label, thematic shelf buttons, thematic screen/product headers, and the `/start` usage guide. Keep the separate `✨ Находки` and `💸` budget labels unchanged.
