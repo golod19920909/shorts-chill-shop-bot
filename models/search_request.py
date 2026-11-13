@@ -90,8 +90,10 @@ class SearchRequest(BaseModel):
     subcategory_code: str | None = None
     #: Bounded additional marketplace phrases for curated catalog topics.
     #: Only the category/subcategory flow may populate these; user text and
-    #: Gemini output never set this field.
-    retrieval_queries: list[str] = Field(default_factory=list, max_length=2)
+    #: Gemini output never set this field. Ordinary shelves remain capped at
+    #: two alternates in SearchService; thematic shelves have a separate,
+    #: explicit maximum of nineteen alternates (twenty total routes).
+    retrieval_queries: list[str] = Field(default_factory=list, max_length=19)
     keywords: list[str] = Field(default_factory=list)
 
     max_price: float | None = Field(default=None, ge=0)
