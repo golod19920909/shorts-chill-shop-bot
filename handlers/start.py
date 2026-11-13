@@ -318,7 +318,7 @@ async def dispatch_menu(
     if data == CB_CATEGORIES:
         from handlers.discovery import show_categories
 
-        await show_categories(update, context)
+        await show_categories(update, context, answer_callback=False)
         return True
 
     if data == CB_THEMATIC_COLLECTIONS:
