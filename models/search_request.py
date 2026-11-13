@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from models.product import Marketplace
 
@@ -91,12 +91,9 @@ class SearchRequest(BaseModel):
     #: Additional marketplace phrases for ordinary curated subcategories.
     #: The SearchService preserves the historical two-alternate ceiling.
     retrieval_queries: list[str] = Field(default_factory=list, max_length=2)
-    #: Thematic-only alternates. This separate field keeps the ordinary
-    #: catalog's request contract unchanged while allowing a finite route
-    #: budget of nineteen alternates (twenty total routes) for thematic shelves.
-    thematic_retrieval_queries: list[str] = Field(
-        default_factory=list, max_length=19
-    )
+    #: Internal-only thematic route list. It is deliberately private so it
+    #: does not enter the Gemini parser schema or persisted SearchRequest JSON.
+    _thematic_retrieval_queries: list[str] = PrivateAttr(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
 
     max_price: float | None = Field(default=None, ge=0)
