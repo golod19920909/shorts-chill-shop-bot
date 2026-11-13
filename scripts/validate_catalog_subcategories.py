@@ -50,6 +50,16 @@ def _arguments() -> argparse.Namespace:
         help="Optional number of subcategories to check (default: all).",
     )
     parser.add_argument(
+        "--country",
+        default=None,
+        help="Optional ISO-2 ship-to country, for example UA.",
+    )
+    parser.add_argument(
+        "--currency",
+        default=None,
+        help="Optional documented target currency, for example USD.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="reports",
         help="Directory for the JSON report (default: reports).",
@@ -79,6 +89,11 @@ async def _run(args: argparse.Namespace) -> int:
             raise ValueError("--limit must be positive")
         subcategories = subcategories[: args.limit]
 
+    country = (args.country or "").strip().upper() or None
+    if country is not None and len(country) != 2:
+        raise ValueError("--country must be an ISO-2 country code")
+    currency = (args.currency or "").strip().upper() or None
+
     search_service, _ai_service = build_search_service(settings)
     search_service.max_search_pages = min(
         max(1, int(args.max_pages)),
@@ -92,17 +107,21 @@ async def _run(args: argparse.Namespace) -> int:
 
     logger.info(
         "Starting real catalog validation: subcategories=%d max_pages=%d "
-        "selector_available=%s",
+        "selector_available=%s country=%s currency=%s",
         len(subcategories),
         search_service.max_search_pages,
         search_service.has_feed_selector,
+        country or "provider-default",
+        currency or "provider-default",
     )
 
     try:
         for index, subcategory in enumerate(subcategories, start=1):
             item_started = time.perf_counter()
             try:
-                outcome = await search_service.find_by_subcategory(subcategory)
+                outcome = await search_service.find_by_subcategory(
+                    subcategory, country=country, currency=currency
+                )
                 products = list(outcome.products)
                 selection_diagnostics = (
                     dict(search_service.last_subcategory_selection_stats)
@@ -224,6 +243,8 @@ async def _run(args: argparse.Namespace) -> int:
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "duration_seconds": round(finished - started, 2),
         "max_pages_per_route": search_service.max_search_pages,
+        "country": country,
+        "currency": currency,
         "total_subcategories": len(subcategories),
         "summary": dict(summary),
         "provider_status_summary": dict(Counter(
