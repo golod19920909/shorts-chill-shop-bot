@@ -778,7 +778,11 @@ class SearchService:
         # this to mapped CATEGORY requests, so SEARCH / POPULAR / FEED /
         # DISCOVERY / IMAGE and every unmapped category are untouched; a
         # ``broaden=False`` flow that owns its own breadth is left alone.
-        expansion = category_expansion_phrase(request) if broaden else None
+        expansion = (
+            category_expansion_phrase(request)
+            if broaden and not (request.subcategory_code or "").startswith("theme_")
+            else None
+        )
         if expansion and expansion.casefold() == primary.casefold():
             expansion = None  # the primary already IS this question
         if expansion:
