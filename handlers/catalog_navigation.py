@@ -17,7 +17,6 @@ _EDIT_NOT_POSSIBLE_MARKERS = (
     "message can not be edited",
     "there is no text in the message to edit",
     "there is no caption in the message to edit",
-    "message to edit not found",
 )
 
 
