@@ -867,7 +867,7 @@ class SearchService:
         routes_completed = 0
         routes_failed = 0
         thematic_required_types = (
-            min(5, len(shelf_config.product_type_groups))
+            min(6, max(3, (len(shelf_config.product_type_groups) + 2) // 3))
             if is_thematic_request and shelf_config is not None
             else 0
         )
@@ -1132,9 +1132,7 @@ class SearchService:
                             subcategory_product_type(product, shelf_config)
                             for product in outcome.products
                         } - {None}
-                        required_types = min(
-                            5, len(shelf_config.product_type_groups)
-                        )
+                        required_types = thematic_required_types
                         if len(represented_types) >= required_types:
                             logger.info(
                                 "Thematic route expansion stopped: code=%s "
