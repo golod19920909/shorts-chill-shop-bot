@@ -32,7 +32,10 @@ Guidance for AI agents and maintainers working in this repository.
    approved IDs (20 primary + 20 reserve), while final presentation stays at 20.
    Their deterministic finalizer uses the subcategory's configured product-type
    aliases to balance represented types and refill from the already-filtered
-   pool. Additional provider pages remain bounded by `max_search_pages`; never
+   pool. Explicit thematic shelves may stop short rather than exceed their
+   configured type/family diversity cap; ordinary catalog shelves retain
+   their existing refill policy. Additional provider pages remain bounded by
+   `max_search_pages`; never
    bypass the positive title-identity gate or add per-product Gemini calls.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
