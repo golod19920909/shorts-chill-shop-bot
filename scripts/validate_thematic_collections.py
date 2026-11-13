@@ -86,7 +86,7 @@ def _provider_status(outcome) -> str:
     return "ok"
 
 
-def _product_report(product, shelf, checked_at: str) -> dict:
+def _product_report(product, shelf, checked_at: str, route_sources=None) -> dict:
     try:
         product_type = subcategory_product_type(product, shelf)
     except Exception:
@@ -96,6 +96,7 @@ def _product_report(product, shelf, checked_at: str) -> dict:
         "product_id": product.product_id,
         "title": product.title,
         "product_type": product_type,
+        "route_sources": list((route_sources or {}).get(_identity(product), ())),
         "product_url": product.product_url,
         "affiliate_url": product.affiliate_url,
         "price": product.price,
@@ -303,11 +304,17 @@ async def _run(args: argparse.Namespace) -> int:
                         "checked_at": checked_at,
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
                         "products_without_history": [
-                            _product_report(product, subcategory, checked_at)
+                            _product_report(
+                                product, subcategory, checked_at,
+                                search_service.last_subcategory_candidate_routes,
+                            )
                             for product in curated
                         ],
                         "products_after_history": [
-                            _product_report(product, subcategory, checked_at)
+                            _product_report(
+                                product, subcategory, checked_at,
+                                search_service.last_subcategory_candidate_routes,
+                            )
                             for product in after_history
                         ],
                     }
