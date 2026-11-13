@@ -10,7 +10,8 @@ from config.thematic_collections import (
     THEME_SHELVES,
     THEMATIC_COLLECTIONS,
 )
-from database.models import FLOW_THEMES
+from database.models import FLOW_FEED, FLOW_SEARCH
+from models.search_request import SearchRequest
 from keyboards.main import (
     CB_THEMATIC_COLLECTIONS,
     MAIN_MENU_CALLBACKS,
@@ -94,6 +95,28 @@ class ThematicCollectionConfigTests(unittest.TestCase):
                 )
                 self.assertTrue(shelf.product_types)
                 self.assertTrue(shelf.product_type_groups)
+                # The runtime route planner merges the three priority phrases
+                # with one representative from every canonical product type.
+                route_plan = list(dict.fromkeys([
+                    *shelf.query_routes,
+                    *(group[0] for group in shelf.product_type_groups),
+                ]))
+                self.assertEqual(
+                    len(route_plan),
+                    len(set(route.casefold() for route in route_plan)),
+                )
+                self.assertGreater(len(route_plan), 3)
+                self.assertLessEqual(len(route_plan), 20)
+                self.assertEqual(
+                    set(route.casefold() for route in route_plan[3:]),
+                    set(
+                        group[0].casefold()
+                        for group in shelf.product_type_groups
+                        if group[0].casefold() not in {
+                            route.casefold() for route in shelf.query_routes
+                        }
+                    ),
+                )
                 grouped_aliases = [
                     alias.casefold()
                     for group in shelf.product_type_groups
@@ -108,10 +131,20 @@ class ThematicCollectionConfigTests(unittest.TestCase):
                 self.assertTrue(shelf.exclude_terms)
                 self.assertTrue(shelf.description.strip())
 
-    def test_theme_history_has_its_own_scope(self) -> None:
-        self.assertEqual(FLOW_THEMES, "themes")
-        self.assertNotEqual(FLOW_THEMES, "feed")
-        self.assertNotEqual(FLOW_THEMES, "search")
+    def test_theme_history_isolated_per_shelf_and_user_scope(self) -> None:
+        # popular_shown already keys rows by (user_id, flow, product_id);
+        # adding the shelf code to flow isolates all six shelves durably.
+        scopes = {f"themes:{shelf.code}" for shelf in THEME_SHELVES}
+        self.assertEqual(len(scopes), 6)
+        self.assertTrue(scopes.isdisjoint({FLOW_FEED, FLOW_SEARCH}))
+        self.assertNotIn("themes", scopes)
+
+    def test_search_request_accepts_the_bounded_thematic_route_budget(self) -> None:
+        request = SearchRequest(
+            original_query="thematic shelf",
+            retrieval_queries=[f"route {index}" for index in range(19)],
+        )
+        self.assertEqual(len(request.retrieval_queries), 19)
 
     def test_thematic_collections_are_a_top_level_menu_entry(self) -> None:
         self.assertIn(CB_THEMATIC_COLLECTIONS, MAIN_MENU_CALLBACKS)
