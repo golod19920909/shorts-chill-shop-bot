@@ -116,3 +116,36 @@ Until these gates are satisfied, do not modify catalog menu/configuration or ena
 - handlers/search.py now exposes strict_navigation=False by default. Only the three catalog category entry points and the two thematic collection entry points opt in. Existing Smart Search, photo search, findings/feed, and other search callers retain the old default path; handlers/common.py remains unchanged.
 - The dedicated catalog home callback in handlers/start.py also uses the catalog-only helper. Callback registrations for catalog home, theme menu/tier/item, category, subcategory, and category repeat-search were confirmed in bot/__init__.py.
 - This is still source-level review only; no syntax checks, tests, CI, or live Telegram interactions were run.
+
+
+## 2026-11-13 — Source implementation and live-validation handoff
+
+### Current source state
+
+- The approved 15-parent taxonomy is implemented in the catalog-only navigation layer. The source contains 96 unique ordinary shelf codes and 96 explicit parent assignments. The current menu keeps 59 shelves visible across 14 parents; 37 weak/merged shelves remain hidden. The smartphone parent remains configured but is not shown until a real smartphone shelf is proven by live inventory.
+- The full 96-row audit mapping matrix is appended to `docs/catalog-taxonomy-audit-2026-11-12.md`. It includes the required current parent, shelf, code, purpose, unverified AliExpress category ID, recorded overlaps, historical assortment/quality, loss diagnostics, recommendation and current destination.
+- The documented Affiliate `category.get` operation is now exposed through `AliExpressClient.get_categories()`; `scripts/diagnose_aliexpress_categories.py` performs a sanitized, read-only diagnostic. It has deliberately not been run. No category IDs are mapped into production configuration.
+- The four approved thematic collections are separate from the ordinary catalog and now have their own top-level main-menu entry (`menu:themes`). The catalog keyboard no longer contains a duplicate thematic entry. The automotive editorial collection remains absent.
+- Thematic collection browsing retains its independent `FLOW_THEMES` shown-product history, category-mode curation, 12-product post-curation threshold, strict one-message navigation and USD-only budget-price validation.
+- Added `scripts/validate_thematic_collections.py`: six live shelf checks (three editorial collections plus the $5/$10/$20 budget tiers), per-stage search/Gemini/curation diagnostics, product-level output, cross-collection and cross-budget-tier duplicate reports, price-validation rejection counts and checked-at timestamps. It does not call Telegram or write user history.
+- Updated `scripts/validate_catalog_subcategories.py` to accept optional `--country` and `--currency`, and to run the same category-mode curation gate as Telegram delivery before reporting the final card count. It now distinguishes search-service output from the final post-curation shelf and reports curation-stage losses.
+- The category and thematic main-menu entry paths acknowledge their Telegram callback exactly once. The catalog screen and theme screen remain isolated; the protected Smart Search and Findings delivery paths retain their defaults.
+
+### Commands for the user's final live validation
+
+Run from the repository root in PowerShell after local credentials and the virtual environment are available:
+
+```powershell
+.venv\Scripts\python.exe scripts\diagnose_aliexpress_categories.py
+.venv\Scripts\python.exe scripts\validate_catalog_subcategories.py --max-pages 2 --country UA --currency USD
+.venv\Scripts\python.exe scripts\validate_thematic_collections.py --max-pages 2 --country UA
+```
+
+The category diagnostic must be reviewed before any category ID is committed. The two validation runners make real Affiliate API and Gemini requests and write JSON reports under `reports/`; they are not offline tests. Change the country/currency flags to the user's intended delivery region and display currency where appropriate. The budget collection always requests and verifies USD.
+
+### Verification status
+
+- No pytest, tests, CI, syntax checks, Telegram calls, AliExpress calls or Gemini calls were run by the executor. This is intentional and required by the user.
+- The above commands are prepared for the user's final validation; their results do not yet exist.
+- Final acceptance remains blocked on the local category.get response, fresh 96-shelf and thematic JSON reports, product-level review of enabled shelves and cross-theme diversity, and the user's offline regression run.
+- Do not interpret the historical 12.11 live report as validation of the latest taxonomy, curation, or navigation code.
