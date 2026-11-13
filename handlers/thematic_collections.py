@@ -194,7 +194,7 @@ async def _show_more_thematic_products(
 
 
 @track_usage("thematic_collection_search")
-async def thematic_collection_callback(
+async def _thematic_collection_callback_impl(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     query = update.callback_query
@@ -327,3 +327,32 @@ async def thematic_collection_callback(
         curation_mode=MODE_CATEGORY,
         home_callback=CB_CATALOG_HOME,
     )
+
+
+_THEME_SEARCH_BUSY_KEY = "_theme_search_busy"
+
+
+async def thematic_collection_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Serialize repeated taps for one theme without blocking other navigation."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    parts = (query.data or "").split(":")
+    if len(parts) != 3 or parts[0] != CB_THEME_PREFIX or parts[1] not in {"item", "tier"}:
+        await _thematic_collection_callback_impl(update, context)
+        return
+
+    shelf_code = "theme_" + parts[2] if parts[1] == "item" else parts[2]
+    busy = context.user_data.setdefault(_THEME_SEARCH_BUSY_KEY, set())
+    if shelf_code in busy:
+        await query.answer("Эта подборка уже загружается.")
+        return
+
+    busy.add(shelf_code)
+    try:
+        await _thematic_collection_callback_impl(update, context)
+    finally:
+        busy.discard(shelf_code)
