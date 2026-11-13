@@ -1586,6 +1586,7 @@ async def _send_product_cards(
     user_id: int | None = None,
     telegram_id: int | None = None,
     origin_query=None,
+    strict_navigation: bool = False,
 ) -> bool:
     """Send ONE card - the first product of the deduplicated result set.
 
