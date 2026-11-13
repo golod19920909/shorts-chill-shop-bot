@@ -21,6 +21,8 @@ class ThemeShelf:
     product_types: tuple[str, ...]
     exclude_terms: tuple[str, ...] = ()
     max_price: float | None = None
+    # English/Russian aliases for the same shopper-facing type share one bucket.
+    product_type_groups: tuple[tuple[str, ...], ...] = ()
 
 
 THEMATIC_COLLECTIONS: tuple[dict[str, str], ...] = (
@@ -66,6 +68,18 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
          "автоматический дозатор мыла", "датчик движения светильник"),
         ("alcohol", "wine", "cigarette", "tobacco", "weapon", "ammunition",
          "лекарство", "табак", "сигарет", "оружие", "боеприпас"),
+        product_type_groups=(
+            ("automatic jar opener", "автоматическая открывалка"),
+            ("electric bag sealer", "mini heat sealer", "запайщик пакетов", "мини запайщик"),
+            ("automatic toothpaste dispenser", "toothpaste dispenser", "автоматический дозатор зубной пасты"),
+            ("self stirring mug", "самомешалка кружка"),
+            ("electric lint remover",),
+            ("motion sensor light", "датчик движения светильник"),
+            ("portable door lock",),
+            ("digital measuring spoon",),
+            ("electric cleaning brush", "электрическая щётка для уборки", "электрощетка для уборки"),
+            ("automatic soap dispenser", "автоматический дозатор мыла"),
+        ),
     ),
     ThemeShelf(
         "theme_smart_home", "Умные решения для дома",
@@ -84,6 +98,19 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
          "умный термостат", "контроллер освещения"),
         ("replacement part", "remote control only", "switch cover",
          "запасная часть", "пульт отдельно", "накладка выключателя"),
+        product_type_groups=(
+            ("smart plug", "умная розетка"),
+            ("smart switch", "wifi relay switch", "умный выключатель"),
+            ("motion sensor", "датчик движения"),
+            ("door sensor", "window sensor", "датчик открытия двери"),
+            ("water leak detector", "датчик протечки воды"),
+            ("temperature humidity sensor", "датчик температуры", "датчик влажности"),
+            ("smart home hub", "zigbee gateway", "шлюз умного дома"),
+            ("smart thermostat", "умный термостат"),
+            ("smart curtain motor", "мотор для штор"),
+            ("smart lighting controller", "контроллер освещения"),
+            ("smart radiator valve",),
+        ),
     ),
     ThemeShelf(
         "theme_little_known_gadgets", "Гаджеты, о которых мало кто знает",
@@ -102,6 +129,18 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
          "лазерный дальномер", "метка трекер"),
         ("phone case", "screen protector", "ordinary charging cable",
          "чехол телефона", "защитное стекло", "обычный кабель зарядки"),
+        product_type_groups=(
+            ("digital microscope", "мини микроскоп цифровой"),
+            ("usb tester", "usb power meter", "usb c tester", "тестер usb", "измеритель usb"),
+            ("wifi endoscope camera", "endoscope camera", "камера эндоскоп"),
+            ("thermal imaging camera", "тепловизор"),
+            ("infrared thermometer", "инфракрасный термометр"),
+            ("air quality monitor", "анализатор качества воздуха"),
+            ("bluetooth item tracker", "smart tag tracker", "bluetooth трекер", "метка трекер"),
+            ("portable label printer", "принтер этикеток"),
+            ("digital caliper", "цифровой штангенциркуль"),
+            ("laser distance meter", "лазерный дальномер"),
+        ),
     ),
     ThemeShelf(
         "theme_budget_5", "Полезные мелочи до $5",
@@ -123,6 +162,26 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
         ("bundle of 100", "wholesale lot", "replacement part only",
          "оптовая партия", "набор 100 штук", "запасная часть"),
         5.0,
+        product_type_groups=(
+            ("phone stand", "phone holder", "подставка для телефона"),
+            ("cable organizer", "органайзер для кабеля"),
+            ("silicone cable tie", "стяжка для кабеля"),
+            ("cleaning brush", "щётка для уборки"),
+            ("screen cleaning kit", "набор для чистки экрана"),
+            ("magnetic hook", "магнитный крючок"),
+            ("adhesive hook", "самоклеящийся крючок"),
+            ("door stopper", "ограничитель двери"),
+            ("sink strainer", "сетка для раковины"),
+            ("measuring spoon", "мерная ложка"),
+            ("keychain flashlight", "фонарик брелок"),
+            ("plant clips", "клипсы для растений"),
+            ("zipper repair kit", "ремкомплект молнии"),
+            ("eyeglass holder", "держатель очков"),
+            ("bag sealer", "запайщик пакетов"),
+            ("travel bottle", "дорожный флакон"),
+            ("mini screwdriver set", "набор мини отверток"),
+            ("drawer organizer", "органайзер для ящика"),
+        ),
     ),
     ThemeShelf(
         "theme_budget_10", "Полезные мелочи до $10",
@@ -142,6 +201,22 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
         ("bundle of 100", "wholesale lot", "replacement part only",
          "оптовая партия", "набор 100 штук", "запасная часть"),
         10.0,
+        product_type_groups=(
+            ("phone stand", "подставка для телефона"),
+            ("cable organizer", "органайзер для кабеля"),
+            ("kitchen timer", "кухонный таймер"),
+            ("travel organizer", "дорожный органайзер"),
+            ("reusable lint roller", "многоразовый ролик для одежды"),
+            ("silicone spatula", "силиконовая лопатка"),
+            ("foldable storage box", "складной контейнер"),
+            ("led night light", "ночник led"),
+            ("carabiner", "карабин"),
+            ("magnetic screwdriver", "магнитная отвертка"),
+            ("mini flashlight", "мини фонарь"),
+            ("sink organizer", "органайзер для раковины"),
+            ("portable soap dispenser", "дорожный дозатор мыла"),
+            ("key holder", "ключница"),
+        ),
     ),
     ThemeShelf(
         "theme_budget_20", "Полезные мелочи до $20",
@@ -159,6 +234,17 @@ THEME_SHELVES: tuple[ThemeShelf, ...] = (
         ("bundle of 100", "wholesale lot", "replacement part only",
          "оптовая партия", "набор 100 штук", "запасная часть"),
         20.0,
+        product_type_groups=(
+            ("mini tool kit", "набор мини инструментов"),
+            ("rechargeable night light", "аккумуляторный ночник"),
+            ("digital kitchen timer", "цифровой кухонный таймер"),
+            ("portable organizer", "портативный органайзер"),
+            ("electric lint remover", "электрическая машинка для удаления катышков"),
+            ("usb desk fan", "настольный usb вентилятор"),
+            ("motion sensor light", "светильник с датчиком движения"),
+            ("compact measuring tool", "компактный измерительный инструмент"),
+            ("foldable phone stand", "складная подставка для телефона"),
+        ),
     ),
 )
 
