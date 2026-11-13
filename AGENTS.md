@@ -117,3 +117,12 @@ unfiltered full-suite pass.
 - A larger alias set is not permission to weaken the principal-product gate,
   Gemini-approved-ID boundary, duplicate/family rules, or 20-card target.
 
+
+
+## Thematic retrieval isolation (2026-11-13)
+
+- The six editorial thematic shelves may use up to twenty bounded product-type routes (one primary plus nineteen alternates) and at most one additional marketplace page. They stop deepening when the eligible pool target is reached. Ordinary catalog subcategories retain their three-route cap and existing page policy.
+- Thematic route phrases are derived from the shelf's explicit canonical product-type groups. Keep every group represented by a route; do not add generic editorial search phrases or expand the global ordinary-catalog limits.
+- Thematic shown history uses persistent `popular_shown.flow` scopes in the form `themes:<shelf_code>`. The database's existing `user_id` key provides user isolation. Do not use the legacy shared `FLOW_THEMES` value for new writes.
+- Thematic screens display any positive count of validated products (1–20). Do not reintroduce a minimum of 12 or pad with unapproved products. Ordinary callers retain their existing delivery defaults.
+- The live thematic diagnostic is opt-in and must never write shown history. It reports base availability; with `--user-id` it additionally reads the user's existing per-shelf history. Do not run it without explicit user authorization because it calls AliExpress Affiliate API and Gemini.
