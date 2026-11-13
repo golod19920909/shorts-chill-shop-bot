@@ -1458,6 +1458,7 @@ async def send_search_results(
         record_views=record_views,
         home_callback=home_callback,
     )
+    common.get_outcome_meta(context, session_id)["strict_navigation"] = strict_navigation
     _log_unapplied_constraints(outcome)
     # One INFO block per opened screen: the exact ordered list Telegram is
     # about to render (rank, title, price/currency, product id) - after the
@@ -1729,7 +1730,7 @@ async def _edit_browsed_card(
 
     product = outcome.products[index]
     meta = common.get_outcome_meta(context, session_id)
-    catalog_navigation = bool(meta.get("home_callback"))
+    catalog_navigation = bool(meta.get("strict_navigation", meta.get("home_callback")))
     caption = common.product_card_text(
         product,
         index=None,
@@ -1757,7 +1758,14 @@ async def _edit_browsed_card(
                 context, session_id, product.product_id
             )
             return
-        except Exception:
+        except Exception as exc:
+            if catalog_navigation and "message is not modified" in str(exc).lower():
+                return
+            if catalog_navigation and not telegram_edit_is_unsupported(exc):
+                logger.exception(
+                    "Catalog/theme media edit failed; active message left intact"
+                )
+                return
             logger.warning(
                 "Media edit failed for %s/%s; replacing the card message",
                 product.marketplace,
@@ -1795,7 +1803,14 @@ async def _edit_browsed_card(
             await query.edit_message_text(
                 caption, parse_mode="HTML", reply_markup=reply_markup
             )
-    except Exception:
+    except Exception as exc:
+        if catalog_navigation and "message is not modified" in str(exc).lower():
+            return
+        if catalog_navigation and not telegram_edit_is_unsupported(exc):
+            logger.exception(
+                "Catalog/theme card edit failed; active message left intact"
+            )
+            return
         logger.warning(
             "Telegram rejected an in-place card edit; replacing the card",
             exc_info=True,
