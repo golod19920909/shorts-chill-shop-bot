@@ -19,6 +19,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from handlers import common
+from handlers.catalog_navigation import edit_catalog_message_or_replace
 from handlers import sales as sales_handlers
 from handlers.region import NAV_BACK_KEY, show_currency
 from keyboards.main import (
@@ -515,7 +516,7 @@ async def catalog_home_callback(
     reply_markup = await _main_menu_markup(
         context, getattr(getattr(query, "from_user", None), "id", None)
     )
-    await common.edit_message_or_replace(
+    await edit_catalog_message_or_replace(
         context,
         query,
         WELCOME_TEXT,
