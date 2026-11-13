@@ -136,7 +136,7 @@ LABEL_FEED = "\u2728 Находки"
 LABEL_HOT_DISCOUNTS = "\U0001F525 Горячие скидки"
 LABEL_PROMO_CODES = "\U0001F39F Промокоды"
 LABEL_CATEGORIES = "\U0001F4C2 Категории"
-LABEL_THEMATIC_COLLECTIONS = "\u2728 Тематические подборки"
+LABEL_THEMATIC_COLLECTIONS = "\U0001F4A1 Тематические подборки"
 LABEL_FAVORITES = "\u2764\uFE0F Избранное"
 LABEL_TRACKING = "\U0001F514 Отслеживание цен"
 LABEL_CURRENCY = "\U0001F30D Валюта"
@@ -362,7 +362,7 @@ def thematic_collections_keyboard() -> InlineKeyboardMarkup:
 
     rows = [
         [InlineKeyboardButton(
-            "✨ " + item["title"],
+            "💡 " + item["title"],
             callback_data=f"{CB_THEME_PREFIX}:item:{item['code']}",
         )]
         for item in THEMATIC_COLLECTIONS
