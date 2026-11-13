@@ -882,6 +882,21 @@ class SearchService:
                 if (product_type := subcategory_product_type(product, shelf_config))
             }
 
+        async def fetch_thematic_route(
+            variant_request: SearchRequest,
+        ) -> list[object]:
+            """Fetch one thematic phrase across the active providers."""
+
+            return await asyncio.gather(
+                *(
+                    self._timed_provider_call(
+                        provider, provider.search_products(variant_request)
+                    )
+                    for provider in active
+                ),
+                return_exceptions=True,
+            )
+
         for page_no in pages:
             # A full pool is not enough if it still represents too few
             # canonical types: the one deeper pass may discover more variety.
@@ -940,6 +955,13 @@ class SearchService:
                 if raw_deadline is not None else None
             )
             page_had_failure = False
+            # Thematic routes are independent marketplace queries. Prefetch at
+            # most two at a time; the AliExpress client applies the same global
+            # two-call ceiling across searches, details and price tracking.
+            # Results are still consumed in configured order so route stats,
+            # early stopping and deterministic ranking remain stable.
+            thematic_route_tasks: dict[int, asyncio.Task] = {}
+            thematic_route_started: dict[int, float] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 now = time.perf_counter()
@@ -972,21 +994,50 @@ class SearchService:
                     variant_request = request.model_copy(
                         update={"normalized_query": variant, "page_no": page_no}
                     )
-                route_started = time.perf_counter()
                 routes_requested += len(active) if raw else 0
-                try:
-                    if route_budget is None:
-                        results = await asyncio.gather(
-                            *(
-                                self._timed_provider_call(
-                                    provider, provider.search_products(variant_request)
-                                )
-                                for provider in active
-                            ),
-                            return_exceptions=True,
+                if is_thematic_request and not raw:
+                    # Keep only the current route and its immediate successor
+                    # in flight. If the current route fills the eligible pool,
+                    # the prefetched successor is cancelled below.
+                    for future_index in range(
+                        variant_index,
+                        min(len(page_variants) + 1, variant_index + 2),
+                    ):
+                        if future_index in thematic_route_tasks:
+                            continue
+                        future_variant = page_variants[future_index - 1]
+                        if (
+                            future_variant == primary
+                            and page_no == request.page_no
+                        ):
+                            future_request = request
+                        elif future_variant == variant:
+                            future_request = variant_request
+                        else:
+                            future_request = request.model_copy(
+                                update={
+                                    "normalized_query": future_variant,
+                                    "page_no": page_no,
+                                }
+                            )
+                        thematic_route_started[future_index] = time.perf_counter()
+                        thematic_route_tasks[future_index] = asyncio.create_task(
+                            fetch_thematic_route(future_request)
                         )
-                    else:
-                        async with asyncio.timeout(route_budget):
+                    route_started = thematic_route_started.pop(variant_index)
+                    results = await thematic_route_tasks.pop(variant_index)
+                    logger.info(
+                        "Thematic route timing: code=%s route=%d/%d "
+                        "duration_ms=%.0f",
+                        request.subcategory_code,
+                        variant_index,
+                        len(page_variants),
+                        (time.perf_counter() - route_started) * 1000.0,
+                    )
+                else:
+                    route_started = time.perf_counter()
+                    try:
+                        if route_budget is None:
                             results = await asyncio.gather(
                                 *(
                                     self._timed_provider_call(
@@ -996,30 +1047,41 @@ class SearchService:
                                 ),
                                 return_exceptions=True,
                             )
-                except TimeoutError:
-                    # A route timeout retires only this phrase when page and
-                    # search budgets still have room. If the page/global
-                    # deadline itself expired, preserve completed routes and
-                    # stop the bounded retrieval pass.
-                    now = time.perf_counter()
-                    raw_deadline_exhausted = (
-                        raw_deadline is not None and now >= raw_deadline
-                    )
-                    raw_page_budget_exhausted = (
-                        not raw_deadline_exhausted
-                        and page_deadline is not None
-                        and now >= page_deadline
-                    )
-                    results = [
-                        TimeoutError(
-                            "conversational retrieval deadline"
-                            if raw_deadline_exhausted
-                            else "conversational page budget"
-                            if raw_page_budget_exhausted
-                            else "conversational route timeout"
+                        else:
+                            async with asyncio.timeout(route_budget):
+                                results = await asyncio.gather(
+                                    *(
+                                        self._timed_provider_call(
+                                            provider, provider.search_products(variant_request)
+                                        )
+                                        for provider in active
+                                    ),
+                                    return_exceptions=True,
+                                )
+                    except TimeoutError:
+                        # A route timeout retires only this phrase when page and
+                        # search budgets still have room. If the page/global
+                        # deadline itself expired, preserve completed routes and
+                        # stop the bounded retrieval pass.
+                        now = time.perf_counter()
+                        raw_deadline_exhausted = (
+                            raw_deadline is not None and now >= raw_deadline
                         )
-                        for _provider in active
-                    ]
+                        raw_page_budget_exhausted = (
+                            not raw_deadline_exhausted
+                            and page_deadline is not None
+                            and now >= page_deadline
+                        )
+                        results = [
+                            TimeoutError(
+                                "conversational retrieval deadline"
+                                if raw_deadline_exhausted
+                                else "conversational page budget"
+                                if raw_page_budget_exhausted
+                                else "conversational route timeout"
+                            )
+                            for _provider in active
+                        ]
                 route_pairs = list(zip(active, results, strict=True))
                 if raw:
                     # Per-route timing makes the conversational retrieval
@@ -1198,6 +1260,17 @@ class SearchService:
                 # route fills the pool would make RRF depend on route order.
                 if all_failed or raw_deadline_exhausted or raw_page_budget_exhausted:
                     break
+            if thematic_route_tasks:
+                pending_thematic = list(thematic_route_tasks.values())
+                for pending_task in pending_thematic:
+                    if not pending_task.done():
+                        pending_task.cancel()
+                await asyncio.gather(
+                    *pending_thematic, return_exceptions=True
+                )
+                thematic_route_tasks.clear()
+                thematic_route_started.clear()
+
             if raw:
                 if page_had_failure:
                     pages_failed += 1
