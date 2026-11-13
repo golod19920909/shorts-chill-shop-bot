@@ -24,6 +24,8 @@ from handlers import settings as settings_handlers
 from handlers import start
 from keyboards.main import (
     CB_CATEGORY_PREFIX,
+    CB_CATEGORY_VIEW_PREFIX,
+    CB_THEMATIC_COLLECTIONS,
     CB_CURRENCY_PREFIX,
     CB_NEXT_PREFIX,
     MAIN_MENU_CALLBACKS,
@@ -857,10 +859,11 @@ class DiscoveredScreensTests(unittest.TestCase):
         callbacks = callbacks_of(rows)
         self.assertTrue(callbacks)
         self.assertTrue(
-            all(cb.startswith(f"{CB_CATEGORY_PREFIX}:") for cb in callbacks[:-1])
+            all(cb.startswith(f"{CB_CATEGORY_VIEW_PREFIX}:") for cb in callbacks[:-1])
         )
         # the list is never a dead end
-        self.assertIn("menu:back", callbacks)
+        self.assertIn("catalog:home", callbacks)
+        self.assertNotIn("theme:menu", callbacks)
 
     def test_unknown_category_is_refused(self) -> None:
         context = make_context()
@@ -1157,6 +1160,8 @@ class MainMenuEndToEndTests(unittest.TestCase):
     """
 
     def test_every_menu_button_is_reachable(self) -> None:
+        self.assertIn(CB_THEMATIC_COLLECTIONS, MAIN_MENU_CALLBACKS)
+        self.assertIn(CB_THEMATIC_COLLECTIONS, callbacks_of(main_menu_keyboard().inline_keyboard))
         context = make_context()
 
         for callback in MAIN_MENU_CALLBACKS:
