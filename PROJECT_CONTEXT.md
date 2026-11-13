@@ -6613,3 +6613,10 @@ code changes or select vendors.
 - The thematic diagnostic retains the raw result count per route, distinct candidates before relevance filtering, duplicate counts across route rows, candidate-to-route provenance, rejection-title samples, finalizer duplicate/family/type statistics, CurationGate stage counts, Gemini selector latency/usage/cost and baseline vs shelf-history availability.
 - Added offline test source for all canonical routes running within the finite 20-route budget, empty routes not consuming the extra page, per-user/per-shelf SQLite history isolation and persistence after opening a new Database object, and the removal of the artificial 12-card display threshold.
 - No tests, syntax checks, CI, bot, Telegram, AliExpress or Gemini calls were run. These are source changes only; user-run validation remains pending.
+
+
+## 2026-11-13 — Staged thematic route execution checkpoint
+
+- Thematic routes now execute in priority order. The three configured priority phrases run first; the remaining canonical product-type routes are requested only while the eligible pool is below target or fewer than five canonical types are represented. The search stops when both conditions are met, or when the finite route list is exhausted.
+- The optional second page is still bounded to one page and now continues only routes that returned rows on page one. This prevents empty routes from consuming additional Affiliate API requests.
+- Added offline regression source for both route exhaustion (all canonical routes are attempted when the pool remains empty) and early stopping (a sufficiently large, diverse pool from the priority route skips all extra phrases). Tests were not executed.
