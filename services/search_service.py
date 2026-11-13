@@ -750,7 +750,11 @@ class SearchService:
         # global catalogue retrieval policy.
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
             shelf_config = get_subcategory(request.subcategory_code)
-            is_thematic = bool(shelf_config and shelf_config.product_type_groups)
+            is_thematic = bool(
+                shelf_config
+                and shelf_config.code.startswith("theme_")
+                and shelf_config.product_type_groups
+            )
             configured_routes = (
                 request.thematic_retrieval_queries
                 if is_thematic else request.retrieval_queries
@@ -807,7 +811,11 @@ class SearchService:
             if request.mode is SearchMode.CATEGORY and request.subcategory_code
             else None
         )
-        is_thematic_request = bool(shelf_config and shelf_config.product_type_groups)
+        is_thematic_request = bool(
+            shelf_config
+            and shelf_config.code.startswith("theme_")
+            and shelf_config.product_type_groups
+        )
         deep_subcategory = (
             broaden
             and request.mode is SearchMode.CATEGORY
@@ -2773,7 +2781,10 @@ class SearchService:
             for route in subcategory.query_routes
             if route and route.strip()
         ]
-        if subcategory.product_type_groups:
+        is_thematic_shelf = bool(
+            subcategory.code.startswith("theme_") and subcategory.product_type_groups
+        )
+        if is_thematic_shelf:
             type_routes = [
                 " ".join(group[0].split())
                 for group in subcategory.product_type_groups
@@ -2802,10 +2813,10 @@ class SearchService:
             category=subcategory.category_code,
             subcategory_code=subcategory.code,
             retrieval_queries=(
-                [] if subcategory.product_type_groups else list(routes[1:])
+                [] if is_thematic_shelf else list(routes[1:])
             ),
             thematic_retrieval_queries=(
-                list(routes[1:]) if subcategory.product_type_groups else []
+                list(routes[1:]) if is_thematic_shelf else []
             ),
             keywords=list(subcategory.keywords),
             country=country,
