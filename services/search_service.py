@@ -999,9 +999,17 @@ class SearchService:
                     # Keep only the current route and its immediate successor
                     # in flight. If the current route fills the eligible pool,
                     # the prefetched successor is cancelled below.
+                    # Do not speculate beyond the primary route: it may
+                    # already satisfy the shelf, in which case no extra API
+                    # call should be spent. From route two onward, overlap the
+                    # current route with one successor.
+                    prefetch_end = (
+                        variant_index + 1 if variant_index == 1
+                        else variant_index + 2
+                    )
                     for future_index in range(
                         variant_index,
-                        min(len(page_variants) + 1, variant_index + 2),
+                        min(len(page_variants) + 1, prefetch_end),
                     ):
                         if future_index in thematic_route_tasks:
                             continue
