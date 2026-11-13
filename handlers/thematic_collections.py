@@ -327,7 +327,7 @@ async def _thematic_collection_callback_impl(
         record_views=False,
         curation_mode=MODE_CATEGORY,
         home_callback=CB_CATALOG_HOME,
-            strict_navigation=True,
+        strict_navigation=True,
     )
 
 
