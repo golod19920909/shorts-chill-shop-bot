@@ -6552,3 +6552,11 @@ code changes or select vendors.
 - The live catalog runner supports --country and --currency; the thematic runner supports --country and --currency for non-budget themes and forces USD for budget tiers. Both are live API/Gemini diagnostics and remain unexecuted.
 - Current implementation branch remains feat/catalog-quality-and-subcategories. The latest source/documentation changes are recorded in the commit history; fetch the branch head before continuing. No unrelated or protected Smart Search/Findings implementation files were changed by this continuation.
 - No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run. The user retains all final validation.
+
+
+## 2026-11-13 — Main-menu layout preservation checkpoint
+
+- Kept the new standalone «✨ Тематические подборки» entry on its own row immediately after Categories while restoring the exact original pairings/order of all existing main-menu sections. «Умный поиск» and «✨ Находки» remain in their original first two rows and retain their existing callbacks.
+- Extended the offline UI callback fake to include an existing Telegram message and assert the thematic menu edits it without sending another message. The thematic contract test now also asserts all original main-menu row pairings. Neither test was executed.
+- The latest stage-3 report documents the menu preservation and focused test coverage. No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run.
+- Current working branch: feat/catalog-quality-and-subcategories. Latest prior documentation checkpoint: c41fab40c297e3e8d4509282ef51bf350c4e0da4; fetch the current branch head after this context update before continuing.
