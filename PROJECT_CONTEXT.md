@@ -6673,3 +6673,13 @@ code changes or select vendors.
 - User approved the proposed `💡` symbol. Replaced the thematic collections icon in the main-menu label, thematic collection buttons, collection menu heading, product-result headings (including "show more"), and the `/start` usage guide.
 - Kept `✨ Находки` unchanged; kept `💸` for the budget shelf; callback identifiers, button order, and menu layout are unchanged.
 - Added an offline UI consistency regression test. Tests were not run.
+
+## Thematic retrieval latency optimization (2026-11-13)
+
+- The live `theme_budget_5` run completed in 58.9 s: 18 page-one routes plus 3 page-two routes, followed by one Gemini selector call (~3.4 s). The dominant delay was serial AliExpress route retrieval, not Gemini.
+- Thematic-only route prefetch now keeps at most two independent route tasks in flight and consumes their results in the configured order. If the current route reaches the eligible pool/type-coverage stop condition, any prefetched successor is cancelled. This preserves deterministic route ordering, early-stop policy, candidate provenance, strict relevance/price checks, Gemini approved-ID boundary, and final diversity gates.
+- The AliExpress client now uses a global semaphore of two concurrent API calls (search, product detail, and price-tracking calls share the same bounded ceiling). It is deliberately not an unbounded fan-out. Existing transient/API short-ban handling remains in place.
+- Thematic route timing is logged per route as `Thematic route timing ... duration_ms=...` so live runs can distinguish provider latency from local filtering/curation. Non-thematic routes and conversational RAW retrieval retain their previous sequential behavior.
+- Added an offline regression test asserting thematic route concurrency is exactly bounded at two and all configured routes are still attempted when empty; this test has NOT been run in this environment.
+- No live AliExpress/Gemini/Telegram calls, bot startup, pytest, syntax checks, or CI were run for this patch. User performs live verification locally.
+- First live acceptance: compare total shelf latency and API error/short-ban counters against the 2026-11-13 58.9 s baseline; confirm 1–20 products remain strictly within the shelf ceiling and that type/family diversity does not regress. If AliExpress starts returning rate-limit errors, revert the semaphore to one rather than raising concurrency.
