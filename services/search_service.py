@@ -756,7 +756,7 @@ class SearchService:
                 and shelf_config.product_type_groups
             )
             configured_routes = (
-                request.thematic_retrieval_queries
+                request._thematic_retrieval_queries
                 if is_thematic else request.retrieval_queries
             )
             routes = [
@@ -2815,14 +2815,13 @@ class SearchService:
             retrieval_queries=(
                 [] if is_thematic_shelf else list(routes[1:])
             ),
-            thematic_retrieval_queries=(
-                list(routes[1:]) if is_thematic_shelf else []
-            ),
             keywords=list(subcategory.keywords),
             country=country,
             currency=currency,
             max_price=max_price,
         )
+        if is_thematic_shelf:
+            request._thematic_retrieval_queries = list(routes[1:])
         return await self.find_products(request, exclude=exclude)
 
     async def find_by_image(
