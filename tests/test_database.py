@@ -175,6 +175,31 @@ class DatabaseTests(unittest.TestCase):
             [("aliexpress", "searched"), ("aliexpress", "rotated")],
         )
 
+    def test_thematic_history_is_independent_per_user_and_shelf_and_survives_reopen(self) -> None:
+        self.run_async(self.db.initialize())
+        first_user = self.run_async(self.db.get_or_create_user(555, "first"))
+        second_user = self.run_async(self.db.get_or_create_user(777, "second"))
+        flow_5 = "themes:theme_budget_5"
+        flow_10 = "themes:theme_budget_10"
+
+        self.run_async(
+            self.db.add_shown_product(first_user, "aliexpress", "shared-item", flow=flow_5)
+        )
+
+        reopened = Database(self.db_path)
+        self.assertEqual(
+            self.run_async(reopened.get_shown_products(first_user, flow=flow_5)),
+            [("aliexpress", "shared-item")],
+        )
+        self.assertEqual(
+            self.run_async(reopened.get_shown_products(first_user, flow=flow_10)),
+            [],
+        )
+        self.assertEqual(
+            self.run_async(reopened.get_shown_products(second_user, flow=flow_5)),
+            [],
+        )
+
     def test_the_same_product_can_live_in_both_scopes(self) -> None:
         """A search never marks a product as "rotated", and the reverse."""
 

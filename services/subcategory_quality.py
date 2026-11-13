@@ -142,7 +142,13 @@ def subcategory_product_type(
     leading_matches = [
         alias for alias, position in matches if position == earliest
     ]
-    return max(leading_matches, key=specificity).casefold()
+    matched_alias = max(leading_matches, key=specificity)
+    # Thematic shelves unify translated/synonymous aliases before balancing.
+    # Ordinary catalog shelves retain their previous alias-level type keys.
+    for group in subcategory.product_type_groups:
+        if any(alias.casefold() == matched_alias.casefold() for alias in group):
+            return group[0].casefold()
+    return matched_alias.casefold()
 
 
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
@@ -188,6 +194,8 @@ def filter_subcategory_relevant(
     products: Sequence[Product],
     request: SearchRequest,
     subcategory: Subcategory,
+    *,
+    rejection_samples: dict[str, list[str]] | None = None,
 ) -> tuple[list[Product], dict[str, int]]:
     """Apply shared hard checks plus subcategory-specific positive evidence.
 
@@ -200,19 +208,26 @@ def filter_subcategory_relevant(
     kept: list[Product] = []
     dropped: dict[str, int] = {}
 
+    def record_drop(reason: str, product: Product) -> None:
+        dropped[reason] = dropped.get(reason, 0) + 1
+        if rejection_samples is not None:
+            samples = rejection_samples.setdefault(reason, [])
+            if len(samples) < 5 and product.title:
+                samples.append(product.title[:240])
+
     for product in products:
         shared_reason = rejection_reason(product, request)
         if shared_reason in {"invalid_product_url", "empty_title"}:
-            dropped[shared_reason] = dropped.get(shared_reason, 0) + 1
+            record_drop(shared_reason, product)
             continue
 
         shelf_reason = subcategory_match_reason(product, subcategory)
         if shelf_reason is not None:
-            dropped[shelf_reason] = dropped.get(shelf_reason, 0) + 1
+            record_drop(shelf_reason, product)
             continue
 
         if shared_reason is not None and shared_reason != "no_query_term_in_title":
-            dropped[shared_reason] = dropped.get(shared_reason, 0) + 1
+            record_drop(shared_reason, product)
             continue
 
         kept.append(product)

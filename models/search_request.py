@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from models.product import Marketplace
 
@@ -88,10 +88,12 @@ class SearchRequest(BaseModel):
     #: Stable catalog subcategory identity; category remains the parent code
     #: so the existing CATEGORY ranking/curation policy stays in force.
     subcategory_code: str | None = None
-    #: Bounded additional marketplace phrases for curated catalog topics.
-    #: Only the category/subcategory flow may populate these; user text and
-    #: Gemini output never set this field.
+    #: Additional marketplace phrases for ordinary curated subcategories.
+    #: The SearchService preserves the historical two-alternate ceiling.
     retrieval_queries: list[str] = Field(default_factory=list, max_length=2)
+    #: Internal-only thematic route list. It is deliberately private so it
+    #: does not enter the Gemini parser schema or persisted SearchRequest JSON.
+    _thematic_retrieval_queries: list[str] = PrivateAttr(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
 
     max_price: float | None = Field(default=None, ge=0)

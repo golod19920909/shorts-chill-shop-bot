@@ -18,6 +18,7 @@ from unittest.mock import patch
 import httpx
 
 from config.settings import MarketplaceCredentials
+from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
@@ -125,6 +126,123 @@ class SearchServiceTestCase(unittest.TestCase):
 
 
 class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
+    def test_thematic_shelf_uses_all_canonical_type_routes_with_a_finite_budget(self):
+        provider = self.ali_express([])
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        expected = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        service = SearchService(
+            [provider], max_results=5, max_search_pages=5
+        )
+
+        outcome = self.run_async(service.find_by_subcategory(shelf))
+
+        self.assertEqual(outcome.products, [])
+        self.assertEqual(provider.search_queries, expected)
+        self.assertGreater(len(provider.search_queries), 3)
+        self.assertLessEqual(len(provider.search_queries), 20)
+        # Empty routes are retired; the optional second page is not wasted.
+        self.assertEqual(provider.search_calls, len(expected))
+
+    def test_thematic_routes_use_bounded_two_request_prefetch(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        provider = self.ali_express([])
+        active = 0
+        peak_active = 0
+        calls: list[str] = []
+
+        async def delayed_search(request):
+            nonlocal active, peak_active
+            active += 1
+            peak_active = max(peak_active, active)
+            calls.append(request.normalized_query or request.original_query)
+            try:
+                await asyncio.sleep(0.01)
+                return []
+            finally:
+                active -= 1
+
+        provider.search_products = delayed_search
+        service = SearchService([provider], max_results=5, max_search_pages=5)
+
+        self.run_async(service.find_by_subcategory(shelf))
+
+        expected = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        self.assertEqual(calls, expected)
+        self.assertEqual(peak_active, 2)
+        self.assertEqual(active, 0)
+
+    def test_thematic_search_skips_extra_routes_when_pool_and_type_coverage_are_sufficient(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        products = [
+            make_product(Marketplace.ALIEXPRESS, "theme-phone-stand", 3.0,
+                         title="Adjustable phone stand holder for desk"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cable-organizer", 2.0,
+                         title="Cable organizer clips set"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cable-tie", 1.5,
+                         title="Silicone cable tie straps"),
+            make_product(Marketplace.ALIEXPRESS, "theme-cleaning-brush", 4.0,
+                         title="Small household cleaning brush"),
+            make_product(Marketplace.ALIEXPRESS, "theme-screen-kit", 3.5,
+                         title="Screen cleaning kit for phone and tablet"),
+            make_product(Marketplace.ALIEXPRESS, "theme-magnetic-hook", 2.5,
+                         title="Magnetic hook for kitchen and home"),
+        ]
+        provider = self.ali_express(products)
+        service = SearchService([provider], max_results=6, max_search_pages=5)
+
+        outcome = self.run_async(service.find_by_subcategory(shelf))
+
+        self.assertEqual(outcome.found_count, 6)
+        self.assertEqual(provider.search_queries, [shelf.query_routes[0]])
+
+    def test_thematic_full_pool_with_few_types_uses_bounded_deeper_page(self):
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        repeated_type = [
+            make_product(
+                Marketplace.ALIEXPRESS,
+                f"same-stand-{index}",
+                3.0,
+                title=f"Adjustable phone stand holder model {index}",
+            )
+            for index in range(5)
+        ]
+        provider = self.ali_express(repeated_type)
+        calls: list[tuple[int, str]] = []
+
+        async def search_variant(request):
+            phrase = request.normalized_query or request.original_query
+            calls.append((request.page_no, phrase))
+            return list(repeated_type)
+
+        provider.search_products = search_variant
+        service = SearchService([provider], max_results=5, max_search_pages=5)
+
+        self.run_async(service.find_by_subcategory(shelf))
+
+        expected_routes = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        self.assertEqual(
+            [phrase for page, phrase in calls if page == 1],
+            expected_routes,
+        )
+        self.assertEqual(
+            [phrase for page, phrase in calls if page == 2],
+            expected_routes,
+        )
+        self.assertLessEqual(len(calls), 40)
+
     def test_subcategory_search_continues_all_routes_on_next_page(
         self,
     ):

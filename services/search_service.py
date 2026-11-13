@@ -281,6 +281,9 @@ class SearchOutcome:
     #: result to the stage that actually emptied it; it never influences
     #: ranking, filtering or what the user sees.
     products_after_constraints: int = 0
+    #: Count removed by the explicit request constraints (for thematic
+    #: budget shelves this is the strict max-price stage).
+    products_dropped_by_constraints: int = 0
 
     #: B4 cross-language diagnostics: the raw candidate titles split by
     #: writing system relative to the query's own dominant script
@@ -567,6 +570,11 @@ class SearchService:
         # Last curated subcategory shelf diagnostics, consumed by the explicit
         # live acceptance runner. Reset for every subcategory selection.
         self.last_subcategory_selection_stats: dict | None = None
+        # Per-route row counts for the latest curated-subcategory retrieval;
+        # consumed by the explicit operator diagnostic only.
+        self.last_subcategory_route_stats: dict[str, int] = {}
+        self.last_subcategory_rejection_samples: dict[str, list[str]] = {}
+        self.last_subcategory_candidate_routes: dict[tuple[str, str], list[str]] = {}
 
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
@@ -705,6 +713,11 @@ class SearchService:
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
         t_search_started = time.perf_counter()
+        if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            self.last_subcategory_selection_stats = None
+            self.last_subcategory_rejection_samples = {}
+            self.last_subcategory_candidate_routes = {}
+            self.last_subcategory_route_stats = {}
         # The phrase the marketplace is actually asked (B4 parse-failure
         # signal only: an EMPTY effective phrase means parsing/intent
         # produced nothing to search with).
@@ -718,6 +731,8 @@ class SearchService:
                 request.original_query,
             )
             outcome = SearchOutcome(request=request, unavailable_marketplaces=unavailable)
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                self.last_subcategory_route_stats = {}
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -730,17 +745,27 @@ class SearchService:
         ]
         primary = variants[0]
 
-        # Curated subcategories own a small, explicit set of additional
-        # marketplace routes. They are configuration-only phrases, bounded
-        # to two alternates by SearchRequest and evaluated together through
-        # this one existing provider/dedup/relevance/ranking pipeline.
+        # Ordinary catalog subcategories retain the historical three-route
+        # ceiling. Thematic shelves may use up to twenty configured routes,
+        # covering their canonical product-type groups without changing the
+        # global catalogue retrieval policy.
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            shelf_config = get_subcategory(request.subcategory_code)
+            is_thematic = bool(
+                shelf_config
+                and shelf_config.code.startswith("theme_")
+                and shelf_config.product_type_groups
+            )
+            configured_routes = (
+                request._thematic_retrieval_queries
+                if is_thematic else request.retrieval_queries
+            )
             routes = [
                 " ".join(str(route).split())
-                for route in request.retrieval_queries
+                for route in configured_routes
                 if str(route).strip()
             ]
-            variants = list(dict.fromkeys([primary, *routes]))[:3]
+            variants = list(dict.fromkeys([primary, *routes]))[:20 if is_thematic else 3]
 
         # G24.8 P1.9: a category with a P1.8-C validated candidate asks its
         # ONE extra keyword as a second phrase of the SAME search («primary
@@ -754,14 +779,19 @@ class SearchService:
         # this to mapped CATEGORY requests, so SEARCH / POPULAR / FEED /
         # DISCOVERY / IMAGE and every unmapped category are untouched; a
         # ``broaden=False`` flow that owns its own breadth is left alone.
-        expansion = category_expansion_phrase(request) if broaden else None
+        expansion = (
+            category_expansion_phrase(request)
+            if broaden and not (request.subcategory_code or "").startswith("theme_")
+            else None
+        )
         if expansion and expansion.casefold() == primary.casefold():
             expansion = None  # the primary already IS this question
         if expansion:
             variants = [*variants, expansion]
-        # Raw rows each phrase returned (tracked while a category expansion
-        # is active - only for the one runtime log line of that call).
+        # Raw row counts by phrase support both the existing mapped-category
+        # expansion log and the thematic route diagnostics.
         raw_rows_by_phrase: dict[str, int] = {}
+        candidate_route_sources: dict[tuple[str, str], list[str]] = {}
 
         # RETRIEVAL POOL: how many raw candidates this search gathers before the
         # final cut. An AI selector needs a deep, junk-rich pool to pick the best
@@ -781,14 +811,28 @@ class SearchService:
         # whatever that flow already promised. How deep a deployment may walk
         # at all is its own setting (``SEARCH_MAX_PAGES``).
         first_page = min(max(1, int(request.page_no or 1)), self.max_search_pages)
+        shelf_config = (
+            get_subcategory(request.subcategory_code)
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code
+            else None
+        )
+        is_thematic_request = bool(
+            shelf_config
+            and shelf_config.code.startswith("theme_")
+            and shelf_config.product_type_groups
+        )
         deep_subcategory = (
             broaden
             and request.mode is SearchMode.CATEGORY
             and bool(request.subcategory_code)
-            and self.has_feed_selector
+            and (self.has_feed_selector or is_thematic_request)
         )
+        thematic_last_page = min(self.max_search_pages, first_page + 1)
         pages = (
-            list(range(first_page, self.max_search_pages + 1))
+            list(range(
+                first_page,
+                (thematic_last_page if is_thematic_request else self.max_search_pages) + 1,
+            ))
             if broaden and (
                 request.mode is SearchMode.SEARCH or deep_subcategory
             )
@@ -823,17 +867,72 @@ class SearchService:
         routes_requested = 0
         routes_completed = 0
         routes_failed = 0
+        thematic_required_types = (
+            min(6, max(3, (len(shelf_config.product_type_groups) + 2) // 3))
+            if is_thematic_request and shelf_config is not None
+            else 0
+        )
+
+        def represented_thematic_types(products: list[Product]) -> set[str]:
+            if not is_thematic_request or shelf_config is None:
+                return set()
+            return {
+                product_type
+                for product in products
+                if (product_type := subcategory_product_type(product, shelf_config))
+            }
+
+        async def fetch_thematic_route(
+            variant_request: SearchRequest,
+        ) -> list[object]:
+            """Fetch one thematic phrase across the active providers."""
+
+            return await asyncio.gather(
+                *(
+                    self._timed_provider_call(
+                        provider, provider.search_products(variant_request)
+                    )
+                    for provider in active
+                ),
+                return_exceptions=True,
+            )
 
         for page_no in pages:
+            # A full pool is not enough if it still represents too few
+            # canonical types: the one deeper pass may discover more variety.
+            if (
+                is_thematic_request
+                and page_no > first_page
+                and outcome.found_count >= pool_target
+                and len(represented_thematic_types(outcome.products))
+                >= thematic_required_types
+            ):
+                logger.info(
+                    "Thematic retrieval stopped: code=%s pool=%d/%d types=%d/%d",
+                    request.subcategory_code,
+                    outcome.found_count,
+                    pool_target,
+                    len(represented_thematic_types(outcome.products)),
+                    thematic_required_types,
+                )
+                break
             # Page 1 asks every grounded phrase. Later pages continue every
             # still-live phrase, preserving independent marketplace rankings
             # for RRF instead of deepening only whichever route ran first.
             if page_no == pages[0]:
                 page_variants = variants
             elif request.subcategory_code and request.mode is SearchMode.CATEGORY:
-                # A curated shelf continues every bounded, configured route
-                # on deeper pages while its relevant pool is still short.
-                page_variants = variants
+                # Thematic shelves continue only routes that returned real
+                # rows on page one. Ordinary subcategories retain their
+                # historical bounded route list.
+                page_variants = (
+                    [
+                        phrase for phrase in variants
+                        if raw_rows_by_phrase.get(phrase, 0) > 0
+                    ]
+                    if is_thematic_request
+                    else variants
+                )
             elif raw:
                 page_variants = list(deep_page_variants)
             else:
@@ -856,6 +955,13 @@ class SearchService:
                 if raw_deadline is not None else None
             )
             page_had_failure = False
+            # Thematic routes are independent marketplace queries. Prefetch at
+            # most two at a time; the AliExpress client applies the same global
+            # two-call ceiling across searches, details and price tracking.
+            # Results are still consumed in configured order so route stats,
+            # early stopping and deterministic ranking remain stable.
+            thematic_route_tasks: dict[int, asyncio.Task] = {}
+            thematic_route_started: dict[int, float] = {}
 
             for variant_index, variant in enumerate(page_variants, start=1):
                 now = time.perf_counter()
@@ -888,21 +994,58 @@ class SearchService:
                     variant_request = request.model_copy(
                         update={"normalized_query": variant, "page_no": page_no}
                     )
-                route_started = time.perf_counter()
                 routes_requested += len(active) if raw else 0
-                try:
-                    if route_budget is None:
-                        results = await asyncio.gather(
-                            *(
-                                self._timed_provider_call(
-                                    provider, provider.search_products(variant_request)
-                                )
-                                for provider in active
-                            ),
-                            return_exceptions=True,
+                if is_thematic_request and not raw:
+                    # Keep only the current route and its immediate successor
+                    # in flight. If the current route fills the eligible pool,
+                    # the prefetched successor is cancelled below.
+                    # Do not speculate beyond the primary route: it may
+                    # already satisfy the shelf, in which case no extra API
+                    # call should be spent. From route two onward, overlap the
+                    # current route with one successor.
+                    prefetch_end = (
+                        variant_index + 1 if variant_index == 1
+                        else variant_index + 2
+                    )
+                    for future_index in range(
+                        variant_index,
+                        min(len(page_variants) + 1, prefetch_end),
+                    ):
+                        if future_index in thematic_route_tasks:
+                            continue
+                        future_variant = page_variants[future_index - 1]
+                        if (
+                            future_variant == primary
+                            and page_no == request.page_no
+                        ):
+                            future_request = request
+                        elif future_variant == variant:
+                            future_request = variant_request
+                        else:
+                            future_request = request.model_copy(
+                                update={
+                                    "normalized_query": future_variant,
+                                    "page_no": page_no,
+                                }
+                            )
+                        thematic_route_started[future_index] = time.perf_counter()
+                        thematic_route_tasks[future_index] = asyncio.create_task(
+                            fetch_thematic_route(future_request)
                         )
-                    else:
-                        async with asyncio.timeout(route_budget):
+                    route_started = thematic_route_started.pop(variant_index)
+                    results = await thematic_route_tasks.pop(variant_index)
+                    logger.info(
+                        "Thematic route timing: code=%s route=%d/%d "
+                        "duration_ms=%.0f",
+                        request.subcategory_code,
+                        variant_index,
+                        len(page_variants),
+                        (time.perf_counter() - route_started) * 1000.0,
+                    )
+                else:
+                    route_started = time.perf_counter()
+                    try:
+                        if route_budget is None:
                             results = await asyncio.gather(
                                 *(
                                     self._timed_provider_call(
@@ -912,30 +1055,41 @@ class SearchService:
                                 ),
                                 return_exceptions=True,
                             )
-                except TimeoutError:
-                    # A route timeout retires only this phrase when page and
-                    # search budgets still have room. If the page/global
-                    # deadline itself expired, preserve completed routes and
-                    # stop the bounded retrieval pass.
-                    now = time.perf_counter()
-                    raw_deadline_exhausted = (
-                        raw_deadline is not None and now >= raw_deadline
-                    )
-                    raw_page_budget_exhausted = (
-                        not raw_deadline_exhausted
-                        and page_deadline is not None
-                        and now >= page_deadline
-                    )
-                    results = [
-                        TimeoutError(
-                            "conversational retrieval deadline"
-                            if raw_deadline_exhausted
-                            else "conversational page budget"
-                            if raw_page_budget_exhausted
-                            else "conversational route timeout"
+                        else:
+                            async with asyncio.timeout(route_budget):
+                                results = await asyncio.gather(
+                                    *(
+                                        self._timed_provider_call(
+                                            provider, provider.search_products(variant_request)
+                                        )
+                                        for provider in active
+                                    ),
+                                    return_exceptions=True,
+                                )
+                    except TimeoutError:
+                        # A route timeout retires only this phrase when page and
+                        # search budgets still have room. If the page/global
+                        # deadline itself expired, preserve completed routes and
+                        # stop the bounded retrieval pass.
+                        now = time.perf_counter()
+                        raw_deadline_exhausted = (
+                            raw_deadline is not None and now >= raw_deadline
                         )
-                        for _provider in active
-                    ]
+                        raw_page_budget_exhausted = (
+                            not raw_deadline_exhausted
+                            and page_deadline is not None
+                            and now >= page_deadline
+                        )
+                        results = [
+                            TimeoutError(
+                                "conversational retrieval deadline"
+                                if raw_deadline_exhausted
+                                else "conversational page budget"
+                                if raw_page_budget_exhausted
+                                else "conversational route timeout"
+                            )
+                            for _provider in active
+                        ]
                 route_pairs = list(zip(active, results, strict=True))
                 if raw:
                     # Per-route timing makes the conversational retrieval
@@ -999,11 +1153,31 @@ class SearchService:
                         len(result) for result in results
                         if isinstance(result, list)
                     )
+                if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                    route_rows = sum(
+                        len(result) for result in results if isinstance(result, list)
+                    )
+                    if not raw and is_thematic_request:
+                        page_rows += route_rows
+                    raw_rows_by_phrase[variant] = (
+                        raw_rows_by_phrase.get(variant, 0) + route_rows
+                    )
+                    for result in results:
+                        if not isinstance(result, list):
+                            continue
+                        for product in result:
+                            key = identity_pair(product)
+                            sources = candidate_route_sources.setdefault(key, [])
+                            if variant not in sources:
+                                sources.append(variant)
+                    logger.info(
+                        "Subcategory route: code=%s route=%d/%d rows=%d page=%d",
+                        request.subcategory_code, variant_index,
+                        len(page_variants), route_rows, page_no,
+                    )
                 if expansion:
                     raw_rows_by_phrase[variant] = sum(
-                        len(result)
-                        for result in results
-                        if isinstance(result, list)
+                        len(result) for result in results if isinstance(result, list)
                     )
 
                 # The pipeline runs over everything retrieved SO FAR, so the
@@ -1024,6 +1198,27 @@ class SearchService:
                         exclude=exclude,
                         cap=pool_target,
                     )
+                    if (
+                        is_thematic_request
+                        and outcome.found_count >= pool_target
+                        and shelf_config is not None
+                    ):
+                        represented_types = {
+                            subcategory_product_type(product, shelf_config)
+                            for product in outcome.products
+                        } - {None}
+                        required_types = thematic_required_types
+                        if len(represented_types) >= required_types:
+                            logger.info(
+                                "Thematic route expansion stopped: code=%s "
+                                "pool=%d/%d represented_types=%d/%d",
+                                request.subcategory_code,
+                                outcome.found_count,
+                                pool_target,
+                                len(represented_types),
+                                required_types,
+                            )
+                            break
                     if expansion and variant == expansion:
                         # G24.8 P1.9: one concise line per category expansion -
                         # counts only, no product lists, no user-visible text.
@@ -1073,6 +1268,17 @@ class SearchService:
                 # route fills the pool would make RRF depend on route order.
                 if all_failed or raw_deadline_exhausted or raw_page_budget_exhausted:
                     break
+            if thematic_route_tasks:
+                pending_thematic = list(thematic_route_tasks.values())
+                for pending_task in pending_thematic:
+                    if not pending_task.done():
+                        pending_task.cancel()
+                await asyncio.gather(
+                    *pending_thematic, return_exceptions=True
+                )
+                thematic_route_tasks.clear()
+                thematic_route_started.clear()
+
             if raw:
                 if page_had_failure:
                     pages_failed += 1
@@ -1174,7 +1380,14 @@ class SearchService:
                     page_no,
                 )
                 break
-            elif len(outcome.products) >= pool_target:
+            elif (
+                len(outcome.products) >= pool_target
+                and (
+                    not is_thematic_request
+                    or len(represented_thematic_types(outcome.products))
+                    >= thematic_required_types
+                )
+            ):
                 break
 
         if raw:
@@ -1253,6 +1466,9 @@ class SearchService:
                     outcome.found_count,
                     raw_candidate_cap if raw_continue is not None else pool_target,
                 )
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
+                self.last_subcategory_candidate_routes = dict(candidate_route_sources)
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -1329,6 +1545,9 @@ class SearchService:
                 self.max_search_pages,
                 outcome.found_count,
             )
+        if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
+            self.last_subcategory_candidate_routes = dict(candidate_route_sources)
         self._record_search_outcome(
             outcome, t_search_started, query_empty=not primary_phrase
         )
@@ -1444,6 +1663,9 @@ class SearchService:
         exact = deduplicate_products(quality_kept)
         near = feed_curation.drop_near_duplicates(exact)
         family_gate = DeduplicationFilter(threshold=0.35)
+        # Thematic shelves prefer a shorter honest result to repeated types
+        # or deferred same-family variants. Other catalog shelves are unchanged.
+        thematic_diversity = bool(subcategory.product_type_groups)
 
         by_type: dict[str, list[Product]] = {}
         for candidate in near:
@@ -1489,6 +1711,12 @@ class SearchService:
                 max(1, (max(0, int(limit)) + type_count - 1) // type_count),
             )
         )
+        if thematic_diversity:
+            # A single dominant type must not occupy half the shelf simply
+            # because only a few types survived the quality/AI gates. Six is
+            # the thematic ceiling; with two represented types this still
+            # permits the existing 12-card minimum, while 3+ types spread out.
+            type_cap = min(type_cap, 6)
         selected: list[Product] = []
         selected_by_type = {key: 0 for key in type_keys}
         primary_cursor = {key: 0 for key in type_keys}
@@ -1521,7 +1749,7 @@ class SearchService:
 
         # Second pass: if the type quota left room, take additional distinct
         # families before reusing a family already represented twice.
-        while len(selected) < max(0, int(limit)):
+        while not thematic_diversity and len(selected) < max(0, int(limit)):
             added = False
             for type_key in type_keys:
                 cursor = primary_cursor[type_key]
@@ -1541,7 +1769,7 @@ class SearchService:
         deferred_cursors = {
             key: [0] * len(deferred_by_type[key]) for key in type_keys
         }
-        while len(selected) < max(0, int(limit)):
+        while not thematic_diversity and len(selected) < max(0, int(limit)):
             added = False
             for type_key in type_keys:
                 for family_index, family_items in enumerate(deferred_by_type[type_key]):
@@ -2018,7 +2246,11 @@ class SearchService:
             if request.subcategory_code else None
         )
         if subcategory is not None:
-            relevant, dropped = filter_subcategory_relevant(collected, request, subcategory)
+            rejection_samples: dict[str, list[str]] = {}
+            relevant, dropped = filter_subcategory_relevant(
+                collected, request, subcategory, rejection_samples=rejection_samples
+            )
+            self.last_subcategory_rejection_samples = rejection_samples
         else:
             relevant, dropped = filter_relevant(collected, request)
         outcome.products_dropped_as_irrelevant = sum(dropped.values())
@@ -2033,6 +2265,7 @@ class SearchService:
             )
 
         filtered = filter_products(relevant, request)
+        outcome.products_dropped_by_constraints = max(0, len(relevant) - len(filtered))
         # B4: how many candidates the EXPLICIT constraints (price/rating/
         # orders) let through - the boundary that separates "constraints
         # removed everything" from "relevance removed everything".
@@ -2631,11 +2864,23 @@ class SearchService:
         the selected subcategory; no second search engine is introduced.
         """
 
-        routes = tuple(
+        configured_routes = [
             " ".join(route.split())
             for route in subcategory.query_routes
             if route and route.strip()
-        )[:3]
+        ]
+        is_thematic_shelf = bool(
+            subcategory.code.startswith("theme_") and subcategory.product_type_groups
+        )
+        if is_thematic_shelf:
+            type_routes = [
+                " ".join(group[0].split())
+                for group in subcategory.product_type_groups
+                if group and group[0].strip()
+            ]
+            routes = tuple(dict.fromkeys([*configured_routes, *type_routes]))[:20]
+        else:
+            routes = tuple(dict.fromkeys(configured_routes))[:3]
         if not routes:
             return SearchOutcome(
                 request=SearchRequest(
@@ -2655,12 +2900,16 @@ class SearchService:
             mode=SearchMode.CATEGORY,
             category=subcategory.category_code,
             subcategory_code=subcategory.code,
-            retrieval_queries=list(routes[1:]),
+            retrieval_queries=(
+                [] if is_thematic_shelf else list(routes[1:])
+            ),
             keywords=list(subcategory.keywords),
             country=country,
             currency=currency,
             max_price=max_price,
         )
+        if is_thematic_shelf:
+            request._thematic_retrieval_queries = list(routes[1:])
         return await self.find_products(request, exclude=exclude)
 
     async def find_by_image(

@@ -276,9 +276,11 @@ class AliExpressClient:
         self.empty_results = 0
         self.last_empty_at: str | None = None
         # Searches, detail lookups and the background price tracker share
-        # one application key. Serialize requests through this client so
-        # independent bot tasks cannot burst the same affiliate API at once.
-        self._call_lock = asyncio.Lock()
+        # one application key. Keep a small global concurrency ceiling: two
+        # in-flight calls materially shorten multi-route thematic retrieval,
+        # while still preventing an unbounded burst from independent bot tasks.
+        # The API's explicit short-ban response is handled by _call_unlocked.
+        self._call_semaphore = asyncio.Semaphore(2)
 
     @property
     def is_configured(self) -> bool:
@@ -381,9 +383,9 @@ class AliExpressClient:
         *,
         _rate_limit_retry_used: bool = False,
     ) -> dict:
-        """Serialize all operations using this application's AliExpress key."""
+        """Bound concurrent operations using this application's AliExpress key."""
 
-        async with self._call_lock:
+        async with self._call_semaphore:
             return await self._call_unlocked(
                 method,
                 business,

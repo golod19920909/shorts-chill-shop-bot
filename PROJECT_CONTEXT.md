@@ -6569,3 +6569,117 @@ code changes or select vendors.
 - The stage-3 handoff now documents the above and the focused offline test command. These test files have not been run.
 - Latest pre-context source/report commit: bb0f355e8bc0197728e5548288f7499ce0e75778 (UI fake), preceded by af83a960591e99c5f60462accfed87a158342646 (main-menu pairing contract) and 33d4c99c0c7991f4f3463df19d94c7df4f09887a (preserve original menu rows). Fetch current branch head after this context write.
 - No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run.
+
+
+## 2026-11-13 — Thematic collection retrieval fix
+
+- User reported that thematic collections return the empty-state message. Their live log for theme_unusual_devices showed all three routes repeatedly receiving AliExpress product.query resp_code=405; raw=0, filtered_pool=0, final=0. No products reached the relevance filter. The ordinary Smart Search was separately confirmed working by the user.
+- Static source review identified the immediate query-design problem: thematic query_routes were broad editorial phrases (e.g. “clever practical everyday gadgets”, “lesser known electronic gadgets devices”) instead of concrete product names. AliExpress 405 here is treated by the client as a legitimate empty search result, not a general API/authentication failure.
+- Created fix branch fix/thematic-collection-retrieval from feat/catalog-quality-and-subcategories at the user's current checkpoint. Updated config/thematic_collections.py so each of the six theme shelves uses three concrete search phrases that exactly match its own declared product_types: jar opener/bag sealer/cleaning brush; smart plug/smart switch/motion sensor; digital microscope/USB tester/endoscope camera; and concrete small-item queries for $5/$10/$20.
+- Updated tests/test_thematic_collections.py with an offline contract requiring each route to exactly match a declared product type. Updated docs/catalog-stage-3-validation-2026-11-12.md with diagnosis and validation status.
+- No retrieval, relevance, product-type, USD budget, curation, 12-product minimum, history, Telegram navigation, Smart Search, Findings, photo search, or other protected behavior was changed. In particular, no filters were weakened to make the screen appear populated.
+- No tests, pytest, syntax checks, CI, Telegram calls, AliExpress calls or Gemini calls were run. The fix is source-level only; the user must perform the live validation after pulling the branch. Current working branch: fix/thematic-collection-retrieval. Latest source/docs commits should be fetched from this branch head before continuing.
+
+
+## 2026-11-13 — Thematic collections diversity correction
+
+- User live-tested the retrieval correction. Thematic searches returned real AliExpress candidates: «Необычные полезные устройства» raw=295, filtered_pool=46, Gemini-approved=20, Telegram-delivered=19; «Умные решения для дома» raw=287, filtered_pool=33, Gemini-approved/final=17. Retrieval is no longer empty, but live output showed repeated product types/families.
+- Static diagnosis in SearchService._finalize_subcategory_selection: the first selection pass enforced adaptive type_cap and limited each detected title family to two primary listings; the second overflow refill ignored type_cap, and the final deferred-family refill could restore later variants from already represented families. English/Russian aliases also counted as separate types.
+- Added explicit product_type_groups to all six thematic shelves (three editorial themes plus USD $5/$10/$20 shelves). Thematic aliases map to canonical type keys; ordinary catalog subcategories have no groups and preserve their previous alias-level classification.
+- Thematic finalization now stops after the first balanced pass: it does not overflow the per-type cap (maximum six per canonical type) and does not use deferred same-family variants to pad the result. The shelf may return fewer than 20 cards when approved candidates do not support a sufficiently diverse result. No unapproved reserve candidates or invented products are introduced.
+- Ordinary catalog subcategories retain their existing refill semantics. The change is gated by explicit thematic product_type_groups. No retrieval routes, product relevance gates, accessory rules, USD ceilings, 12-product minimum policy, Gemini approved-ID boundary, curation history, navigation, Smart Search, Findings, photo search, favorites, tracking, currency settings or Option C behavior were intentionally changed.
+- Added offline regression source for canonical alias mapping, non-overlapping alias configuration, thematic type-cap enforcement and no deferred-family padding. No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run. User retains all live validation.
+- Working branch: fix/thematic-collection-retrieval. This correction extends PR #12; do not merge until the user reviews live results and explicitly approves.
+
+- Smart-home component/module candidates observed in the live sample were not blanket-excluded by a generic `module` term: some relay/sensor modules are sold as standalone usable products. A broad ban could remove legitimate devices. If fresh live results still show non-consumer components, classify the exact title patterns/product roles before tightening the shelf gate; do not weaken the shared principal-product validator.
+
+
+## 2026-11-13 — Full thematic retrieval and shelf-isolated history implementation
+
+- Began implementing the user's full thematic-collections TZ on `fix/thematic-collection-retrieval` / PR #12. The PR remains open and unmerged.
+- SearchService now composes thematic routes from the configured priority phrases plus one canonical route per `product_type_groups` entry (up to 20 total). `SearchRequest.retrieval_queries` allows 19 alternates; SearchService preserves the original three-route cap for all ordinary catalog subcategories.
+- Thematic searches may perform one additional bounded page even if Gemini is unavailable, but only when the first page has not reached the eligible pool target. Ordinary catalog page behavior is unchanged. Per-route result counts are retained for the thematic live diagnostic.
+- Thematic shown history now uses `themes:<shelf_code>` as its persistent flow key. Existing SQLite `popular_shown` uniqueness already scopes by user and flow, so no migration is needed. New thematic screens no longer exclude products globally across all shelves. Legacy `FLOW_THEMES="themes"` records are retained, not deleted.
+- Removed the thematic 12-product gate. Both initial and “more” thematic handlers show any positive number of validated results and pass `minimum_products=1` to the shared sender; zero remains an honest empty result. Other search callers keep their existing minimum behavior.
+- Gemini's thematic selection prompt now includes canonical type groups and explicitly prioritizes cross-type selection, treating aliases/translations in one group as the same type. The deterministic post-selection identity check and existing Gemini-approved-ID boundary remain unchanged.
+- Updated the live thematic diagnostic to accept optional internal `users.id` via `--user-id`, read (never write) that user's per-shelf history, compare base vs post-history availability, report route counts, and use a one-product display threshold. Its history-adjusted result is a post-curation estimate; it does not make a second marketplace/Gemini pass.
+- Added source-level tests for route coverage/budget, per-shelf history scopes and the 19-alternate SearchRequest bound. No tests, syntax checks, CI, Telegram, AliExpress, Gemini or bot startup were run, as required by the TZ. The user retains local test and live validation.
+- Still pending before acceptance: deeper route-level loss diagnostics and source-level verification of the updated branch, full test coverage for the new route/history/display behavior, and the user's local offline/live checks. Do not claim the TZ is complete until those checks pass.
+
+
+## 2026-11-13 — Diagnostic and regression coverage extension
+
+- SearchOutcome now exposes a measurement-only `products_dropped_by_constraints` count. The thematic live diagnostic includes this as a budget-constraint rejection count alongside post-search price/currency checks.
+- The thematic diagnostic retains the raw result count per route, distinct candidates before relevance filtering, duplicate counts across route rows, candidate-to-route provenance, rejection-title samples, finalizer duplicate/family/type statistics, CurationGate stage counts, Gemini selector latency/usage/cost and baseline vs shelf-history availability.
+- Added offline test source for all canonical routes running within the finite 20-route budget, empty routes not consuming the extra page, per-user/per-shelf SQLite history isolation and persistence after opening a new Database object, and the removal of the artificial 12-card display threshold.
+- No tests, syntax checks, CI, bot, Telegram, AliExpress or Gemini calls were run. These are source changes only; user-run validation remains pending.
+
+
+## 2026-11-13 — Staged thematic route execution checkpoint
+
+- Thematic routes now execute in priority order. The three configured priority phrases run first; the remaining canonical product-type routes are requested only while the eligible pool is below target or fewer than five canonical types are represented. The search stops when both conditions are met, or when the finite route list is exhausted.
+- The optional second page is still bounded to one page and now continues only routes that returned rows on page one. This prevents empty routes from consuming additional Affiliate API requests.
+- Added offline regression source for both route exhaustion (all canonical routes are attempted when the pool remains empty) and early stopping (a sufficiently large, diverse pool from the priority route skips all extra phrases). Tests were not executed.
+
+
+## 2026-11-13 — Type-coverage-aware deeper-page refinement
+
+- A thematic raw pool reaching its numeric target no longer suppresses the one optional deeper page if fewer than five canonical product types are represented. The page loop now checks both pool size and type coverage before stopping.
+- The second page still runs only productive page-one routes and remains the only extra page for thematic shelves. It stops once both pool size and type coverage are satisfied, or when the route/page budget is exhausted.
+- Added regression-test source for a full but single-type pool to verify that the bounded second page is still used. Tests were not executed.
+
+
+## 2026-11-13 — Ordinary request-contract isolation
+
+- Corrected the route expansion boundary so the existing `SearchRequest.retrieval_queries` field retains its original `max_length=2`. Thematic shelves use a new dedicated `thematic_retrieval_queries` field with `max_length=19`; SearchService chooses the appropriate field only after resolving the subcategory configuration.
+- This keeps ordinary category request validation and the three-total-route behavior unchanged, not merely its runtime slicing. Updated the model regression to assert the separate 19-route thematic field and the original two-alternate ordinary field.
+
+
+## 2026-11-13 — Parser-schema isolation for thematic routes
+
+- Replaced the temporary public `thematic_retrieval_queries` field with a Pydantic `PrivateAttr`, `SearchRequest._thematic_retrieval_queries`. The 19-alternate thematic route list is now internal to SearchService, excluded from Gemini's SearchRequest schema and excluded from persisted request JSON.
+- The public `retrieval_queries` field remains exactly as before (`max_length=2`), and ordinary catalog searches continue using that field. Thematic route metadata is set only by `find_by_subcategory` for `theme_*` shelf codes and is preserved by Pydantic `model_copy` during route execution.
+
+
+## 2026-11-13 — Adaptive route type-coverage target
+
+- Replaced the fixed five-type route stop with an adaptive coverage target: `min(6, max(3, ceil(configured_type_groups / 3)))`. The six shelves therefore scale search continuation with their declared type breadth.
+- This target controls whether to spend the one additional page; it is not a minimum display count. If the route/page budget is exhausted with fewer types, the finalizer returns only validated distinct products.
+- Updated the staged-route regression fixture to provide six canonical types for the broad $5 shelf's early-stop case. Tests were not run.
+
+
+## 2026-11-13 — Gemini candidate context and route-plan reporting
+
+- The thematic-only Gemini candidate payload now includes the deterministic `canonical_product_type` assigned by `subcategory_product_type`, plus `shelf_title` and `shelf_purpose`. The same deterministic identity gate runs again after AI selection. Ordinary subcategory payloads and their previous prompt diversity wording are unchanged.
+- The diagnostic reports the complete planned route list separately from the actually executed route counts, includes candidate route provenance, and states the actual thematic route/page budget (maximum 20 routes and two pages).
+- Added an offline AI-service regression source verifying the thematic Gemini prompt contains the canonical product type and shelf purpose. No tests or live calls were run.
+
+
+## Current implementation checkpoint — 2026-11-13 (PR #12)
+
+- PR #12 remains open, unmerged and mergeable. Work is committed directly to `fix/thematic-collection-retrieval`; do not merge without explicit approval.
+- Thematic-only route metadata is private on SearchRequest, preserving the public Gemini parse schema and the ordinary `retrieval_queries` max length of two.
+- All six thematic shelves build a bounded plan from their three priority routes plus one canonical phrase per declared type. Routes are staged; search stops after pool and adaptive type coverage (3–6 types) are met, otherwise it can use one additional page from productive routes only. Hard budget: at most 20 routes and two pages.
+- Theme candidate route provenance, per-route row counts, rejection reason title samples, constraint-loss counts, and Gemini selection timing/cost are exposed to the diagnostic.
+- Gemini receives deterministic canonical type and shelf-purpose metadata only on thematic shelves. Ordinary subcategory candidate payloads and diversity prompt text remain unchanged.
+- History is isolated by user and shelf through `themes:<shelf_code>` in the existing SQLite flow column; no schema migration. Thematic UI shows 1–20 validated products; zero results show an honest empty state.
+- Tests were added/updated for route expansion and stopping, type coverage/deeper-page behavior, private request schema, per-user/per-shelf SQLite persistence, positive short results and thematic Gemini candidate metadata. **None have been run.** No syntax checks, bot startup, Telegram, AliExpress, Gemini or CI were run.
+- The branch changes 16 files. Protected search/Findings/photo/favorites/tracking/currency/conversation files and `tests/eval_consultant_benchmark_runner.py` are untouched. The user's local working tree has not been modified by these GitHub commits.
+- Remaining acceptance work: user pulls the branch, runs the offline suite, then the six live shelf checks and shares the resulting diagnostic report. Use real title samples to refine aliases; never weaken principal-product or accessory validation. The `✨` symbol remains unchanged until the proposed `💡` replacement is explicitly confirmed.
+
+
+## 2026-11-13 — Thematic collections icon
+
+- User approved the proposed `💡` symbol. Replaced the thematic collections icon in the main-menu label, thematic collection buttons, collection menu heading, product-result headings (including "show more"), and the `/start` usage guide.
+- Kept `✨ Находки` unchanged; kept `💸` for the budget shelf; callback identifiers, button order, and menu layout are unchanged.
+- Added an offline UI consistency regression test. Tests were not run.
+
+## Thematic retrieval latency optimization (2026-11-13)
+
+- The live `theme_budget_5` run completed in 58.9 s: 18 page-one routes plus 3 page-two routes, followed by one Gemini selector call (~3.4 s). The dominant delay was serial AliExpress route retrieval, not Gemini.
+- Thematic-only route prefetch now keeps at most two independent route tasks in flight and consumes their results in the configured order. If the current route reaches the eligible pool/type-coverage stop condition, any prefetched successor is cancelled. This preserves deterministic route ordering, early-stop policy, candidate provenance, strict relevance/price checks, Gemini approved-ID boundary, and final diversity gates.
+- The AliExpress client now uses a global semaphore of two concurrent API calls (search, product detail, and price-tracking calls share the same bounded ceiling). It is deliberately not an unbounded fan-out. Existing transient/API short-ban handling remains in place.
+- Thematic route timing is logged per route as `Thematic route timing ... duration_ms=...` so live runs can distinguish provider latency from local filtering/curation. Non-thematic routes and conversational RAW retrieval retain their previous sequential behavior.
+- Added an offline regression test asserting thematic route concurrency is exactly bounded at two and all configured routes are still attempted when empty; this test has NOT been run in this environment.
+- No live AliExpress/Gemini/Telegram calls, bot startup, pytest, syntax checks, or CI were run for this patch. User performs live verification locally.
+- First live acceptance: compare total shelf latency and API error/short-ban counters against the 2026-11-13 58.9 s baseline; confirm 1–20 products remain strictly within the shelf ceiling and that type/family diversity does not regress. If AliExpress starts returning rate-limit errors, revert the semaphore to one rather than raising concurrency.

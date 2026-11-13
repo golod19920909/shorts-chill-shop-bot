@@ -20,6 +20,7 @@ class Subcategory:
     keywords: tuple[str, ...]
     product_types: tuple[str, ...] = ()
     exclude_terms: tuple[str, ...] = ()
+    product_type_groups: tuple[tuple[str, ...], ...] = ()
 
 
 CATEGORY_DESCRIPTIONS: dict[str, str] = {
@@ -304,6 +305,7 @@ THEMATIC_SUBCATEGORIES: tuple[Subcategory, ...] = tuple(
         keywords=item.keywords,
         product_types=item.product_types,
         exclude_terms=item.exclude_terms,
+        product_type_groups=item.product_type_groups,
     )
     for item in THEME_SHELVES
 )

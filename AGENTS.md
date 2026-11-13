@@ -32,7 +32,10 @@ Guidance for AI agents and maintainers working in this repository.
    approved IDs (20 primary + 20 reserve), while final presentation stays at 20.
    Their deterministic finalizer uses the subcategory's configured product-type
    aliases to balance represented types and refill from the already-filtered
-   pool. Additional provider pages remain bounded by `max_search_pages`; never
+   pool. Explicit thematic shelves may stop short rather than exceed their
+   configured type/family diversity cap; ordinary catalog shelves retain
+   their existing refill policy. Additional provider pages remain bounded by
+   `max_search_pages`; never
    bypass the positive title-identity gate or add per-product Gemini calls.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
@@ -114,3 +117,27 @@ unfiltered full-suite pass.
 - A larger alias set is not permission to weaken the principal-product gate,
   Gemini-approved-ID boundary, duplicate/family rules, or 20-card target.
 
+
+
+## Thematic retrieval isolation (2026-11-13)
+
+- The six editorial thematic shelves may use up to twenty bounded product-type routes (one primary plus nineteen alternates) and at most one additional marketplace page. They stop deepening when the eligible pool target is reached. Ordinary catalog subcategories retain their three-route cap and existing page policy.
+- Thematic route phrases are derived from the shelf's explicit canonical product-type groups. Keep every group represented by a route; do not add generic editorial search phrases or expand the global ordinary-catalog limits.
+- Thematic shown history uses persistent `popular_shown.flow` scopes in the form `themes:<shelf_code>`. The database's existing `user_id` key provides user isolation. Do not use the legacy shared `FLOW_THEMES` value for new writes.
+- Thematic screens display any positive count of validated products (1–20). Do not reintroduce a minimum of 12 or pad with unapproved products. Ordinary callers retain their existing delivery defaults.
+- The live thematic diagnostic is opt-in and must never write shown history. It reports base availability; with `--user-id` it additionally reads the user's existing per-shelf history. Do not run it without explicit user authorization because it calls AliExpress Affiliate API and Gemini.
+- The thematic diagnostic also reports explicit constraint-loss counts from `SearchOutcome.products_dropped_by_constraints`; for budget shelves this is the max-price constraint stage. Keep this counter observational only.
+- Route execution is staged: run the three configured priority routes first, then canonical-type routes only while the eligible pool or minimum cross-type coverage is insufficient. Stop once the pool target and an adaptive represented-type target of 3–6 canonical types based on the shelf's configured type count are present, or when routes/pages are exhausted. The additional page is restricted to routes that returned rows on page one.
+- Keep `SearchRequest.retrieval_queries` at its original two-alternate maximum. Thematic-only routes belong in `thematic_retrieval_queries` (max nineteen alternates); do not widen the ordinary request schema to accommodate thematic shelves.
+- Thematic route phrases are carried in the private `SearchRequest._thematic_retrieval_queries` attribute, not a public parser/schema field. Preserve the Gemini parse schema and persisted SearchRequest JSON.
+- The thematic Gemini selector receives each candidate's deterministic `canonical_product_type`, plus the shelf title/purpose. This enrichment is thematic-only; ordinary subcategory candidate payloads and prompt diversity rules remain unchanged.
+- Diagnostic `planned_routes` must list the complete bounded route plan even when early stopping means only a subset was executed; `route_result_counts` and candidate route provenance describe only executed routes.
+- The thematic collections brand symbol is `💡` consistently in the main-menu label, thematic shelf buttons, thematic screen/product headers, and the `/start` usage guide. Keep the separate `✨ Находки` and `💸` budget labels unchanged.
+
+## Thematic retrieval performance boundary
+
+- Thematic-only marketplace routes may prefetch at most two routes concurrently. Keep the result-consumption order deterministic and cancel any prefetched successor when the existing eligible-pool/type-coverage early-stop condition fires.
+- AliExpress API traffic is globally bounded to two concurrent calls across search, detail and price-tracking operations. Never replace this with unbounded fan-out; if live API rate-limit/short-ban counters regress, return the bound to one.
+- Do not weaken the principal-product gate, strict USD budget ceilings, Gemini approved-ID boundary, or type/family diversity to make retrieval appear faster.
+- Per-route thematic timing logs are observational and must not include credentials, signatures, user text, or product data.
+- Ordinary catalog routes, conversational RAW retrieval, «Умный поиск», «Находки», photo search, favorites and price tracking behavior must remain otherwise unchanged.

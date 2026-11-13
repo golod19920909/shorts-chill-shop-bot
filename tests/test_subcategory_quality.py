@@ -188,6 +188,55 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertEqual(set(type_counts.values()), {5})
         self.assertEqual(len(type_counts), 4)
 
+    def test_thematic_aliases_share_one_canonical_product_type(self):
+        unusual = get_subcategory("theme_unusual_devices")
+        self.assertIsNotNone(unusual)
+        self.assertEqual(
+            subcategory_product_type(
+                listing("brush-en", "Electric cleaning brush rotating head"),
+                unusual,
+            ),
+            "electric cleaning brush",
+        )
+        self.assertEqual(
+            subcategory_product_type(
+                listing("brush-ru", "Электрощетка для уборки с вращающейся головкой"),
+                unusual,
+            ),
+            "electric cleaning brush",
+        )
+        self.assertEqual(
+            subcategory_product_type(
+                listing("sealer-ru", "Мини запайщик пакетов USB"),
+                unusual,
+            ),
+            "electric bag sealer",
+        )
+
+    def test_thematic_finalizer_does_not_overflow_type_cap_or_refill_families(self):
+        subcategory = get_subcategory("theme_unusual_devices")
+        self.assertIsNotNone(subcategory)
+        products = [
+            listing("jar-1", "Automatic jar opener model 101"),
+            listing("jar-2", "Automatic jar opener model 102"),
+            listing("jar-3", "Automatic jar opener model 103"),
+            listing("jar-4", "Automatic jar opener model 104"),
+            listing("brush-1", "Electric cleaning brush model 201"),
+            listing("brush-2", "Electric cleaning brush model 202"),
+            listing("brush-3", "Electric cleaning brush model 203"),
+            listing("brush-4", "Electric cleaning brush model 204"),
+        ]
+        selected = SearchService._finalize_subcategory_selection(
+            products, subcategory=subcategory, limit=20
+        )
+        type_counts = Counter(
+            subcategory_product_type(product, subcategory)
+            for product in selected
+        )
+        self.assertLessEqual(type_counts["automatic jar opener"], 4)
+        self.assertLessEqual(type_counts["electric cleaning brush"], 4)
+        self.assertLessEqual(len(selected), 4)
+
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
         subcategory = get_subcategory("massage_devices")
         self.assertIsNotNone(subcategory)

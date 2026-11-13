@@ -12,7 +12,6 @@ from config.thematic_collections import (
     THEME_MAX_PRICE_BY_CODE,
 )
 from config.subcategories import get_subcategory
-from database.models import FLOW_THEMES
 from handlers import common
 from handlers.catalog_navigation import edit_catalog_message_or_replace
 from handlers.discovery import record_outcome_events
@@ -32,9 +31,11 @@ from services.product_identity import identity_pair
 
 logger = logging.getLogger(__name__)
 
-THEME_MINIMUM_PRODUCTS = 12
+def _theme_history_flow(shelf_code: str) -> str:
+    """Persistent shown-history scope isolated to one user and one shelf."""
+    return f"themes:{shelf_code}"
 THEME_MENU_TEXT = (
-    "✨ <b>Тематические подборки</b>\n\n"
+    "💡 <b>Тематические подборки</b>\n\n"
     "Готовые подборки реальных товаров с AliExpress — по идее, назначению "
     "или бюджету. Выберите интересующую тему:"
 )
@@ -124,7 +125,7 @@ async def _show_more_thematic_products(
             return
 
         excluded = set(
-            await common.seen_products(context, user_id, flow=FLOW_THEMES)
+            await common.seen_products(context, user_id, flow=_theme_history_flow(subcategory.code))
         )
         excluded.update(identity_pair(product) for product in previous.products)
         max_price = THEME_MAX_PRICE_BY_CODE.get(subcategory.code)
@@ -149,11 +150,11 @@ async def _show_more_thematic_products(
             telegram_id=telegram_id,
             source="thematic_collection_more",
         )
-        if len(outcome.products) < THEME_MINIMUM_PRODUCTS:
+        if not outcome.products:
             await edit_catalog_message_or_replace(
                 context,
                 query,
-                "Пока больше не набралось 12 подходящих товаров. "
+                "Пока не нашлось дополнительных подходящих товаров. "
                 "Не буду добавлять случайные позиции. Выберите другую тему или попробуйте позже.",
                 parse_mode="HTML",
                 reply_markup=(
@@ -165,7 +166,7 @@ async def _show_more_thematic_products(
             return
 
         header = (
-            f"✨ <b>{common.escape(subcategory.title)}</b>\n"
+            f"💡 <b>{common.escape(subcategory.title)}</b>\n"
             f"<i>{common.escape(subcategory.description)}</i>"
         )
         await send_search_results(
@@ -178,10 +179,10 @@ async def _show_more_thematic_products(
             user_id=user_id,
             telegram_id=telegram_id,
             curation_history=False,
-            minimum_products=THEME_MINIMUM_PRODUCTS,
+            minimum_products=1,
             follow_up=False,
             origin_query=query,
-            history_flow=FLOW_THEMES,
+            history_flow=_theme_history_flow(subcategory.code),
             record_views=False,
             curation_mode=MODE_CATEGORY,
             home_callback=CB_CATALOG_HOME,
@@ -264,7 +265,7 @@ async def _thematic_collection_callback_impl(
             country=country,
             currency="USD" if max_price is not None else region.get("currency"),
             exclude=await common.seen_products(
-                context, user_id, flow=FLOW_THEMES
+                context, user_id, flow=_theme_history_flow(subcategory.code)
             ),
             max_price=max_price,
         )
@@ -301,11 +302,11 @@ async def _thematic_collection_callback_impl(
         telegram_id=telegram_id,
         source="thematic_collection",
     )
-    if len(outcome.products) < THEME_MINIMUM_PRODUCTS:
+    if not outcome.products:
         await _edit_screen(
             context,
             query,
-            "Пока не удалось собрать достаточно подходящих товаров для этой подборки. "
+            "Пока не удалось найти подходящие товары для этой подборки. "
             "Я не буду заполнять её случайными позициями. Попробуйте позже или выберите другую тему.",
             thematic_budget_keyboard() if max_price is not None
             else thematic_collections_keyboard(),
@@ -313,7 +314,7 @@ async def _thematic_collection_callback_impl(
         return
 
     header = (
-        f"✨ <b>{common.escape(subcategory.title)}</b>\n"
+        f"💡 <b>{common.escape(subcategory.title)}</b>\n"
         f"<i>{common.escape(subcategory.description)}</i>"
     )
     await send_search_results(
@@ -326,10 +327,10 @@ async def _thematic_collection_callback_impl(
         user_id=user_id,
         telegram_id=telegram_id,
         curation_history=False,
-        minimum_products=THEME_MINIMUM_PRODUCTS,
+        minimum_products=1,
         follow_up=False,
         origin_query=query,
-        history_flow=FLOW_THEMES,
+        history_flow=_theme_history_flow(subcategory.code),
         record_views=False,
         curation_mode=MODE_CATEGORY,
         home_callback=CB_CATALOG_HOME,

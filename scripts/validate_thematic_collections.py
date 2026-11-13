@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from bot import build_search_service
 from config.settings import settings
+from database.database import Database
 from config.subcategories import get_subcategory
 from config.thematic_collections import THEME_SHELVES, THEMATIC_COLLECTIONS
 from curation.integration import CurationGate
@@ -30,7 +31,7 @@ from curation.pipeline import MODE_CATEGORY
 from services.subcategory_quality import subcategory_product_type
 
 logger = logging.getLogger("thematic_collections_live")
-MINIMUM_PRODUCTS = 12
+MINIMUM_PRODUCTS = 1
 TARGET_PRODUCTS = 20
 
 
@@ -57,6 +58,12 @@ def _arguments() -> argparse.Namespace:
         help="Optional target currency for non-budget collections.",
     )
     parser.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="Optional internal users.id; read (never write) that user's history for each shelf.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="reports",
         help="Directory for the JSON report (default: reports).",
@@ -79,7 +86,7 @@ def _provider_status(outcome) -> str:
     return "ok"
 
 
-def _product_report(product, shelf, checked_at: str) -> dict:
+def _product_report(product, shelf, checked_at: str, route_sources=None) -> dict:
     try:
         product_type = subcategory_product_type(product, shelf)
     except Exception:
@@ -89,6 +96,7 @@ def _product_report(product, shelf, checked_at: str) -> dict:
         "product_id": product.product_id,
         "title": product.title,
         "product_type": product_type,
+        "route_sources": list((route_sources or {}).get(_identity(product), ())),
         "product_url": product.product_url,
         "affiliate_url": product.affiliate_url,
         "price": product.price,
@@ -128,6 +136,8 @@ async def _run(args: argparse.Namespace) -> int:
         max(1, int(search_service.max_search_pages)),
     )
     gate = CurationGate()
+    diagnostic_db = Database(settings.database_full_path)
+    history_db = diagnostic_db if args.user_id is not None else None
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
     results: list[dict] = []
@@ -167,8 +177,23 @@ async def _run(args: argparse.Namespace) -> int:
                     if search_service.last_subcategory_selection_stats is not None
                     else None
                 )
+                try:
+                    usage = await diagnostic_db.get_gemini_usage_stats(since=checked_at)
+                    gemini_usage = next(
+                        (
+                            item for item in usage.get("operations", [])
+                            if item.get("operation") == "subcategory_candidate_selection"
+                        ),
+                        None,
+                    )
+                except Exception:
+                    gemini_usage = None
 
                 if ceiling is not None:
+                    if outcome.products_dropped_by_constraints:
+                        price_rejections["rejected_by_search_price_constraint"] = (
+                            outcome.products_dropped_by_constraints
+                        )
                     price_valid = []
                     for product in after_search:
                         if product.price is None:
@@ -191,8 +216,19 @@ async def _run(args: argparse.Namespace) -> int:
                 )
                 curation_stages = _curation_report(gate) if after_search else []
                 unique_count = len({_identity(product) for product in curated})
+                seen_for_shelf = set()
+                if history_db is not None:
+                    seen_for_shelf = set(
+                        await history_db.get_shown_products(
+                            args.user_id, flow=f"themes:{shelf.code}"
+                        )
+                    )
+                after_history = [
+                    product for product in curated
+                    if _identity(product) not in seen_for_shelf
+                ]
                 provider_status = _provider_status(outcome)
-                if len(curated) >= MINIMUM_PRODUCTS:
+                if len(after_history) >= MINIMUM_PRODUCTS:
                     status = "ready"
                     shortfall_reason = None
                 else:
@@ -209,6 +245,8 @@ async def _run(args: argparse.Namespace) -> int:
                         shortfall_reason = "candidate_pool_below_minimum"
                     elif approved is not None and approved < MINIMUM_PRODUCTS:
                         shortfall_reason = "gemini_approved_below_minimum"
+                    elif len(curated) >= MINIMUM_PRODUCTS and len(after_history) < MINIMUM_PRODUCTS:
+                        shortfall_reason = "shelf_history_excluded_remaining_candidates"
                     elif len(after_search) >= MINIMUM_PRODUCTS:
                         shortfall_reason = "curation_gate_below_minimum"
                     else:
@@ -234,13 +272,33 @@ async def _run(args: argparse.Namespace) -> int:
                         "description": shelf.description,
                         "category_code": shelf.category_code,
                         "query_routes": list(shelf.query_routes),
+                        "planned_routes": list(dict.fromkeys([
+                            *shelf.query_routes,
+                            *(group[0] for group in shelf.product_type_groups),
+                        ]))[:20],
+                        "route_result_counts": dict(search_service.last_subcategory_route_stats),
+                        "route_budget": {
+                            "planned_routes": len(list(dict.fromkeys([
+                                *shelf.query_routes,
+                                *(group[0] for group in shelf.product_type_groups),
+                            ]))[:20]),
+                            "executed_routes": len(search_service.last_subcategory_route_stats),
+                            "max_routes": 20,
+                            "max_pages": min(2, search_service.max_search_pages),
+                        },
                         "product_types": list(shelf.product_types),
                         "exclude_terms": list(shelf.exclude_terms),
                         "budget_ceiling_usd": ceiling,
                         "status": status,
                         "shortfall_reason": shortfall_reason,
                         "provider_status": provider_status,
-                        "raw_candidates": outcome.products_before_filtering,
+                        "raw_candidates": sum(search_service.last_subcategory_route_stats.values()),
+                        "unique_candidates_before_filtering": outcome.products_before_filtering,
+                        "exact_duplicates_across_route_rows": max(
+                            0,
+                            sum(search_service.last_subcategory_route_stats.values())
+                            - outcome.products_before_filtering,
+                        ),
                         "dropped_as_irrelevant": outcome.products_dropped_as_irrelevant,
                         "relevance_drop_reasons": dict(outcome.relevance_drop_reasons),
                         "after_constraints": outcome.products_after_constraints,
@@ -249,9 +307,17 @@ async def _run(args: argparse.Namespace) -> int:
                             (selection_diagnostics or {}).get("gemini_approved_candidates")
                         ),
                         "selection_diagnostics": selection_diagnostics,
+                        "gemini_usage": gemini_usage,
+                        "rejection_samples": dict(search_service.last_subcategory_rejection_samples),
                         "after_search_and_price_validation": len(after_search),
                         "after_curation": len(curated),
                         "unique_after_curation": unique_count,
+                        "availability_without_history": len(curated),
+                        "availability_with_history": len(after_history),
+                        "history_checked": history_db is not None,
+                        "history_scope": f"themes:{shelf.code}" if history_db is not None else None,
+                        "history_excluded": len(curated) - len(after_history),
+                        "displayable_products": len(after_history),
                         "price_rejections": dict(price_rejections),
                         "curation_stages": curation_stages,
                         "type_counts": dict(type_counts),
@@ -260,9 +326,19 @@ async def _run(args: argparse.Namespace) -> int:
                         "unavailable_marketplaces": outcome.unavailable_marketplaces,
                         "checked_at": checked_at,
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
-                        "products": [
-                            _product_report(product, subcategory, checked_at)
+                        "products_without_history": [
+                            _product_report(
+                                product, subcategory, checked_at,
+                                search_service.last_subcategory_candidate_routes,
+                            )
                             for product in curated
+                        ],
+                        "products_after_history": [
+                            _product_report(
+                                product, subcategory, checked_at,
+                                search_service.last_subcategory_candidate_routes,
+                            )
+                            for product in after_history
                         ],
                     }
                 )
@@ -286,7 +362,9 @@ async def _run(args: argparse.Namespace) -> int:
                         "error": f"{type(exc).__name__}: {exc}",
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
                         "after_curation": 0,
-                        "products": [],
+                        "displayable_products": 0,
+                        "products_without_history": [],
+                        "products_after_history": [],
                     }
                 )
             summary[results[-1]["status"]] += 1
@@ -339,12 +417,12 @@ async def _run(args: argparse.Namespace) -> int:
     for index, left in enumerate(budget_rows):
         left_ids = {
             (p.get("marketplace"), p.get("product_id")): p
-            for p in left.get("products", [])
+            for p in left.get("products_without_history", [])
         }
         for right in budget_rows[index + 1 :]:
             right_ids = {
                 (p.get("marketplace"), p.get("product_id")): p
-                for p in right.get("products", [])
+                for p in right.get("products_without_history", [])
             }
             for identity in sorted(set(left_ids).intersection(right_ids)):
                 budget_tier_duplicates.append(
@@ -358,7 +436,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     finished = time.perf_counter()
     ready_groups = {
-        row["code"]: row.get("after_curation", 0) >= MINIMUM_PRODUCTS
+        row["code"]: row.get("displayable_products", row.get("after_curation", 0)) >= MINIMUM_PRODUCTS
         for row in results
     }
     report = {
@@ -367,7 +445,8 @@ async def _run(args: argparse.Namespace) -> int:
         "duration_seconds": round(finished - started, 2),
         "marketplace": "AliExpress Affiliate API only",
         "country": country,
-        "max_pages_per_route": search_service.max_search_pages,
+        "max_pages_per_thematic_route": min(2, search_service.max_search_pages),
+        "configured_search_max_pages": search_service.max_search_pages,
         "selector_available": search_service.has_feed_selector,
         "editorial_collection_count": len(THEMATIC_COLLECTIONS),
         "approved_collection_titles": [item["title"] for item in THEMATIC_COLLECTIONS],
@@ -377,6 +456,7 @@ async def _run(args: argparse.Namespace) -> int:
             if shelf.max_price is not None
         ],
         "minimum_products": MINIMUM_PRODUCTS,
+        "display_policy": "show any positive count of quality-approved products; zero is an honest empty result",
         "target_products": TARGET_PRODUCTS,
         "summary": dict(summary),
         "provider_status_summary": dict(
@@ -391,10 +471,13 @@ async def _run(args: argparse.Namespace) -> int:
             "checked_at is the retrieval timestamp, not a provider update timestamp."
         ),
         "history_policy": (
-            "This diagnostic compares independent search results without writing "
-            "FLOW_THEMES history. Telegram handlers separately exclude products "
-            "actually shown to the user across all four editorial collections."
+            "No history rows are written. Without --user-id the report shows "
+            "base availability only. With --user-id it also reads that user's "
+            "existing themes:<shelf_code> scope and reports post-history "
+            "availability. This is a diagnostic estimate over the curated "
+            "baseline, not a second marketplace/Gemini run."
         ),
+        "history_user_id": args.user_id,
         "results": results,
     }
 
