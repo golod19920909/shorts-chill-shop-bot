@@ -867,9 +867,17 @@ class SearchService:
             if page_no == pages[0]:
                 page_variants = variants
             elif request.subcategory_code and request.mode is SearchMode.CATEGORY:
-                # A curated shelf continues every bounded, configured route
-                # on deeper pages while its relevant pool is still short.
-                page_variants = variants
+                # On the one permitted thematic deeper pass, continue only
+                # routes that returned real rows on page one. Empty routes
+                # are exhausted and must not consume another API request.
+                page_variants = (
+                    [
+                        phrase for phrase in variants
+                        if raw_rows_by_phrase.get(phrase, 0) > 0
+                    ]
+                    if is_thematic_request
+                    else variants
+                )
             elif raw:
                 page_variants = list(deep_page_variants)
             else:
