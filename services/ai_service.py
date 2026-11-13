@@ -1869,8 +1869,28 @@ class AIService:
             ),
         )
         self.rank_requests += 1
+        if subcategory.product_type_groups:
+            # Theme-only enrichment: the model sees the deterministic
+            # canonical type assigned by the same title gate that will run
+            # again after its ID selection. Ordinary category prompts keep
+            # their historical candidate payload unchanged.
+            from services.subcategory_quality import subcategory_product_type
+
+            candidate_payloads = []
+            for candidate in candidates:
+                payload = dict(self._rank_payload(candidate))
+                payload["canonical_product_type"] = subcategory_product_type(
+                    candidate, subcategory
+                )
+                payload["shelf_title"] = subcategory.title
+                payload["shelf_purpose"] = subcategory.description
+                candidate_payloads.append(payload)
+        else:
+            candidate_payloads = [
+                self._rank_payload(candidate) for candidate in candidates
+            ]
         products_json = json.dumps(
-            [self._rank_payload(candidate) for candidate in candidates],
+            candidate_payloads,
             ensure_ascii=False,
             separators=(",", ":"),
         )
