@@ -32,6 +32,7 @@ from config.catalog_navigation import (
 from config.subcategories import get_subcategory
 from database.models import FLOW_FEED
 from handlers import common
+from handlers.catalog_navigation import edit_catalog_message_or_replace
 from handlers.search import record_outcome_events, send_search_results
 from services import analytics
 from keyboards.products import CB_PREFIX_CATEGORY_NEW_SEARCH
@@ -528,7 +529,7 @@ async def _edit_catalog_or_reply(
 
     query = update.callback_query
     if query is not None:
-        await common.edit_message_or_replace(context, query, text, **kwargs)
+        await edit_catalog_message_or_replace(context, query, text, **kwargs)
         return
     message = update.effective_message
     if message is not None:
@@ -550,7 +551,7 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if query is not None:
         await query.answer()
-        await common.edit_message_or_replace(
+        await edit_catalog_message_or_replace(
             context,
             query,
             CATEGORIES_TEXT,
@@ -604,7 +605,7 @@ async def category_view_callback(
         "Выберите, какие именно товары вас интересуют:"
     )
     markup = subcategories_keyboard(category.code)
-    await common.edit_message_or_replace(
+    await edit_catalog_message_or_replace(
         context,
         query,
         screen,
