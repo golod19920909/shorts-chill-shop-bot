@@ -21,7 +21,16 @@ _EDIT_NOT_POSSIBLE_MARKERS = (
 )
 
 
-async def edit_catalog_message_or_replace(
+async def telegram_edit_is_unsupported(exc: BaseException) -> bool:
+    \"\"\"Whether Telegram explicitly rejects editing this message type/state.\"\"\"
+
+    if not isinstance(exc, BadRequest):
+        return False
+    reason = str(exc).lower()
+    return any(marker in reason for marker in _EDIT_NOT_POSSIBLE_MARKERS)
+
+
+def edit_catalog_message_or_replace(
     context,
     query,
     text: str,
@@ -43,7 +52,7 @@ async def edit_catalog_message_or_replace(
         reason = str(exc).lower()
         if "message is not modified" in reason:
             return True
-        if not any(marker in reason for marker in _EDIT_NOT_POSSIBLE_MARKERS):
+        if not telegram_edit_is_unsupported(exc):
             logger.warning(
                 "Catalog navigation edit failed; leaving the existing message intact",
                 exc_info=True,
