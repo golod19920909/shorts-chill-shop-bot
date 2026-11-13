@@ -65,6 +65,7 @@ async def _edit_screen(
 async def show_thematic_collections(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
+    _clear_theme_replay_state(context)
     query = update.callback_query
     if query is None:
         return
@@ -73,6 +74,7 @@ async def show_thematic_collections(
 
 
 async def _show_budget_tiers(context, query) -> None:
+    _clear_theme_replay_state(context)
     await _edit_screen(context, query, THEME_BUDGET_TEXT, thematic_budget_keyboard())
 
 
@@ -332,28 +334,75 @@ async def _thematic_collection_callback_impl(
 
 
 _THEME_SEARCH_BUSY_KEY = "_theme_search_busy"
+_THEME_SEARCH_USED_KEY = "_theme_search_used"
+_THEME_MORE_USED_KEY = "_theme_more_used"
+
+
+def _clear_theme_replay_state(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """A return to the theme menu opens a fresh, explicit selection cycle."""
+
+    context.user_data[_THEME_SEARCH_USED_KEY] = set()
 
 
 async def thematic_collection_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Serialize repeated taps for one theme without blocking other navigation."""
+    """Serialize theme actions and ignore stale/replayed collection callbacks."""
 
     query = update.callback_query
     if query is None:
         return
     parts = (query.data or "").split(":")
-    if len(parts) != 3 or parts[0] != CB_THEME_PREFIX or parts[1] not in {"item", "tier"}:
+    if len(parts) < 2 or parts[0] != CB_THEME_PREFIX:
         await _thematic_collection_callback_impl(update, context)
         return
 
-    shelf_code = "theme_" + parts[2] if parts[1] == "item" else parts[2]
+    action = parts[1]
+    if action in {"menu", "budget"}:
+        await _thematic_collection_callback_impl(update, context)
+        return
+
+    if action == "more" and len(parts) == 3:
+        session_id = parts[2]
+        used_more = context.user_data.setdefault(_THEME_MORE_USED_KEY, set())
+        if session_id in used_more:
+            await query.answer(
+                "Эта подборка уже обновлена. Используйте кнопку на текущей карточке."
+            )
+            return
+        used_more.add(session_id)
+        while len(used_more) > 64:
+            used_more.pop()
+        await _thematic_collection_callback_impl(update, context)
+        return
+
+    if action not in {"item", "tier"} or len(parts) != 3:
+        await _thematic_collection_callback_impl(update, context)
+        return
+
+    shelf_code = "theme_" + parts[2] if action == "item" else parts[2]
+    message = getattr(query, "message", None)
+    message_key = (
+        getattr(message, "chat_id", None),
+        getattr(message, "message_id", None),
+        query.data,
+    )
+    used = context.user_data.setdefault(_THEME_SEARCH_USED_KEY, set())
+    if message_key in used:
+        await query.answer(
+            "Эта подборка уже открыта. Вернитесь к списку тем, чтобы выбрать её снова."
+        )
+        return
+
     busy = context.user_data.setdefault(_THEME_SEARCH_BUSY_KEY, set())
     if shelf_code in busy:
         await query.answer("Эта подборка уже загружается.")
         return
 
     busy.add(shelf_code)
+    used.add(message_key)
+    while len(used) > 64:
+        used.pop()
     try:
         await _thematic_collection_callback_impl(update, context)
     finally:
