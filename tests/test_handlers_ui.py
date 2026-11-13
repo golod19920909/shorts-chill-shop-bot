@@ -1167,12 +1167,18 @@ class MainMenuEndToEndTests(unittest.TestCase):
         for callback in MAIN_MENU_CALLBACKS:
             with self.subTest(callback=callback):
                 query = FakeQuery(callback)
+                query.message = FakeMessage()
+                query.message.message_id = 1
                 update = FakeUpdate(callback_query=query)
+                messages_before = len(context.bot.messages)
 
                 run(start.menu_callback(update, context))
 
-                produced = bool(query.edits) or bool(context.bot.messages)
+                produced = bool(query.edits) or len(context.bot.messages) > messages_before
                 self.assertTrue(produced, f"{callback} ничего не показал")
+                if callback == CB_THEMATIC_COLLECTIONS:
+                    self.assertTrue(query.edits)
+                    self.assertEqual(len(context.bot.messages), messages_before)
 
 
 if __name__ == "__main__":
