@@ -30,7 +30,7 @@ from curation.pipeline import MODE_CATEGORY
 from services.subcategory_quality import subcategory_product_type
 
 logger = logging.getLogger("thematic_collections_live")
-MINIMUM_PRODUCTS = 12
+MINIMUM_PRODUCTS = 1
 TARGET_PRODUCTS = 20
 
 
@@ -234,6 +234,7 @@ async def _run(args: argparse.Namespace) -> int:
                         "description": shelf.description,
                         "category_code": shelf.category_code,
                         "query_routes": list(shelf.query_routes),
+                        "route_result_counts": dict(search_service.last_subcategory_route_stats),
                         "product_types": list(shelf.product_types),
                         "exclude_terms": list(shelf.exclude_terms),
                         "budget_ceiling_usd": ceiling,
@@ -377,6 +378,7 @@ async def _run(args: argparse.Namespace) -> int:
             if shelf.max_price is not None
         ],
         "minimum_products": MINIMUM_PRODUCTS,
+        "display_policy": "show any positive count of quality-approved products; zero is an honest empty result",
         "target_products": TARGET_PRODUCTS,
         "summary": dict(summary),
         "provider_status_summary": dict(
@@ -391,9 +393,9 @@ async def _run(args: argparse.Namespace) -> int:
             "checked_at is the retrieval timestamp, not a provider update timestamp."
         ),
         "history_policy": (
-            "This diagnostic compares independent search results without writing "
-            "FLOW_THEMES history. Telegram handlers separately exclude products "
-            "actually shown to the user across all four editorial collections."
+            "This diagnostic does not write shown-product history. Production "
+            "Telegram history is isolated by user and thematic shelf using a "
+            "persistent popular_shown.flow scope."
         ),
         "results": results,
     }
