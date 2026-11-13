@@ -100,9 +100,10 @@ class ThematicCollectionConfigTests(unittest.TestCase):
                     for alias in group
                 ]
                 self.assertEqual(len(grouped_aliases), len(set(grouped_aliases)))
-                self.assertTrue(set(grouped_aliases).issubset({
-                    alias.casefold() for alias in shelf.product_types
-                }))
+                self.assertEqual(
+                    set(grouped_aliases),
+                    {alias.casefold() for alias in shelf.product_types},
+                )
                 self.assertTrue(shelf.keywords)
                 self.assertTrue(shelf.exclude_terms)
                 self.assertTrue(shelf.description.strip())
