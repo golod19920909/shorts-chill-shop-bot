@@ -167,9 +167,9 @@ MAIN_MENU_ITEMS: tuple[tuple[str, str], ...] = (
 )
 
 #: Rows of the main menu (two columns where the labels fit), in the exact
-#: order of the spec: Умный поиск, Найти по фото, Находки,
-#: Категории, Избранное, Отслеживание цен, Валюта, Настройки, Горячие скидки,
-#: Промокоды. (Promotional event buttons, when enabled/admin, are appended
+#: order: search, photo, findings, categories, thematic collections,
+#: favorites, tracking, currency, settings, hot discounts and promo codes.
+#: (Promotional event buttons, when enabled/admin, are appended
 #: above the channel link by ``main_menu_keyboard``.)
 MAIN_MENU_ROWS: tuple[tuple[str, ...], ...] = (
     (CB_SEARCH, CB_PHOTO),
@@ -198,8 +198,8 @@ def main_menu_keyboard(
     supplied ONLY by the async menu renderers, which compute which events THIS
     caller may see (``handlers.sales.sale_menu_buttons``). With ``None`` (the
     default, and how every existing caller and test uses it) the menu is
-    exactly the accepted eleven-button layout - so a disabled event never
-    adds a dead-end button for an ordinary user.
+    full configured main-menu layout - so a disabled event never adds a
+    dead-end button for an ordinary user.
     """
 
     rows = [
