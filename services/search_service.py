@@ -722,7 +722,7 @@ class SearchService:
             )
             outcome = SearchOutcome(request=request, unavailable_marketplaces=unavailable)
             if request.mode is SearchMode.CATEGORY and request.subcategory_code:
-                self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
+                self.last_subcategory_route_stats = {}
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -1288,6 +1288,8 @@ class SearchService:
                     outcome.found_count,
                     raw_candidate_cap if raw_continue is not None else pool_target,
                 )
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
