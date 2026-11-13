@@ -18,6 +18,7 @@ from unittest.mock import patch
 import httpx
 
 from config.settings import MarketplaceCredentials
+from config.subcategories import get_subcategory
 from models.product import Marketplace, Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService
@@ -125,6 +126,27 @@ class SearchServiceTestCase(unittest.TestCase):
 
 
 class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
+    def test_thematic_shelf_uses_all_canonical_type_routes_with_a_finite_budget(self):
+        provider = self.ali_express([])
+        shelf = get_subcategory("theme_budget_5")
+        self.assertIsNotNone(shelf)
+        expected = list(dict.fromkeys([
+            *shelf.query_routes,
+            *(group[0] for group in shelf.product_type_groups),
+        ]))[:20]
+        service = SearchService(
+            [provider], max_results=5, max_search_pages=5
+        )
+
+        outcome = self.run_async(service.find_by_subcategory(shelf))
+
+        self.assertEqual(outcome.products, [])
+        self.assertEqual(provider.search_queries, expected)
+        self.assertGreater(len(provider.search_queries), 3)
+        self.assertLessEqual(len(provider.search_queries), 20)
+        # Empty routes are retired; the optional second page is not wasted.
+        self.assertEqual(provider.search_calls, len(expected))
+
     def test_subcategory_search_continues_all_routes_on_next_page(
         self,
     ):
