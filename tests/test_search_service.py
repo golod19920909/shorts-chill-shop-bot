@@ -161,13 +161,15 @@ class SubcategoryRetrievalExpansionTests(SearchServiceTestCase):
                          title="Small household cleaning brush"),
             make_product(Marketplace.ALIEXPRESS, "theme-screen-kit", 3.5,
                          title="Screen cleaning kit for phone and tablet"),
+            make_product(Marketplace.ALIEXPRESS, "theme-magnetic-hook", 2.5,
+                         title="Magnetic hook for kitchen and home"),
         ]
         provider = self.ali_express(products)
-        service = SearchService([provider], max_results=5, max_search_pages=5)
+        service = SearchService([provider], max_results=6, max_search_pages=5)
 
         outcome = self.run_async(service.find_by_subcategory(shelf))
 
-        self.assertEqual(outcome.found_count, 5)
+        self.assertEqual(outcome.found_count, 6)
         self.assertEqual(provider.search_queries, [shelf.query_routes[0]])
 
     def test_thematic_full_pool_with_few_types_uses_bounded_deeper_page(self):
