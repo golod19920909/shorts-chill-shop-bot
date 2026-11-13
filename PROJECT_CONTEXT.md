@@ -6627,3 +6627,9 @@ code changes or select vendors.
 - A thematic raw pool reaching its numeric target no longer suppresses the one optional deeper page if fewer than five canonical product types are represented. The page loop now checks both pool size and type coverage before stopping.
 - The second page still runs only productive page-one routes and remains the only extra page for thematic shelves. It stops once both pool size and type coverage are satisfied, or when the route/page budget is exhausted.
 - Added regression-test source for a full but single-type pool to verify that the bounded second page is still used. Tests were not executed.
+
+
+## 2026-11-13 — Ordinary request-contract isolation
+
+- Corrected the route expansion boundary so the existing `SearchRequest.retrieval_queries` field retains its original `max_length=2`. Thematic shelves use a new dedicated `thematic_retrieval_queries` field with `max_length=19`; SearchService chooses the appropriate field only after resolving the subcategory configuration.
+- This keeps ordinary category request validation and the three-total-route behavior unchanged, not merely its runtime slicing. Updated the model regression to assert the separate 19-route thematic field and the original two-alternate ordinary field.
