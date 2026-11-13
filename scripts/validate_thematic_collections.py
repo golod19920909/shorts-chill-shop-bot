@@ -261,7 +261,7 @@ async def _run(args: argparse.Namespace) -> int:
                         "checked_at": checked_at,
                         "duration_ms": round((time.perf_counter() - item_started) * 1000),
                         "products": [
-                            _product_report(product, shelf, checked_at)
+                            _product_report(product, subcategory, checked_at)
                             for product in curated
                         ],
                     }
