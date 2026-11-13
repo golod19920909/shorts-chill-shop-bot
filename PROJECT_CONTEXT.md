@@ -6666,3 +6666,10 @@ code changes or select vendors.
 - Tests were added/updated for route expansion and stopping, type coverage/deeper-page behavior, private request schema, per-user/per-shelf SQLite persistence, positive short results and thematic Gemini candidate metadata. **None have been run.** No syntax checks, bot startup, Telegram, AliExpress, Gemini or CI were run.
 - The branch changes 16 files. Protected search/Findings/photo/favorites/tracking/currency/conversation files and `tests/eval_consultant_benchmark_runner.py` are untouched. The user's local working tree has not been modified by these GitHub commits.
 - Remaining acceptance work: user pulls the branch, runs the offline suite, then the six live shelf checks and shares the resulting diagnostic report. Use real title samples to refine aliases; never weaken principal-product or accessory validation. The `✨` symbol remains unchanged until the proposed `💡` replacement is explicitly confirmed.
+
+
+## 2026-11-13 — Thematic collections icon
+
+- User approved the proposed `💡` symbol. Replaced the thematic collections icon in the main-menu label, thematic collection buttons, collection menu heading, product-result headings (including "show more"), and the `/start` usage guide.
+- Kept `✨ Находки` unchanged; kept `💸` for the budget shelf; callback identifiers, button order, and menu layout are unchanged.
+- Added an offline UI consistency regression test. Tests were not run.
