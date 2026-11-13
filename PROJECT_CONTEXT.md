@@ -6560,3 +6560,12 @@ code changes or select vendors.
 - Extended the offline UI callback fake to include an existing Telegram message and assert the thematic menu edits it without sending another message. The thematic contract test now also asserts all original main-menu row pairings. Neither test was executed.
 - The latest stage-3 report documents the menu preservation and focused test coverage. No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run.
 - Current working branch: feat/catalog-quality-and-subcategories. Latest prior documentation checkpoint: c41fab40c297e3e8d4509282ef51bf350c4e0da4; fetch the current branch head after this context update before continuing.
+
+
+## 2026-11-13 — Final menu preservation and offline navigation contract checkpoint
+
+- The standalone thematic menu row is placed immediately after the original Categories row. All original main-menu pairings and their relative order are preserved: Search/Photo, Findings/Categories, Favorites/Tracking, Currency/Settings, Hot Discounts/Promo Codes. No existing section was renamed or moved into a different pair.
+- Updated offline UI test fakes to supply a callback message, allowing strict edit-in-place navigation to be asserted. Thematic entry must edit the existing message and must not send a replacement. tests/test_thematic_collections.py also checks exact existing menu pairings and the four approved collections.
+- The stage-3 handoff now documents the above and the focused offline test command. These test files have not been run.
+- Latest pre-context source/report commit: bb0f355e8bc0197728e5548288f7499ce0e75778 (UI fake), preceded by af83a960591e99c5f60462accfed87a158342646 (main-menu pairing contract) and 33d4c99c0c7991f4f3463df19d94c7df4f09887a (preserve original menu rows). Fetch current branch head after this context write.
+- No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run.
