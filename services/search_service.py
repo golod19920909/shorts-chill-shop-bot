@@ -749,13 +749,17 @@ class SearchService:
         # covering their canonical product-type groups without changing the
         # global catalogue retrieval policy.
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
-            routes = [
-                " ".join(str(route).split())
-                for route in request.retrieval_queries
-                if str(route).strip()
-            ]
             shelf_config = get_subcategory(request.subcategory_code)
             is_thematic = bool(shelf_config and shelf_config.product_type_groups)
+            configured_routes = (
+                request.thematic_retrieval_queries
+                if is_thematic else request.retrieval_queries
+            )
+            routes = [
+                " ".join(str(route).split())
+                for route in configured_routes
+                if str(route).strip()
+            ]
             variants = list(dict.fromkeys([primary, *routes]))[:20 if is_thematic else 3]
 
         # G24.8 P1.9: a category with a P1.8-C validated candidate asks its
@@ -2797,7 +2801,12 @@ class SearchService:
             mode=SearchMode.CATEGORY,
             category=subcategory.category_code,
             subcategory_code=subcategory.code,
-            retrieval_queries=list(routes[1:]),
+            retrieval_queries=(
+                [] if subcategory.product_type_groups else list(routes[1:])
+            ),
+            thematic_retrieval_queries=(
+                list(routes[1:]) if subcategory.product_type_groups else []
+            ),
             keywords=list(subcategory.keywords),
             country=country,
             currency=currency,
