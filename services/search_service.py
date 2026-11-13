@@ -567,6 +567,9 @@ class SearchService:
         # Last curated subcategory shelf diagnostics, consumed by the explicit
         # live acceptance runner. Reset for every subcategory selection.
         self.last_subcategory_selection_stats: dict | None = None
+        # Per-route row counts for the latest curated-subcategory retrieval;
+        # consumed by the explicit operator diagnostic only.
+        self.last_subcategory_route_stats: dict[str, int] = {}
 
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
@@ -718,6 +721,8 @@ class SearchService:
                 request.original_query,
             )
             outcome = SearchOutcome(request=request, unavailable_marketplaces=unavailable)
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -1023,11 +1028,17 @@ class SearchService:
                         len(result) for result in results
                         if isinstance(result, list)
                     )
-                if expansion:
-                    raw_rows_by_phrase[variant] = sum(
-                        len(result)
-                        for result in results
-                        if isinstance(result, list)
+                if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+                    route_rows = sum(
+                        len(result) for result in results if isinstance(result, list)
+                    )
+                    raw_rows_by_phrase[variant] = (
+                        raw_rows_by_phrase.get(variant, 0) + route_rows
+                    )
+                    logger.info(
+                        "Subcategory route: code=%s route=%d/%d rows=%d page=%d",
+                        request.subcategory_code, variant_index,
+                        len(page_variants), route_rows, page_no,
                     )
 
                 # The pipeline runs over everything retrieved SO FAR, so the
@@ -1353,6 +1364,8 @@ class SearchService:
                 self.max_search_pages,
                 outcome.found_count,
             )
+        if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
         self._record_search_outcome(
             outcome, t_search_started, query_empty=not primary_phrase
         )
