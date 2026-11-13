@@ -95,3 +95,16 @@ Until these gates are satisfied, do not modify catalog menu/configuration or ena
 - Thematic searches are not marked `pre_curated`; they use the existing quality/diversity gate with isolated history. Existing feed/search callers retain their default curation history and pre-curated behavior.
 - The latest catalog menu count is 59 visible ordinary shelves across 14 visible parent domains (15 configured; smartphones remains hidden pending live validation). The cycling shelf is also withheld because the current live sample did not support a sufficiently narrow, reliable shelf title.
 - No tests, CI, or fresh live API calls were run, per the user's instruction. The local diagnostic script and post-change live catalog report remain pending.
+
+
+## 2026-11-13 — Static implementation audit and navigation correction
+
+- Recounted the ordinary catalog from source configuration: 60 base shelves + 36 expanded shelves = 96 unique shelf codes. SHELF_PARENT_BY_CODE contains exactly 96 unique assignments; no configured shelf is missing a parent and no mapping points to an unknown shelf.
+- The navigation configuration contains 15 parent domains. Exactly 37 shelves are withheld/hidden by the current explicit quality/merge gates, leaving 59 visible shelves across 14 domains. Smartphones remain configured but have no enabled shelf until a verified live assortment exists.
+- Confirmed the four approved editorial collections only: unusual useful devices, smart home solutions, little-known gadgets, and budget finds. The budget collection consists of $5/$10/$20 tiers; no automotive editorial collection exists.
+- Confirmed that thematic callbacks use FLOW_THEMES, apply the shared category curation gate with ordinary curation history disabled, suppress global novelty writes, and enforce the 12-product threshold again after curation. Budget tiers explicitly reject missing prices, non-USD prices, and prices above their USD ceiling.
+- Added handlers/catalog_navigation.py as a catalog/theme-only edit helper. It leaves the current message intact on transient/unclassified edit errors and only attempts send-then-delete replacement for known Telegram BadRequest responses that explicitly indicate the message cannot be edited. The shared search/feed helper was not modified.
+- Routed catalog and thematic screens through the catalog-only helper. Added a per-theme in-flight guard so repeated taps cannot launch concurrent searches for the same theme; the existing «Показать ещё» guard remains separate.
+- Static review found no remaining common.edit_message_or_replace calls in handlers/discovery.py or handlers/thematic_collections.py; the shared helper in handlers/common.py and the search/feed delivery path were not changed by this correction.
+- No tests, pytest, CI, Telegram calls, AliExpress calls, or Gemini calls were run. This is a source-level audit only. The 96-shelf report remains historical evidence from before the latest configuration changes.
+- Still blocked for final acceptance: user-local execution of scripts/diagnose_aliexpress_categories.py, a fresh live run of scripts/validate_catalog_subcategories.py, review of the resulting product-level diversity/quality report, and user-authorized offline regression tests. No AliExpress category IDs are verified or configured.
