@@ -99,6 +99,18 @@ class ThematicCollectionConfigTests(unittest.TestCase):
             CB_THEMATIC_COLLECTIONS,
             _callbacks(main_menu_keyboard()),
         )
+        rows = [
+            [button.callback_data for button in row if button.callback_data]
+            for row in main_menu_keyboard().inline_keyboard
+        ]
+        self.assertEqual(rows[:6], [
+            ["menu:search", "menu:photo"],
+            ["menu:feed", "menu:categories"],
+            ["menu:themes"],
+            ["menu:favorites", "menu:tracking"],
+            ["menu:currency", "menu:settings"],
+            ["menu:hot", "menu:pcodes"],
+        ])
         self.assertNotIn("theme:menu", _callbacks(categories_keyboard()))
 
     def test_thematic_keyboard_exposes_only_approved_collections_and_tiers(self) -> None:
