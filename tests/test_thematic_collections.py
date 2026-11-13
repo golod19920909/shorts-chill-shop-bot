@@ -163,6 +163,17 @@ class ThematicCollectionConfigTests(unittest.TestCase):
         self.assertEqual(source.count("minimum_products=1"), 2)
         self.assertGreaterEqual(source.count("if not outcome.products:"), 2)
 
+    def test_thematic_collections_use_lightbulb_branding_consistently(self) -> None:
+        from keyboards.main import LABEL_THEMATIC_COLLECTIONS
+
+        start_source = inspect.getsource(__import__("handlers.start", fromlist=["HELP_TEXT"]))
+        self.assertEqual(LABEL_THEMATIC_COLLECTIONS, "💡 Тематические подборки")
+        self.assertIn("💡 <b>Тематические подборки</b>", thematic_handlers.THEME_MENU_TEXT)
+        self.assertIn("💡 ", str(thematic_collections_keyboard().inline_keyboard))
+        self.assertIn("💡 <b>Тематические подборки</b>", start_source)
+        self.assertNotIn("✨ <b>Тематические подборки</b>", start_source)
+        self.assertNotIn("✨ <b>", inspect.getsource(thematic_handlers))
+
     def test_thematic_collections_are_a_top_level_menu_entry(self) -> None:
         self.assertIn(CB_THEMATIC_COLLECTIONS, MAIN_MENU_CALLBACKS)
         self.assertIn(
