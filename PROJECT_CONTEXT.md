@@ -6633,3 +6633,9 @@ code changes or select vendors.
 
 - Corrected the route expansion boundary so the existing `SearchRequest.retrieval_queries` field retains its original `max_length=2`. Thematic shelves use a new dedicated `thematic_retrieval_queries` field with `max_length=19`; SearchService chooses the appropriate field only after resolving the subcategory configuration.
 - This keeps ordinary category request validation and the three-total-route behavior unchanged, not merely its runtime slicing. Updated the model regression to assert the separate 19-route thematic field and the original two-alternate ordinary field.
+
+
+## 2026-11-13 — Parser-schema isolation for thematic routes
+
+- Replaced the temporary public `thematic_retrieval_queries` field with a Pydantic `PrivateAttr`, `SearchRequest._thematic_retrieval_queries`. The 19-alternate thematic route list is now internal to SearchService, excluded from Gemini's SearchRequest schema and excluded from persisted request JSON.
+- The public `retrieval_queries` field remains exactly as before (`max_length=2`), and ordinary catalog searches continue using that field. Thematic route metadata is set only by `find_by_subcategory` for `theme_*` shelf codes and is preserved by Pydantic `model_copy` during route execution.
