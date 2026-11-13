@@ -14,6 +14,7 @@ from config.thematic_collections import (
 from config.subcategories import get_subcategory
 from database.models import FLOW_THEMES
 from handlers import common
+from handlers.catalog_navigation import edit_catalog_message_or_replace
 from handlers.discovery import record_outcome_events
 from handlers.search import send_search_results
 from keyboards.main import (
@@ -52,7 +53,7 @@ def _theme_description(code: str) -> str:
 async def _edit_screen(
     context: ContextTypes.DEFAULT_TYPE, query, text: str, keyboard
 ) -> None:
-    await common.edit_message_or_replace(
+    await edit_catalog_message_or_replace(
         context,
         query,
         text,
@@ -143,7 +144,7 @@ async def _show_more_thematic_products(
             source="thematic_collection_more",
         )
         if len(outcome.products) < THEME_MINIMUM_PRODUCTS:
-            await common.edit_message_or_replace(
+            await edit_catalog_message_or_replace(
                 context,
                 query,
                 "Пока больше не набралось 12 подходящих товаров. "
@@ -181,7 +182,7 @@ async def _show_more_thematic_products(
         )
     except Exception:
         logger.exception("Thematic collection refresh failed: %s", subcategory.code)
-        await common.edit_message_or_replace(
+        await edit_catalog_message_or_replace(
             context,
             query,
             "Не удалось обновить подборку. Предыдущая карточка останется доступна.",
