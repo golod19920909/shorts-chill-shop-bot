@@ -142,7 +142,13 @@ def subcategory_product_type(
     leading_matches = [
         alias for alias, position in matches if position == earliest
     ]
-    return max(leading_matches, key=specificity).casefold()
+    matched_alias = max(leading_matches, key=specificity)
+    # Thematic shelves unify translated/synonymous aliases before balancing.
+    # Ordinary catalog shelves retain their previous alias-level type keys.
+    for group in subcategory.product_type_groups:
+        if any(alias.casefold() == matched_alias.casefold() for alias in group):
+            return group[0].casefold()
+    return matched_alias.casefold()
 
 
 def subcategory_match_reason(product: Product, subcategory: Subcategory) -> str | None:
