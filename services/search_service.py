@@ -571,6 +571,7 @@ class SearchService:
         # consumed by the explicit operator diagnostic only.
         self.last_subcategory_route_stats: dict[str, int] = {}
         self.last_subcategory_rejection_samples: dict[str, list[str]] = {}
+        self.last_subcategory_candidate_routes: dict[tuple[str, str], list[str]] = {}
 
         #: How deep this deployment may walk the marketplace's documented result
         #: pages (``SEARCH_MAX_PAGES``). Bounded here rather than inside the
@@ -709,6 +710,10 @@ class SearchService:
         # B4: one monotonic timestamp per search; both return paths report
         # the finished outcome through ``_record_search_outcome``.
         t_search_started = time.perf_counter()
+        if request.mode is SearchMode.CATEGORY and request.subcategory_code:
+            self.last_subcategory_rejection_samples = {}
+            self.last_subcategory_candidate_routes = {}
+            self.last_subcategory_route_stats = {}
         # The phrase the marketplace is actually asked (B4 parse-failure
         # signal only: an EMPTY effective phrase means parsing/intent
         # produced nothing to search with).
@@ -770,6 +775,7 @@ class SearchService:
         # Raw rows each phrase returned (tracked while a category expansion
         # is active - only for the one runtime log line of that call).
         raw_rows_by_phrase: dict[str, int] = {}
+        candidate_route_sources: dict[tuple[str, str], list[str]] = {}
 
         # RETRIEVAL POOL: how many raw candidates this search gathers before the
         # final cut. An AI selector needs a deep, junk-rich pool to pick the best
@@ -1036,6 +1042,14 @@ class SearchService:
                     raw_rows_by_phrase[variant] = (
                         raw_rows_by_phrase.get(variant, 0) + route_rows
                     )
+                    for result in results:
+                        if not isinstance(result, list):
+                            continue
+                        for product in result:
+                            key = identity_pair(product)
+                            sources = candidate_route_sources.setdefault(key, [])
+                            if variant not in sources:
+                                sources.append(variant)
                     logger.info(
                         "Subcategory route: code=%s route=%d/%d rows=%d page=%d",
                         request.subcategory_code, variant_index,
@@ -1291,6 +1305,7 @@ class SearchService:
                 )
             if request.mode is SearchMode.CATEGORY and request.subcategory_code:
                 self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
+                self.last_subcategory_candidate_routes = dict(candidate_route_sources)
             self._record_search_outcome(
                 outcome, t_search_started, query_empty=not primary_phrase
             )
@@ -1369,6 +1384,7 @@ class SearchService:
             )
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
             self.last_subcategory_route_stats = dict(raw_rows_by_phrase)
+            self.last_subcategory_candidate_routes = dict(candidate_route_sources)
         self._record_search_outcome(
             outcome, t_search_started, query_empty=not primary_phrase
         )
