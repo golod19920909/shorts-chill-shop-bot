@@ -1380,12 +1380,18 @@ async def send_search_results(
         )
         minimum_keyboard = wrap_up_keyboard or back_to_menu_keyboard()
         if origin_query is not None:
-            await common.edit_message_or_replace(
-                context,
-                origin_query,
-                minimum_text,
-                reply_markup=minimum_keyboard,
-            )
+            if strict_navigation:
+                await edit_catalog_message_or_replace(
+                    context, origin_query, minimum_text,
+                    reply_markup=minimum_keyboard,
+                )
+            else:
+                await common.edit_message_or_replace(
+                    context,
+                    origin_query,
+                    minimum_text,
+                    reply_markup=minimum_keyboard,
+                )
         else:
             await context.bot.send_message(
                 chat_id, minimum_text, reply_markup=minimum_keyboard
@@ -1417,12 +1423,18 @@ async def send_search_results(
             # zero rows answered, all filtered, partial answers - keeps the
             # honest "nothing found" message below.
             if origin_query is not None:
-                await common.edit_message_or_replace(
-                    context,
-                    origin_query,
-                    SEARCH_UNAVAILABLE_TEXT,
-                    reply_markup=empty_keyboard,
-                )
+                if strict_navigation:
+                    await edit_catalog_message_or_replace(
+                        context, origin_query, SEARCH_UNAVAILABLE_TEXT,
+                        reply_markup=empty_keyboard,
+                    )
+                else:
+                    await common.edit_message_or_replace(
+                        context,
+                        origin_query,
+                        SEARCH_UNAVAILABLE_TEXT,
+                        reply_markup=empty_keyboard,
+                    )
             else:
                 await context.bot.send_message(
                     chat_id,
@@ -1433,12 +1445,18 @@ async def send_search_results(
                 conversation_state.record_assistant_turn(SEARCH_UNAVAILABLE_TEXT)
             return None
         if origin_query is not None:
-            await common.edit_message_or_replace(
-                context,
-                origin_query,
-                EMPTY_RESULT_TEXT,
-                reply_markup=empty_keyboard,
-            )
+            if strict_navigation:
+                await edit_catalog_message_or_replace(
+                    context, origin_query, EMPTY_RESULT_TEXT,
+                    reply_markup=empty_keyboard,
+                )
+            else:
+                await common.edit_message_or_replace(
+                    context,
+                    origin_query,
+                    EMPTY_RESULT_TEXT,
+                    reply_markup=empty_keyboard,
+                )
         else:
             await context.bot.send_message(
                 chat_id, EMPTY_RESULT_TEXT, reply_markup=empty_keyboard
@@ -1639,12 +1657,12 @@ async def _send_product_cards(
                         reply_markup=reply_markup,
                     )
                 else:
-                    # Telegram cannot convert a photo message into text.
-                    # Replace only for this objectively unsupported media transition.
-                    replacement_attempted = True
-                    await _replace_browsed_card(
-                        origin_query, context, products[0], 0, caption, reply_markup,
-                        send_first=True,
+                    # Keep the existing photo message: Telegram supports editing
+                    # its caption even when the product has no image URL.
+                    await origin_query.edit_message_caption(
+                        caption=common.truncate_for_caption(caption),
+                        parse_mode="HTML",
+                        reply_markup=reply_markup,
                     )
             else:
                 # Text messages cannot be converted to photo media with editMessageMedia.
@@ -1783,8 +1801,22 @@ async def _edit_browsed_card(
             )
             return
 
-    if has_image != is_photo:
-        # Telegram cannot convert a text message into a photo or vice versa.
+    if is_photo and not has_image:
+        # A photo message can always keep its media and update its caption.
+        await query.edit_message_caption(
+            caption=common.truncate_for_caption(caption),
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+        await _record_browsed_conversation_product(
+            context, session_id, product.product_id
+        )
+        return
+
+    if has_image and not is_photo:
+        # Telegram cannot add media to an existing text message. This is the
+        # narrow, objectively unsupported media transition where replacement
+        # is permitted; send the new card before deleting the old message.
         await _replace_browsed_card(
             query, context, product, index, caption, reply_markup,
             send_first=catalog_navigation,
