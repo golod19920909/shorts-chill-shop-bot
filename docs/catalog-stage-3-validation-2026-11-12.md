@@ -149,3 +149,15 @@ The category diagnostic must be reviewed before any category ID is committed. Th
 - The above commands are prepared for the user's final validation; their results do not yet exist.
 - Final acceptance remains blocked on the local category.get response, fresh 96-shelf and thematic JSON reports, product-level review of enabled shelves and cross-theme diversity, and the user's offline regression run.
 - Do not interpret the historical 12.11 live report as validation of the latest taxonomy, curation, or navigation code.
+
+
+### Additional offline contract coverage — 2026-11-13
+
+- Added `tests/test_thematic_collections.py` for the four editorial collection names, three USD budget tiers, six thematic shelves, route/product-type configuration, separate history scope, and standalone main-menu navigation.
+- Updated `tests/test_handlers_ui.py` for the independent theme entry and current catalog navigation callback contract.
+- These tests are source additions only. They have not been executed, and no CI workflow was started or modified as part of this final handoff.
+- Suggested focused offline command for the user's later run:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/test_catalog_subcategories.py tests/test_subcategory_quality.py tests/test_subcategory_search.py tests/test_subcategory_navigation.py tests/test_thematic_collections.py tests/test_handlers_ui.py
+```
