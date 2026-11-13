@@ -6639,3 +6639,10 @@ code changes or select vendors.
 
 - Replaced the temporary public `thematic_retrieval_queries` field with a Pydantic `PrivateAttr`, `SearchRequest._thematic_retrieval_queries`. The 19-alternate thematic route list is now internal to SearchService, excluded from Gemini's SearchRequest schema and excluded from persisted request JSON.
 - The public `retrieval_queries` field remains exactly as before (`max_length=2`), and ordinary catalog searches continue using that field. Thematic route metadata is set only by `find_by_subcategory` for `theme_*` shelf codes and is preserved by Pydantic `model_copy` during route execution.
+
+
+## 2026-11-13 — Adaptive route type-coverage target
+
+- Replaced the fixed five-type route stop with an adaptive coverage target: `min(6, max(3, ceil(configured_type_groups / 3)))`. The six shelves therefore scale search continuation with their declared type breadth.
+- This target controls whether to spend the one additional page; it is not a minimum display count. If the route/page budget is exhausted with fewer types, the finalizer returns only validated distinct products.
+- Updated the staged-route regression fixture to provide six canonical types for the broad $5 shelf's early-stop case. Tests were not run.
