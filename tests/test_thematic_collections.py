@@ -147,6 +147,10 @@ class ThematicCollectionConfigTests(unittest.TestCase):
             f"route {index}" for index in range(19)
         ]
         self.assertEqual(len(request._thematic_retrieval_queries), 19)
+        self.assertNotIn(
+            "_thematic_retrieval_queries",
+            SearchRequest.model_json_schema().get("properties", {}),
+        )
         ordinary = SearchRequest(
             original_query="ordinary subcategory",
             retrieval_queries=["route one", "route two"],
