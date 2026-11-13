@@ -83,6 +83,15 @@ class ThematicCollectionConfigTests(unittest.TestCase):
             with self.subTest(code=shelf.code):
                 self.assertGreaterEqual(len(shelf.query_routes), 2)
                 self.assertTrue(all(route.strip() for route in shelf.query_routes))
+                # Every retrieval route must name a concrete product type.
+                # Generic editorial phrases often return resp_code=405
+                # (a valid but empty Affiliate API answer) for every page.
+                self.assertTrue(
+                    all(route.casefold() in {
+                        product_type.casefold()
+                        for product_type in shelf.product_types
+                    } for route in shelf.query_routes)
+                )
                 self.assertTrue(shelf.product_types)
                 self.assertTrue(shelf.keywords)
                 self.assertTrue(shelf.exclude_terms)
