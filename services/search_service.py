@@ -730,17 +730,19 @@ class SearchService:
         ]
         primary = variants[0]
 
-        # Curated subcategories own a small, explicit set of additional
-        # marketplace routes. They are configuration-only phrases, bounded
-        # to two alternates by SearchRequest and evaluated together through
-        # this one existing provider/dedup/relevance/ranking pipeline.
+        # Ordinary catalog subcategories retain the historical three-route
+        # ceiling. Thematic shelves may use up to twenty configured routes,
+        # covering their canonical product-type groups without changing the
+        # global catalogue retrieval policy.
         if request.mode is SearchMode.CATEGORY and request.subcategory_code:
             routes = [
                 " ".join(str(route).split())
                 for route in request.retrieval_queries
                 if str(route).strip()
             ]
-            variants = list(dict.fromkeys([primary, *routes]))[:3]
+            shelf_config = get_subcategory(request.subcategory_code)
+            is_thematic = bool(shelf_config and shelf_config.product_type_groups)
+            variants = list(dict.fromkeys([primary, *routes]))[:20 if is_thematic else 3]
 
         # G24.8 P1.9: a category with a P1.8-C validated candidate asks its
         # ONE extra keyword as a second phrase of the SAME search («primary
@@ -787,8 +789,18 @@ class SearchService:
             and bool(request.subcategory_code)
             and self.has_feed_selector
         )
+        shelf_config = (
+            get_subcategory(request.subcategory_code)
+            if request.mode is SearchMode.CATEGORY and request.subcategory_code
+            else None
+        )
+        is_thematic_request = bool(shelf_config and shelf_config.product_type_groups)
+        thematic_last_page = min(self.max_search_pages, first_page + 1)
         pages = (
-            list(range(first_page, self.max_search_pages + 1))
+            list(range(
+                first_page,
+                (thematic_last_page if is_thematic_request else self.max_search_pages) + 1,
+            ))
             if broaden and (
                 request.mode is SearchMode.SEARCH or deep_subcategory
             )
@@ -825,6 +837,18 @@ class SearchService:
         routes_failed = 0
 
         for page_no in pages:
+            # Thematic shelves get at most one deeper pass, and only when
+            # the first pass has not yet produced a full eligible candidate pool.
+            if (
+                is_thematic_request
+                and page_no > first_page
+                and outcome.found_count >= pool_target
+            ):
+                logger.info(
+                    "Thematic retrieval stopped at pool target: code=%s pool=%d target=%d",
+                    request.subcategory_code, outcome.found_count, pool_target,
+                )
+                break
             # Page 1 asks every grounded phrase. Later pages continue every
             # still-live phrase, preserving independent marketplace rankings
             # for RRF instead of deepening only whichever route ran first.
@@ -2640,11 +2664,20 @@ class SearchService:
         the selected subcategory; no second search engine is introduced.
         """
 
-        routes = tuple(
+        configured_routes = [
             " ".join(route.split())
             for route in subcategory.query_routes
             if route and route.strip()
-        )[:3]
+        ]
+        if subcategory.product_type_groups:
+            type_routes = [
+                " ".join(group[0].split())
+                for group in subcategory.product_type_groups
+                if group and group[0].strip()
+            ]
+            routes = tuple(dict.fromkeys([*configured_routes, *type_routes]))[:20]
+        else:
+            routes = tuple(dict.fromkeys(configured_routes))[:3]
         if not routes:
             return SearchOutcome(
                 request=SearchRequest(
