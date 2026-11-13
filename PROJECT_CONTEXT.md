@@ -6569,3 +6569,13 @@ code changes or select vendors.
 - The stage-3 handoff now documents the above and the focused offline test command. These test files have not been run.
 - Latest pre-context source/report commit: bb0f355e8bc0197728e5548288f7499ce0e75778 (UI fake), preceded by af83a960591e99c5f60462accfed87a158342646 (main-menu pairing contract) and 33d4c99c0c7991f4f3463df19d94c7df4f09887a (preserve original menu rows). Fetch current branch head after this context write.
 - No tests, pytest, CI, syntax checks, Telegram, AliExpress or Gemini calls were run.
+
+
+## 2026-11-13 — Thematic collection retrieval fix
+
+- User reported that thematic collections return the empty-state message. Their live log for theme_unusual_devices showed all three routes repeatedly receiving AliExpress product.query resp_code=405; raw=0, filtered_pool=0, final=0. No products reached the relevance filter. The ordinary Smart Search was separately confirmed working by the user.
+- Static source review identified the immediate query-design problem: thematic query_routes were broad editorial phrases (e.g. “clever practical everyday gadgets”, “lesser known electronic gadgets devices”) instead of concrete product names. AliExpress 405 here is treated by the client as a legitimate empty search result, not a general API/authentication failure.
+- Created fix branch fix/thematic-collection-retrieval from feat/catalog-quality-and-subcategories at the user's current checkpoint. Updated config/thematic_collections.py so each of the six theme shelves uses three concrete search phrases that exactly match its own declared product_types: jar opener/bag sealer/cleaning brush; smart plug/smart switch/motion sensor; digital microscope/USB tester/endoscope camera; and concrete small-item queries for $5/$10/$20.
+- Updated tests/test_thematic_collections.py with an offline contract requiring each route to exactly match a declared product type. Updated docs/catalog-stage-3-validation-2026-11-12.md with diagnosis and validation status.
+- No retrieval, relevance, product-type, USD budget, curation, 12-product minimum, history, Telegram navigation, Smart Search, Findings, photo search, or other protected behavior was changed. In particular, no filters were weakened to make the screen appear populated.
+- No tests, pytest, syntax checks, CI, Telegram calls, AliExpress calls or Gemini calls were run. The fix is source-level only; the user must perform the live validation after pulling the branch. Current working branch: fix/thematic-collection-retrieval. Latest source/docs commits should be fetched from this branch head before continuing.
