@@ -39,6 +39,7 @@ from keyboards.main import (
     CB_SETTINGS,
     CB_TUTORIAL,
     CB_TRACKING,
+    CB_THEMATIC_COLLECTIONS,
     MAIN_MENU_CALLBACKS,
     REMOVED_CALLBACK_PATTERN,
     back_to_menu_keyboard,
@@ -95,6 +96,7 @@ HELP_TEXT = (
     f"{FINDINGS} <b>Находки</b> — подборка товаров с AliExpress: сразу "
     "открывается карточка первого товара\n"
     f"{CATEGORIES} <b>Категории</b> — поиск по категориям\n"
+    "✨ <b>Тематические подборки</b> — необычные устройства, умный дом, малоизвестные гаджеты и полезные товары по бюджету\n"
     f"{FAVORITES} <b>Избранное</b> — сохранённые товары\n"
     f"{TRACKING} <b>Отслеживание цен</b> — бот проверяет цену и сообщит "
     "об изменении\n"
@@ -317,6 +319,12 @@ async def dispatch_menu(
         from handlers.discovery import show_categories
 
         await show_categories(update, context)
+        return True
+
+    if data == CB_THEMATIC_COLLECTIONS:
+        from handlers.thematic_collections import show_thematic_collections
+
+        await show_thematic_collections(update, context, answer_callback=False)
         return True
 
     if data in (CB_FEED, CB_POPULAR):
