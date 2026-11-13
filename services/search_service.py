@@ -890,9 +890,9 @@ class SearchService:
             if page_no == pages[0]:
                 page_variants = variants
             elif request.subcategory_code and request.mode is SearchMode.CATEGORY:
-                # On the one permitted thematic deeper pass, continue only
-                # routes that returned real rows on page one. Empty routes
-                # are exhausted and must not consume another API request.
+                # Thematic shelves continue only routes that returned real
+                # rows on page one. Ordinary subcategories retain their
+                # historical bounded route list.
                 page_variants = (
                     [
                         phrase for phrase in variants
@@ -1070,6 +1070,8 @@ class SearchService:
                     route_rows = sum(
                         len(result) for result in results if isinstance(result, list)
                     )
+                    if not raw:
+                        page_rows += route_rows
                     raw_rows_by_phrase[variant] = (
                         raw_rows_by_phrase.get(variant, 0) + route_rows
                     )
