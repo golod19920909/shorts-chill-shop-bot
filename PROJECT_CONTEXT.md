@@ -6653,3 +6653,16 @@ code changes or select vendors.
 - The thematic-only Gemini candidate payload now includes the deterministic `canonical_product_type` assigned by `subcategory_product_type`, plus `shelf_title` and `shelf_purpose`. The same deterministic identity gate runs again after AI selection. Ordinary subcategory payloads and their previous prompt diversity wording are unchanged.
 - The diagnostic reports the complete planned route list separately from the actually executed route counts, includes candidate route provenance, and states the actual thematic route/page budget (maximum 20 routes and two pages).
 - Added an offline AI-service regression source verifying the thematic Gemini prompt contains the canonical product type and shelf purpose. No tests or live calls were run.
+
+
+## Current implementation checkpoint — 2026-11-13 (PR #12)
+
+- PR #12 remains open, unmerged and mergeable. Work is committed directly to `fix/thematic-collection-retrieval`; do not merge without explicit approval.
+- Thematic-only route metadata is private on SearchRequest, preserving the public Gemini parse schema and the ordinary `retrieval_queries` max length of two.
+- All six thematic shelves build a bounded plan from their three priority routes plus one canonical phrase per declared type. Routes are staged; search stops after pool and adaptive type coverage (3–6 types) are met, otherwise it can use one additional page from productive routes only. Hard budget: at most 20 routes and two pages.
+- Theme candidate route provenance, per-route row counts, rejection reason title samples, constraint-loss counts, and Gemini selection timing/cost are exposed to the diagnostic.
+- Gemini receives deterministic canonical type and shelf-purpose metadata only on thematic shelves. Ordinary subcategory candidate payloads and diversity prompt text remain unchanged.
+- History is isolated by user and shelf through `themes:<shelf_code>` in the existing SQLite flow column; no schema migration. Thematic UI shows 1–20 validated products; zero results show an honest empty state.
+- Tests were added/updated for route expansion and stopping, type coverage/deeper-page behavior, private request schema, per-user/per-shelf SQLite persistence, positive short results and thematic Gemini candidate metadata. **None have been run.** No syntax checks, bot startup, Telegram, AliExpress, Gemini or CI were run.
+- The branch changes 16 files. Protected search/Findings/photo/favorites/tracking/currency/conversation files and `tests/eval_consultant_benchmark_runner.py` are untouched. The user's local working tree has not been modified by these GitHub commits.
+- Remaining acceptance work: user pulls the branch, runs the offline suite, then the six live shelf checks and shares the resulting diagnostic report. Use real title samples to refine aliases; never weaken principal-product or accessory validation. The `✨` symbol remains unchanged until the proposed `💡` replacement is explicitly confirmed.
