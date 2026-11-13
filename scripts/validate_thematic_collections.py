@@ -190,6 +190,10 @@ async def _run(args: argparse.Namespace) -> int:
                     gemini_usage = None
 
                 if ceiling is not None:
+                    if outcome.products_dropped_by_constraints:
+                        price_rejections["rejected_by_search_price_constraint"] = (
+                            outcome.products_dropped_by_constraints
+                        )
                     price_valid = []
                     for product in after_search:
                         if product.price is None:
