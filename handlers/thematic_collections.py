@@ -179,6 +179,7 @@ async def _show_more_thematic_products(
             record_views=False,
             curation_mode=MODE_CATEGORY,
             home_callback=CB_CATALOG_HOME,
+            strict_navigation=True,
         )
     except Exception:
         logger.exception("Thematic collection refresh failed: %s", subcategory.code)
@@ -326,6 +327,7 @@ async def _thematic_collection_callback_impl(
         record_views=False,
         curation_mode=MODE_CATEGORY,
         home_callback=CB_CATALOG_HOME,
+            strict_navigation=True,
     )
 
 
