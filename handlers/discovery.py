@@ -537,7 +537,12 @@ async def _edit_catalog_or_reply(
 
 
 
-async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_categories(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    answer_callback: bool = True,
+) -> None:
     """Render the catalog landing screen without replacing an active callback message.
 
     Callback navigation must stay in the same Telegram message. The cover image
@@ -550,7 +555,8 @@ async def show_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     markup = categories_keyboard()
 
     if query is not None:
-        await query.answer()
+        if answer_callback:
+            await query.answer()
         await edit_catalog_message_or_replace(
             context,
             query,
