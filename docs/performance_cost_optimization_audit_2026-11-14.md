@@ -48,6 +48,10 @@ New counters distinguish handler call attempts from requests actually merged. A 
 
 The thematic «show more» handler already had its own per-session busy guard; it remains unchanged.
 
+### 2.3 Eliminate duplicate clarification interpretation
+
+When the first `conversation_turn` call returned `clarify`, the engine could make a second Gemini call through `decide_chat_action` merely to phrase the same question. The engine now reuses the validated `question` field from the first response. If it is missing or invalid, it uses the deterministic default. This removes a sequential Gemini call on that clarification path without weakening the first context-aware interpretation.
+
 ### 2.3 Operational diagnostics
 
 The existing admin AliExpress API screen now shows:
@@ -131,7 +135,7 @@ Offline regression coverage added or extended:
 - `tests/test_eval_consultant_optimization_dataset.py`: 100-scenario corpus structure;
 - existing Gemini, conversation-engine, search-service and benchmark-runner regression suites are included in the new workflow.
 
-The first CI attempt found a syntax error in the admin screen; it was fixed. The first unfiltered regression run then reported 242 passed and five unrelated stale legacy failures (two tests import the removed `services.agent_loop`, one expects a single Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects all thematic routes despite the current early-stop planner). The focused workflow explicitly deselects those five known failures rather than hiding them in a full-suite claim. Latest workflow run #22 succeeded: compileall passed; **242 passed, 5 deselected, 54 subtests passed**. No local pytest execution was performed in this environment.
+The first CI attempt found a syntax error in the admin screen; it was fixed. The first unfiltered regression run then reported 242 passed and five unrelated stale legacy failures (two tests import the removed `services.agent_loop`, one expects a single Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects all thematic routes despite the current early-stop planner). The focused workflow explicitly deselects those five known failures rather than hiding them in a full-suite claim. Latest workflow run #27 succeeded after the clarification-call optimization: compileall passed; **245 passed, 5 deselected, 54 subtests passed**. No local pytest execution was performed in this environment.
 
 ## 6. Files changed in this workstream
 
@@ -141,6 +145,7 @@ The first CI attempt found a syntax error in the admin screen; it was fixed. The
 - `.github/workflows/optimization-regression.yml`
 - `tests/test_aliexpress_retry.py`
 - `tests/test_search_dedup.py`
+- `tests/test_convsearch_clarification_reuse.py`
 - `services/gemini_pricing.py`
 - `tests/test_gemini_pricing.py`
 - `tests/eval_gemini_rates_2026-11-14.json`
