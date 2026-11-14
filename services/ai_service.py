@@ -801,14 +801,14 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
     # no new context. Compare the bounded text representation so the check
     # is deterministic and does not discard distinct paraphrases.
     dialogue_user_texts = {
-        item["text"][:180]
-        for item in dialogue_payload
-        if item["role"] == "user"
-    }
+        " ".join(str(item.get("text") or "").split())
+        for item in dialogue[-12:]
+        if isinstance(item, dict) and item.get("role") == "user"
+    } if isinstance(dialogue, list) else set()
     recent_turn_payload = [
         str(item)[:180]
         for item in recent[-6:]
-        if str(item)[:180] not in dialogue_user_texts
+        if " ".join(str(item).split()) not in dialogue_user_texts
     ] if isinstance(recent, list) else []
 
     payload = {
