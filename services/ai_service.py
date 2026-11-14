@@ -2009,7 +2009,8 @@ class AIService:
 
         allowed_fields = (
             "id", "title", "description", "category_path", "price", "currency",
-            "discount_percent", "rating", "orders_count", "availability",
+            "discount_percent", "rating", "positive_rate", "orders_count",
+            "has_image", "availability",
         )
         candidates = [
             {key: payload.get(key) for key in allowed_fields}
