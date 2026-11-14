@@ -2022,7 +2022,7 @@ class AIService:
             "captured_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "source": {
                 "provider": "AliExpress Affiliate API",
-                "capture_kind": "real_api_response",
+                "capture_kind": "selector_input_capture",
                 "query_language": language,
                 "query_redacted": "[redacted]",
                 "page_count": None,
