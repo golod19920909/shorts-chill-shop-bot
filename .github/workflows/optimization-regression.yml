@@ -22,6 +22,10 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Compile application packages
         run: python -m compileall -q bot config database handlers keyboards models services
+      - name: Validate benchmark CLI entrypoints
+        run: |
+          python tests/eval_consultant_benchmark_runner.py --help
+          python tests/eval_selector_replay_runner.py --help
       - name: Run optimization and protected-path offline regressions
         run: >
           python -m pytest -q
