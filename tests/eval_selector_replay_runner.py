@@ -13,15 +13,15 @@ import asyncio
 import hashlib
 import json
 import os
+import inspect
 import random
-import statistics
 import time
 from pathlib import Path
 from typing import Any
 
 import services.ai_service as ai_service_module
 from models.product import Availability, Marketplace, Product
-from services.ai_service import AIService, CONVERSATION_SELECTION_PROMPT
+from services.ai_service import AIService
 from services.gemini_pricing import estimate_cost_usd
 from services.gemini_telemetry import extract_usage
 
@@ -64,8 +64,9 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
     if not isinstance(wanted, int) or isinstance(wanted, bool) or not 1 <= wanted <= 20:
         raise ValueError(f"{path.name}: wanted must be in [1, 20]")
     for field in ("required_features", "identity_review_ids", "marketplace_terms"):
-        if not isinstance(request.get(field), list):
-            raise ValueError(f"{path.name}: request.{field} must be a list")
+        values = request.get(field)
+        if not isinstance(values, list) or not all(isinstance(x, str) for x in values):
+            raise ValueError(f"{path.name}: request.{field} must be a string list")
     ids = []
     for index, candidate in enumerate(candidates):
         if not isinstance(candidate, dict):
@@ -81,6 +82,8 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         raise ValueError(f"{path.name}: duplicate candidate IDs")
 
     candidate_ids = set(ids)
+    if not set(request["identity_review_ids"]) <= candidate_ids:
+        raise ValueError(f"{path.name}: identity_review_ids contains an unknown candidate ID")
     eligible = gold.get("eligible_ids")
     rejected = gold.get("rejected")
     evidence = gold.get("required_evidence")
@@ -100,6 +103,14 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         raise ValueError(f"{path.name}: invalid rejected IDs")
     if set(eligible) & set(rejected_ids):
         raise ValueError(f"{path.name}: eligible and rejected IDs overlap")
+    if not set(evidence) <= set(eligible):
+        raise ValueError(f"{path.name}: required_evidence contains a non-eligible ID")
+    for product_id, evidence_map in evidence.items():
+        if not isinstance(evidence_map, dict) or not all(
+            isinstance(requirement, str) and isinstance(quote, str)
+            for requirement, quote in evidence_map.items()
+        ):
+            raise ValueError(f"{path.name}: invalid evidence for {product_id}")
     for tier in tiers:
         if not isinstance(tier, list) or not all(isinstance(x, str) for x in tier):
             raise ValueError(f"{path.name}: ranking tiers must be lists of IDs")
@@ -273,7 +284,7 @@ async def run_replay(
         *, operation: str, model: str, duration_ms: float, outcome: str,
         response: object = None, error: bool = False,
     ):
-        tokens = None if error else extract_usage(response)
+        tokens = extract_usage(response) if response is not None else None
         cost, cost_status, _pricing_version = estimate_cost_usd(model, tokens)
         active_attempts.append({
             "duration_ms": round(float(duration_ms), 1),
@@ -381,6 +392,10 @@ async def run_replay(
         recall = total_tp / (total_tp + total_fn) if total_tp + total_fn else 1.0
         durations = [row["duration_ms"] for row in group]
         costs = [row["cost_usd"] for row in group if row["cost_usd"] is not None]
+        successful_costs = [
+            row["cost_usd"] for row in group
+            if row["status"] == "accepted" and row["cost_usd"] is not None
+        ]
         summaries[alias] = {
             "requests": len(group),
             "accepted": sum(row["status"] == "accepted" for row in group),
@@ -404,9 +419,11 @@ async def run_replay(
         }
         private_performance[alias] = {
             "mean_cost_usd_per_success": (
-                round(sum(costs) / len(costs), 10) if costs else None
+                round(sum(successful_costs) / len(successful_costs), 10)
+                if successful_costs else None
             ),
-            "cost_coverage": len(costs),
+            "successful_cost_coverage": len(successful_costs),
+            "all_attempt_cost_coverage": len(costs),
         }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -419,7 +436,9 @@ async def run_replay(
             "fallbacks": 0,
             "retries": 0,
             "candidate_payload_hashes": alias_map["snapshot_hashes"],
-            "selection_prompt_sha256": _sha256(CONVERSATION_SELECTION_PROMPT),
+            "selector_method_sha256": _sha256(
+                inspect.getsource(AIService.select_conversation_candidates)
+            ),
         },
         "summary_by_alias": summaries,
         "results": rows,
