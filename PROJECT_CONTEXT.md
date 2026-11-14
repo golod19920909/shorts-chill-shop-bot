@@ -6752,3 +6752,10 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - This is a narrow token-reduction change only. It does not truncate active slots, pending questions, shown-product references, or unique dialogue turns, and it does not change the system prompt or model routing.
 - Regression coverage: `tests/test_bounded_conversation_context.py`; included in `.github/workflows/optimization-regression.yml`.
 - Expected savings are limited to duplicated transcript text; actual token/cost savings must be read from Gemini usage telemetry after local live testing. No percentage or cost reduction is claimed before measurement.
+
+
+### Selector snapshot capture ordering fix (2026-11-14)
+
+- AIService.select_conversation_candidates normalizes the budget constraint before invoking the opt-in selector snapshot writer. Previously the capture path referenced the normalized value before assignment; the exception was swallowed as a best-effort diagnostics failure, so capture files were silently absent whenever opt-in capture was enabled.
+- Added an offline regression that runs the selector method with a fake Gemini response and a real temporary capture directory, then verifies a capture file is created and its budget is normalized. No Gemini, AliExpress, or Telegram calls are made by the test.
+- Capture remains opt-in (SHORTS_CHILL_SELECTOR_CAPTURE=1); selector prompts, candidate payloads, model routing, and selection behavior are unchanged.

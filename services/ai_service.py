@@ -2126,6 +2126,7 @@ class AIService:
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        normalized_budget = " ".join(str(budget_constraint or "").split())[:160]
         if os.getenv("SHORTS_CHILL_SELECTOR_CAPTURE", "").strip() == "1":
             try:
                 await asyncio.to_thread(
@@ -2142,7 +2143,6 @@ class AIService:
                 logger.warning("Could not write selector benchmark capture", exc_info=True)
         requirements_json = json.dumps(requirements, ensure_ascii=False)
         seller_terms_json = json.dumps(seller_terms, ensure_ascii=False)
-        normalized_budget = " ".join(str(budget_constraint or "").split())[:160]
         if normalized_budget:
             budget_rule = (
                 "- Пользователь задал жёсткий бюджет: "

@@ -191,3 +191,8 @@ The private alias map identifies A as 3.5 and B as 3.1. The raw result's `estima
 6. After VPS migration, add isolated staging with a separate bot token/database/config.
 
 No production model change, merge to `main`, PR merge or deployment has been performed.
+
+
+## Selector capture ordering fix (2026-11-14)
+
+A code review found that select_conversation_candidates passed normalized_budget to the opt-in snapshot writer before assigning it. Because capture is best-effort and catches its own exceptions, normal selection continued but the requested snapshot was silently not written. The normalization now occurs before the capture block. A new offline regression exercises the full selector method with a fake Gemini response and asserts that exactly one capture file is created with the normalized budget. The change does not alter the selector prompt, candidate pool, selection result, production model routing, or the default-disabled capture setting. CI verification is pending for this commit.
