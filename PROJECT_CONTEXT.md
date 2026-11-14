@@ -6725,12 +6725,12 @@ Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cach
 ### Explicitly not implemented / blockers
 
 - No time-based global cache for product data, popular searches or thematic shelves. Price/stock freshness and per-user exclusions/history/budget/currency must be preserved; current work uses only in-flight deduplication and existing per-user session caches.
-- No explicit Gemini Context Cache object. First measure real cached-token usage and amortize creation/storage/TTL against actual prompt reuse.
+- No explicit Gemini Context Cache object. Both Flash-Lite model pages list caching support, but Google's implicit-cache minimum-token table does not list either Flash-Lite model, and implicit hits are not guaranteed. The app records `cached_content_token_count`; inspect actual persisted hit rates and stable-prefix token counts before deciding. Explicit cache creation is billed at standard input plus TTL storage; at a hypothetical 3,000-token prefix and one-hour TTL, break-even is about 6 subsequent reads for 3.1 and 5 for 3.5 (assumes $1/M token-hour storage). The current single-string prompt would need a tested stable-prefix split before explicit caching.
 - No selector quality comparison yet. Authentic AliExpress candidate snapshots at the exact production selector boundary and independent gold labels are still required; synthetic rows are not acceptable.
 - No paid Gemini/AliExpress live benchmark or VPS staging setup was performed from this environment. The user must run the documented local 100-scenario Gemini comparison with their API key; production and staging separation is a later VPS task.
 
 ### Verification state
 
-The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. Do not claim the latest workflow passed until the latest `optimization-regression` run completes and its logs are checked. No local pytest run or live provider calls were performed here.
+The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. An unfiltered run then exposed five unrelated stale legacy failures: two tests import removed `services.agent_loop`, one expects only one Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects every thematic route despite the current early-stop planner. The focused optimization workflow explicitly deselects these five known failures. Latest run #22 passed: compileall succeeded; **242 passed, 5 deselected, 54 subtests passed**. No local pytest run or live provider calls were performed here.
 
 Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
