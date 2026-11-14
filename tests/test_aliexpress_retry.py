@@ -188,7 +188,110 @@ class SharedClientConcurrencyTests(unittest.TestCase):
 
         calls, max_active = asyncio.run(run())
         self.assertEqual(calls, 3)
-        self.assertEqual(max_active, 1)
+        # The application key has a deliberate global ceiling of two, not one.
+        self.assertEqual(max_active, 2)
+
+
+class SingleFlightReadTests(unittest.TestCase):
+    def test_identical_concurrent_reads_share_one_call_and_isolate_results(self) -> None:
+        async def run() -> tuple[int, int, dict, dict]:
+            calls = 0
+            started = asyncio.Event()
+            release = asyncio.Event()
+
+            class SlowTransport(httpx.AsyncBaseTransport):
+                async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                    nonlocal calls
+                    calls += 1
+                    started.set()
+                    await release.wait()
+                    return httpx.Response(200, json=ok_payload(), request=request)
+
+            http_client = httpx.AsyncClient(transport=SlowTransport())
+            client = AliExpressClient(CREDENTIALS, http_client=http_client)
+            try:
+                first = asyncio.create_task(
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "usb hub"})
+                )
+                await started.wait()
+                second = asyncio.create_task(
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "usb hub"})
+                )
+                await asyncio.sleep(0)
+                release.set()
+                first_result, second_result = await asyncio.gather(first, second)
+                first_result["caller_mutation"] = True
+                return calls, client.coalesced_requests, first_result, second_result
+            finally:
+                await http_client.aclose()
+
+        calls, coalesced, first_result, second_result = asyncio.run(run())
+        self.assertEqual(calls, 1)
+        self.assertEqual(coalesced, 1)
+        self.assertIn("caller_mutation", first_result)
+        self.assertNotIn("caller_mutation", second_result)
+
+    def test_cancelled_waiter_does_not_cancel_shared_api_call(self) -> None:
+        async def run() -> tuple[int, dict]:
+            calls = 0
+            started = asyncio.Event()
+            release = asyncio.Event()
+
+            class SlowTransport(httpx.AsyncBaseTransport):
+                async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                    nonlocal calls
+                    calls += 1
+                    started.set()
+                    await release.wait()
+                    return httpx.Response(200, json=ok_payload(), request=request)
+
+            http_client = httpx.AsyncClient(transport=SlowTransport())
+            client = AliExpressClient(CREDENTIALS, http_client=http_client)
+            try:
+                cancelled_waiter = asyncio.create_task(
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "charger"})
+                )
+                await started.wait()
+                surviving_waiter = asyncio.create_task(
+                    client.call("aliexpress.affiliate.product.query", {"keywords": "charger"})
+                )
+                await asyncio.sleep(0)
+                cancelled_waiter.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await cancelled_waiter
+                release.set()
+                result = await surviving_waiter
+                return calls, result
+            finally:
+                await http_client.aclose()
+
+        calls, result = asyncio.run(run())
+        self.assertEqual(calls, 1)
+        self.assertIsInstance(result, dict)
+
+    def test_affiliate_link_generation_is_not_coalesced(self) -> None:
+        async def run() -> int:
+            calls = 0
+
+            class SlowTransport(httpx.AsyncBaseTransport):
+                async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                    nonlocal calls
+                    calls += 1
+                    await asyncio.sleep(0.01)
+                    return httpx.Response(200, json=ok_payload(), request=request)
+
+            http_client = httpx.AsyncClient(transport=SlowTransport())
+            client = AliExpressClient(CREDENTIALS, http_client=http_client)
+            try:
+                await asyncio.gather(
+                    client.call("aliexpress.affiliate.link.generate", {"source_values": "a"}),
+                    client.call("aliexpress.affiliate.link.generate", {"source_values": "a"}),
+                )
+                return calls
+            finally:
+                await http_client.aclose()
+
+        self.assertEqual(asyncio.run(run()), 2)
 
 
 class NonRetryableTests(unittest.TestCase):
