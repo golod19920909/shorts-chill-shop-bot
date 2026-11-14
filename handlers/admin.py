@@ -1075,7 +1075,7 @@ async def _screen_api(
                 lines.append("  • Время API (avg / p50 / p95): пока нет замеров")
 
     lines.append("")
-    lines.append("<b>Возможности (живой аудит §5)</b>:
+    lines.append("<b>Возможности (живой аудит §5)</b>:")
     lines.extend(f"• {common.escape(line)}" for line in API_CAPABILITIES)
 
     test_result = context.user_data.get(ADMIN_API_TEST_KEY)
