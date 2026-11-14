@@ -117,6 +117,9 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         raise ValueError(f"{path.name}: identity_evidence contains a non-eligible ID")
     if not set(identity_evidence) <= set(request["identity_review_ids"]):
         raise ValueError(f"{path.name}: identity_evidence contains an unreviewed ID")
+    required_identity = set(request["identity_review_ids"]) & set(eligible)
+    if not required_identity <= set(identity_evidence):
+        raise ValueError(f"{path.name}: identity evidence is incomplete")
     required_features = set(request["required_features"])
     for product_id in eligible:
         if not required_features <= set(evidence.get(product_id, {})):
@@ -126,7 +129,7 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
             raise ValueError(f"{path.name}: invalid identity evidence for {product_id}")
     for product_id, evidence_map in evidence.items():
         if not isinstance(evidence_map, dict) or not all(
-            isinstance(requirement, str) and isinstance(quote, str)
+            isinstance(requirement, str) and isinstance(quote, str) and bool(quote.strip())
             for requirement, quote in evidence_map.items()
         ):
             raise ValueError(f"{path.name}: invalid evidence for {product_id}")
@@ -462,6 +465,12 @@ async def run_replay(
             "cost_requests_covered": len(costs),
             "correct_abstentions": sum(
                 bool(score["correct_abstention"]) for score in scored
+            ),
+            "gold_evidence_complete_cases": sum(
+                bool(score["gold_evidence_complete"]) for score in scored
+            ),
+            "evidence_incomplete_cases": sum(
+                not bool(score["gold_evidence_complete"]) for score in scored
             ),
             "over_limit_cases": sum(bool(score["over_limit"]) for score in scored),
         }
