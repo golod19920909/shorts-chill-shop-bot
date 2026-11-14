@@ -29,7 +29,9 @@ shape is fabricated, and errors carry only what the API itself returned
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
+import json
 import re
 import hmac
 import logging
@@ -281,6 +283,12 @@ class AliExpressClient:
         # while still preventing an unbounded burst from independent bot tasks.
         # The API's explicit short-ban response is handled by _call_unlocked.
         self._call_semaphore = asyncio.Semaphore(2)
+        # Exact simultaneous reads are shared across handlers/users. This is
+        # single-flight coalescing, not a TTL cache: a later request always
+        # reaches AliExpress again, so price/stock freshness is not weakened.
+        self._inflight_calls: dict[tuple[str, str, bool], asyncio.Task] = {}
+        self._inflight_lock = asyncio.Lock()
+        self.coalesced_requests = 0
 
     @property
     def is_configured(self) -> bool:
@@ -383,8 +391,80 @@ class AliExpressClient:
         *,
         _rate_limit_retry_used: bool = False,
     ) -> dict:
-        """Bound concurrent operations using this application's AliExpress key."""
+        """Bound calls and coalesce identical simultaneous read requests.
 
+        Only documented read-only methods are coalesced. Affiliate link
+        generation and every other potentially stateful operation always run
+        independently. The shared result is deep-copied for each waiter so a
+        provider/handler cannot mutate another user's response object.
+        """
+
+        read_only_methods = {
+            METHOD_PRODUCT_QUERY,
+            METHOD_PRODUCT_DETAIL,
+            METHOD_HOT_PRODUCT_QUERY,
+            METHOD_CATEGORY_GET,
+        }
+        if method not in read_only_methods:
+            return await self._call_with_limit(
+                method, business,
+                _rate_limit_retry_used=_rate_limit_retry_used,
+            )
+
+        try:
+            canonical_business = json.dumps(
+                business or {},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            )
+        except (TypeError, ValueError):
+            return await self._call_with_limit(
+                method, business,
+                _rate_limit_retry_used=_rate_limit_retry_used,
+            )
+
+        key = (method, canonical_business, bool(_rate_limit_retry_used))
+        async with self._inflight_lock:
+            task = self._inflight_calls.get(key)
+            if task is None:
+                task = asyncio.create_task(
+                    self._call_with_limit(
+                        method, business,
+                        _rate_limit_retry_used=_rate_limit_retry_used,
+                    )
+                )
+                self._inflight_calls[key] = task
+                task.add_done_callback(
+                    lambda completed, request_key=key:
+                        self._drop_inflight_call(request_key, completed)
+                )
+            else:
+                self.coalesced_requests += 1
+
+        # A cancelled Telegram handler must not cancel the API operation that
+        # another concurrent handler is waiting for.
+        result = await asyncio.shield(task)
+        return copy.deepcopy(result)
+
+    def _drop_inflight_call(
+        self,
+        key: tuple[str, str, bool],
+        completed: asyncio.Task,
+    ) -> None:
+        """Remove only the exact completed task; never erase its successor."""
+
+        if self._inflight_calls.get(key) is completed:
+            self._inflight_calls.pop(key, None)
+
+    async def _call_with_limit(
+        self,
+        method: str,
+        business: dict[str, Any] | None = None,
+        *,
+        _rate_limit_retry_used: bool = False,
+    ) -> dict:
         async with self._call_semaphore:
             return await self._call_unlocked(
                 method,
