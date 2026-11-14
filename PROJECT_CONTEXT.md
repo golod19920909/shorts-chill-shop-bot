@@ -6744,3 +6744,11 @@ Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cach
 The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. An unfiltered run then exposed five unrelated stale legacy failures: two tests import removed `services.agent_loop`, one expects only one Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects every thematic route despite the current early-stop planner. The focused optimization workflow explicitly deselects these five known failures. Latest run #72 passed with selector replay validation and both benchmark CLI entrypoints smoke-tested: compileall succeeded; **253 passed, 5 deselected, 54 subtests passed**. No local pytest run or live provider calls were performed here.
 
 Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
+
+
+### Gemini prompt-context optimization (2026-11-14)
+
+- `services/ai_service.py::_bounded_conversation_context` now removes exact duplicate user utterances from the separate `recent_turns` list when the same utterance is already present in the role-labelled `recent_dialogue` window. Distinct older user turns remain available; assistant messages do not suppress user history; if dialogue history is empty, the user-only history remains intact.
+- This is a narrow token-reduction change only. It does not truncate active slots, pending questions, shown-product references, or unique dialogue turns, and it does not change the system prompt or model routing.
+- Regression coverage: `tests/test_bounded_conversation_context.py`; included in `.github/workflows/optimization-regression.yml`.
+- Expected savings are limited to duplicated transcript text; actual token/cost savings must be read from Gemini usage telemetry after local live testing. No percentage or cost reduction is claimed before measurement.
