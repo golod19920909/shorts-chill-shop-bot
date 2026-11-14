@@ -64,6 +64,7 @@ def _snapshot():
                 "p1": {"USB-C Power Delivery 65W": "USB-C Power Delivery 65W"},
                 "p2": {"USB-C Power Delivery 65W": "USB-C Power Delivery 65W"},
             },
+            "identity_evidence": {"p1": "USB-C power bank"},
             "ranking_tiers": [["p1"], ["p2"]],
         },
     }
@@ -127,5 +128,6 @@ def test_scoring_reports_precision_recall_false_positives_and_abstention():
     empty_gold = copy.deepcopy(snapshot)
     empty_gold["gold"]["eligible_ids"] = []
     empty_gold["gold"]["required_evidence"] = {}
+    empty_gold["gold"]["identity_evidence"] = {}
     empty_gold["gold"]["ranking_tiers"] = []
     assert score_selection([], empty_gold)["correct_abstention"] is True
