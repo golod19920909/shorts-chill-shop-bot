@@ -29,6 +29,7 @@ jobs:
           tests/test_search_dedup.py
           tests/test_convsearch_clarification_reuse.py
           tests/test_selector_snapshot_capture.py
+          tests/test_selector_replay_runner.py
           tests/test_gemini_pricing.py
           tests/test_gemini_telemetry.py
           tests/test_gemini_latency.py
