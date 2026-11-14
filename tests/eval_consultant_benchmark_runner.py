@@ -25,6 +25,7 @@ import json
 import os
 import random
 import re
+import sys
 import statistics
 import time
 from datetime import datetime, timezone
@@ -33,6 +34,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from services.ai_service import AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
