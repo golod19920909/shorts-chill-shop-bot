@@ -46,7 +46,9 @@ One JSON object per selector case:
       "currency": "USD",
       "discount_percent": null,
       "rating": 4.8,
+      "positive_rate": 98.5,
       "orders_count": 120,
+      "has_image": true,
       "availability": "unknown"
     }
   ],
