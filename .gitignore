@@ -24,3 +24,5 @@ selector_captures/
 reports/selector-captures/
 eval-gemini-*-blind.json
 eval-gemini-*-private-map.json
+eval-selector-blind-results.json
+eval-selector-blind-map.json
