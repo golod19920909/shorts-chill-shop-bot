@@ -36,6 +36,10 @@ import httpx
 
 from services.ai_service import AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
+from tests.eval_consultant_optimization_dataset import (
+    OPTIMIZATION_CASES,
+    OPTIMIZATION_DATASET_VERSION,
+)
 from tests.eval_consultant_auxiliary_dataset import (
     CHAT_ACTION_CASES,
     NO_RESULTS_CASES,
@@ -646,7 +650,7 @@ async def run_benchmark(
 
     tasks = []
     for provider in providers:
-        for case in DIALOGUE_CASES:
+        for case in [*DIALOGUE_CASES, *OPTIMIZATION_CASES]:
             for turn_index, turn in enumerate(case["turns"], start=1):
                 for repetition in range(1, repeat + 1):
                     tasks.append((provider, "conversation_turn", case, turn_index, turn, repetition))
@@ -915,6 +919,13 @@ async def run_benchmark(
     manifest = {
         "started_at_utc": run_started_at_utc,
         "dataset_version": DATASET_VERSION,
+        "optimization_dataset_version": OPTIMIZATION_DATASET_VERSION,
+        "unique_conversation_scenarios": len(DIALOGUE_CASES) + len(OPTIMIZATION_CASES),
+        "unique_auxiliary_scenarios": len(CHAT_ACTION_CASES) + len(NO_RESULTS_CASES),
+        "unique_total_scenarios": (
+            len(DIALOGUE_CASES) + len(OPTIMIZATION_CASES)
+            + len(CHAT_ACTION_CASES) + len(NO_RESULTS_CASES)
+        ),
         "auxiliary_dataset_version": AUXILIARY_DATASET_VERSION,
         "repeat": repeat,
         "operation_timeouts_seconds": {
@@ -926,7 +937,10 @@ async def run_benchmark(
         "fallbacks": 0,
         "prompt_sha256": sha256(CONVERSATION_TURN_PROMPT),
         "chat_action_prompt_sha256": sha256(CHAT_ACTION_PROMPT),
-        "dataset_sha256": sha256(json.dumps(DIALOGUE_CASES, ensure_ascii=False, sort_keys=True)),
+        "dataset_sha256": sha256(json.dumps(
+            [*DIALOGUE_CASES, *OPTIMIZATION_CASES],
+            ensure_ascii=False, sort_keys=True,
+        )),
         "auxiliary_dataset_sha256": sha256(json.dumps(
             {"chat_action": CHAT_ACTION_CASES, "no_results_reply": NO_RESULTS_CASES},
             ensure_ascii=False, sort_keys=True,
@@ -938,7 +952,7 @@ async def run_benchmark(
             if len({provider.provider for provider in providers}) > 1
             else "same_provider_model_comparison"
         ),
-        "note": "Model names are in the separate blind-map file. This benchmark covers conversation interpretation, short chat-action and no-results reply; it does not benchmark candidate selection or product factual answers.",
+        "note": "Model names are in the separate blind-map file. This benchmark covers 74 unique conversation scenarios plus auxiliary chat-action/no-results cases. It does not benchmark candidate selection or product factual answers; selector replay requires authentic AliExpress snapshots and independent gold labels.",
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
