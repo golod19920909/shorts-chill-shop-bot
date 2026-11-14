@@ -135,7 +135,7 @@ Offline regression coverage added or extended:
 - `tests/test_eval_consultant_optimization_dataset.py`: 100-scenario corpus structure;
 - existing Gemini, conversation-engine, search-service and benchmark-runner regression suites are included in the new workflow.
 
-The first CI attempt found a syntax error in the admin screen; it was fixed. The first unfiltered regression run then reported 242 passed and five unrelated stale legacy failures (two tests import the removed `services.agent_loop`, one expects a single Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects all thematic routes despite the current early-stop planner). The focused workflow explicitly deselects those five known failures rather than hiding them in a full-suite claim. Latest workflow run #70 succeeded with selector replay validation and both benchmark CLI entrypoints smoke-tested: compileall passed; **253 passed, 5 deselected, 54 subtests passed**. No local pytest execution was performed in this environment.
+The first CI attempt found a syntax error in the admin screen; it was fixed. The first unfiltered regression run then reported 242 passed and five unrelated stale legacy failures (two tests import the removed `services.agent_loop`, one expects a single Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects all thematic routes despite the current early-stop planner). The focused workflow explicitly deselects those five known failures rather than hiding them in a full-suite claim. Latest workflow run **#72** succeeded: compileall passed, both benchmark CLI entrypoints passed, and the focused regression suite reported **253 passed, 5 deselected, 54 subtests passed**. The five deselections remain known legacy failures; this is not a full-suite pass. No local pytest execution was performed in this environment.
 
 ## 6. Files changed in this workstream
 
@@ -161,12 +161,32 @@ The first CI attempt found a syntax error in the admin screen; it was fixed. The
 - `tests/eval_consultant_benchmark_runner.py`
 - `tests/eval_consultant_benchmark_protocol.md`
 
-## 7. Acceptance gates still open
+## 7. Gemini 3.1 vs 3.5 blind benchmark — user-run results (2026-11-14)
 
-1. Confirm latest offline CI pass.
-2. Run the 100-scenario Gemini 3.1 vs 3.5 blind benchmark locally with the user's API key; inspect blind results before the private model map.
+The user ran the documented Gemini-only benchmark locally with the same API key, frozen prompts/contexts, three repetitions, a 5.5-second conversation-turn cap, no application retries and no fallback. The run made **624 direct Gemini `generateContent` calls**: 312 per model. It did not call AliExpress, Telegram or the production database. The JSON result and private alias map remain local to the user's machine and were not uploaded to this repository; the figures below are recorded from the user's supplied run report.
+
+The request-count arithmetic is consistent with the committed runner: 13 dialogue scenarios contain 17 conversation turns; plus 61 additional product-intent turns gives 78 conversation-turn tasks per repetition, or 234 per model over three repetitions. The auxiliary sets add 14 × 3 = 42 `chat_action` calls and 12 × 3 = 36 `no_results_reply` calls. Total: 234 + 42 + 36 = **312 per model**. Thus 100 unique scenarios does not mean 100 API requests; multi-turn dialogue scenarios expand into individual turn requests.
+
+| Metric | Gemini 3.5 Flash-Lite | Gemini 3.1 Flash-Lite |
+|---|---:|---:|
+| Accepted by application validator | 284/312 (91.0%) | 258/312 (82.7%) |
+| `conversation_turn` acceptance | 88.0% | 78.6% |
+| `no_results_reply` acceptance | 88.9% | 100% |
+| Russian acceptance | 95.2% | 81.0% |
+| Accepted-request latency p50 / p95 | ~1,007 / ~1,718 ms | ~1,139 / ~1,951 ms |
+| Best-effort estimated total cost | ~$0.1863 | ~$0.1403 |
+| Best-effort estimated cost per accepted request | ~$0.0007 | ~$0.0005 |
+
+The private alias map identifies A as 3.5 and B as 3.1. The raw result's `estimated_cost_usd` field was `null` for every request because complete billable usage (including reasoning/thinking and cached usage) was unavailable. The cost figures above are therefore a best-effort recomputation from input and candidate-output tokens only, not authoritative billed costs; on that basis 3.5 was approximately 33% more expensive for this corpus. `chat_action` is diagnostic-only and is no longer part of the active Option C clarification path. `no_results_reply` also did not favor 3.5. Aggregate acceptance is application-validator acceptance, not independently human-scored semantic correctness.
+
+**Decision:** do not change production model routing from this benchmark alone. 3.5 showed higher aggregate/application acceptance and modestly lower latency, especially on the Russian subset, but at a higher estimated cost; the test does not establish selector quality parity, exact semantic correctness on authentic products, or end-to-end production cost per successful search. Keep 3.1 as the production primary and existing fallback unchanged until the authentic selector replay and live telemetry gates are satisfied. A narrow 3.5 experiment may be reconsidered after the resilience pass and better usage-cost evidence.
+
+## 8. Acceptance gates still open
+
+1. **Completed:** latest offline CI run #72 succeeded (253 passed, 5 deselected, 54 subtests passed; see the explicit legacy-failure caveat above).
+2. **Completed:** the 100-unique-scenario blind Gemini 3.1 vs 3.5 comparison was run by the user; results and limitations are recorded above. Raw JSON/private-map artifacts remain local.
 3. Capture and independently label authentic selector snapshots; then run the same candidate pools through both models.
-4. Use real production telemetry to compare Gemini costs per successful search and API p50/p95 before/after.
+4. Use real production telemetry to compare Gemini costs per successful search and AliExpress API p50/p95 before/after.
 5. Evaluate safe short-lived product/query/shelf caching only after a price/stock freshness and personalization design is testable.
 6. After VPS migration, add isolated staging with a separate bot token/database/config.
 
