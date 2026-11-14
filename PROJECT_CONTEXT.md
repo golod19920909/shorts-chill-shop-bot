@@ -6713,10 +6713,13 @@ Work is isolated on branch `optimize/performance-costs`, based on `fix/thematic-
 5. Gemini 3.5 preparation:
    - `services/gemini_pricing.py` now recognizes `gemini-3.5-flash-lite` at published Standard paid-tier rates.
    - `tests/eval_gemini_rates_2026-11-14.json` records 3.1 and 3.5 rates.
-   - `tests/eval_consultant_optimization_dataset.py` adds 61 product-intent cases. Together with the existing 13 dialogue, 14 chat-action and 12 no-results scenarios, the blind runner covers 100 unique scenarios.
+   - `tests/eval_consultant_optimization_dataset.py` adds 61 product-intent cases. Together with the existing 13 dialogue, 14 diagnostic chat-action and 12 no-results scenarios, the blind runner covers 100 unique scenarios.
    - `tests/eval_consultant_benchmark_runner.py` uses the production 5.5 s conversation-turn primary cap; the protocol documents local 3.1 vs 3.5 execution.
    - Production model routing is unchanged.
-6. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
+6. `services/convsearch/engine.py`
+   - When the first `conversation_turn` response already says `clarify`, the engine now reuses its validated question. It no longer makes a second `decide_chat_action` Gemini call merely to phrase the same clarification. Invalid/missing questions use the deterministic default.
+   - `tests/test_convsearch_clarification_reuse.py` verifies reuse and no second call.
+7. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 ### Pricing facts recorded
 
@@ -6731,6 +6734,6 @@ Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cach
 
 ### Verification state
 
-The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. An unfiltered run then exposed five unrelated stale legacy failures: two tests import removed `services.agent_loop`, one expects only one Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects every thematic route despite the current early-stop planner. The focused optimization workflow explicitly deselects these five known failures. Latest run #22 passed: compileall succeeded; **242 passed, 5 deselected, 54 subtests passed**. No local pytest run or live provider calls were performed here.
+The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. An unfiltered run then exposed five unrelated stale legacy failures: two tests import removed `services.agent_loop`, one expects only one Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects every thematic route despite the current early-stop planner. The focused optimization workflow explicitly deselects these five known failures. Latest run #27 passed after the clarification-call optimization: compileall succeeded; **245 passed, 5 deselected, 54 subtests passed**. No local pytest run or live provider calls were performed here.
 
 Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
