@@ -87,13 +87,21 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
     eligible = gold.get("eligible_ids")
     rejected = gold.get("rejected")
     evidence = gold.get("required_evidence")
+    identity_evidence = gold.get("identity_evidence")
     tiers = gold.get("ranking_tiers")
     if not isinstance(eligible, list) or not all(isinstance(x, str) for x in eligible):
         raise ValueError(f"{path.name}: gold.eligible_ids must be a string list")
     if len(eligible) != len(set(eligible)) or not set(eligible) <= candidate_ids:
         raise ValueError(f"{path.name}: invalid eligible IDs")
-    if not isinstance(rejected, list) or not isinstance(evidence, dict) or not isinstance(tiers, list):
-        raise ValueError(f"{path.name}: rejected/evidence/ranking_tiers labels are required")
+    if (
+        not isinstance(rejected, list)
+        or not isinstance(evidence, dict)
+        or not isinstance(identity_evidence, dict)
+        or not isinstance(tiers, list)
+    ):
+        raise ValueError(
+            f"{path.name}: rejected/evidence/identity_evidence/ranking_tiers labels are required"
+        )
     rejected_ids = []
     for row in rejected:
         if not isinstance(row, dict) or not isinstance(row.get("id"), str):
@@ -105,6 +113,17 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         raise ValueError(f"{path.name}: eligible and rejected IDs overlap")
     if not set(evidence) <= set(eligible):
         raise ValueError(f"{path.name}: required_evidence contains a non-eligible ID")
+    if not set(identity_evidence) <= set(eligible):
+        raise ValueError(f"{path.name}: identity_evidence contains a non-eligible ID")
+    if not set(identity_evidence) <= set(request["identity_review_ids"]):
+        raise ValueError(f"{path.name}: identity_evidence contains an unreviewed ID")
+    required_features = set(request["required_features"])
+    for product_id in eligible:
+        if not required_features <= set(evidence.get(product_id, {})):
+            raise ValueError(f"{path.name}: required evidence is incomplete for {product_id}")
+    for product_id in identity_evidence:
+        if not isinstance(identity_evidence[product_id], str) or not identity_evidence[product_id].strip():
+            raise ValueError(f"{path.name}: invalid identity evidence for {product_id}")
     for product_id, evidence_map in evidence.items():
         if not isinstance(evidence_map, dict) or not all(
             isinstance(requirement, str) and isinstance(quote, str)
@@ -207,6 +226,18 @@ def score_selection(
     ranking_pair_accuracy = (
         sum(ranked_pairs) / len(ranked_pairs) if ranked_pairs else None
     )
+    required_features = set(snapshot["request"]["required_features"])
+    missing_required_evidence = {
+        product_id: sorted(required_features - set(gold["required_evidence"].get(product_id, {})))
+        for product_id in selected_set & eligible
+        if required_features - set(gold["required_evidence"].get(product_id, {}))
+    }
+    identity_review_ids = set(snapshot["request"]["identity_review_ids"])
+    missing_identity_evidence = sorted(
+        product_id
+        for product_id in selected_set & identity_review_ids & eligible
+        if product_id not in gold["identity_evidence"]
+    )
     return {
         "selected_count": len(selected_ids),
         "true_positive": true_positive,
@@ -219,6 +250,9 @@ def score_selection(
         "duplicate_ids": len(selected_ids) - len(selected_set),
         "over_limit": len(selected_ids) > snapshot["request"]["wanted"],
         "correct_abstention": not eligible and not selected_set,
+        "missing_required_evidence": missing_required_evidence,
+        "missing_identity_evidence": missing_identity_evidence,
+        "gold_evidence_complete": not missing_required_evidence and not missing_identity_evidence,
         "ranking_pair_accuracy": (
             round(ranking_pair_accuracy, 6)
             if ranking_pair_accuracy is not None else None
