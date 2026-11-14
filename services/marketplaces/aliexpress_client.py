@@ -451,8 +451,14 @@ class AliExpressClient:
 
         # A cancelled Telegram handler must not cancel the API operation that
         # another concurrent handler is waiting for.
-        result = await asyncio.shield(task)
-        return copy.deepcopy(result)
+        try:
+            result = await asyncio.shield(task)
+            return copy.deepcopy(result)
+        finally:
+            # Also clean synchronously for the normal waiter path. The done
+            # callback covers the case where every waiter was cancelled.
+            if task.done():
+                self._drop_inflight_call(key, task)
 
     def _drop_inflight_call(
         self,
