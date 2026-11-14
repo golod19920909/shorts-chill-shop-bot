@@ -6719,7 +6719,11 @@ Work is isolated on branch `optimize/performance-costs`, based on `fix/thematic-
 6. `services/convsearch/engine.py`
    - When the first `conversation_turn` response already says `clarify`, the engine now reuses its validated question. It no longer makes a second `decide_chat_action` Gemini call merely to phrase the same clarification. Invalid/missing questions use the deterministic default.
    - `tests/test_convsearch_clarification_reuse.py` verifies reuse and no second call.
-7. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
+7. `services/ai_service.py`
+   - Added opt-in capture of the exact selector input pool at `select_conversation_candidates`. Disabled by default; requires `SHORTS_CHILL_SELECTOR_CAPTURE=1`.
+   - Writes exact query and candidate fields, but no affiliate/image URLs, Telegram/user IDs or credentials. Raw captures have `gold: null` and unknown page count until independently annotated.
+   - `tests/test_selector_snapshot_capture.py` verifies opt-in, schema and privacy filtering. Local instructions are in `tests/eval_selector_capture_schema.md`.
+8. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 ### Pricing facts recorded
 
@@ -6729,7 +6733,7 @@ Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cach
 
 - No time-based global cache for product data, popular searches or thematic shelves. Price/stock freshness and per-user exclusions/history/budget/currency must be preserved; current work uses only in-flight deduplication and existing per-user session caches.
 - No explicit Gemini Context Cache object. Both Flash-Lite model pages list caching support, but Google's implicit-cache minimum-token table does not list either Flash-Lite model, and implicit hits are not guaranteed. The app records `cached_content_token_count`; inspect actual persisted hit rates and stable-prefix token counts before deciding. Explicit cache creation is billed at standard input plus TTL storage; at a hypothetical 3,000-token prefix and one-hour TTL, break-even is about 6 subsequent reads for 3.1 and 5 for 3.5 (assumes $1/M token-hour storage). The current single-string prompt would need a tested stable-prefix split before explicit caching.
-- No selector quality comparison yet. Authentic AliExpress candidate snapshots at the exact production selector boundary and independent gold labels are still required; synthetic rows are not acceptable.
+- No selector quality comparison yet. The opt-in live capture hook is ready; the user must run a controlled local AliExpress test, then independently review and label the raw snapshots. Synthetic rows are not acceptable.
 - No paid Gemini/AliExpress live benchmark or VPS staging setup was performed from this environment. The user must run the documented local 100-scenario Gemini comparison with their API key; production and staging separation is a later VPS task.
 
 ### Verification state
