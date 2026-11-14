@@ -35,6 +35,9 @@ import json
 import re
 import hmac
 import logging
+import math
+import time
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -289,6 +292,8 @@ class AliExpressClient:
         self._inflight_calls: dict[tuple[str, str, bool], asyncio.Task] = {}
         self._inflight_lock = asyncio.Lock()
         self.coalesced_requests = 0
+        self.calls_requested = 0
+        self.call_latencies_ms: deque[float] = deque(maxlen=500)
 
     @property
     def is_configured(self) -> bool:
@@ -399,6 +404,7 @@ class AliExpressClient:
         provider/handler cannot mutate another user's response object.
         """
 
+        self.calls_requested += 1
         read_only_methods = {
             METHOD_PRODUCT_QUERY,
             METHOD_PRODUCT_DETAIL,
@@ -465,12 +471,38 @@ class AliExpressClient:
         *,
         _rate_limit_retry_used: bool = False,
     ) -> dict:
-        async with self._call_semaphore:
-            return await self._call_unlocked(
-                method,
-                business,
-                _rate_limit_retry_used=_rate_limit_retry_used,
+        started = time.perf_counter()
+        try:
+            async with self._call_semaphore:
+                return await self._call_unlocked(
+                    method,
+                    business,
+                    _rate_limit_retry_used=_rate_limit_retry_used,
+                )
+        finally:
+            # Includes time waiting for the shared key's semaphore; this is
+            # the API-stage latency actually experienced by a search route.
+            self.call_latencies_ms.append(
+                round((time.perf_counter() - started) * 1000, 3)
             )
+
+    def latency_snapshot(self) -> dict[str, float | int | None]:
+        """Bounded actual API-call latency summary (no query/user data)."""
+
+        values = sorted(self.call_latencies_ms)
+        if not values:
+            return {"count": 0, "avg_ms": None, "p50_ms": None, "p95_ms": None}
+
+        def percentile(fraction: float) -> float:
+            index = max(0, min(len(values) - 1, math.ceil(len(values) * fraction) - 1))
+            return round(values[index], 1)
+
+        return {
+            "count": len(values),
+            "avg_ms": round(sum(values) / len(values), 1),
+            "p50_ms": percentile(0.50),
+            "p95_ms": percentile(0.95),
+        }
 
     async def _call_unlocked(
         self,
