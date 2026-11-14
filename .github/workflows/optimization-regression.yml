@@ -32,3 +32,7 @@ jobs:
           tests/test_ai_conversation_turn.py
           tests/test_convsearch_engine.py
           tests/test_search_service.py
+          tests/test_eval_consultant_dialogue_dataset.py
+          tests/test_eval_consultant_auxiliary_dataset.py
+          tests/test_eval_consultant_optimization_dataset.py
+          tests/test_eval_consultant_benchmark_runner.py
