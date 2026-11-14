@@ -19,9 +19,11 @@ Every discovery screen in ``handlers.discovery`` renders through
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import time
+from functools import wraps
 from uuid import uuid4
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
@@ -59,6 +61,53 @@ from services.convsearch.engine import ConversationSearchEngine, _explicit_reque
 from services.convsearch.state import ConversationEngineState, MessageIntent, _is_alternatives_request
 
 logger = logging.getLogger(__name__)
+
+_INFLIGHT_TEXT_SEARCHES_KEY = "_inflight_text_search_fingerprints"
+
+
+def _deduplicate_inflight_search(handler):
+    """Skip an identical text search while this user's first copy is running.
+
+    The fingerprint is held only in per-user memory and discarded in a
+    finally block. A later deliberate repeat is allowed to run normally.
+    """
+
+    @wraps(handler)
+    async def wrapped(update, context):
+        message = getattr(update, "effective_message", None)
+        text = getattr(message, "text", None)
+        user_data = getattr(context, "user_data", None)
+        if not isinstance(text, str) or not isinstance(user_data, dict):
+            return await handler(update, context)
+
+        normalized = " ".join(text.casefold().split())
+        if not normalized or normalized.startswith("/"):
+            return await handler(update, context)
+        fingerprint = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+        active = user_data.setdefault(_INFLIGHT_TEXT_SEARCHES_KEY, set())
+        if not isinstance(active, set):
+            active = set()
+            user_data[_INFLIGHT_TEXT_SEARCHES_KEY] = active
+
+        if fingerprint in active:
+            try:
+                await message.reply_text(
+                    "Этот запрос уже обрабатывается. Дождитесь ответа."
+                )
+            except Exception:  # noqa: BLE001 - duplicate suppression is best-effort UX
+                logger.debug("Could not acknowledge duplicate in-flight search", exc_info=True)
+            return None
+
+        active.add(fingerprint)
+        try:
+            return await handler(update, context)
+        finally:
+            active.discard(fingerprint)
+            if not active:
+                user_data.pop(_INFLIGHT_TEXT_SEARCHES_KEY, None)
+
+    return wrapped
+
 
 #: The conversational-search engine (adapted from
 #: anything-conversational-search): the SOLE search decision-maker. One
@@ -774,6 +823,7 @@ def _apply_user_result_count(
     return request.model_copy(update={"result_limit": count})
 
 @track_usage("text_search")
+@_deduplicate_inflight_search
 async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle any non-command text message as a product search query."""
 
