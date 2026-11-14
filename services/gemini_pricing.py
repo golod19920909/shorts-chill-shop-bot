@@ -27,6 +27,8 @@ def _rates_for(model: str, when: date) -> ModelRates | None:
         return ModelRates(1.50, 7.50, 0.15)
     if model == "gemini-3.1-flash-lite":
         return ModelRates(0.25, 1.50, 0.025)
+    if model == "gemini-3.5-flash-lite":
+        return ModelRates(0.30, 2.50, 0.03)
     return None
 
 
@@ -52,7 +54,7 @@ def estimate_cost_usd(
     if rates is None:
         return None, "unknown_model", None
     pricing_version = (
-        "google-gemini-standard-paid-2026-11-07"
+        "google-gemini-standard-paid-2026-11-14"
         if moment.date() < date(2027, 1, 1)
         else "google-gemini-standard-paid-2027-01-01"
     )
