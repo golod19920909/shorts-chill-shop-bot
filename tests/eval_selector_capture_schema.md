@@ -116,7 +116,7 @@ python main.py
 
 Every call to `AIService.select_conversation_candidates` writes one JSON file containing the exact query, wanted limit, requirements, identity-review IDs, seller terms, budget and the exact candidate fields passed to the selector. It does not capture affiliate URLs, image URLs, Telegram IDs, user IDs, API keys or signatures. The source query is marked redacted in the source metadata, while the exact selector query is retained in the request section because it is required for faithful replay. Use controlled test queries; do not enable this on ordinary user traffic.
 
-The raw capture has `gold: null` and `page_count: null` because neither independent human labels nor exact page-count provenance is available at this method boundary. The language field is a script-based hint and must be reviewed. **Raw captures are not benchmark-ready.** Before replay, manually:
+The raw capture uses `capture_kind: "selector_input_capture"`, `gold: null` and `page_count: null` because the method boundary cannot independently prove the upstream source, provide exact page-count provenance or supply human labels. The language field is a script-based hint and must be reviewed. **Raw captures are not benchmark-ready.** Only change `capture_kind` to `real_api_response` after confirming the run used the live AliExpress Affiliate API. Before replay, manually:
 1. confirm the source was a real live AliExpress API response;
 2. annotate the exact page count if available from the retrieval report;
 3. verify the language;
