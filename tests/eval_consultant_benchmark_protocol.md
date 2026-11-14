@@ -201,7 +201,7 @@ The benchmark corpus now contains **100 unique scenarios**:
 - 14 short chat-action cases;
 - 12 no-results wording cases.
 
-The runner repeats each eligible turn/case three times by default. It records the actual request count, per-operation acceptance, exact-action/identity/slot/retrieval scores, p50/p95 latency, token usage and tariff-based cost. This is a conversation-interpreter/helper benchmark, **not** a selector benchmark.
+The runner repeats each eligible turn/case three times by default. It records the actual request count, per-operation acceptance, exact-action/identity/slot/retrieval scores, p50/p95 latency, token usage and tariff-based cost. This is a conversation-interpreter/helper benchmark, **not** a selector benchmark. The 14 `chat_action` cases are retained as diagnostic-only coverage for the old short-message helper; Option C no longer calls that helper after the duplicate clarification call was removed. Do not use the diagnostic-only `chat_action` result to decide production routing.
 
 ### Exact local PowerShell invocation
 
