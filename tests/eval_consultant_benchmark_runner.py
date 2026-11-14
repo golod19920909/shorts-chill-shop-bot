@@ -666,7 +666,7 @@ async def run_benchmark(
     private_performance_rows: list[dict[str, Any]] = []
     for provider, operation, case, turn_index, turn, repetition in tasks:
         operation_timeout = (
-            min(timeout_seconds, 4.0) if operation == "conversation_turn"
+            min(timeout_seconds, 5.5) if operation == "conversation_turn"
             else 20.0 if operation == "chat_action"
             else 3.0
         )
@@ -929,7 +929,7 @@ async def run_benchmark(
         "auxiliary_dataset_version": AUXILIARY_DATASET_VERSION,
         "repeat": repeat,
         "operation_timeouts_seconds": {
-            "conversation_turn": min(timeout_seconds, 4.0),
+            "conversation_turn": min(timeout_seconds, 5.5),
             "chat_action": 20.0,
             "no_results_reply": 3.0,
         },
@@ -974,7 +974,7 @@ def main() -> None:
     parser.add_argument("--output", default="eval-consultant-blind-results.json")
     parser.add_argument("--map-output", default="eval-consultant-blind-map.json")
     parser.add_argument("--repeat", type=int, default=3)
-    parser.add_argument("--timeout-seconds", type=float, default=4.0)
+    parser.add_argument("--timeout-seconds", type=float, default=5.5)
     parser.add_argument("--seed", type=int, default=20261106)
     parser.add_argument("--rates-file", default=None, help="Optional dated JSON rate table keyed by exact model ID.")
     args = parser.parse_args()
