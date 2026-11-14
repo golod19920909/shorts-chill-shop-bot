@@ -355,6 +355,7 @@ async def run_replay(
                 "selected_ids": selected or [],
                 "duration_ms": round(duration_ms, 1),
                 "attempts": len(active_attempts),
+                "attempt_outcomes": [attempt["outcome"] for attempt in active_attempts],
                 "tokens": tokens,
                 "cost_usd": cost,
                 "cost_status": "estimated" if cost is not None else "unknown_usage",
@@ -369,6 +370,7 @@ async def run_replay(
                 "tokens": tokens,
                 "cost_usd": cost,
                 "score": score,
+                "attempt_outcomes": [attempt["outcome"] for attempt in active_attempts],
             })
     finally:
         ai_service_module.record_attempt = original_record_attempt
@@ -400,6 +402,18 @@ async def run_replay(
             "requests": len(group),
             "accepted": sum(row["status"] == "accepted" for row in group),
             "unavailable_or_error": sum(row["status"] != "accepted" for row in group),
+            "timeouts": sum(
+                outcome == "timeout"
+                for row in group for outcome in row["attempt_outcomes"]
+            ),
+            "invalid_shapes": sum(
+                outcome == "invalid_shape"
+                for row in group for outcome in row["attempt_outcomes"]
+            ),
+            "empty_responses": sum(
+                outcome == "empty"
+                for row in group for outcome in row["attempt_outcomes"]
+            ),
             "precision_micro": round(precision, 6),
             "recall_micro": round(recall, 6),
             "f1_micro": round(
