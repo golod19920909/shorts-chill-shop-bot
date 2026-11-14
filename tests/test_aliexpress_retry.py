@@ -193,6 +193,18 @@ class SharedClientConcurrencyTests(unittest.TestCase):
 
 
 class SingleFlightReadTests(unittest.TestCase):
+    def test_api_latency_snapshot_reports_real_bounded_samples(self) -> None:
+        client, transport = make_client([ok_payload()])
+        call(client)
+
+        snapshot = client.latency_snapshot()
+        self.assertEqual(transport.calls, 1)
+        self.assertEqual(client.calls_requested, 1)
+        self.assertEqual(snapshot["count"], 1)
+        self.assertIsNotNone(snapshot["avg_ms"])
+        self.assertIsNotNone(snapshot["p50_ms"])
+        self.assertIsNotNone(snapshot["p95_ms"])
+
     def test_identical_concurrent_reads_share_one_call_and_isolate_results(self) -> None:
         async def run() -> tuple[int, int, dict, dict]:
             calls = 0
@@ -221,12 +233,16 @@ class SingleFlightReadTests(unittest.TestCase):
                 release.set()
                 first_result, second_result = await asyncio.gather(first, second)
                 first_result["caller_mutation"] = True
-                return calls, client.coalesced_requests, first_result, second_result
+                return (
+                    calls, client.calls_requested, client.coalesced_requests,
+                    first_result, second_result,
+                )
             finally:
                 await http_client.aclose()
 
-        calls, coalesced, first_result, second_result = asyncio.run(run())
+        calls, requested, coalesced, first_result, second_result = asyncio.run(run())
         self.assertEqual(calls, 1)
+        self.assertEqual(requested, 2)
         self.assertEqual(coalesced, 1)
         self.assertIn("caller_mutation", first_result)
         self.assertNotIn("caller_mutation", second_result)
