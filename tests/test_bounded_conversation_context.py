@@ -45,6 +45,19 @@ class BoundedConversationContextTests(unittest.TestCase):
 
         self.assertEqual(context["recent_turns"], ["нужны наушники"])
 
+    def test_different_long_user_turn_with_same_prefix_is_retained(self) -> None:
+        prefix = "x" * 180
+        context = _bounded_conversation_context(
+            {
+                "recent_turns": [prefix + " older detail"],
+                "recent_dialogue": [
+                    {"role": "user", "text": prefix + " newer detail"},
+                ],
+            }
+        )
+
+        self.assertEqual(context["recent_turns"], [(prefix + " older detail")[:180]])
+
     def test_assistant_text_does_not_remove_similar_user_turn(self) -> None:
         context = _bounded_conversation_context(
             {
