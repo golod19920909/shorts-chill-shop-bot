@@ -205,6 +205,15 @@ class SingleFlightReadTests(unittest.TestCase):
         self.assertIsNotNone(snapshot["p50_ms"])
         self.assertIsNotNone(snapshot["p95_ms"])
 
+    def test_completed_read_is_not_reused_by_a_later_request(self) -> None:
+        client, transport = make_client([ok_payload(), ok_payload()])
+        call(client)
+        call(client)
+
+        self.assertEqual(transport.calls, 2)
+        self.assertEqual(client.calls_requested, 2)
+        self.assertEqual(client.coalesced_requests, 0)
+
     def test_identical_concurrent_reads_share_one_call_and_isolate_results(self) -> None:
         async def run() -> tuple[int, int, dict, dict]:
             calls = 0
