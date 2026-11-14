@@ -103,6 +103,16 @@ def test_snapshot_without_independent_gold_is_rejected(tmp_path):
         load_snapshots(tmp_path)
 
 
+def test_snapshot_requires_identity_evidence_for_reviewed_eligible_candidate(tmp_path):
+    snapshot = _snapshot()
+    snapshot["gold"]["identity_evidence"] = {}
+    path = tmp_path / "missing-identity-evidence.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="identity evidence is incomplete"):
+        load_snapshots(tmp_path)
+
+
 def test_page_count_must_be_verified(tmp_path):
     snapshot = _snapshot()
     snapshot["source"]["page_count"] = None
