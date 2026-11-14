@@ -66,6 +66,9 @@ One JSON object per selector case:
         "exact active mandatory feature": "verbatim quote from title or description"
       }
     },
+    "identity_evidence": {
+      "candidate-01": "verbatim quote proving the main product identity"
+    },
     "ranking_tiers": [
       ["candidate-01"],
       ["candidate-04", "candidate-05"]
