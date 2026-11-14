@@ -56,7 +56,7 @@ def test_capture_writes_exact_selector_fields_without_urls_or_user_ids(tmp_path,
     snapshot = json.loads(open(path, encoding="utf-8").read())
     assert snapshot["source"]["provider"] == "AliExpress Affiliate API"
     assert snapshot["source"]["capture_kind"] == "real_api_response"
-    assert snapshot["source"]["query_language"] == "ru"
+    assert snapshot["source"]["query_language"] == "mixed"
     assert snapshot["source"]["page_count"] is None
     assert snapshot["source"]["candidate_count"] == 1
     assert snapshot["request"]["query"] == "павербанк USB-C 65W"
