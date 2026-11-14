@@ -30,6 +30,7 @@ import html
 import time
 import json
 import logging
+import os
 import re
 
 
@@ -1965,6 +1966,90 @@ class AIService:
             return None
         return valid
 
+    @staticmethod
+    def _write_selector_capture(
+        *,
+        candidate_payloads: list[dict[str, object]],
+        query: str,
+        wanted: int,
+        required_features: list[str],
+        identity_review_ids: list[str],
+        marketplace_terms: list[str],
+        budget_constraint: str | None,
+    ) -> str | None:
+        """Write an opt-in raw selector snapshot without URLs or user IDs.
+
+        Enable only during controlled live AliExpress testing with
+        SHORTS_CHILL_SELECTOR_CAPTURE=1. Gold labels are intentionally null;
+        the file is not benchmark-ready until independently reviewed.
+        """
+
+        if os.getenv("SHORTS_CHILL_SELECTOR_CAPTURE", "").strip() != "1":
+            return None
+
+        from pathlib import Path
+
+        capture_dir = Path(
+            os.getenv("SHORTS_CHILL_SELECTOR_CAPTURE_DIR", "selector_captures")
+        )
+        capture_id = str(time.time_ns())
+        query_lower = (query or "").casefold()
+        has_cyrillic = any("а" <= char <= "я" or char == "ё" for char in query_lower)
+        has_latin = any("a" <= char <= "z" for char in query_lower)
+        if has_cyrillic and has_latin:
+            language = "mixed"
+        elif any(char in query_lower for char in "іїєґ"):
+            language = "uk"
+        elif has_cyrillic:
+            language = "ru"
+        elif has_latin:
+            language = "en"
+        else:
+            language = "unknown"
+
+        allowed_fields = (
+            "id", "title", "description", "category_path", "price", "currency",
+            "discount_percent", "rating", "orders_count", "availability",
+        )
+        candidates = [
+            {key: payload.get(key) for key in allowed_fields}
+            for payload in candidate_payloads
+        ]
+        snapshot = {
+            "dataset_version": "selector-snapshot-v1",
+            "case_id": f"S{capture_id}",
+            "captured_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "source": {
+                "provider": "AliExpress Affiliate API",
+                "capture_kind": "real_api_response",
+                "query_language": language,
+                "query_redacted": "[redacted]",
+                "page_count": None,
+                "candidate_count": len(candidates),
+            },
+            "request": {
+                "query": query,
+                "wanted": wanted,
+                "required_features": list(required_features),
+                "identity_review_ids": list(identity_review_ids),
+                "marketplace_terms": list(marketplace_terms),
+                "budget_constraint": budget_constraint,
+            },
+            "candidates": candidates,
+            "gold": None,
+            "capture_note": (
+                "Raw selector input only. Add independently reviewed gold labels "
+                "before using this file in a model-quality benchmark."
+            ),
+        }
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        path = capture_dir / f"selector_{capture_id}.json"
+        path.write_text(
+            json.dumps(snapshot, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return str(path)
+
     async def select_conversation_candidates(
         self,
         candidates: list[Product],
@@ -2017,11 +2102,28 @@ class AIService:
             if isinstance(value, str) and value.strip()
             and len(value.split()) <= 10
         ]
+        candidate_payloads = [
+            self._rank_payload(candidate) for candidate in candidates
+        ]
         products_json = json.dumps(
-            [self._rank_payload(candidate) for candidate in candidates],
+            candidate_payloads,
             ensure_ascii=False,
             separators=(",", ":"),
         )
+        if os.getenv("SHORTS_CHILL_SELECTOR_CAPTURE", "").strip() == "1":
+            try:
+                await asyncio.to_thread(
+                    self._write_selector_capture,
+                    candidate_payloads=candidate_payloads,
+                    query=query,
+                    wanted=limit,
+                    required_features=requirements,
+                    identity_review_ids=sorted(identity_ids),
+                    marketplace_terms=seller_terms,
+                    budget_constraint=normalized_budget or None,
+                )
+            except Exception:  # noqa: BLE001 - diagnostics must never block selection
+                logger.warning("Could not write selector benchmark capture", exc_info=True)
         requirements_json = json.dumps(requirements, ensure_ascii=False)
         seller_terms_json = json.dumps(seller_terms, ensure_ascii=False)
         normalized_budget = " ".join(str(budget_constraint or "").split())[:160]
