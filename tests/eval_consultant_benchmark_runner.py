@@ -982,6 +982,11 @@ def main() -> None:
     parser.add_argument("--timeout-seconds", type=float, default=5.5)
     parser.add_argument("--seed", type=int, default=20261106)
     parser.add_argument("--rates-file", default=None, help="Optional dated JSON rate table keyed by exact model ID.")
+    parser.add_argument(
+        "--gemini-only",
+        action="store_true",
+        help="Compare only the two Gemini model IDs configured by EVAL_GEMINI_MODEL and EVAL_GEMINI_LITE_MODEL.",
+    )
     args = parser.parse_args()
     if args.repeat < 1 or args.repeat > 10:
         parser.error("--repeat must be between 1 and 10")
@@ -989,6 +994,8 @@ def main() -> None:
         parser.error("--timeout-seconds must be >0 and <=30")
 
     providers = configured_providers()
+    if args.gemini_only:
+        providers = [provider for provider in providers if provider.provider == "google"]
     rates = _load_rates(args.rates_file)
     asyncio.run(run_benchmark(
         providers,
