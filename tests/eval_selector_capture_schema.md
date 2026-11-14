@@ -129,3 +129,31 @@ Disable capture after the controlled run:
 Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE -ErrorAction SilentlyContinue
 Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE_DIR -ErrorAction SilentlyContinue
 ```
+
+## Blind selector replay runner
+
+Once a raw capture has been independently reviewed, copied into a separate reviewed-snapshots directory, marked `capture_kind: "real_api_response"`, given a verified positive `page_count`, and populated with the required `gold` labels, run:
+
+```powershell
+$env:GEMINI_API_KEY = "YOUR_KEY"
+$env:EVAL_GEMINI_MODEL = "gemini-3.1-flash-lite"
+$env:EVAL_GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
+
+python tests/eval_selector_replay_runner.py `
+  --snapshots-dir reports/selector-reviewed `
+  --repeat 2 `
+  --timeout-seconds 8 `
+  --output eval-selector-blind-results.json `
+  --map-output eval-selector-blind-map.json
+```
+
+The runner:
+- rejects unverified/raw captures and missing human gold labels before making any model call;
+- reconstructs the `Product` objects and verifies that `AIService._rank_payload` exactly matches every frozen candidate field;
+- sends the same query, requirements, budget, identity-review IDs and candidate pool to both models;
+- makes no AliExpress calls and uses no synthetic product rows;
+- disables fallback/retries by configuring each model as its own fallback, and uses the production 8-second selector attempt cap;
+- records accepted/unavailable/error outcomes, precision, recall, F1, false positives/negatives, safe abstention, ranking-tier pair accuracy, p50/p95 latency, token/cache usage and estimated cost;
+- writes a blind result file and a separate private model map; it temporarily captures usage in memory instead of writing evaluation calls into the bot's persistent telemetry database.
+
+The reconstructed placeholder product/image URLs are never sent to the model: the runner verifies the exact selector payload after reconstruction, and `_rank_payload` contains only the frozen fields above. Do not inspect the private map until blind scoring is complete.
