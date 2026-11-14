@@ -764,7 +764,7 @@ class ConversationSearchEngine:
             result_limit=result_limit,
         )
         if strategy is None:
-            question = await self._clarification_question(text)
+            question = self._clarification_question(ai_turn)
             state.last_outcome = Outcome.CLARIFY.value
             state.last_question = question
             return SearchDecision(
@@ -1364,33 +1364,23 @@ class ConversationSearchEngine:
 
     # -- clarification policy ------------------------------------------------
 
-    async def _clarification_question(self, text: str) -> str:
-        """ONE clarifying question for a message with nothing to search with.
+    @staticmethod
+    def _clarification_question(ai_turn: dict | None = None) -> str:
+        """Reuse the interpreter's validated question; never reinterpret twice.
 
-        Deterministic by default; when a Gemini client is bound AND the
-        message is very short (the only case where a model adds value), the
-        bounded ``decide_chat_action`` decision may phrase the question.
-        Everything else keeps the default question — a failing or absent
-        model can never block the conversation.
+        `conversation_turn` already decides whether clarification is needed
+        and returns the question in its structured contract. If that field is
+        absent or invalid, use the deterministic default instead of issuing a
+        second Gemini request for the same user message.
         """
 
-        ai = self._ai_service
         if (
-            ai is not None
-            and len((text or '').split()) <= 4
-            and callable(getattr(ai, 'decide_chat_action', None))
+            isinstance(ai_turn, dict)
+            and ai_turn.get("action") == "clarify"
+            and isinstance(ai_turn.get("question"), str)
+            and ai_turn["question"].strip()
         ):
-            try:
-                action = await ai.decide_chat_action(text)
-                if (
-                    isinstance(action, dict)
-                    and action.get('action') == 'clarify'
-                    and isinstance(action.get('question'), str)
-                    and action['question'].strip()
-                ):
-                    return action['question'].strip()
-            except Exception:  # noqa: BLE001 - a model failure never blocks a question
-                logger.info('Clarification model unavailable; using the default question')
+            return ai_turn["question"].strip()[:500]
         return DEFAULT_CLARIFY_QUESTION
 
     # -- candidate evaluation -------------------------------------------------
