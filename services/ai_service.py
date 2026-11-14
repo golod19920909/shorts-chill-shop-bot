@@ -786,19 +786,34 @@ def _bounded_conversation_context(context: dict, *, max_chars: int = 6000) -> di
     slots = context.get("active_slots", [])
     shown = context.get("shown_products", [])
 
+    dialogue_payload = [
+        {
+            "role": str(item.get("role") or "")[:12],
+            "text": str(item.get("text") or "")[:1000],
+        }
+        for item in dialogue[-12:]
+        if isinstance(item, dict)
+        and item.get("role") in {"user", "assistant"}
+    ] if isinstance(dialogue, list) else []
+    # The dialogue transcript already contains the user's recent messages.
+    # Keep the separate user-only ledger only for turns that fell outside the
+    # transcript window; forwarding the same utterance twice adds tokens but
+    # no new context. Compare the bounded text representation so the check
+    # is deterministic and does not discard distinct paraphrases.
+    dialogue_user_texts = {
+        item["text"][:180]
+        for item in dialogue_payload
+        if item["role"] == "user"
+    }
+    recent_turn_payload = [
+        str(item)[:180]
+        for item in recent[-6:]
+        if str(item)[:180] not in dialogue_user_texts
+    ] if isinstance(recent, list) else []
+
     payload = {
-        "recent_turns": [
-            str(item)[:180] for item in recent[-6:]
-        ] if isinstance(recent, list) else [],
-        "recent_dialogue": [
-            {
-                "role": str(item.get("role") or "")[:12],
-                "text": str(item.get("text") or "")[:1000],
-            }
-            for item in dialogue[-12:]
-            if isinstance(item, dict)
-            and item.get("role") in {"user", "assistant"}
-        ] if isinstance(dialogue, list) else [],
+        "recent_turns": recent_turn_payload,
+        "recent_dialogue": dialogue_payload,
         "active_slots": [
             {
                 "kind": str(item.get("kind") or "")[:32],
