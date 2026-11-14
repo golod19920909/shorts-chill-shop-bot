@@ -99,7 +99,7 @@ Choose by the agreed order: quality first, then speed, reliability, cost, mainta
 - No permitted real AliExpress selector candidate snapshots have been added yet.
 - A provider-neutral blind runner exists for the three language operations above; no provider API calls have been made yet.
 - No model API keys have been added to CI or repository settings; never add them. Benchmark credentials must be supplied locally through environment variables, not committed or printed.
-- No model comparison results exist. The runner has not been executed against real provider APIs. Do not describe any candidate as better, faster or cheaper in actual bot use until it has been measured on this protocol.
+- A user-run Gemini 3.1 vs 3.5 comparison was completed on 2026-11-14; its observed results and limitations are recorded in this section. The raw run artifacts remain local and have not been independently re-read from JSON here. Do not generalize this interpreter benchmark to selector quality or end-to-end production performance.
 
 ## 10. Official API references and pricing checked 2026-11-06
 
@@ -222,6 +222,23 @@ python tests/eval_consultant_benchmark_runner.py `
 ```
 
 The first pass uses one attempt per model with the same 5.5-second conversation-turn cap, exact production prompt, same contexts and common application validator. It deliberately disables fallback/retries so model quality and latency are not hidden by the fallback chain. A separate resilience run must compare the actual production retry/fallback policy. Keep the private map separate from blind scoring.
+
+### Observed user-run comparison (2026-11-14)
+
+The user ran the Gemini-only command above with three repetitions. It produced 624 direct Gemini calls (312 per model), without AliExpress, Telegram, production DB, retries or fallback. The request count reconciles as 78 conversation-turn requests per repetition (17 dialogue turns across 13 scenarios + 61 added product-intent turns), plus 14 × 3 diagnostic `chat_action` calls and 12 × 3 `no_results_reply` calls: 234 + 42 + 36 = 312 per model.
+
+| Metric | 3.5 Flash-Lite | 3.1 Flash-Lite |
+|---|---:|---:|
+| Application-validator acceptance | 284/312 (91.0%) | 258/312 (82.7%) |
+| `conversation_turn` acceptance | 88.0% | 78.6% |
+| `no_results_reply` acceptance | 88.9% | 100% |
+| Russian acceptance | 95.2% | 81.0% |
+| Accepted-request latency p50 / p95 | ~1,007 / ~1,718 ms | ~1,139 / ~1,951 ms |
+| Best-effort estimated total cost | ~$0.1863 | ~$0.1403 |
+
+The blind map identifies A as 3.5 and B as 3.1. These cost estimates use input and candidate-output tokens only; the result JSON had `estimated_cost_usd: null` for every request because complete billable usage was unavailable. The estimate is not a bill or a complete cost comparison; it suggests roughly 33% higher cost for 3.5 in this sample. Application-validator acceptance is not independent human semantic scoring. `chat_action` is diagnostic-only and should not drive production routing. Raw JSON/private-map artifacts were retained locally by the user and are not committed here.
+
+Interpretation: 3.5 had better aggregate application acceptance and modestly lower accepted-request latency, but higher estimated cost; `no_results_reply` acceptance favored 3.1. This run does not establish authentic product-selector parity or end-to-end production cost per successful search. Do not change production routing on this evidence alone; keep the current 3.1 primary and existing fallback until selector replay and live telemetry gates are satisfied.
 
 ### Standard paid-tier cost comparison
 
