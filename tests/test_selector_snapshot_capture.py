@@ -38,7 +38,9 @@ def test_capture_writes_exact_selector_fields_without_urls_or_user_ids(tmp_path,
                 "currency": "USD",
                 "discount_percent": 10,
                 "rating": 4.8,
+                "positive_rate": 98.5,
                 "orders_count": 250,
+                "has_image": True,
                 "availability": "unknown",
                 "affiliate_url": "must-not-be-captured",
                 "telegram_user_id": "must-not-be-captured",
@@ -63,5 +65,7 @@ def test_capture_writes_exact_selector_fields_without_urls_or_user_ids(tmp_path,
     assert snapshot["request"]["required_features"] == ["USB-C Power Delivery 65W"]
     assert snapshot["gold"] is None
     assert snapshot["candidates"][0]["id"] == "product-1"
+    assert snapshot["candidates"][0]["positive_rate"] == 98.5
+    assert snapshot["candidates"][0]["has_image"] is True
     assert "affiliate_url" not in snapshot["candidates"][0]
     assert "telegram_user_id" not in snapshot["candidates"][0]
