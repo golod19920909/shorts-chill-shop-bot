@@ -188,3 +188,57 @@ Anthropic's current structured-output JSON Schema subset does not support numeri
 Anthropic documents that the first request with a new JSON Schema compiles a grammar and caches it for 24 hours. The first `conversation_turn` and first `chat_action` request therefore include a schema-specific cold-start cost; later requests with the same schema are warm. Keep the raw per-case latency rows and inspect the first case for each operation separately from warm p50/p95. Do not discard the cold start when estimating first-user experience.
 
 Start with `--repeat 1` to limit API usage and inspect cost/latency. Increase to `--repeat 3` only if the first run is clean and additional variance measurement is worth the extra calls.
+
+## 9. Gemini 3.1 Flash-Lite vs 3.5 Flash-Lite (2026-11-14)
+
+The exact Gemini API model IDs are:
+- baseline: `gemini-3.1-flash-lite`;
+- experimental: `gemini-3.5-flash-lite` (GA, stable model ID).
+
+The benchmark corpus now contains **100 unique scenarios**:
+- 13 existing multi-turn dialogue scenarios;
+- 61 additional single-turn product-intent scenarios across RU/UK/EN and unrelated product families;
+- 14 short chat-action cases;
+- 12 no-results wording cases.
+
+The runner repeats each eligible turn/case three times by default. It records the actual request count, per-operation acceptance, exact-action/identity/slot/retrieval scores, p50/p95 latency, token usage and tariff-based cost. This is a conversation-interpreter/helper benchmark, **not** a selector benchmark.
+
+### Exact local PowerShell invocation
+
+Use the same Gemini API key for both model IDs; credentials are read from environment variables only and are never read from `.env` by the runner:
+
+```powershell
+$env:GEMINI_API_KEY = "YOUR_KEY"
+$env:EVAL_GEMINI_MODEL = "gemini-3.1-flash-lite"
+$env:EVAL_GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
+
+python tests/eval_consultant_benchmark_runner.py `
+  --repeat 3 `
+  --timeout-seconds 5.5 `
+  --rates-file tests/eval_gemini_rates_2026-11-14.json `
+  --output eval-gemini-31-vs-35-blind.json `
+  --map-output eval-gemini-31-vs-35-private-map.json
+```
+
+The first pass uses one attempt per model with the same 5.5-second conversation-turn cap, exact production prompt, same contexts and common application validator. It deliberately disables fallback/retries so model quality and latency are not hidden by the fallback chain. A separate resilience run must compare the actual production retry/fallback policy. Keep the private map separate from blind scoring.
+
+### Standard paid-tier cost comparison
+
+Published Google Gemini API rates per 1M tokens:
+| Model | Input | Output incl. thinking | Cached input | Cache storage |
+|---|---:|---:|---:|---:|
+| 3.1 Flash-Lite | $0.25 | $1.50 | $0.025 | $1.00 / 1M tokens / hour |
+| 3.5 Flash-Lite | $0.30 | $2.50 | $0.03 | $1.00 / 1M tokens / hour |
+
+Therefore 3.5 costs 20% more per input token, 66.7% more per output token, and 20% more per cached input token. The total scenario cost cannot be inferred from rates alone: it depends on actual input/output/thinking tokens and cache-hit ratio. The dated machine-readable rates are in `tests/eval_gemini_rates_2026-11-14.json`.
+
+Official sources checked 2026-11-14:
+- Gemini API model ID / capabilities: https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite
+- Gemini API Standard pricing and caching: https://ai.google.dev/gemini-api/docs/pricing
+- Gemini 3.5 Flash-Lite model card: https://deepmind.google/models/model-cards/gemini-3-5-flash-lite/
+
+### Selector benchmark remains a separate gate
+
+The 100-scenario corpus does not contain product-selection gold labels. The selector must be evaluated only after authentic, permitted AliExpress candidate snapshots are captured at the production selector boundary and independently reviewed, as specified in `tests/eval_selector_capture_schema.md`. No synthetic product rows may be used. Until then, no claim of candidate-selection parity between 3.1 and 3.5 is permitted.
+
+No production model routing is changed by this protocol.
