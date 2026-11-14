@@ -18,3 +18,9 @@ __pycache__/
 database/backups/
 *.sqlite3
 *.sqlite3-*
+
+# Local evaluation artifacts can contain real selector prompts and product pools.
+selector_captures/
+reports/selector-captures/
+eval-gemini-*-blind.json
+eval-gemini-*-private-map.json
