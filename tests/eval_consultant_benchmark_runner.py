@@ -952,7 +952,7 @@ async def run_benchmark(
             if len({provider.provider for provider in providers}) > 1
             else "same_provider_model_comparison"
         ),
-        "note": "Model names are in the separate blind-map file. This benchmark covers 74 unique conversation scenarios plus auxiliary chat-action/no-results cases. It does not benchmark candidate selection or product factual answers; selector replay requires authentic AliExpress snapshots and independent gold labels.",
+        "note": "Model names are in the separate blind-map file. This benchmark covers 74 unique conversation scenarios plus auxiliary chat-action/no-results cases. chat_action is diagnostic-only and is no longer called by Option C production flow. It does not benchmark candidate selection or product factual answers; selector replay requires authentic AliExpress snapshots and independent gold labels.",
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
