@@ -120,7 +120,7 @@ Official references:
 
 ### Selector quality benchmark
 
-The 100-scenario corpus measures conversation interpretation and auxiliary chat-action/no-results operations. It does **not** prove candidate-selection parity. An opt-in capture hook is now implemented at the exact `AIService.select_conversation_candidates` boundary. It is disabled by default and, when explicitly enabled during a controlled local live-AliExpress test, writes the exact selector query and candidate payload without affiliate URLs, image URLs, Telegram/user IDs or credentials. Raw captures have `gold: null` and unknown `page_count`; they are not benchmark-ready until source provenance is checked and independent human gold labels are added. Instructions are in `tests/eval_selector_capture_schema.md`. Synthetic product rows remain prohibited.
+The 100-scenario corpus measures conversation interpretation and auxiliary chat-action/no-results operations. It does **not** prove candidate-selection parity. An opt-in capture hook is implemented at the exact `AIService.select_conversation_candidates` boundary. It is disabled by default and, when explicitly enabled during a controlled local live-AliExpress test, writes the exact selector query and candidate payload without affiliate URLs, image URLs, Telegram/user IDs or credentials. Raw captures are marked `selector_input_capture`, have `gold: null` and unknown `page_count`; they are not benchmark-ready until source provenance is checked and independent human gold labels are added. A blind replay runner is now implemented: it rejects unreviewed captures, reconstructs Products and verifies the exact `_rank_payload`, then sends identical frozen pools to both models and records precision/recall/F1, false positives/negatives, ranking tiers, latency, tokens/cache and cost. It performs no AliExpress calls and does not write evaluation telemetry to the bot database. Instructions are in `tests/eval_selector_capture_schema.md`. Synthetic product rows remain prohibited.
 
 ### Live benchmark and VPS staging
 
@@ -145,6 +145,8 @@ The first CI attempt found a syntax error in the admin screen; it was fixed. The
 - `services/convsearch/engine.py`
 - `services/ai_service.py`
 - `tests/test_selector_snapshot_capture.py`
+- `tests/eval_selector_replay_runner.py`
+- `tests/test_selector_replay_runner.py`
 - `tests/eval_selector_capture_schema.md`
 - `.gitignore`
 - `.github/workflows/optimization-regression.yml`
