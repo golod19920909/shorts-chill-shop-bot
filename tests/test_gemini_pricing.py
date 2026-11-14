@@ -19,7 +19,7 @@ class GeminiPricingTests(unittest.TestCase):
             when=datetime(2026, 11, 7, tzinfo=timezone.utc),
         )
         self.assertEqual(status, "estimated")
-        self.assertEqual(version, "google-gemini-standard-paid-2026-11-07")
+        self.assertEqual(version, "google-gemini-standard-paid-2026-11-14")
         self.assertAlmostEqual(cost, 0.001875)
 
     def test_flash_lite_uses_its_own_rates(self):
@@ -35,6 +35,35 @@ class GeminiPricingTests(unittest.TestCase):
         )
         self.assertEqual(status, "estimated")
         self.assertAlmostEqual(cost, 0.0007)
+
+    def test_flash_lite_35_uses_published_higher_rates(self):
+        cost, status, _ = estimate_cost_usd(
+            "gemini-3.5-flash-lite",
+            {
+                "prompt_token_count": 1_000,
+                "candidates_token_count": 100,
+                "thoughts_token_count": 200,
+                "total_token_count": 1_300,
+            },
+            when=datetime(2026, 11, 14, tzinfo=timezone.utc),
+        )
+        self.assertEqual(status, "estimated")
+        self.assertAlmostEqual(cost, 0.00105)
+
+    def test_flash_lite_35_cached_input_uses_published_cached_rate(self):
+        cost, status, _ = estimate_cost_usd(
+            "gemini-3.5-flash-lite",
+            {
+                "prompt_token_count": 1_000,
+                "cached_content_token_count": 400,
+                "candidates_token_count": 0,
+                "thoughts_token_count": 0,
+                "total_token_count": 1_000,
+            },
+            when=datetime(2026, 11, 14, tzinfo=timezone.utc),
+        )
+        self.assertEqual(status, "estimated")
+        self.assertAlmostEqual(cost, 0.000192)
 
     def test_cached_input_uses_cached_rate(self):
         cost, status, _ = estimate_cost_usd(
