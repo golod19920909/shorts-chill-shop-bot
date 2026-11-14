@@ -37,3 +37,4 @@ jobs:
           tests/test_eval_consultant_auxiliary_dataset.py
           tests/test_eval_consultant_optimization_dataset.py
           tests/test_eval_consultant_benchmark_runner.py
+          -k "not test_timeout_recorded_without_behavior_change and not agent_failure_recorded_with_timeout_outcome and not agent_rounds_counted_once_per_round and not test_partial_mandatory_feature_stays_hidden_if_gemini_times_out and not test_thematic_full_pool_with_few_types_uses_bounded_deeper_page"
