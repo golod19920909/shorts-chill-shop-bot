@@ -213,6 +213,7 @@ $env:EVAL_GEMINI_MODEL = "gemini-3.1-flash-lite"
 $env:EVAL_GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
 
 python tests/eval_consultant_benchmark_runner.py `
+  --gemini-only `
   --repeat 3 `
   --timeout-seconds 5.5 `
   --rates-file tests/eval_gemini_rates_2026-11-14.json `
