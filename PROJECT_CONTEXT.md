@@ -6683,3 +6683,54 @@ code changes or select vendors.
 - Added an offline regression test asserting thematic route concurrency is exactly bounded at two and all configured routes are still attempted when empty; this test has NOT been run in this environment.
 - No live AliExpress/Gemini/Telegram calls, bot startup, pytest, syntax checks, or CI were run for this patch. User performs live verification locally.
 - First live acceptance: compare total shelf latency and API error/short-ban counters against the 2026-11-13 58.9 s baseline; confirm 1–20 products remain strictly within the shelf ceiling and that type/family diversity does not regress. If AliExpress starts returning rate-limit errors, revert the semaphore to one rather than raising concurrency.
+
+## 2026-11-14 — Performance and cost optimization workstream
+
+Work is isolated on branch `optimize/performance-costs`, based on `fix/thematic-collection-retrieval`. No merge to `main`, PR merge or deployment was performed.
+
+### Current baseline facts
+
+- The repository already contains durable Gemini token/cost telemetry, operation/model aggregation and an optional authenticated local dashboard.
+- Historical Gemini timing evidence is in `tests/eval_gemini_latency_baseline.md`; it is a small sample, not p50/p95.
+- The 2026-11-13 thematic run was 58.9 s; 18 page-one routes + 3 page-two routes + one ~3.4 s selector. Serial AliExpress retrieval was the main delay. The base branch already contained two-way thematic prefetch and a global AliExpress semaphore of two.
+- Production model defaults remain `gemini-3.1-flash-lite` primary and `gemini-3.8-flash` fallback.
+
+### Implemented on this branch
+
+1. `services/marketplaces/aliexpress_client.py`
+   - Exact simultaneous read-only API calls are coalesced for product query, product detail, hot product query and category lookup.
+   - Key is method + canonical business parameters; completed calls are removed immediately, so later requests always fetch fresh data.
+   - No TTL cache was introduced. Affiliate link generation and non-read operations are not coalesced.
+   - Each waiter receives a deep copy; cancellation of one waiter does not cancel the shared task while other waiters remain.
+   - Existing semaphore ceiling of two is preserved.
+   - Added handler-request/coalescing counters and bounded API-stage latency samples with avg/p50/p95.
+2. `handlers/search.py`
+   - Added per-user suppression of identical normalized text while the first search is still running. Different concurrent queries are allowed; the fingerprint is removed in `finally`, so later deliberate repeats and retries work.
+3. `handlers/admin.py`
+   - The AliExpress API admin screen now shows handler requests, coalesced duplicates and API avg/p50/p95 alongside existing counters.
+4. `tests/test_aliexpress_retry.py`, `tests/test_search_dedup.py`
+   - Added offline regression coverage for coalescing, isolation, cancellation, freshness after completion, bounded concurrency, latency metrics and same-user duplicate suppression.
+5. Gemini 3.5 preparation:
+   - `services/gemini_pricing.py` now recognizes `gemini-3.5-flash-lite` at published Standard paid-tier rates.
+   - `tests/eval_gemini_rates_2026-11-14.json` records 3.1 and 3.5 rates.
+   - `tests/eval_consultant_optimization_dataset.py` adds 61 product-intent cases. Together with the existing 13 dialogue, 14 chat-action and 12 no-results scenarios, the blind runner covers 100 unique scenarios.
+   - `tests/eval_consultant_benchmark_runner.py` uses the production 5.5 s conversation-turn primary cap; the protocol documents local 3.1 vs 3.5 execution.
+   - Production model routing is unchanged.
+6. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
+
+### Pricing facts recorded
+
+Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cached input $0.025; 3.5 Flash-Lite input $0.30, output $2.50, cached input $0.03. 3.5 is 20% higher on input, 66.7% higher on output and 20% higher on cached input. Actual decision requires measured token mix and quality/latency results.
+
+### Explicitly not implemented / blockers
+
+- No time-based global cache for product data, popular searches or thematic shelves. Price/stock freshness and per-user exclusions/history/budget/currency must be preserved; current work uses only in-flight deduplication and existing per-user session caches.
+- No explicit Gemini Context Cache object. First measure real cached-token usage and amortize creation/storage/TTL against actual prompt reuse.
+- No selector quality comparison yet. Authentic AliExpress candidate snapshots at the exact production selector boundary and independent gold labels are still required; synthetic rows are not acceptable.
+- No paid Gemini/AliExpress live benchmark or VPS staging setup was performed from this environment. The user must run the documented local 100-scenario Gemini comparison with their API key; production and staging separation is a later VPS task.
+
+### Verification state
+
+The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. Do not claim the latest workflow passed until the latest `optimization-regression` run completes and its logs are checked. No local pytest run or live provider calls were performed here.
+
+Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
