@@ -6722,7 +6722,9 @@ Work is isolated on branch `optimize/performance-costs`, based on `fix/thematic-
 7. `services/ai_service.py`
    - Added opt-in capture of the exact selector input pool at `select_conversation_candidates`. Disabled by default; requires `SHORTS_CHILL_SELECTOR_CAPTURE=1`.
    - Writes exact query and candidate fields, but no affiliate/image URLs, Telegram/user IDs or credentials. Raw captures have `gold: null` and unknown page count until independently annotated.
-   - `tests/test_selector_snapshot_capture.py` verifies opt-in, schema and privacy filtering. Local instructions are in `tests/eval_selector_capture_schema.md`.
+   - `tests/test_selector_snapshot_capture.py` verifies opt-in, schema and privacy filtering.
+   - `tests/eval_selector_replay_runner.py` validates reviewed snapshots, reconstructs Product objects and verifies the exact selector payload, then compares both models on identical frozen pools without AliExpress calls or persistent bot telemetry writes.
+   - `tests/test_selector_replay_runner.py` covers snapshot provenance, payload equality and precision/recall scoring. Local capture/review/replay instructions are in `tests/eval_selector_capture_schema.md`.
 8. Added `.github/workflows/optimization-regression.yml` and `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 ### Pricing facts recorded
