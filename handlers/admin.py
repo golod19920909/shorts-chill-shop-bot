@@ -1046,6 +1046,10 @@ async def _screen_api(
                 [
                     f"  • Успешных вызовов: {client.calls_ok}",
                     f"  • Ошибок: {client.calls_err}",
+                    f"  • Запросов от обработчиков: "
+                    f"{getattr(client, 'calls_requested', client.calls_ok + client.calls_err)}",
+                    f"  • Одновременных дублей объединено: "
+                    f"{getattr(client, 'coalesced_requests', 0)}",
                     f"  • Транзиентных повторов: "
                     f"{getattr(client, 'retries_spent', 0)}",
                     f"  • Пустых результатов: "
@@ -1056,9 +1060,22 @@ async def _screen_api(
                     + common.escape(str(client.last_error_class or "—")),
                 ]
             )
+            latency = (
+                client.latency_snapshot()
+                if callable(getattr(client, "latency_snapshot", None))
+                else {}
+            )
+            if latency.get("count"):
+                lines.append(
+                    "  • Время API (avg / p50 / p95): "
+                    f"{latency.get('avg_ms')} / {latency.get('p50_ms')} / "
+                    f"{latency.get('p95_ms')} мс"
+                )
+            else:
+                lines.append("  • Время API (avg / p50 / p95): пока нет замеров")
 
     lines.append("")
-    lines.append("<b>Возможности (живой аудит §5)</b>:")
+    lines.append("<b>Возможности (живой аудит §5)</b>:
     lines.extend(f"• {common.escape(line)}" for line in API_CAPABILITIES)
 
     test_result = context.user_data.get(ADMIN_API_TEST_KEY)
