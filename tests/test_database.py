@@ -31,6 +31,15 @@ class DatabaseTests(unittest.TestCase):
     def run_async(self, coro):
         return asyncio.run(coro)
 
+    def test_every_connection_enables_foreign_key_enforcement(self) -> None:
+        async def read_foreign_key_setting() -> int:
+            async with self.db._connect() as conn:
+                cursor = await conn.execute("PRAGMA foreign_keys;")
+                row = await cursor.fetchone()
+                return int(row[0])
+
+        self.assertEqual(self.run_async(read_foreign_key_setting()), 1)
+
     def test_initialize_creates_file_and_tables(self) -> None:
         self.assertFalse(Path(self.db_path).exists())
         self.run_async(self.db.initialize())
