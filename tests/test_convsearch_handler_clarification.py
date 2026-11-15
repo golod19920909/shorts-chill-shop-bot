@@ -6,6 +6,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from models.product import Marketplace, Product
+
 
 from handlers.search import (
     CLARIFY_TTL_SECONDS,
@@ -251,7 +253,12 @@ class PendingClarificationLifecycleTests(unittest.TestCase):
 
 class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_initial_card_send_does_not_mark_any_product_shown(self):
-        product = SimpleNamespace(product_id="product-1")
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="product-1",
+            title="Product 1",
+            product_url="https://www.aliexpress.com/item/product-1.html",
+        )
         context = SimpleNamespace(user_data={})
         outcome = SimpleNamespace(products=[product])
         with (
@@ -275,7 +282,12 @@ class ConversationalDeliveryLedgerTests(unittest.IsolatedAsyncioTestCase):
         remember_views.assert_not_awaited()
 
     async def test_successful_initial_card_send_is_acknowledged_by_caller(self):
-        product = SimpleNamespace(product_id="product-1")
+        product = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="product-1",
+            title="Product 1",
+            product_url="https://www.aliexpress.com/item/product-1.html",
+        )
         context = SimpleNamespace(user_data={})
         outcome = SimpleNamespace(products=[product])
         with (
