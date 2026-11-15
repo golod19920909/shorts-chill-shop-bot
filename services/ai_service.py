@@ -696,7 +696,7 @@ CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом �
 {message}
 
 Верни только один JSON-объект со строго такими полями:
-{{"action":"new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null,"slot_updates":[]}}
+{{"action":"general_chat|new_search|refine|correction|alternatives|compare|clarify","confidence":0.0,"product_type":null,"question":null,"slot_updates":[]}}
 
 slot_updates — массив структурированных изменений ограничений из ТЕКУЩЕГО сообщения. Каждый элемент имеет поля:
 {{"operation":"add|replace|remove","kind":"use_case|feature|exclusion|preference","target":null,"value":"дословная фраза"}}
@@ -708,7 +708,8 @@ slot_updates — массив структурированных изменен�
 Если изменений нет — верни пустой массив.
 
 Правила:
-- new_search: пользователь хочет искать другой товар или впервые назвал конкретный товар. product_type — только ядро названия товара, без бюджета, количества, цвета, функций и слов «найди/покажи». Пример: «нужен недорогой шуруповёрт с двумя аккумуляторами» → «шуруповёрт».
+- general_chat: обычное общение, приветствие, информационный вопрос, объяснение, обсуждение или творческая задача. Если пользователь лишь обсуждает товар или технологию, но НЕ просит найти, купить или подобрать товар, выбирай general_chat.
+- new_search: пользователь явно хочет искать, купить или подобрать другой товар либо впервые назвал конкретный товар в контексте покупки. product_type — только ядро названия товара, без бюджета, количества, цвета, функций и слов «найди/покажи». Пример: «нужен недорогой шуруповёрт с двумя аккумуляторами» → «шуруповёрт».
 - refine: пользователь уточняет активный поиск (бюджет, совместимость, цвет, характеристики, материал/состав, «из нержавеющей стали», «сделан из алюминия», "made of steel", «подешевле», «полегче»); сохраняй прежний товар. Материал, из которого сделан товар, — характеристика текущего товара, а не новый тип товара.
 - correction: пользователь отменяет или заменяет ранее заданное ограничение.
 - alternatives: просит другие варианты того же товара.
@@ -720,7 +721,9 @@ slot_updates — массив структурированных изменен�
 - «расскажи про шуруповёрт» — новый поиск/вопрос о названном товаре, а не сравнение с предыдущей выдачей, если не указано, что речь о показанных карточках.
 - Не выдумывай характеристики и не меняй продукт при обычном уточнении.
 - confidence — твоя уверенность от 0 до 1. Если уверенность ниже 0.65, выбери clarify и объясни одним вопросом.
-- product_type — null для refine, correction, alternatives, compare и clarify.
+- product_type — null для general_chat, refine, correction, alternatives, compare и clarify.
+- Для general_chat question должен быть null, slot_updates должен быть пустым массивом.
+- Короткое продолжение активного товарного диалога относится к нему; явная смена темы — general_chat.
 - Это решение только о диалоге. Не выбирай товары и не выдумывай цены/ссылки.
 """
 
@@ -1677,6 +1680,41 @@ class AIService:
             return " ".join(kept)
         return None
 
+    async def answer_general(self, history: list[dict[str, str]]) -> str | None:
+        """Answer a normal assistant conversation without entering product search."""
+        if not self.is_available:
+            return None
+
+        lines: list[str] = []
+        for item in (history or [])[-12:]:
+            if not isinstance(item, dict):
+                continue
+            role = item.get("role")
+            content = item.get("content")
+            if role not in {"user", "assistant"} or not isinstance(content, str):
+                continue
+            content = " ".join(content.split()).strip()[:1800]
+            if content:
+                speaker = "Пользователь" if role == "user" else "Ассистент"
+                lines.append(f"{speaker}: {content}")
+
+        if not lines or not lines[-1].startswith("Пользователь:"):
+            return None
+
+        from services.assistant.prompts import GENERAL_ASSISTANT_SYSTEM_PROMPT
+
+        prompt = (
+            GENERAL_ASSISTANT_SYSTEM_PROMPT
+            + "\n\nИстория диалога (от старых сообщений к новым):\n"
+            + "\n".join(lines)
+            + "\n\nОтветь на последнее сообщение пользователя, учитывая историю."
+        )
+        return await self._generate(
+            prompt,
+            models=(self.smart_model,),
+            operation="general_chat",
+        )
+
     async def decide_conversation_turn(
         self, user_text: str, *, context: dict | None = None
     ) -> dict | None:
@@ -1716,7 +1754,7 @@ class AIService:
 
         action = str(payload.get("action") or "").strip().lower()
         allowed = {
-            "new_search", "refine", "correction", "alternatives",
+            "general_chat", "new_search", "refine", "correction", "alternatives",
             "compare", "clarify",
         }
         if action not in allowed:
@@ -1752,6 +1790,16 @@ class AIService:
         raw_updates = payload.get("slot_updates", [])
         if not isinstance(raw_updates, list) or len(raw_updates) > 8:
             return None
+        if action == "general_chat":
+            if product_type is not None or question or raw_updates:
+                return None
+            return {
+                "action": action,
+                "confidence": confidence,
+                "product_type": None,
+                "question": None,
+                "slot_updates": [],
+            }
         # Slot values must be copied verbatim from this turn. This prevents
         # the model from importing stale constraints from context or inventing
         # requirements. State transitions remain additive; the model cannot
