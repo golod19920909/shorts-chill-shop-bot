@@ -861,7 +861,7 @@ class DiscoveredScreensTests(unittest.TestCase):
 
         text, kwargs = query.edits[0]
         rows = kwargs["reply_markup"].inline_keyboard
-        self.assertIn("Категории", text)
+        self.assertIn("Каталог товаров", text)
         callbacks = callbacks_of(rows)
         self.assertTrue(callbacks)
         self.assertTrue(
