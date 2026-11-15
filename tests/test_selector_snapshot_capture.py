@@ -69,3 +69,43 @@ def test_capture_writes_exact_selector_fields_without_urls_or_user_ids(tmp_path,
     assert snapshot["candidates"][0]["has_image"] is True
     assert "affiliate_url" not in snapshot["candidates"][0]
     assert "telegram_user_id" not in snapshot["candidates"][0]
+
+def test_conversation_selector_capture_passes_normalized_budget(
+    tmp_path, monkeypatch
+):
+    import asyncio
+
+    from models.product import Marketplace, Product
+
+    monkeypatch.setenv("SHORTS_CHILL_SELECTOR_CAPTURE", "1")
+    monkeypatch.setenv("SHORTS_CHILL_SELECTOR_CAPTURE_DIR", str(tmp_path))
+    service = AIService(api_key=None)
+    service._client = object()
+
+    async def fake_generate(
+        contents, *, models=None, operation="generate", response_schema=None
+    ):
+        assert operation == "conversation_selection"
+        return '{"selections": []}'
+
+    service._generate = fake_generate
+    product = Product(
+        marketplace=Marketplace.ALIEXPRESS,
+        product_id="capture-test-1",
+        title="Игровой ноутбук",
+        product_url="https://example.invalid/product",
+    )
+
+    selected = asyncio.run(
+        service.select_conversation_candidates(
+            [product],
+            query="игровой ноутбук",
+            budget_constraint="  до 1000 USD  ",
+        )
+    )
+
+    assert selected == []
+    captures = list(tmp_path.glob("selector_*.json"))
+    assert len(captures) == 1
+    snapshot = json.loads(captures[0].read_text(encoding="utf-8"))
+    assert snapshot["request"]["budget_constraint"] == "до 1000 USD"
