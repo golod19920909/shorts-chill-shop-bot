@@ -468,3 +468,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Repository documentation is split into a concise root guide plus preserved references: historical decision log `docs/PROJECT_CONTEXT_HISTORY_2026-11.md`, feature-specific catalog/thematic guardrails `docs/AGENT_GUARDRAILS_CATALOG_THEMATIC.md`, and preliminary CI exclusion audit `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
+
+
+- Gemini telemetry CI: current usage extraction, turn scope, generate instrumentation, concurrency isolation, and persistence test classes are included in the focused offline workflow; historical AgentLoop tests remain excluded.
