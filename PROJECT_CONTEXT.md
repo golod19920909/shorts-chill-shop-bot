@@ -480,4 +480,4 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Verified CI run `43742522032` on commit `17a156fc`: production compile PASS; manual smoke syntax PASS; focused offline **517 passed, 1 deselected, 582 subtests passed**; configured broad offline **2,284 passed, 2 deselected, 1,259 subtests passed**.
-- Later test-only correction `ff8b668d` changes an un-awaited async UX test into a synchronous test; its CI verification is pending.
+- Test-only correction `ff8b668d` changes an un-awaited async UX test into a synchronous test; GitHub Actions run `43742653098` passed on that commit (focused **517 passed**, broad configured **2,284 passed**; 582 and 1,259 subtests respectively).
