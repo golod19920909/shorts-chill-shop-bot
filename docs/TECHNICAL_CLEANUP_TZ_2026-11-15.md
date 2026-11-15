@@ -435,3 +435,11 @@
 - Старый `AgentLoopTests` оставлен за пределами этого targeted run; production agent loop не возвращается в архитектуру.
 - Broad-suite ignore пока сохранён, чтобы не запускать исторический класс и не выдавать весь файл за полностью мигрированный.
 - Commit workflow: `2964c1b0`. Результат нового CI запуска ожидает подтверждения.
+
+
+### Исправление обнаруженного рассогласования telemetry test с fallback-контрактом
+
+- Первый targeted CI запуск: production compile — PASS; broad offline suite — **2 284 passed, 2 deselected, 1 259 subtests passed**; focused suite — **1 failed, 516 passed, 1 deselected, 582 subtests passed**.
+- Единственный focused failure: `test_timeout_recorded_without_behavior_change` ожидал один telemetry attempt при timeout. Фактический и действующий контракт `AIService._generate` — один reserve retry для timeout, то есть два реальных SDK attempts.
+- Исправлен только тест: теперь он явно проверяет primary timeout и reserve-model timeout, без изменения production-кода или fallback-поведения.
+- Commit: `2d9b4b8b`. Новый CI run ожидает результата.
