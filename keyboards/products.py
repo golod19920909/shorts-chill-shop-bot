@@ -113,6 +113,7 @@ def ai_menu_keyboard(
     index: int,
     *,
     back_callback: str | None = None,
+    home_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     """The 🤖 AI menu of ONE product card (see ``handlers.ai_assistant``).
 
