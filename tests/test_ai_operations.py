@@ -560,7 +560,7 @@ class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
                 "low",
             )
 
-    async def test_other_gemini_operations_do_not_retry_on_timeout(self):
+    async def test_other_gemini_operations_try_one_reserve_on_timeout(self):
         generate = AsyncMock(side_effect=TimeoutError("request timed out"))
         service = AIService(
             api_key=None,
@@ -579,7 +579,7 @@ class GeminiSelectionTimeoutFallbackTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertIsNone(result)
-        generate.assert_awaited_once()
+        self.assertEqual(generate.await_count, 2)
 
 class GeminiConversationTurnFallbackSchemaTests(unittest.IsolatedAsyncioTestCase):
     async def test_primary_and_fallback_receive_the_same_conversation_schema(self):
