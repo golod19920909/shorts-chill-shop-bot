@@ -344,3 +344,14 @@
 - Новые P0 retrieval/empty-selector тесты, selector snapshot tests, database tests и category-expansion tests не входят в список падений.
 - Остаточные падения относятся к старым/несогласованным контрактам catalog subcategories, AI menu/UI, Buy-button presentation, telemetry fakes и Gemini timeout/log tests. Их нужно отдельно сверить с текущим кодом и принятыми UX-решениями. Не добавлять массовые ignore и не менять защищённые «Умный поиск» / «Находки» ради устаревших ожиданий.
 - Локальный ПК и production updater не затронуты.
+
+
+### Контрольная точка CI — 15 ноября 2026
+
+- Рабочая ветка: `chore/repository-cleanup-2026-11-15`.
+- Focused offline suite: **PASS**.
+- Broad offline suite: **2,279 passed, 5 failed, 2 deselected, 1,259 subtests passed**.
+- Все пять оставшихся падений связаны с одним дефектом в `handlers/search.py::_handle_narrowing`: после отправки выбранных карточек код передаёт `reply_markup=empty_keyboard`, но эта переменная не определена.
+- Это часть защищённого пользовательского потока «Умный поиск». Исправление не внесено без отдельного разрешения пользователя. Тесты не скрыты и не помечены xfail.
+- Для завершения P0 и получения зелёного broad suite требуется отдельное разрешение на минимальное исправление клавиатуры в narrowing follow-up. Остальные проверенные P0/P1-сопутствующие исправления не фигурируют среди падений.
+- Локальный ПК, `.env`, SQLite, `main` и production updater branch не затронуты.
