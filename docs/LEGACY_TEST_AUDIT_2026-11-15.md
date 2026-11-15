@@ -25,7 +25,7 @@
 | `test_stage49_followups.py` | Тестирует `services.chat_router` и `services.conversation.resolve_request`. | Legacy follow-up suite; требует переноса сценариев на текущий engine, а не механического включения. |
 | `test_variant_b_conversation.py` | Небольшой набор тестов старого `chat_router`. | Legacy routing contract. |
 | `test_discovery_acceptance.py` | Использует текущие database, handlers, keyboards и acceptance-сценарии пользовательского UI. | **Не подтверждён как устаревший.** Нужен отдельный разбор конкретных падений и текущих UX-контрактов; не удалять. |
-| `test_gemini_telemetry.py` | Напрямую тестирует текущий `services.gemini_telemetry` и instrumentation `AIService`. | **Актуальная зона production-кода.** Не считать stale; вернуть в CI после изоляции несовпадающих ожиданий и проверки тестов. |
+| `test_gemini_telemetry.py` | Смешивает актуальные telemetry/instrumentation tests и исторический `AgentLoopTests`. | **Частично возвращён в focused CI:** пять текущих классов выполняются отдельно; старый AgentLoop-класс остаётся исключённым. |
 | `test_ai_service.py` | Большой смешанный модуль текущего `AIService`; отдельные классы уже запускаются в focused suite, весь файл исключён из broad suite. | **Смешанный модуль, не stale целиком.** Разделить по операциям/контрактам; не включать или исключать весь файл одним решением. |
 | `test_conversation.py` | Проверяет старый `services.conversation` state/merge helper. | Legacy helper contract; сверить оставшиеся call sites и перенести только действующие общие функции. |
 | `test_stage3a_merge_feature_protection.py` | Тестирует merge constraints в старом `services.conversation.resolve_request`. | Legacy merge contract; не должен подменять тесты ledger/slot provenance текущего engine. |
