@@ -5,8 +5,11 @@ import asyncio
 import unittest
 from types import SimpleNamespace
 
-from config.catalog import CATEGORIES
-from config.subcategories import get_subcategories
+from config.catalog_navigation import (
+    CATEGORIES,
+    CATEGORY_DESCRIPTIONS,
+    get_catalog_subcategories,
+)
 from keyboards.products import CB_PREFIX_CATEGORY_NEW_SEARCH, browse_card_keyboard
 from models.product import Marketplace, Product
 from keyboards.main import (
@@ -47,7 +50,7 @@ class CatalogNavigationTests(unittest.TestCase):
         self.assertIsNone(category_view_by_callback("catview:unknown"))
 
     def test_subcategory_callback_resolves_configured_topic(self):
-        sub = get_subcategories("electronics")[0]
+        sub = get_catalog_subcategories("electronics")[0]
         self.assertEqual(
             subcategory_by_callback(f"{CB_SUBCATEGORY_PREFIX}:{sub.code}"),
             sub,
@@ -62,7 +65,7 @@ class CatalogNavigationTests(unittest.TestCase):
             for button in row
         ]
         callback_data = [button.callback_data for button in buttons]
-        subcodes = {f"sub:{item.code}" for item in get_subcategories("electronics")}
+        subcodes = {f"sub:{item.code}" for item in get_catalog_subcategories("electronics")}
         self.assertTrue(subcodes.issubset(set(callback_data)))
         self.assertIn(CB_CATEGORIES, callback_data)
         self.assertIn("menu:back", callback_data)
@@ -152,7 +155,7 @@ class CatalogHandlerScreenTests(unittest.TestCase):
             for button in row
         ]
         self.assertIn("sub:smart_home", callbacks)
-        self.assertIn("Гаджеты, устройства", caption)
+        self.assertIn(CATEGORY_DESCRIPTIONS["electronics"], caption)
         self.assertEqual(query.edits, [])
 
 
