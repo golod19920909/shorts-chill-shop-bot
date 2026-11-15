@@ -477,3 +477,7 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Fixed a false-positive test in `tests/test_revision_ux.py`: a coroutine test method with no `await` was defined under `unittest.TestCase` and was never awaited. It is now a normal synchronous test so its assertions execute. Test-only change, commit `ff8b668d`; CI pending.
+
+
+- Verified CI run `43742522032` on commit `17a156fc`: production compile PASS; manual smoke syntax PASS; focused offline **517 passed, 1 deselected, 582 subtests passed**; configured broad offline **2,284 passed, 2 deselected, 1,259 subtests passed**.
+- Later test-only correction `ff8b668d` changes an un-awaited async UX test into a synchronous test; its CI verification is pending.
