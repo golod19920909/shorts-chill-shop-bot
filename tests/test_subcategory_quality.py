@@ -538,7 +538,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         self.assertIsNotNone(subcategory)
         strap = listing(
             "heart-rate-strap",
-            "CYCPLUS H2 Датчик сердечного ритма Нагрудный ремень "
+            "CYCPLUS H2 Датчик сердечного ритма, Нагрудный ремень "
             "ANT BLE Велосипедный компьютер Аксессуары для велосипеда",
         )
 
