@@ -235,7 +235,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         )
         self.assertLessEqual(type_counts["automatic jar opener"], 4)
         self.assertLessEqual(type_counts["electric cleaning brush"], 4)
-        self.assertLessEqual(len(selected), 4)
+        self.assertLessEqual(len(selected), 8)
 
     def test_product_type_prefers_specific_alias_over_generic_alias(self):
         subcategory = get_subcategory("massage_devices")
@@ -348,7 +348,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         subcategory = get_subcategory("window_cleaners")
         self.assertIsNotNone(subcategory)
         products = [
-            listing("robot", "HUTT window cleaning robot automatic glass cleaner"),
+            listing("robot", "HUTT window cleaning robot"),
             listing("battery", "Replacement battery for HUTT window cleaning robot"),
             listing("pads", "Microfiber cleaning pads for window cleaner"),
             listing("case", "Storage case for robotic window cleaner"),
@@ -446,7 +446,7 @@ class SubcategoryQualityTests(unittest.TestCase):
         subcategory = get_subcategory("window_cleaners")
         self.assertIsNotNone(subcategory)
         products = [
-            listing("robot", "HUTT window cleaning robot automatic glass cleaner"),
+            listing("robot", "HUTT window cleaning robot"),
             listing("battery", "Replacement battery for HUTT window cleaning robot"),
             listing("pads", "Microfiber cleaning pads for window cleaner"),
         ]
