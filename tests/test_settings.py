@@ -120,11 +120,11 @@ class LoadSettingsTests(unittest.TestCase):
     def test_legacy_role_variables_cannot_restore_removed_model(self) -> None:
         env = dict(CLEAN_ENV)
         env.update({
-            "GEMINI_MODEL": "gemini-3.1-flash-lite",
-            "GEMINI_SMART_MODEL": "gemini-3.1-flash-lite",
-            "GEMINI_FAST_MODEL": "gemini-3.1-flash-lite",
-            "GEMINI_VISION_MODEL": "gemini-3.1-flash-lite",
-            "GEMINI_FALLBACK_MODEL": "gemini-3.5-flash-lite",
+            "GEMINI_MODEL": "gemini-3.8-flash",
+            "GEMINI_SMART_MODEL": "gemini-3.8-flash",
+            "GEMINI_FAST_MODEL": "gemini-3.8-flash",
+            "GEMINI_VISION_MODEL": "gemini-3.8-flash",
+            "GEMINI_FALLBACK_MODEL": "gemini-3.8-flash",
         })
         with patch.dict(os.environ, env, clear=False):
             settings = load_settings()
