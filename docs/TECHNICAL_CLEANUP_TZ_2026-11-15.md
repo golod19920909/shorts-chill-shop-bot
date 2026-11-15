@@ -504,3 +504,13 @@ Commit `77be512d`, GitHub Actions run [#1948](https://github.com/golod19920909/s
 - Добавлен отсутствовавший импорт существующего helper; сам helper и условия его вызова не менялись.
 - Область: только catalog category delivery; Smart Search algorithm и «Находки» feed behavior не менялись.
 - Commit: `2c749777`. Новый CI run ожидает подтверждения.
+
+
+### CI после исправления catalog navigation helper import
+
+Commit `2c749777`, GitHub Actions run [#1950](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43743673727):
+- Production compile — PASS; manual smoke syntax — PASS.
+- Focused offline suite: **1 failed, 533 passed, 1 deselected, 584 subtests passed**.
+- Broad configured offline suite: **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**.
+- Все три адресно включённых класса из `test_discovery_acceptance.py` прошли, включая `CategoryCountryPropagationTests`; NameError устранён.
+- Единственное оставшееся падение — baseline Smart Search reason mismatch, описанный выше. Production engine и его baseline assertion не менялись.
