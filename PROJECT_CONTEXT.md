@@ -6828,3 +6828,8 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 
 - Latest scoped optimization regression workflow #157 passed on branch head `43d6ad70baae19a89ba9d92183cf072f91b3c0ee`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and benchmark CLI checks passed. No unfiltered full-suite pass or live API verification is claimed.
+
+
+- Selector replay evaluation now requires complete independent gold labels: every candidate must be eligible or rejected, every rejected row has a reason and critical flag, every eligible ID has 0–5 scores for query match/type/features/compatibility/practical appeal plus a diversity group, ranking tiers cover all eligible IDs, and evidence quotes must exist verbatim in the captured listing fields.
+- The replay runner now reports the requested weighted quality score (30/20/15/15/10 plus 10 diversity), weighted quality coverage, critical false positives and their reasons, alongside precision/recall/F1, ranking and latency/cost metrics.
+- Added docs/selector_snapshot_review_guide.md with the exact manual labeling protocol. Real captures are still required before 3.1/3.5 selector replay can run.
