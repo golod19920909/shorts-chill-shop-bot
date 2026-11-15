@@ -465,3 +465,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 - The main-menu «Умный поиск» and «✨ Находки» flows remain protected. The user authorized only the narrow fix for the undefined `empty_keyboard` in the narrowing follow-up; this is not blanket permission for further behavior changes.
 - Verified narrowing-fix CI: focused offline suite **503 passed, 1 deselected, 582 subtests passed**; configured broad offline suite **2,284 passed, 2 deselected, 1,259 subtests passed**. The broad workflow excludes a set of legacy modules; do not call it an unfiltered full-suite run.
 - CI still reports non-failing pytest-asyncio event-loop-scope and SQLite worker-thread warnings. Investigate separately and avoid mixing unrelated fixes into protected flows.
+
+
+- Repository documentation is split into a concise root guide plus preserved references: historical decision log `docs/PROJECT_CONTEXT_HISTORY_2026-11.md`, feature-specific catalog/thematic guardrails `docs/AGENT_GUARDRAILS_CATALOG_THEMATIC.md`, and preliminary CI exclusion audit `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
