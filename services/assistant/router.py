@@ -20,8 +20,13 @@ class AssistantRouter:
         if self._ai is None or not getattr(self._ai, "is_available", False):
             return None
 
+        shopping_turns = [
+            turn.text for turn in getattr(shopping_state, "turns", [])[-6:]
+            if isinstance(getattr(turn, "text", None), str)
+        ]
+        chat_turns = [turn.content for turn in chat_state.turns[-8:]]
         context = {
-            "recent_turns": [turn.content for turn in chat_state.turns[-8:]],
+            "recent_turns": (shopping_turns + chat_turns)[-10:],
             "active_slots": [slot.as_dict() for slot in shopping_state.active()],
             "shown_product_count": max(0, int(shown_product_count)),
             "last_outcome": shopping_state.last_outcome,
