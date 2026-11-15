@@ -39,6 +39,7 @@ jobs:
           tests/test_selector_replay_runner.py
           tests/test_gemini_pricing.py
           tests/test_gemini_35_tuning.py
+          tests/test_gemini_structured_operations.py
           tests/test_settings.py
           tests/test_ai_service.py::ConversationSelectionEvidenceTests
           tests/test_gemini_telemetry.py
