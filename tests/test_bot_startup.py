@@ -217,12 +217,16 @@ class CommandMenuTests(BotStartupTestCase):
             application.bot = bot
 
             await _post_init(application)
-
-            self.assertEqual(len(bot.published), 1)
-            published = bot.published[0]
-            self.assertEqual([item.command for item in published], [
-                command.command for command in BOT_COMMANDS
-            ])
+            try:
+                self.assertEqual(len(bot.published), 1)
+                published = bot.published[0]
+                self.assertEqual([item.command for item in published], [
+                    command.command for command in BOT_COMMANDS
+                ])
+            finally:
+                # _post_init installs the global Gemini telemetry writer.
+                # Drain it and detach it before this test deletes its temp DB.
+                await _post_shutdown(application)
 
         asyncio.run(run())
 
@@ -233,10 +237,12 @@ class CommandMenuTests(BotStartupTestCase):
 
             # Must not raise: the bot still has to start.
             await _post_init(application)
-
-            self.assertTrue(Path(self.db_path).exists())
-            self.assertFalse(await publish_command_menu(RecordingBot(fail=True)))
-            self.assertTrue(await publish_command_menu(RecordingBot()))
+            try:
+                self.assertTrue(Path(self.db_path).exists())
+                self.assertFalse(await publish_command_menu(RecordingBot(fail=True)))
+                self.assertTrue(await publish_command_menu(RecordingBot()))
+            finally:
+                await _post_shutdown(application)
 
         asyncio.run(run())
 
