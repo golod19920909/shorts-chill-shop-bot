@@ -670,7 +670,7 @@ async def run_benchmark(
                     "qwen": _qwen_output_mode(p.model, "conversation_turn"),
                 }[p.provider],
                 "chat_action": {
-                    "google": "prompt_json_only",
+                    "google": "strict_json_schema",
                     "openai": "strict_json_schema",
                     "anthropic": "json_schema",
                     "deepseek": "json_object",
@@ -689,6 +689,17 @@ async def run_benchmark(
                 "google": None,
                 "openai": None,
                 "anthropic": 2048,
+                "deepseek": None,
+                "qwen": None,
+            }[p.provider],
+            "output_token_limits": {
+                "google": {
+                    "conversation_turn": 512,
+                    "chat_action": 128,
+                    "no_results_reply": 256,
+                },
+                "openai": None,
+                "anthropic": {"default": 2048},
                 "deepseek": None,
                 "qwen": None,
             }[p.provider],
