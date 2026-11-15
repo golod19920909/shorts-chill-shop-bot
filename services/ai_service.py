@@ -918,6 +918,122 @@ CONVERSATION_TURN_SCHEMA = {
 }
 
 
+CHAT_ACTION_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "action": {"type": "STRING", "enum": ["search", "clarify"]},
+        "question": {"type": "STRING", "nullable": True},
+    },
+    "required": ["action", "question"],
+    "additionalProperties": False,
+}
+
+PRODUCT_ADVICE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "observations": {
+            "type": "ARRAY",
+            "items": {"type": "STRING"},
+            "maxItems": 3,
+        },
+        "recommendation": {"type": "STRING", "nullable": True},
+    },
+    "required": ["observations", "recommendation"],
+    "additionalProperties": False,
+}
+
+COMPARISON_EVIDENCE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "differences": {
+            "type": "ARRAY",
+            "maxItems": 4,
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "aspect": {
+                        "type": "STRING",
+                        "enum": [
+                            "compatibility", "layout", "material", "size",
+                            "package", "power", "other",
+                        ],
+                    },
+                    "first": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "product_id": {"type": "STRING"},
+                            "field": {"type": "STRING", "enum": ["title", "description"]},
+                            "quote": {"type": "STRING"},
+                        },
+                        "required": ["product_id", "field", "quote"],
+                        "additionalProperties": False,
+                    },
+                    "second": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "product_id": {"type": "STRING"},
+                            "field": {"type": "STRING", "enum": ["title", "description"]},
+                            "quote": {"type": "STRING"},
+                        },
+                        "required": ["product_id", "field", "quote"],
+                        "additionalProperties": False,
+                    },
+                },
+                "required": ["aspect", "first", "second"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["differences"],
+    "additionalProperties": False,
+}
+
+PRODUCT_QUESTION_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "claims": {
+            "type": "ARRAY",
+            "maxItems": 8,
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "product_id": {"type": "STRING"},
+                    "field": {"type": "STRING", "enum": ["title", "description"]},
+                    "quote": {"type": "STRING"},
+                },
+                "required": ["product_id", "field", "quote"],
+                "additionalProperties": False,
+            },
+        },
+        "recommendation": {
+            "type": "OBJECT",
+            "nullable": True,
+            "properties": {
+                "product_id": {"type": "STRING", "nullable": True},
+                "evidence": {
+                    "type": "ARRAY",
+                    "maxItems": 3,
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "field": {"type": "STRING", "enum": ["title", "description"]},
+                            "quote": {"type": "STRING"},
+                        },
+                        "required": ["field", "quote"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["product_id", "evidence"],
+            "additionalProperties": False,
+        },
+        "clarification": {"type": "STRING", "nullable": True},
+    },
+    "required": ["claims", "recommendation", "clarification"],
+    "additionalProperties": False,
+}
+
+
 CONVERSATION_TURN_PROMPT = """Ты — управляющий диалогом консультанта магазина. Проанализируй НОВОЕ сообщение вместе с контекстом предыдущих сообщений и активных ограничений.
 
 Поле recent_dialogue содержит последние реплики ОБЕИХ сторон с role=user/assistant.
@@ -1655,6 +1771,7 @@ class AIService:
             ),
             models=(self.smart_model,),
             operation="product_advice",
+            response_schema=PRODUCT_ADVICE_SCHEMA,
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -2513,6 +2630,7 @@ seller_terms: {seller_terms_json}
                     ),
                     models=(self.smart_model,),
                     operation="product_comparison_evidence",
+                    response_schema=COMPARISON_EVIDENCE_SCHEMA,
                 )
         except TimeoutError:
             logger.info("Gemini product-comparison evidence timed out; using factual fallback")
@@ -2611,6 +2729,7 @@ seller_terms: {seller_terms_json}
                     ),
                     models=(self.smart_model,),
                     operation="product_question_answer",
+                    response_schema=PRODUCT_QUESTION_SCHEMA,
                 )
         except TimeoutError:
             logger.info("Gemini product-question answer timed out; using safe fallback")
@@ -3048,6 +3167,7 @@ seller_terms: {seller_terms_json}
             CHAT_ACTION_PROMPT.format(message=user_text.strip()[:300]),
             models=(self.fast_model,),
             operation="chat_action",
+            response_schema=CHAT_ACTION_SCHEMA,
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -3153,10 +3273,21 @@ seller_terms: {seller_terms_json}
                             "response_schema": response_schema,
                             "max_output_tokens": 4096,
                         })
-                    elif operation == "chat_action":
+                    elif response_schema is not None:
+                        generation_config.update({
+                            "response_mime_type": "application/json",
+                            "response_schema": response_schema,
+                        })
+                    if operation == "chat_action":
                         generation_config["max_output_tokens"] = 128
                     elif operation == "no_results_reply":
                         generation_config["max_output_tokens"] = 256
+                    elif operation == "product_advice":
+                        generation_config["max_output_tokens"] = 512
+                    elif operation == "product_comparison_evidence":
+                        generation_config["max_output_tokens"] = 1024
+                    elif operation == "product_question_answer":
+                        generation_config["max_output_tokens"] = 2048
                     if thinking_level:
                         level = str(thinking_level).strip().lower()
                         if level in {"minimal", "low", "medium", "high"}:
