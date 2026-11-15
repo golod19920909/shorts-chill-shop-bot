@@ -426,3 +426,12 @@
 - Отдельная компиляция ручных live smoke scripts сохранена.
 - Это syntax check, не import smoke и не доказательство runtime-корректности; сетевые smoke scripts по-прежнему не запускаются в CI.
 - Commit: `1c7c6a74`. Результат CI для этого нового workflow commit ожидает подтверждения; предыдущий PASS не переносится автоматически.
+
+
+### P1/P2 — адресное возвращение актуальных Gemini telemetry tests в CI
+
+- `tests/test_gemini_telemetry.py` не включён целиком в broad suite, поскольку содержит исторический `AgentLoopTests`, но основная часть файла проверяет текущую телеметрию Gemini и instrumentation `AIService`.
+- Пять актуальных классов добавлены в focused offline CI: `ExtractUsageTests`, `TurnScopeTests`, `_GenerateInstrumentationTests`, `ConcurrencyTests`, `PersistenceTests`.
+- Старый `AgentLoopTests` оставлен за пределами этого targeted run; production agent loop не возвращается в архитектуру.
+- Broad-suite ignore пока сохранён, чтобы не запускать исторический класс и не выдавать весь файл за полностью мигрированный.
+- Commit workflow: `2964c1b0`. Результат нового CI запуска ожидает подтверждения.
