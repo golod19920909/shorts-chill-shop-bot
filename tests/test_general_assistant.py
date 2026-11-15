@@ -65,7 +65,7 @@ class AssistantRouterTests(unittest.TestCase):
             )
         )
         self.assertEqual(result["action"], "general_chat")
-        self.assertEqual(ai.context["recent_turns"], ["Почему батареи стареют?"])
+        self.assertEqual(ai.context["recent_turns"], ["Пользователь (чат): Почему батареи стареют?"])
         self.assertEqual(ai.context["active_slots"][0]["value"], "ноутбук")
         self.assertEqual(ai.context["shown_product_count"], 3)
 
