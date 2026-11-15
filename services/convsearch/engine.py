@@ -239,6 +239,8 @@ class ConversationSearchEngine:
         result_limit: int | None = None,
         currency: str | None = None,
         state: ConversationEngineState | None = None,
+        validated_ai_turn: dict | None = None,
+        interpret_turn: bool = True,
     ) -> SearchDecision:
         """ONE user message → ONE ``SearchDecision``. The whole search flow.
 
@@ -256,10 +258,11 @@ class ConversationSearchEngine:
         # deterministic slot ledger, AliExpress retrieval, validation, or
         # ranking. If the model is unavailable, malformed, or uncertain, the
         # state machine keeps its deterministic classification.
-        ai_turn = None
+        ai_turn = validated_ai_turn
         ai = self._ai_service
         interpreter = getattr(ai, "decide_conversation_turn", None) if ai is not None else None
-        if callable(interpreter):
+        if interpret_turn and callable(interpreter):
+            ai_turn = None
             context_payload = {
                 "recent_turns": [turn.text for turn in state.turns[-6:]],
                 "active_slots": [slot.as_dict() for slot in state.active()],
