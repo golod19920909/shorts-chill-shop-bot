@@ -191,22 +191,23 @@ class TrackedListKeyboardBudgetTests(unittest.TestCase):
 
 
 class CardKeyboardBudgetTests(unittest.TestCase):
-    def test_buy_is_kept_and_share_is_dropped_first(self) -> None:
+    def test_buy_callback_survives_when_share_url_exceeds_budget(self) -> None:
         product = make_product("1", long_url("card", length=7000))
         markup = browse_card_keyboard("s", 0, 3, product)
         urls = counted_urls(markup)
+        callbacks = callback_datas(markup)
         self.assertLessEqual(url_budget_sum(markup), LONG_URL_BUDGET)
-        # The buy link (the product itself) survives; the share link is the
-        # one dropped when the budget is tight.
-        self.assertEqual(len(urls), 1)
-        self.assertEqual(urls[0], product.affiliate_url)
-        # Navigation and home are callback buttons - never budgeted.
-        self.assertIn(CB_BACK, callback_datas(markup))
+        # Buy is a short callback bound to this card; only the share URL
+        # competes for Telegram's URL budget and may be dropped.
+        self.assertIn(f"{CB_PREFIX_BUY}:s:0", callbacks)
+        self.assertEqual(urls, [])
+        self.assertIn(CB_BACK, callbacks)
 
-    def test_normal_card_keeps_both_links(self) -> None:
+    def test_normal_card_keeps_buy_callback_and_share_url(self) -> None:
         product = make_product("1", long_url("card", length=1011))
         markup = browse_card_keyboard("s", 1, 3, product)
-        self.assertEqual(len(counted_urls(markup)), 2)
+        self.assertIn(f"{CB_PREFIX_BUY}:s:1", callback_datas(markup))
+        self.assertEqual(len(counted_urls(markup)), 1)
 
 
 class FakeMessage:
