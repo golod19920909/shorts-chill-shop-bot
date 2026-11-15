@@ -54,7 +54,7 @@ Conversation interpretation and candidate selection already use JSON response sc
 | `chat_action` | 128 tokens |
 | `no_results_reply` | 256 tokens |
 
-The limits are deliberately conservative but large enough for the documented response contracts; regression tests cover the SDK request config. No `temperature`, `top_p`, or `top_k` overrides are added. Google's Gemini 3.5 guidance recommends controlling reasoning through `thinking_level` and avoiding legacy sampling overrides unless a measured need exists.
+The limits are deliberately conservative but large enough for the documented response contracts; regression tests cover the SDK request config. The active Option C structured operations now include turn interpretation, candidate selection, short chat-action classification, product advice, paired comparison evidence and product-question evidence. Legacy parser/feed/catalog selectors remain unchanged under the protected-path scope. No `temperature`, `top_p`, or `top_k` overrides are added. Google's Gemini 3.5 guidance recommends controlling reasoning through `thinking_level` and avoiding legacy sampling overrides unless a measured need exists.
 
 ## 3. Thinking policy and model decision
 
@@ -76,7 +76,8 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 - The selector's dynamic JSON schema caps `selections` at the requested limit, disallows unexpected root/item/evidence properties, and describes the evidence fields. Python still verifies every returned ID and exact quote.
 - Updated offline tests for request configuration, stable prompt ordering, strict selector schema shape/maximum item count, selector counter attribution, cached-token persistence, and benchmark/production output-cap parity.
 - Updated `AGENTS.md` and `PROJECT_CONTEXT.md`.
-- GitHub Actions optimization regression workflow #129 passed on code head `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. This is the scoped optimization workflow, not an unfiltered full-repository test run.
+- GitHub Actions optimization regression workflow #129 passed on code head `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**.
+- Added strict response schemas for active Option C product advice, paired comparison evidence, product-question evidence and short chat-action classification, with per-operation output caps. GitHub Actions run #145 passed on code head `f384c070c8b6338d2d5b324902d9a7ae49db218d`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. These are scoped optimization regressions, not an unfiltered full-repository test run.
 
 ## 5. Google capability audit
 
@@ -98,7 +99,33 @@ Official references:
 - [Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing)
 - [Google Gen AI Python SDK](https://googleapis.github.io/python-genai/)
 
-## 6. Remaining acceptance work
+## 6. Cost model from the available live trace
+
+The user's 2026-11-15 live search trace reported the following estimated Gemini 3.5 costs (Standard paid-tier rate table in `services/gemini_pricing.py`, input $0.30 / 1M tokens and output $2.50 / 1M tokens):
+
+| Operation | Estimated cost |
+|---|---:|
+| `conversation_turn` | $0.00086360 |
+| First `conversation_selection` | $0.00393790 |
+| Continuation `conversation_selection` | $0.00375910 |
+| **Total for this search attempt** | **$0.00856060** |
+
+This trace used 26,927 input tokens and 193 candidate-output tokens across three requests. Cached-token usage was not visible in the old log. The search returned one card, so this is a cost-per-attempt observation, **not** a validated cost-per-successful-20-card search and not a representative average.
+
+For scale only, assuming 30 searches per user per month and every search costing as much as this one trace:
+
+| Active users | Searches / month | Gemini estimate / month |
+|---:|---:|---:|
+| 20 | 600 | $5.14 |
+| 50 | 1,500 | $12.84 |
+| 100 | 3,000 | $25.68 |
+| 500 | 15,000 | $128.41 |
+
+These are scenario estimates, not invoices; they exclude AliExpress API, hosting, Telegram and all other infrastructure. Actual cost must be recomputed from the new cached-token telemetry and a larger sample of successful/empty/clarification sessions.
+
+The earlier blind language-operation A/B report estimated $0.1863 for 312 requests on 3.5 versus $0.1403 for 312 requests on 3.1 (about 33% more for 3.5). That corpus did not include product selection and must not be used as a full-search cost comparison.
+
+## 7. Remaining acceptance work
 
 1. Run the scoped GitHub Actions optimization regression workflow on the latest feature-branch commit. Report the exact run and result; do not describe the filtered workflow as a full-suite pass.
 2. Capture real selector inputs from AliExpress using the existing opt-in `SHORTS_CHILL_SELECTOR_CAPTURE=1` mechanism. These raw captures are not gold-labeled and must not be used as quality truth until independently reviewed.
