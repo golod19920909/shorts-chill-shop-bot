@@ -875,7 +875,7 @@ CONVERSATION_TURN_SCHEMA = {
                 "compare", "clarify", "respond",
             ],
         },
-        "confidence": {"type": "NUMBER"},
+        "confidence": {"type": "NUMBER", "minimum": 0, "maximum": 1},
         "product_type": {"type": "STRING", "nullable": True},
         "marketplace_terms": {
             "type": "ARRAY",
@@ -904,6 +904,7 @@ CONVERSATION_TURN_SCHEMA = {
                 },
                 "required": ["operation", "kind", "target", "value"],
                 "propertyOrdering": ["operation", "kind", "target", "value"],
+                "additionalProperties": False,
             },
         },
     },
@@ -915,6 +916,7 @@ CONVERSATION_TURN_SCHEMA = {
         "action", "confidence", "product_type", "marketplace_terms",
         "question", "response", "slot_updates",
     ],
+    "additionalProperties": False,
 }
 
 
