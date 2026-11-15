@@ -529,3 +529,15 @@ Commit `2c749777`, GitHub Actions run [#1950](https://github.com/golod19920909/s
 - После удаления test temp directory следующий тест мог пытаться записать telemetry в уже несуществующий файл; это порождало `sqlite3.OperationalError: unable to open database file` и `RuntimeError: Event loop is closed`.
 - Оба теста теперь вызывают `_post_shutdown` в `finally`: ожидаются pending telemetry writes, writer отключается, provider clients закрываются до удаления temp directory.
 - Изменены только тестовые lifecycle cleanup hooks, production-код не менялся. Commit: `3a134e21`. CI ожидает подтверждения, что SQLite worker warnings исчезли или сократились.
+
+
+### CI после test lifecycle cleanup — SQLite warnings устранены
+
+Commit `3a134e21`, GitHub Actions run [#1975](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43744173805):
+- Production compile — PASS; manual smoke syntax — PASS.
+- Focused suite: **1 failed, 533 passed, 1 deselected, 584 subtests passed**.
+- Broad configured suite: **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**.
+- `PytestUnhandledThreadExceptionWarning` / `sqlite3.OperationalError: unable to open database file` / `RuntimeError: Event loop is closed` — **0 occurrences** in this run.
+- pytest-asyncio implicit fixture loop scope warning — **0 occurrences**.
+- Единственное предупреждение — upstream Google GenAI SDK `_UnionGenericAlias` deprecation.
+- Единственное падение остаётся baseline Smart Search reason mismatch; тест и engine не изменялись.
