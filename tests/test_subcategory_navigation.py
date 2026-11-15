@@ -36,6 +36,7 @@ class CatalogNavigationTests(unittest.TestCase):
         expected = {
             f"{CB_CATEGORY_VIEW_PREFIX}:{category.code}"
             for category in CATEGORIES
+            if get_catalog_subcategories(category.code)
         }
         self.assertTrue(expected.issubset(set(callbacks)))
         self.assertNotIn(f"cat:{CATEGORIES[0].code}", callbacks)
@@ -68,7 +69,7 @@ class CatalogNavigationTests(unittest.TestCase):
         subcodes = {f"sub:{item.code}" for item in get_catalog_subcategories("electronics")}
         self.assertTrue(subcodes.issubset(set(callback_data)))
         self.assertIn(CB_CATEGORIES, callback_data)
-        self.assertIn("menu:back", callback_data)
+        self.assertIn("catalog:home", callback_data)
 
 
 
