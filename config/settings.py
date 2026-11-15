@@ -107,6 +107,7 @@ class Settings:
     gemini_smart_model: str = "gemini-3.5-flash-lite"
     gemini_vision_model: str = "gemini-3.5-flash-lite"
     gemini_fallback_model: str = "gemini-3.1-flash-lite"
+    gemini_conversation_selection_thinking_level: str = "low"
 
     @property
     def gemini_model(self) -> str:
@@ -224,6 +225,18 @@ def _get_int(
     return value
 
 
+def _get_choice(name: str, default: str, allowed: set[str]) -> str:
+    """Read a case-insensitive enum setting with a safe documented default."""
+    raw = _get(name)
+    if raw is None:
+        return default
+    value = raw.lower()
+    if value not in allowed:
+        logger.warning("%s=%r is invalid; using %s", name, raw, default)
+        return default
+    return value
+
+
 def load_settings() -> Settings:
     """Read all configuration from environment variables.
 
@@ -281,6 +294,11 @@ def load_settings() -> Settings:
         ),
         gemini_fallback_model=(
             _get("GEMINI_RESERVE_MODEL") or "gemini-3.1-flash-lite"
+        ),
+        gemini_conversation_selection_thinking_level=_get_choice(
+            "GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL",
+            "low",
+            {"minimal", "low", "medium", "high"},
         ),
     )
 
