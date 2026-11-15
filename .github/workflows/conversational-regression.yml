@@ -57,6 +57,7 @@ jobs:
           tests/test_intent_circuit_recovery.py
           -k "not test_text_query_is_parsed_and_searched"
       - name: Run repository suite excluding stale legacy modules
+        if: always()
         run: >
           python -m pytest -q tests/
           --ignore=tests/test_agent_service.py
