@@ -494,3 +494,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Added `pytest.ini` with explicit `asyncio_default_fixture_loop_scope = function`. CI run `43743967660` confirms the pytest-asyncio implicit-loop-scope deprecation warning is gone; SQLite worker-thread and Google GenAI SDK warnings remain for separate investigation. Test counts unchanged: focused **533 passed + 1 baseline failure**; broad configured **2,282 passed + 1 baseline failure**.
+
+
+- Test lifecycle cleanup: two `tests/test_bot_startup.py` cases called `_post_init` (installing global Gemini telemetry persistence to a temp SQLite file) but omitted `_post_shutdown`. They now drain writes and detach the writer in `finally` before temp DB deletion. Test-only commit `3a134e21`; CI pending.
