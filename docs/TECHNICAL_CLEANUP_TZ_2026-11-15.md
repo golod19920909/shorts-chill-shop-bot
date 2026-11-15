@@ -480,3 +480,10 @@ Commit `77be512d`, GitHub Actions run [#1948](https://github.com/golod19920909/s
 - Единственное падение — baseline test `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`: ожидание `unverified_required_features`, фактическая причина исходной реализации `rejected_by_type_gate`.
 - Это тест защищённого Smart Search, восстановленный вместе с engine из baseline. Алгоритм или assertion не изменялись для искусственного получения зелёного CI. Требуется отдельное разрешение, если владелец хочет разбирать и менять этот контракт.
 - Остальные тесты broad suite проходят. Ошибок компиляции нет.
+
+
+### README — устранено устаревшее утверждение о количестве тестов
+
+- Удалено утверждение «557 тестов, все проходят», которое больше не соответствовало реальному составу и результатам CI.
+- README теперь указывает подтверждённые focused/broad цифры, факт явных исключений из broad suite и единственное известное baseline failure.
+- Обновление документации, без runtime-изменений. Commit README: `99ee89b9`.
