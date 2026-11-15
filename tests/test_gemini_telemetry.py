@@ -287,6 +287,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
                     candidates_token_count=100,
                     thoughts_token_count=20,
                     total_token_count=1_120,
+                    cached_content_token_count=5,
                 ),
             )
         await gemini_telemetry.flush_pending_attempts()
@@ -295,7 +296,7 @@ class PersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(written[0]["attempt_id"], attempt.attempt_id)
         self.assertEqual(written[0]["request_id"], usage.request_id)
         self.assertEqual(written[0]["cost_status"], "estimated")
-        self.assertAlmostEqual(written[0]["cost_usd"], 0.00043)
+        self.assertAlmostEqual(written[0]["cost_usd"], 0.000428875)
         self.assertEqual(written[0]["cached_content_token_count"], 5)
 
     async def test_failed_attempt_is_persisted_with_unknown_cost(self):
