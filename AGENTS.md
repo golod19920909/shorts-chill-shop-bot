@@ -39,6 +39,10 @@ Guidance for AI agents and maintainers working in this repository.
    bypass the positive title-identity gate or add per-product Gemini calls.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
+9. **Protect existing user-facing sections.** Do not change, move, rename,
+   reroute, or alter the behavior of the main-menu «Умный поиск» and
+   «✨ Находки» flows as a side effect of repository cleanup or work on other
+   features. A change to either requires the user's separate explicit approval.
 
 ## Test commands
 
