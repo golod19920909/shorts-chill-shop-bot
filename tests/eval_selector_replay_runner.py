@@ -276,7 +276,12 @@ def _percentile(values: list[float], fraction: float) -> float | None:
     return round(ordered[index], 1)
 
 
-def _build_services(api_key: str, models: dict[str, str], timeout_seconds: float):
+def _build_services(
+    api_key: str,
+    models: dict[str, str],
+    thinking_levels: dict[str, str],
+    timeout_seconds: float,
+):
     services = {}
     for alias, model in models.items():
         services[alias] = AIService(
@@ -285,6 +290,7 @@ def _build_services(api_key: str, models: dict[str, str], timeout_seconds: float
             fast_model=model,
             fallback_model=model,  # same ID: no fallback/retry masks this model's result
             timeout_seconds=timeout_seconds,
+            conversation_selection_thinking_level=thinking_levels[alias],
         )
     return services
 
@@ -294,6 +300,7 @@ async def run_replay(
     *,
     api_key: str,
     models: dict[str, str],
+    thinking_levels: dict[str, str],
     repeat: int,
     timeout_seconds: float,
     seed: int,
@@ -307,7 +314,11 @@ async def run_replay(
     alias_map = {
         "seed": seed,
         "models": {
-            alias: {"model": models[alias], "provider": "google"}
+            alias: {
+                "model": models[alias],
+                "provider": "google",
+                "thinking_level": thinking_levels[alias],
+            }
             for alias in alias_order
         },
         "snapshot_hashes": {
@@ -316,7 +327,7 @@ async def run_replay(
         },
     }
 
-    services = _build_services(api_key, models, timeout_seconds)
+    services = _build_services(api_key, models, thinking_levels, timeout_seconds)
     rows: list[dict[str, Any]] = []
     performance_rows: list[dict[str, Any]] = []
     active_attempts: list[dict[str, Any]] = []
@@ -495,6 +506,7 @@ async def run_replay(
             "snapshot_count": len(snapshots),
             "repeat": repeat,
             "timeout_seconds": timeout_seconds,
+            "thinking_levels": sorted(set(thinking_levels.values())),
             "fallbacks": 0,
             "retries": 0,
             "candidate_payload_hashes": alias_map["snapshot_hashes"],
@@ -521,6 +533,10 @@ def main() -> None:
     parser.add_argument("--timeout-seconds", type=float, default=8.0)
     parser.add_argument("--max-cases", type=int, default=0)
     parser.add_argument("--seed", type=int, default=20261114)
+    parser.add_argument(
+        "--thinking-levels", default="minimal,low,medium",
+        help="Comma-separated Gemini thinking levels to compare for both models",
+    )
     args = parser.parse_args()
     if not 1 <= args.repeat <= 5:
         parser.error("--repeat must be between 1 and 5")
@@ -534,11 +550,28 @@ def main() -> None:
     model_35 = os.getenv("EVAL_GEMINI_LITE_MODEL", "gemini-3.5-flash-lite")
     if model_31 == model_35:
         parser.error("EVAL_GEMINI_MODEL and EVAL_GEMINI_LITE_MODEL must be different")
+    thinking_levels_requested = [
+        item.strip().lower() for item in args.thinking_levels.split(",") if item.strip()
+    ]
+    allowed_levels = {"minimal", "low", "medium", "high"}
+    if not thinking_levels_requested or any(
+        level not in allowed_levels for level in thinking_levels_requested
+    ):
+        parser.error("--thinking-levels must contain minimal, low, medium, and/or high")
+    thinking_levels_requested = list(dict.fromkeys(thinking_levels_requested))
     snapshots = load_snapshots(Path(args.snapshots_dir), max_cases=args.max_cases)
+    models: dict[str, str] = {}
+    thinking_levels: dict[str, str] = {}
+    for model_alias, model in (("A_31", model_31), ("B_35", model_35)):
+        for level in thinking_levels_requested:
+            alias = f"{model_alias}_{level}"
+            models[alias] = model
+            thinking_levels[alias] = level
     asyncio.run(run_replay(
         snapshots,
         api_key=api_key,
-        models={"A": model_31, "B": model_35},
+        models=models,
+        thinking_levels=thinking_levels,
         repeat=args.repeat,
         timeout_seconds=args.timeout_seconds,
         seed=args.seed,
