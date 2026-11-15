@@ -908,11 +908,13 @@ class ConversationSearchEngine:
         decision.report["final_cards_count"] = len(decision.products)
         logger.info(
             "convsearch semantic selection metrics input=%d requested=%d "
-            "returned=%d validated=%d final_cards=%d duration_ms=%.0f "
-            "budget_s=%.1f status=%s",
+            "returned=%d first_pass=%d second_pass=%d validated=%d "
+            "final_cards=%d duration_ms=%.0f budget_s=%.1f status=%s",
             decision.report.get("selection_input_count", 0),
             decision.report.get("selection_requested_count", 0),
             decision.report.get("selection_returned_count", 0),
+            decision.report.get("selection_first_pass_returned_count", 0),
+            decision.report.get("selection_second_pass_returned_count", 0),
             decision.report.get("selection_validated_count", 0),
             len(decision.products),
             selection_duration_ms,
