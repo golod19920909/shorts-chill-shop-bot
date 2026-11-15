@@ -50,6 +50,20 @@ from utils.formatting import CAPTION_LIMIT
 from services.convsearch.contract import Outcome as ConvOutcome
 from services.convsearch.engine import ConversationSearchEngine
 from services.convsearch.state import ConversationEngineState, MessageIntent
+from services.assistant.router import AssistantRouter
+from services.assistant.state import ChatConversationState
+
+GENERAL_CHAT_STATE_KEY = "_general_chat_state"
+
+
+def get_general_chat_state(context: ContextTypes.DEFAULT_TYPE) -> ChatConversationState:
+    """Return this user independent, expiring general-chat history."""
+    state = context.user_data.get(GENERAL_CHAT_STATE_KEY)
+    if not isinstance(state, ChatConversationState) or state.is_expired():
+        state = ChatConversationState()
+        context.user_data[GENERAL_CHAT_STATE_KEY] = state
+    return state
+
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +225,12 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     # The conversational-search ledger is dropped; the shown-session cache
     # and the pending clarification follow.
     context.user_data.pop("_convsearch_state", None)
-    for key in (CONVERSATION_KEY, PENDING_CLARIFY_KEY, "last_shown_session"):
+    for key in (
+        CONVERSATION_KEY,
+        PENDING_CLARIFY_KEY,
+        "last_shown_session",
+        GENERAL_CHAT_STATE_KEY,
+    ):
         context.user_data.pop(key, None)
 
 #: How long a pending clarifying question stays answerable (mirrors the
@@ -592,33 +611,71 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             _turn_done("cache")
             return
 
-    # Read from the message the USER sent, before any routing rewrote it.
-    original_count = extract_requested_result_count(original_text)
-
-    # THE ENGINE TURN — the one search decision-maker. The engine builds
-    # the retrieval strategy from the conversation ledger, retrieves through
-    # the explicit AliExpress adapter, validates every candidate against
-    # the product type and the active constraints, ranks the eligible pool
-    # and returns one ``SearchDecision``. There is NO fallback to a legacy
-    # pipeline: a provider error stays a provider error, and an engine
-    # failure surfaces honestly. The count-only / currency-only follow-ups
-    # below still answer from the SHOWN cache — they touch no search
-    # decision, so they stay.
+    # The general assistant and shopping search share one text entry point,
+    # but keep independent histories. A pending shopping clarification is
+    # authoritative and must never be reinterpreted as ordinary chat.
     engine = get_conversation_engine()
     engine.bind_search_service(common.get_search_service(context))
-    engine.bind_ai_service(common.get_ai_service(context))
-    user_id = await common.register_user(update, context)
-    telegram_id = update.effective_user.id if update.effective_user else None
-    region = await common.get_user_region(context, user_id)
-    user_key = str(telegram_id or user_id or "anon")
+    ai_service = common.get_ai_service(context)
+    engine.bind_ai_service(ai_service)
 
-    # The per-user conversation ledger lives in the bot's EXISTING
-    # ``context.user_data`` store (per-user isolation and expiry follow
-    # the architecture the bot already trusts) — no parallel state store.
+    telegram_id = update.effective_user.id if update.effective_user else None
+    user_key = str(telegram_id or "anon")
     conv_state = context.user_data.get("_convsearch_state")
     if not isinstance(conv_state, ConversationEngineState):
         conv_state = ConversationEngineState(user_key=user_key)
     conv_state.touch()
+
+    validated_ai_turn = None
+    if pending is None and ai_service is not None:
+        chat_state = get_general_chat_state(context)
+        shown_session = _last_shown_session(context)
+        shown_outcome = (
+            common.get_cached_outcome(context, shown_session)
+            if shown_session is not None else None
+        )
+        try:
+            validated_ai_turn = await AssistantRouter(ai_service).classify(
+                text,
+                chat_state=chat_state,
+                shopping_state=conv_state,
+                shown_product_count=(
+                    len(shown_outcome.products)
+                    if shown_outcome is not None else 0
+                ),
+            )
+        except Exception:
+            logger.info("Assistant routing failed; using deterministic shopping intent")
+
+        if (
+            isinstance(validated_ai_turn, dict)
+            and validated_ai_turn.get("action") == "general_chat"
+        ):
+            chat_state.add("user", text)
+            answer = await ai_service.answer_general(chat_state.as_prompt_history())
+            if answer:
+                chat_state.add("assistant", answer)
+                context.user_data[GENERAL_CHAT_STATE_KEY] = chat_state
+                await message.reply_text(
+                    answer[:3800], reply_markup=back_to_menu_keyboard()
+                )
+                _turn_done("general-chat")
+                return
+
+            await message.reply_text(
+                "Сейчас не могу ответить из-за временной недоступности ИИ. "
+                "Попробуйте ещё раз немного позже.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+            _turn_done("general-chat-unavailable")
+            return
+
+    # Read from the message the USER sent, before any routing rewrote it.
+    original_count = extract_requested_result_count(original_text)
+
+    # The route has already been classified; reuse the same validated turn.
+    user_id = await common.register_user(update, context)
+    region = await common.get_user_region(context, user_id)
 
     await common.record_event(
         context,
@@ -639,6 +696,8 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             result_limit=original_count,
             currency=region.get("currency"),
             state=conv_state,
+            validated_ai_turn=validated_ai_turn,
+            interpret_turn=(pending is not None),
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")
