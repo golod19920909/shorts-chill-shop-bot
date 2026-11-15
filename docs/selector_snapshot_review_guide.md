@@ -101,3 +101,6 @@ The replay reports, separately:
 - latency, token usage and estimated cost.
 
 A high weighted quality score cannot hide low recall or critical errors. The model comparison must consider all metrics and the critical-error list together.
+
+
+The selector replay is not a full AliExpress search. Its cost report therefore distinguishes the cost of any schema-accepted decision (including a valid empty/no-match decision) from the cost of a non-empty selection with no critical false positives and complete gold evidence. Do not call either metric full-search cost; use production turn telemetry for that.
