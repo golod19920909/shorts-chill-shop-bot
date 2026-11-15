@@ -27,6 +27,7 @@ from keyboards.limits import (
 )
 from keyboards.main import CB_BACK
 from keyboards.products import (
+    CB_PREFIX_BUY,
     CB_PREFIX_FAVORITE_REMOVE,
     browse_card_keyboard,
     favorites_list_keyboard,
