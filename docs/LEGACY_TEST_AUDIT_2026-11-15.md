@@ -60,3 +60,10 @@
 ### Test hygiene follow-up
 
 The broad-suite log showed that `BuyCallbackTests.test_products_without_affiliate_url_have_no_buy_button` had been declared async without any await under `unittest.TestCase`, so unittest did not await it and its assertions were not actually executed. It is now synchronous. This is test-only; CI run [#1945](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43742653098) for commit `ff8b668d` passed, and the warning disappeared from the broad suite.
+
+
+## Protected Smart Search baseline test observation
+
+- `services/convsearch/engine.py` and `tests/test_convsearch_engine.py` were restored byte-for-byte to baseline `3822fc95` after identifying earlier unapproved algorithm changes.
+- The baseline focused and broad CI runs now expose one existing assertion mismatch in `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`: expected `unverified_required_features`, actual `rejected_by_type_gate`.
+- The production algorithm and assertion are intentionally left unchanged. This test is not a legacy exclusion and has not been xfailed or ignored. Any investigation that changes Smart Search semantics requires separate explicit user approval.
