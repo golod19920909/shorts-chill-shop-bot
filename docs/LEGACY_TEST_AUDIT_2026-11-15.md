@@ -55,3 +55,8 @@
 ### Follow-up после targeted CI
 
 `test_gemini_telemetry.py` теперь частично запускается в focused CI. Первый запуск выявил устаревшее ожидание в timeout test: реализация делает один reserve retry, поэтому записывает две попытки. Ожидание исправлено на две попытки (primary + reserve); production-код не менялся. Проверка исправления ожидает повторного CI.
+
+
+### Test hygiene follow-up
+
+The broad-suite log showed that `BuyCallbackTests.test_products_without_affiliate_url_have_no_buy_button` had been declared async without any await under `unittest.TestCase`, so unittest did not await it and its assertions were not actually executed. It is now synchronous. This is test-only; CI run for commit `ff8b668d` is pending.
