@@ -70,6 +70,37 @@ def test_capture_writes_exact_selector_fields_without_urls_or_user_ids(tmp_path,
     assert "affiliate_url" not in snapshot["candidates"][0]
     assert "telegram_user_id" not in snapshot["candidates"][0]
 
+def test_capture_redacts_urls_from_query_and_candidate_text(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHORTS_CHILL_SELECTOR_CAPTURE", "1")
+    monkeypatch.setenv("SHORTS_CHILL_SELECTOR_CAPTURE_DIR", str(tmp_path))
+
+    path = AIService._write_selector_capture(
+        candidate_payloads=[
+            {
+                "id": "product-2",
+                "title": "USB-C power bank https://seller.example/item",
+                "description": "Details at www.seller.example/product",
+                "category_path": ["Power Banks", "https://example.invalid/category"],
+            }
+        ],
+        query="павербанк https://example.invalid/search",
+        wanted=20,
+        required_features=["USB-C https://example.invalid/spec"],
+        identity_review_ids=["product-2"],
+        marketplace_terms=["USB-C power bank www.example.invalid"],
+        budget_constraint="до 100 USD",
+    )
+
+    assert path is not None
+    raw = open(path, encoding="utf-8").read()
+    snapshot = json.loads(raw)
+    assert "https://" not in raw
+    assert "www." not in raw
+    assert "[url-redacted]" in raw
+    assert snapshot["request"]["query"] == "павербанк [url-redacted]"
+    assert snapshot["candidates"][0]["title"] == "USB-C power bank [url-redacted]"
+
+
 def test_conversation_selector_capture_passes_normalized_budget(
     tmp_path, monkeypatch
 ):
