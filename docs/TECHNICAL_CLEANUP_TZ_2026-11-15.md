@@ -468,3 +468,15 @@ Commit `ff8b668d`, GitHub Actions run [#1945](https://github.com/golod19920909/s
 - Чтобы соблюдать ограничение владельца проекта, `services/convsearch/engine.py` и `tests/test_convsearch_engine.py` восстановлены из baseline `3822fc95`.
 - Сравнение с baseline подтверждает: в `handlers/search.py` остаётся только разрешённое исправление narrowing follow-up; `services/convsearch/engine.py` и `tests/test_convsearch_engine.py` больше не отличаются от baseline.
 - Никакие новые изменения retrieval, ранжирования, candidate pool или Gemini continuation не оставлены в ветке.
+
+
+### CI после возврата защищённого Smart Search к baseline
+
+Commit `77be512d`, GitHub Actions run [#1948](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43743099397):
+- Production compile — PASS.
+- Manual smoke-script syntax — PASS.
+- Focused offline suite: **1 failed, 515 passed, 1 deselected, 582 subtests passed**.
+- Broad configured offline suite: **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**.
+- Единственное падение — baseline test `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`: ожидание `unverified_required_features`, фактическая причина исходной реализации `rejected_by_type_gate`.
+- Это тест защищённого Smart Search, восстановленный вместе с engine из baseline. Алгоритм или assertion не изменялись для искусственного получения зелёного CI. Требуется отдельное разрешение, если владелец хочет разбирать и менять этот контракт.
+- Остальные тесты broad suite проходят. Ошибок компиляции нет.
