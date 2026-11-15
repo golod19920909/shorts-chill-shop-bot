@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 class ChatTurn:
     role: str
     content: str
+    created_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass
@@ -35,7 +36,9 @@ class ChatConversationState:
         cleaned = " ".join(content.split()).strip()
         if not cleaned:
             return
-        self.turns.append(ChatTurn(role, cleaned[: self.MAX_CONTENT_CHARS]))
+        self.turns.append(
+            ChatTurn(role, cleaned[: self.MAX_CONTENT_CHARS], time.monotonic())
+        )
         self.turns = self.turns[-self.MAX_TURNS :]
         self.touch()
 
