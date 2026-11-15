@@ -39,7 +39,10 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.ai_service import AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT
+from services.ai_service import (
+    AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT,
+    CONVERSATION_TURN_SCHEMA,
+)
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
 from tests.eval_consultant_optimization_dataset import (
     OPTIMIZATION_CASES,
@@ -121,7 +124,7 @@ def configured_providers() -> list[Provider]:
     """Return only explicitly configured providers; never read dotenv files."""
     providers: list[Provider] = []
     specs = [
-        ("gemini", "google", os.getenv("GEMINI_API_KEY"), os.getenv("EVAL_GEMINI_MODEL", "gemini-3.8-flash"), None),
+        ("gemini", "google", os.getenv("GEMINI_API_KEY"), os.getenv("EVAL_GEMINI_MODEL", "gemini-3.5-flash-lite"), None),
         ("gemini_lite", "google", os.getenv("GEMINI_API_KEY"), os.getenv("EVAL_GEMINI_LITE_MODEL", "gemini-3.1-flash-lite"), None),
         ("openai", "openai", os.getenv("OPENAI_API_KEY"), os.getenv("EVAL_OPENAI_MODEL", "gpt-6-luna"), None),
         ("anthropic", "anthropic", os.getenv("ANTHROPIC_API_KEY"), os.getenv("EVAL_ANTHROPIC_MODEL", "claude-haiku-5-5"), None),
@@ -141,9 +144,18 @@ def _usage(**values: Any) -> dict[str, int | None]:
     return result
 
 
-def _google_request(prompt: str) -> dict[str, Any]:
-    """Exact production conversation_turn body: prompt-only JSON contract."""
-    return {"contents": [{"parts": [{"text": prompt}]}]}
+def _google_request(
+    prompt: str, *, operation: str = "conversation_turn"
+) -> dict[str, Any]:
+    """Build the same structured-output request used by the production AIService."""
+    body: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
+    if operation == "conversation_turn":
+        body["generationConfig"] = {
+            "responseMimeType": "application/json",
+            "responseSchema": CONVERSATION_TURN_SCHEMA,
+            "thinkingConfig": {"thinkingLevel": "minimal"},
+        }
+    return body
 
 
 def _extract_openai_text(payload: dict[str, Any]) -> str:
@@ -263,10 +275,9 @@ async def call_provider(
             response = await client.post(
                 url,
                 headers={"x-goog-api-key": provider.api_key},
-                # Match production conversation_turn exactly: the live
-                # Gemini path relies on the JSON-only prompt + application
-                # parser and does not set responseMimeType/responseSchema.
-                json=_google_request(prompt),
+                # Match production response schema and minimal-thinking
+                # configuration; otherwise the model comparison is not apples-to-apples.
+                json=_google_request(prompt, operation=operation),
             )
         elif provider.provider == "openai":
             body: dict[str, Any] = {
