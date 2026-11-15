@@ -1,14 +1,9 @@
-"""Focused regression tests for the Buy button.
+"""Regression tests for the callback-bound affiliate link flow.
 
-The bug chain that produced this file:
-1. Buy was a callback that sent ANOTHER product message with a second
-   button - the user had to press twice, and the card was shown again.
-2. Even earlier, navigation edited only the keyboard, so the displayed
-   product and the Buy target diverged.
-
-The contract pinned down here: "🛒 Купить" is a URL button carrying THIS
-product's exact affiliate URL - one press opens the AliExpress page in
-the browser, no bot round-trip, no re-sent card, no invented URL.
+The card keeps its own product/session callback. Pressing «🛒 Купить»
+resolves that exact cached card, records the link request and sends its
+exact affiliate URL as a Telegram URL button. Navigation must update the
+card and its callback together; no URL may leak between products/sessions.
 """
 
 from __future__ import annotations
@@ -18,7 +13,7 @@ from types import SimpleNamespace
 
 from handlers import common
 from handlers import search as search_handlers
-from keyboards.products import CB_PREFIX_NAV, browse_card_keyboard
+from keyboards.products import CB_PREFIX_BUY, CB_PREFIX_NAV, browse_card_keyboard
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest
 from services.search_service import SearchOutcome
@@ -52,9 +47,17 @@ def make_outcome(*specs: tuple[str, str]) -> SearchOutcome:
 
 
 class FakePhotoMessage:
-    """The card is a photo message (photo truthy, no editable text)."""
+    """A photo card message that can also record a reply containing its link."""
 
     photo = ["photo-bytes"]
+
+    def __init__(self, bot: "FakeBot | None" = None) -> None:
+        self.bot = bot
+        self.chat_id = 47
+
+    async def reply_text(self, text: str, **kwargs) -> None:
+        if self.bot is not None:
+            self.bot.messages.append((self.chat_id, text, kwargs))
 
 
 class FakeQuery:
@@ -99,12 +102,7 @@ class FakeUpdate:
 
 
 class FakeBot:
-    """Records photos (cards) and plain messages.
-
-    A crucial assertion target: after the Buy fix the bot must never send
-    a new product message when Buy is pressed - there is no Buy handler
-    left at all, and these tests prove the flow end to end.
-    """
+    """Records product cards and link replies separately."""
 
     def __init__(self) -> None:
         self.photos: list[tuple] = []
@@ -168,21 +166,31 @@ async def open_feed(context: FakeContext, outcome: SearchOutcome) -> str:
 
 async def navigate(context: FakeContext, session_id: str, index: int) -> FakeQuery:
     query = FakeQuery(
-        f"{CB_PREFIX_NAV}:{session_id}:{index}", message=FakePhotoMessage()
+        f"{CB_PREFIX_NAV}:{session_id}:{index}",
+        message=FakePhotoMessage(context.bot),
     )
     await search_handlers.browse_callback(FakeUpdate(callback_query=query), context)
     return query
 
 
-def buy_urls(markup) -> list[str]:
-    """URLs of the Buy buttons in a card keyboard (URL buttons)."""
+def buy_callbacks(markup) -> list[str]:
+    """Callback identities for the Buy button on a product card."""
 
     return [
-        button.url
+        button.callback_data
         for row in markup.inline_keyboard
         for button in row
-        if button.url is not None and button.text.endswith("Купить")
+        if button.callback_data is not None and button.text.endswith("Купить")
     ]
+
+
+def affiliate_urls_in_messages(messages) -> list[str]:
+    urls = []
+    for _chat_id, _text, kwargs in messages:
+        markup = kwargs.get("reply_markup")
+        if markup is not None:
+            urls.extend(all_urls(markup))
+    return urls
 
 
 def all_urls(markup) -> list[str]:
@@ -194,15 +202,15 @@ def all_urls(markup) -> list[str]:
     ]
 
 
-class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
-    """The card keyboard itself carries the exact affiliate URL."""
+class BuyButtonBindingTests(unittest.IsolatedAsyncioTestCase):
+    """The card callback resolves the exact product's cached affiliate URL."""
 
     async def test_1_buy_on_product_a_carries_url_a(self):
         context = make_context()
-        await open_feed(context, make_outcome(("A", URL_A), ("B", URL_B)))
+        session_id = await open_feed(context, make_outcome(("A", URL_A), ("B", URL_B)))
 
         markup = context.bot.photos[-1][3]["reply_markup"]
-        self.assertEqual(buy_urls(markup), [URL_A])
+        self.assertEqual(buy_callbacks(markup), [f"{CB_PREFIX_BUY}:{session_id}:0"])
         self.assertIn("Товар A", context.bot.photos[-1][2])
 
     async def test_2_buy_on_product_b_carries_url_b(self):
@@ -211,7 +219,7 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
         session_id = await open_feed(context, outcome)
 
         markup = browse_card_keyboard(session_id, 2, 3, outcome.products[2])
-        self.assertEqual(buy_urls(markup), [URL_C])
+        self.assertEqual(buy_callbacks(markup), [f"{CB_PREFIX_BUY}:{session_id}:2"])
 
     async def test_3_after_next_the_card_carries_url_b(self):
         context = make_context()
@@ -220,13 +228,13 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
         query = await navigate(context, session_id, 1)
 
         # THE stale-image regression: navigation must replace the MEDIA
-        # (image B), the caption (text B) and the keyboard (URL_B) in one
+        # (image B), the caption (text B) and the keyboard (Buy callback B) in one
         # edit_message_media call - never caption-only over image A.
         self.assertEqual(len(query.media_edits), 1)
         media, kwargs = query.media_edits[0]
         self.assertEqual(media.media, "https://img.example/B.jpg")
         self.assertIn("Товар B", media.caption)
-        self.assertEqual(buy_urls(kwargs["reply_markup"]), [URL_B])
+        self.assertEqual(buy_callbacks(kwargs["reply_markup"]), [f"{CB_PREFIX_BUY}:{session_id}:1"])
         self.assertEqual(query.captions, [])
         self.assertEqual(query.texts, [])
 
@@ -241,7 +249,7 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
         media, kwargs = back_query.media_edits[0]
         self.assertEqual(media.media, "https://img.example/A.jpg")
         self.assertIn("Товар A", media.caption)
-        self.assertEqual(buy_urls(kwargs["reply_markup"]), [URL_A])
+        self.assertEqual(buy_callbacks(kwargs["reply_markup"]), [f"{CB_PREFIX_BUY}:{session_id}:0"])
 
     async def test_5_other_sessions_cannot_leak_their_urls(self):
         first, second = make_context(), make_context()
@@ -250,11 +258,31 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
         session_second = await open_feed(second, make_outcome(("B", URL_B)))
         self.assertNotEqual(session_first, session_second)
 
-        # Each context's card carries only its own product's URL.
-        self.assertEqual(buy_urls(first.bot.photos[-1][3]["reply_markup"]), [URL_A])
-        self.assertEqual(buy_urls(second.bot.photos[-1][3]["reply_markup"]), [URL_B])
-        self.assertNotIn(URL_A, all_urls(second.bot.photos[-1][3]["reply_markup"]))
-        self.assertNotIn(URL_B, all_urls(first.bot.photos[-1][3]["reply_markup"]))
+        # Card callbacks are session-scoped; pressing them must send only
+        # the affiliate URL belonging to that session's cached product.
+        self.assertEqual(
+            buy_callbacks(first.bot.photos[-1][3]["reply_markup"]),
+            [f"{CB_PREFIX_BUY}:{session_first}:0"],
+        )
+        self.assertEqual(
+            buy_callbacks(second.bot.photos[-1][3]["reply_markup"]),
+            [f"{CB_PREFIX_BUY}:{session_second}:0"],
+        )
+
+        first_query = FakeQuery(
+            f"{CB_PREFIX_BUY}:{session_first}:0",
+            message=FakePhotoMessage(first.bot),
+        )
+        second_query = FakeQuery(
+            f"{CB_PREFIX_BUY}:{session_second}:0",
+            message=FakePhotoMessage(second.bot),
+        )
+        await search_handlers.buy_link_callback(FakeUpdate(callback_query=first_query), first)
+        await search_handlers.buy_link_callback(FakeUpdate(callback_query=second_query), second)
+        self.assertIn(URL_A, affiliate_urls_in_messages(first.bot.messages))
+        self.assertNotIn(URL_B, affiliate_urls_in_messages(first.bot.messages))
+        self.assertIn(URL_B, affiliate_urls_in_messages(second.bot.messages))
+        self.assertNotIn(URL_A, affiliate_urls_in_messages(second.bot.messages))
 
     async def test_6_every_product_of_one_feed_keeps_its_own_url(self):
         context = make_context()
@@ -267,7 +295,11 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
             markup = browse_card_keyboard(
                 session_id, index, len(outcome.products), outcome.products[index]
             )
-            self.assertEqual(buy_urls(markup), [url], f"index {index}")
+            self.assertEqual(
+                buy_callbacks(markup),
+                [f"{CB_PREFIX_BUY}:{session_id}:{index}"],
+                f"index {index}",
+            )
 
     async def test_missing_affiliate_url_means_no_buy_button(self):
         context = make_context()
@@ -275,23 +307,25 @@ class BuyButtonUrlTests(unittest.IsolatedAsyncioTestCase):
         session_id = await open_feed(context, outcome)
 
         markup = browse_card_keyboard(session_id, 1, 2, outcome.products[1])
-        self.assertEqual(buy_urls(markup), [])
+        self.assertEqual(buy_callbacks(markup), [])
         # No invented affiliate URL anywhere in the keyboard either.
         self.assertNotIn(outcome.products[1].product_url, all_urls(markup))
 
-    async def test_buy_press_never_sends_another_card_or_message(self):
+    async def test_buy_press_sends_exact_link_without_resending_product_card(self):
         context = make_context()
         outcome = make_outcome(("A", URL_A), ("B", URL_B))
         session_id = await open_feed(context, outcome)
         cards_before = len(context.bot.photos)
-        messages_before = len(context.bot.messages)
+        query = FakeQuery(
+            f"{CB_PREFIX_BUY}:{session_id}:1",
+            message=FakePhotoMessage(context.bot),
+        )
 
-        # Navigation (the only remaining card-editing flow) replaces the
-        # card in place; no Buy handler exists that could send anything.
-        await navigate(context, session_id, 1)
+        await search_handlers.buy_link_callback(FakeUpdate(callback_query=query), context)
 
         self.assertEqual(len(context.bot.photos), cards_before)
-        self.assertEqual(len(context.bot.messages), messages_before)
+        self.assertIn(URL_B, affiliate_urls_in_messages(context.bot.messages))
+        self.assertNotIn(URL_A, affiliate_urls_in_messages(context.bot.messages))
 
     async def test_navigation_keyboard_stays_a_callback(self):
         context = make_context()
