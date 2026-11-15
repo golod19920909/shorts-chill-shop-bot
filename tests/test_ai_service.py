@@ -552,6 +552,14 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         ))
         self.assertEqual(result, ["drill-1"])
         self.assertEqual(service.captured_thinking_levels, ["medium"])
+        schema = service.captured_schemas[-1]
+        self.assertEqual(schema["properties"]["selections"]["maxItems"], 20)
+        self.assertFalse(schema["additionalProperties"])
+        item_schema = schema["properties"]["selections"]["items"]
+        self.assertFalse(item_schema["additionalProperties"])
+        self.assertFalse(
+            item_schema["properties"]["requirement_evidence"]["additionalProperties"]
+        )
 
     def test_selector_prompt_keeps_stable_policy_before_dynamic_query(self) -> None:
         service = self._service(
