@@ -830,13 +830,29 @@ class ConversationSearchEngine:
                 exclude_shown=(intent is MessageIntent.ALTERNATIVES),
             )
             safe_count = int(preview.report.get("safe_ranked", 0))
-            should_continue = safe_count < candidate_target
+            # The selector can review BOTH deterministic-safe candidates and
+            # quarantined candidates that passed every hard gate. Stopping on
+            # safe_count alone wastes marketplace pages when the review window
+            # is already full of candidates that Gemini is allowed to inspect.
+            selector_eligible = int(preview.report.get("ranked", 0))
+            review_eligible = max(0, selector_eligible - safe_count)
+            hard_rejected = sum(
+                int(preview.report.get(key, 0))
+                for key in (
+                    "rejected_type", "rejected_exclusion",
+                    "rejected_budget", "rank_rejected",
+                )
+            )
+            should_continue = selector_eligible < candidate_target
             logger.info(
-                "convsearch page eligibility raw=%d ranked=%d verified=%d "
-                "target=%d continue=%s",
+                "convsearch page eligibility raw=%d hard_rejected=%d "
+                "review_eligible=%d safe=%d selector_eligible=%d "
+                "selector_window_target=%d continue=%s",
                 len(products),
-                preview.report.get("ranked", 0),
+                hard_rejected,
+                review_eligible,
                 safe_count,
+                selector_eligible,
                 candidate_target,
                 should_continue,
             )
@@ -1252,14 +1268,13 @@ class ConversationSearchEngine:
             if len(selected) >= wanted:
                 break
 
-        # A valid short answer is not automatically proof that the remaining
-        # catalogue is irrelevant. Run ONE bounded continuation over the
-        # unselected candidates, with a smaller remaining target and the same
-        # hard requirements. The second pass cannot see or repeat chosen IDs;
-        # the shared deadline prevents an unbounded Gemini loop.
+        # A valid NON-EMPTY partial answer may be completed with ONE bounded
+        # continuation over only the unselected candidates. A valid empty list
+        # is an explicit semantic no-match, not an invitation to repeat the
+        # same expensive prompt. The shared deadline bounds the continuation.
         decision.report["ai_first_pass_selected"] = len(selected)
         decision.report["ai_second_pass"] = "not_needed"
-        if isinstance(selected_ids, list) and len(selected) < wanted:
+        if isinstance(selected_ids, list) and selected and len(selected) < wanted:
             remaining_pool = [
                 product for product in selector_pool
                 if product.product_id and product.product_id not in seen
@@ -1321,6 +1336,12 @@ class ConversationSearchEngine:
                         if len(selected) >= wanted:
                             break
                     decision.report["ai_second_pass_selected"] = added
+        elif selected_ids == []:
+            decision.report["ai_second_pass"] = "skipped_valid_empty"
+        elif isinstance(selected_ids, list) and not selected:
+            # A non-empty response containing no IDs from the supplied window
+            # is unusable output, not a valid semantic no-match.
+            decision.report["ai_second_pass"] = "skipped_no_valid_ids"
 
         # AIService distinguishes a valid empty ID list (no supplied
         # listing fits) from an unusable response (None). Respect that
