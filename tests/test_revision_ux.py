@@ -318,7 +318,7 @@ class BuyCallbackTests(unittest.TestCase):
             [f"{CB_PREFIX_BUY}:{session_id}:1"],
         )
 
-    async def test_products_without_affiliate_url_have_no_buy_button(self):
+    def test_products_without_affiliate_url_have_no_buy_button(self):
         context = make_context(RecordingDatabase())
         outcome = make_outcome(count=2)
         outcome.products = [make_product(0, affiliate=False)]
