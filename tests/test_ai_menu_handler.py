@@ -479,7 +479,7 @@ class PendingQuestionTests(unittest.TestCase):
         )
 
         self.assertTrue(consumed)
-        self.assertEqual(message.texts[0], "Самый дешёвый — 5.00 USD")
+        self.assertEqual(context.bot.texts[0], "Самый дешёвый — 5.00 USD")
         self.assertEqual(assistant.questions, ["привет"])
 
     def test_the_pending_state_is_cleared_after_use(self) -> None:
