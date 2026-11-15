@@ -2231,16 +2231,33 @@ seller_terms: {seller_terms_json}
             "properties": {
                 "selections": {
                     "type": "ARRAY",
+                    "maxItems": limit,
                     "items": {
                         "type": "OBJECT",
+                        "additionalProperties": False,
                         "properties": {
-                            "id": {"type": "STRING"},
-                            "identity_evidence": {"type": "STRING"},
+                            "id": {
+                                "type": "STRING",
+                                "description": "Exact product ID from the supplied candidate list.",
+                            },
+                            "identity_evidence": {
+                                "type": "STRING",
+                                "description": (
+                                    "Exact short quote from this listing's title or description "
+                                    "proving its principal product identity; empty only when "
+                                    "the candidate is not marked for identity review."
+                                ),
+                            },
                             "requirement_evidence": {
                                 "type": "OBJECT",
+                                "description": (
+                                    "One exact listing quote for every required feature; "
+                                    "keys must match the supplied requirements exactly."
+                                ),
                                 "properties": evidence_properties,
                                 "required": list(requirements),
                                 "propertyOrdering": list(requirements),
+                                "additionalProperties": False,
                             },
                         },
                         "required": [
@@ -2254,6 +2271,7 @@ seller_terms: {seller_terms_json}
             },
             "required": ["selections"],
             "propertyOrdering": ["selections"],
+            "additionalProperties": False,
         }
         logger.info(
             "Gemini conversation selection request: candidates=%d requirements=%d "
