@@ -73,7 +73,7 @@ async def test_accepting_offer_asks_user_what_to_find_and_sets_one_shot_search()
     assert context.user_data[PENDING_SEARCH_KEY] is True
     assert PENDING_OFFER_KEY not in context.user_data
     message.reply_text.assert_awaited_once()
-    assert "Напишите, что именно подобрать" in message.reply_text.await_args.args[0]
+    assert "Напишите, какие дополнительные товары или аксессуары вас интересуют" in message.reply_text.await_args.args[0]
 
 
 @pytest.mark.asyncio
