@@ -107,7 +107,12 @@ class Settings:
     gemini_smart_model: str = "gemini-3.5-flash-lite"
     gemini_vision_model: str = "gemini-3.5-flash-lite"
     gemini_fallback_model: str = "gemini-3.1-flash-lite"
+    gemini_conversation_turn_thinking_level: str = "minimal"
     gemini_conversation_selection_thinking_level: str = "low"
+    gemini_chat_action_thinking_level: str = "minimal"
+    gemini_product_advice_thinking_level: str = "low"
+    gemini_product_comparison_thinking_level: str = "low"
+    gemini_product_question_thinking_level: str = "low"
 
     @property
     def gemini_model(self) -> str:
@@ -295,8 +300,33 @@ def load_settings() -> Settings:
         gemini_fallback_model=(
             _get("GEMINI_RESERVE_MODEL") or "gemini-3.1-flash-lite"
         ),
+        gemini_conversation_turn_thinking_level=_get_choice(
+            "GEMINI_CONVERSATION_TURN_THINKING_LEVEL",
+            "minimal",
+            {"minimal", "low", "medium", "high"},
+        ),
         gemini_conversation_selection_thinking_level=_get_choice(
             "GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL",
+            "low",
+            {"minimal", "low", "medium", "high"},
+        ),
+        gemini_chat_action_thinking_level=_get_choice(
+            "GEMINI_CHAT_ACTION_THINKING_LEVEL",
+            "minimal",
+            {"minimal", "low", "medium", "high"},
+        ),
+        gemini_product_advice_thinking_level=_get_choice(
+            "GEMINI_PRODUCT_ADVICE_THINKING_LEVEL",
+            "low",
+            {"minimal", "low", "medium", "high"},
+        ),
+        gemini_product_comparison_thinking_level=_get_choice(
+            "GEMINI_PRODUCT_COMPARISON_THINKING_LEVEL",
+            "low",
+            {"minimal", "low", "medium", "high"},
+        ),
+        gemini_product_question_thinking_level=_get_choice(
+            "GEMINI_PRODUCT_QUESTION_THINKING_LEVEL",
             "low",
             {"minimal", "low", "medium", "high"},
         ),
