@@ -158,3 +158,11 @@ unfiltered full-suite pass.
 - Log cached input tokens from SDK usage metadata. Do not add explicit cache objects until measured cache-hit frequency and storage/read pricing show a positive break-even.
 - Keep structured-output responses bounded with operation-specific `max_output_tokens`; the limit must be high enough for the full schema-valid result and must be covered by tests.
 - Do not set `temperature`, `top_p`, or `top_k` on Gemini 3.5 unless a controlled experiment demonstrates a benefit.
+
+
+## Gemini per-operation Thinking controls (2026-11-15)
+
+- Active Option C Thinking levels are independent settings, not one global knob: conversation turn, candidate selection, chat action, product advice, product comparison evidence, and product-question evidence.
+- Current conservative defaults: turn minimal, selector low, chat action minimal, and product advice/comparison/question low. Values accept minimal/low/medium/high.
+- Change levels only through their matching GEMINI_*_THINKING_LEVEL setting and compare both models at identical levels. The offline dialogue benchmark reads EVAL_GEMINI_CONVERSATION_TURN_THINKING_LEVEL and EVAL_GEMINI_CHAT_ACTION_THINKING_LEVEL; the selector replay matrix compares minimal/low/medium.
+- A benchmark's output schema, token cap and Thinking level must match production for the operation being scored. Never treat a prompt-only JSON benchmark as production-schema parity.
