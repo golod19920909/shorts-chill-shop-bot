@@ -155,6 +155,9 @@ def build_search_service(settings: Settings) -> tuple[SearchService, AIService]:
         fast_model=settings.gemini_fast_model,
         vision_model=settings.gemini_vision_model,
         fallback_model=settings.gemini_fallback_model,
+        conversation_selection_thinking_level=(
+            settings.gemini_conversation_selection_thinking_level
+        ),
     )
     search_service = SearchService(
         providers=build_providers(settings),
