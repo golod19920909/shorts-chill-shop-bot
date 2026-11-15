@@ -102,6 +102,7 @@ The earlier blind dialogue A/B result favored Gemini 3.5 on acceptance and laten
 - Added mandatory human gold-label validation for every candidate, verbatim title/description evidence checks, 0–5 quality dimensions, diversity groups, ranking-tier coverage, critical-error flags, and weighted-quality/coverage/critical-error metrics. The first run exposed a quote-normalization bug in the new test validator; it was corrected. Final scoped workflow #177 passed on code head `45ddd8b41ab6c561304a50ebe80c5daf715a0f86`: **305 passed, 64 subtests passed, 5 deselected, 1 warning**.
 - The follow-up workflow #181 also passed on the updated documentation/context head: **305 passed, 64 subtests passed, 5 deselected, 1 warning**.
 - After adding independent Thinking settings and production-schema parity for the dialogue benchmark, scoped workflow #219 passed on head `203f6c5f64973b17d6052047408d62e3b9af1f27`: **308 passed, 64 subtests passed, 5 deselected, 1 warning**.
+- Latest scoped workflow #228 passed on head `2ea305549bda343f2523108c67aaa5cce4513ee0`, including first/second selector-pass logging: **308 passed, 64 subtests passed, 5 deselected, 1 warning**.
 
 ## 5. Google capability audit
 
