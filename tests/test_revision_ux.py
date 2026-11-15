@@ -13,7 +13,7 @@ from handlers.settings import (
     TRACKING_STATUS_AUTO,
     tracking_status_line,
 )
-from keyboards.products import CB_PREFIX_NAV, browse_card_keyboard
+from keyboards.products import CB_PREFIX_BUY, CB_PREFIX_NAV, browse_card_keyboard
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest
 from services import analytics
@@ -194,22 +194,22 @@ class CardBackKeyboardTests(unittest.TestCase):
 
     def test_buy_button_only_with_a_real_affiliate_url(self):
         with_affiliate = browse_card_keyboard("sess", 0, 1, make_product())
-        buy_urls = [
-            button.url
+        buy_callbacks = [
+            button.callback_data
             for row in with_affiliate.inline_keyboard
             for button in row
-            if button.url is not None and button.text.endswith("Купить")
+            if button.callback_data is not None and button.text.endswith("Купить")
         ]
-        self.assertEqual(buy_urls, [make_product().affiliate_url])
+        self.assertEqual(buy_callbacks, [f"{CB_PREFIX_BUY}:sess:0"])
 
         without = browse_card_keyboard("sess", 0, 1, make_product(affiliate=False))
-        no_urls = [
-            button.url
+        no_buy_callbacks = [
+            button.callback_data
             for row in without.inline_keyboard
             for button in row
-            if button.url is not None and button.text.endswith("Купить")
+            if button.callback_data is not None and button.text.endswith("Купить")
         ]
-        self.assertEqual(no_urls, [])
+        self.assertEqual(no_buy_callbacks, [])
 
 
 class SummaryCaptionTests(unittest.TestCase):
@@ -274,21 +274,20 @@ class ProductShownTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(shown), 1)
         self.assertEqual(shown[0]["product_id"], outcome.products[1].product_id)
 
-        # The stale-image regression: Next must replace the MEDIA (image
-        # of product 1), the caption (text of product 1) and the keyboard
-        # (Buy URL of product 1) - all together, never caption-only.
+        # Next must replace the MEDIA, caption and product-bound Buy callback
+        # together, never caption-only.
         self.assertEqual(len(query.media_edits), 1)
         media, kwargs = query.media_edits[0]
         self.assertEqual(media.media, "https://img.example/100501.jpg")
         self.assertIn("Тестовый товар 1", media.caption)
         markup = kwargs["reply_markup"].inline_keyboard
-        buy_urls = [
-            button.url
+        buy_callbacks = [
+            button.callback_data
             for row in markup
             for button in row
-            if button.url is not None and button.text.endswith("Купить")
+            if button.callback_data is not None and button.text.endswith("Купить")
         ]
-        self.assertEqual(buy_urls, [outcome.products[1].affiliate_url])
+        self.assertEqual(buy_callbacks, [f"{CB_PREFIX_BUY}:{session_id}:1"])
         # The 🔔 tracking toggle is part of the same keyboard.
         track_labels = [
             button.text
@@ -299,32 +298,25 @@ class ProductShownTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(track_labels, ["🔔 Следить за ценой"])
 
 
-class BuyDirectUrlTests(unittest.IsolatedAsyncioTestCase):
-    """Buy is a URL button: one press, direct open, no bot round-trip.
+class BuyCallbackTests(unittest.TestCase):
+    """The card keyboard binds Buy to the exact cached session and index."""
 
-    These tests replaced the previous callback-flow tests: Telegram gives
-    the bot no signal about URL-button presses, so a Buy press cannot be
-    recorded as analytics - and it can never send an extra message.
-    """
-
-    async def test_buy_opens_the_exact_affiliate_url_directly(self):
+    def test_buy_callback_targets_the_exact_affiliate_product(self):
         context = make_context(RecordingDatabase())
         outcome = make_outcome(count=2)
         session_id = common.remember_outcome(context, outcome)
 
         markup = browse_card_keyboard(session_id, 1, 2, outcome.products[1])
-        buy_urls = [
-            button.url
+        buy_callbacks = [
+            button.callback_data
             for row in markup.inline_keyboard
             for button in row
-            if button.url is not None and button.text.endswith("Купить")
+            if button.callback_data is not None and button.text.endswith("Купить")
         ]
-        self.assertEqual(buy_urls, [outcome.products[1].affiliate_url])
-
-        # A Buy press is handled by the Telegram client itself: the bot
-        # sends nothing in response - no extra card, no link message.
-        self.assertFalse(hasattr(search_handlers, "buy_callback"))
-        self.assertEqual(context.bot.texts, [])
+        self.assertEqual(
+            buy_callbacks,
+            [f"{CB_PREFIX_BUY}:{session_id}:1"],
+        )
 
     async def test_products_without_affiliate_url_have_no_buy_button(self):
         context = make_context(RecordingDatabase())
