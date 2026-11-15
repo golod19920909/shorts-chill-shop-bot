@@ -491,3 +491,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 - Catalog category delivery fix: `handlers/search.py` now imports `edit_catalog_message_or_replace`, which was already used when category results fell below the minimum. Targeted `CategoryCountryPropagationTests` now pass; this is catalog navigation only, not Smart Search/Findings behavior.
 - Latest verified CI on code commit `2c749777` (run `43743673727`): compile and smoke syntax PASS; focused **533 passed, 1 baseline failure, 584 subtests**; configured broad **2,282 passed, 1 baseline failure, 1,259 subtests**. The sole failure remains the protected baseline Smart Search reason mismatch.
+
+
+- Added `pytest.ini` with explicit `asyncio_default_fixture_loop_scope = function`. CI run `43743967660` confirms the pytest-asyncio implicit-loop-scope deprecation warning is gone; SQLite worker-thread and Google GenAI SDK warnings remain for separate investigation. Test counts unchanged: focused **533 passed + 1 baseline failure**; broad configured **2,282 passed + 1 baseline failure**.
