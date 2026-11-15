@@ -847,7 +847,7 @@ class ConversationSearchEngine:
             logger.info(
                 "convsearch page eligibility raw=%d hard_rejected=%d "
                 "review_eligible=%d safe=%d selector_eligible=%d "
-                "selector_window_target=%d continue=%s",
+                "candidate_pool_target=%d continue=%s",
                 len(products),
                 hard_rejected,
                 review_eligible,
@@ -1286,7 +1286,7 @@ class ConversationSearchEngine:
             if remaining_pool and remaining_wanted > 0:
                 second_kwargs = dict(selector_kwargs)
                 second_kwargs["wanted"] = remaining_wanted
-                # A valid but short/empty selection is not a model outage.
+                # A valid partial selection is not a model outage.
                 # Keep the continuation on the same primary model; _generate
                 # alone may invoke the reserve after a real request failure.
                 decision.report["ai_second_pass_model"] = "primary"
