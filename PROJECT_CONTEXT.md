@@ -6841,3 +6841,6 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 - Gemini operation inventory is documented in docs/gemini_35_deep_optimization_2026-11-15.md. Strict schemas now cover the active conversational path (turn, selector, chat action, product advice, comparison evidence and product-question evidence). Legacy query parsing, discovery ranking, photo JSON analysis, product-candidate selection, Findings/feed/subcategory selectors remain prompt-constrained JSON with caller validation; photo query description, no-results reply and product-search plan remain plain text. Those other menu/ranking flows were intentionally not rewritten.
 - Live capture instructions are in docs/selector_snapshot_review_guide.md. The capture is opt-in, writes under reports/selector-captures when configured, and contains no product URLs or user IDs; gold labels and page provenance must be independently verified before replay.
+
+
+- Selector replay cost reporting distinguishes any accepted model decision (including a valid empty/no-match) from a non-empty selection with no critical false positives and complete gold evidence. These are selector-only costs, not full-search costs; production turn telemetry remains the source for full search-attempt cost.
