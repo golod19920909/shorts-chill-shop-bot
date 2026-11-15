@@ -141,3 +141,11 @@ unfiltered full-suite pass.
 - Do not weaken the principal-product gate, strict USD budget ceilings, Gemini approved-ID boundary, or type/family diversity to make retrieval appear faster.
 - Per-route thematic timing logs are observational and must not include credentials, signatures, user text, or product data.
 - Ordinary catalog routes, conversational RAW retrieval, «Умный поиск», «Находки», photo search, favorites and price tracking behavior must remain otherwise unchanged.
+
+
+## Gemini 3.5 Flash-Lite tuning (2026-11-15)
+
+- Production primary model is `gemini-3.5-flash-lite`; reserve is `gemini-3.1-flash-lite`. Keep fast/smart/vision roles aligned unless an explicitly measured experiment justifies a change.
+- Conversation-turn interpretation uses the production JSON response schema and explicit `minimal` thinking. Conversation candidate selection defaults to `low`, configurable only through `GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL` (`minimal|low|medium|high`).
+- Compare 3.1 and 3.5 on identical reviewed selector snapshots across thinking levels using `tests/eval_selector_replay_runner.py --thinking-levels minimal,low,medium`. Do not relax quote/identity evidence validation or change retrieval/filtering to improve model scores.
+- Dialogue benchmark Gemini requests must mirror the production schema and thinking config. Do not compare providers using a weaker/different request body.
