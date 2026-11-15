@@ -572,9 +572,20 @@ async def run_replay(
         weighted_scores = [score["weighted_quality_score"] for score in scored]
         weighted_coverages = [score["weighted_quality_coverage"] for score in scored]
         costs = [row["cost_usd"] for row in group if row["cost_usd"] is not None]
-        successful_costs = [
+        accepted_costs = [
             row["cost_usd"] for row in group
             if row["status"] == "accepted" and row["cost_usd"] is not None
+        ]
+        nonempty_valid_costs = [
+            row["cost_usd"] for row in group
+            if (
+                row["status"] == "accepted"
+                and row["cost_usd"] is not None
+                and row["score"] is not None
+                and row["score"]["selected_count"] > 0
+                and row["score"]["critical_false_positive_count"] == 0
+                and row["score"]["gold_evidence_complete"]
+            )
         ]
         summaries[alias] = {
             "requests": len(group),
@@ -632,11 +643,16 @@ async def run_replay(
             "over_limit_cases": sum(bool(score["over_limit"]) for score in scored),
         }
         private_performance[alias] = {
-            "mean_cost_usd_per_success": (
-                round(sum(successful_costs) / len(successful_costs), 10)
-                if successful_costs else None
+            "mean_cost_usd_per_accepted_decision": (
+                round(sum(accepted_costs) / len(accepted_costs), 10)
+                if accepted_costs else None
             ),
-            "successful_cost_coverage": len(successful_costs),
+            "accepted_cost_coverage": len(accepted_costs),
+            "mean_cost_usd_per_nonempty_valid_selection": (
+                round(sum(nonempty_valid_costs) / len(nonempty_valid_costs), 10)
+                if nonempty_valid_costs else None
+            ),
+            "nonempty_valid_selection_cost_coverage": len(nonempty_valid_costs),
             "all_attempt_cost_coverage": len(costs),
         }
 
