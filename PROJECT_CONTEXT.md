@@ -6766,3 +6766,14 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - Latest audited run at commit 55d04369ac25f3cda10183a88b17469370082be2: focused suite reported 493 passed, 10 failed, 1 deselected and 582 subtests passed; broad suite reported 2,242 passed, 45 failed, 2 deselected and 1,256 subtests passed. New retrieval/empty-selector regressions, selector snapshot tests, database tests and category-expansion tests did not appear among failures.
 - Remaining failures are concentrated in mismatched/older test contracts for catalog subcategories, AI menu/UI, Buy-button presentation, telemetry fakes, and Gemini timeout/log expectations. They require a separate source-vs-test audit; do not hide them with blanket ignores or change protected «Умный поиск» / «✨ Находки» behavior to satisfy stale assertions.
 - Local PC, .env, SQLite runtime data, main, and the production updater branch remain untouched.
+
+
+## 2026-11-15 — CI checkpoint and protected-flow blocker
+
+- Latest audited commit: 9cc4c62c4f44fdb5f7ba9cdeca3f9e4d3d1feae4.
+- Focused offline suite: PASS.
+- Broad offline suite: 2,279 passed, 5 failed, 2 deselected, 1,259 subtests passed.
+- All five remaining failures are the same production defect exercised by tests/test_narrow_selection.py: handlers/search.py::_handle_narrowing references undefined empty_keyboard after delivering narrowed cards (current line around 649). This breaks the "Оставь 5 штук из этих 30" follow-up path.
+- This path belongs to the protected «Умный поиск» flow. The code was deliberately NOT changed because the user has not separately authorized changes to «Умный поиск» / «Находки». Do not hide or xfail these tests. Ask for explicit approval before applying the minimal intended navigation-keyboard fix.
+- The callback-bound Buy flow, admin keyboard, AI menu keyboard, AliExpress diagnostics fake, Gemini reserve-policy tests, category search, thematic route diversity, thematic product-type coverage, catalog navigation tests, selector snapshot URL redaction, and SQLite connection tests were not listed among failures in this run.
+- No local PC/environment/database changes; no merge; production updater branch unchanged.
