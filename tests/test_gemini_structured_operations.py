@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import unittest
 from types import SimpleNamespace
 
 from models.product import Marketplace, Product
@@ -25,7 +26,7 @@ def _product(product_id: str, title: str, description: str = "") -> Product:
     )
 
 
-class StructuredOperationCallSiteTests:
+class StructuredOperationCallSiteTests(unittest.TestCase):
     def _service(self, responses: dict[str, str]):
         service = AIService(api_key=None)
         service._client = object()
@@ -108,7 +109,7 @@ class TestStructuredOperationCallSites(StructuredOperationCallSiteTests):
         )
 
 
-class TestGenericStructuredGenerateConfig:
+class TestGenericStructuredGenerateConfig(unittest.TestCase):
     def test_generic_structured_operation_sets_json_schema_and_output_cap(self):
         class FakeModels:
             kwargs = None
