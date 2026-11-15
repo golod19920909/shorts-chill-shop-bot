@@ -2,6 +2,27 @@
 
 The blind selector replay must use identical frozen AliExpress Affiliate API candidate pools for Gemini 3.1 and 3.5. Raw captures are not gold labels. A reviewer must independently label every candidate before the replay runner will accept a snapshot.
 
+## 0. Capture a live selector input
+
+From the project directory in PowerShell, start one controlled run with the opt-in capture enabled:
+
+```powershell
+$env:SHORTS_CHILL_SELECTOR_CAPTURE = "1"
+$env:SHORTS_CHILL_SELECTOR_CAPTURE_DIR = "reports\selector-captures"
+python main.py
+```
+
+Run one real search (prefer the known test query "нужен игровой ноутбук"), then stop the bot with Ctrl+C. The JSON capture is written under reports/selector-captures. The capture contains the selector query and candidate fields, but no product URLs or user IDs. It is intentionally marked as an unreviewed selector input; it is not benchmark-ready yet.
+
+Remove the temporary process variables after the run:
+
+```powershell
+Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE
+Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE_DIR
+```
+
+No .env edit is required.
+
 ## 1. Preserve source provenance
 
 Keep the captured request and candidate payload unchanged. Confirm from the corresponding bot log:
