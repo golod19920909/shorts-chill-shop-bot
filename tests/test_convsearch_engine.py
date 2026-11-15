@@ -1018,6 +1018,41 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["ai_second_pass"], "completed")
         self.assertEqual(decision.report["ai_tail_added"], 0)
 
+    async def test_selector_returned_count_includes_both_passes(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-returned-count")
+        candidates = [product(f"count-{i}", "Рыболовная катушка") for i in range(25)]
+        calls = 0
+
+        async def select_batch(pool, **kwargs):
+            nonlocal calls
+            calls += 1
+            return ["count-0"] if calls == 1 else []
+
+        selector = AsyncMock(side_effect=select_batch)
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=candidates,
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(decision.report["selection_first_pass_returned_count"], 1)
+        self.assertEqual(decision.report["selection_second_pass_returned_count"], 0)
+        self.assertEqual(decision.report["selection_returned_count"], 1)
+        self.assertEqual(decision.report["selection_validated_count"], 1)
+
     async def test_short_ai_selection_is_completed_from_remaining_candidates(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="selector-continuation")
