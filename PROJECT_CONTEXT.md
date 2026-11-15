@@ -471,3 +471,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Gemini telemetry CI: current usage extraction, turn scope, generate instrumentation, concurrency isolation, and persistence test classes are included in the focused offline workflow; historical AgentLoop tests remain excluded.
+
+
+- Gemini telemetry timeout test now reflects the established one-reserve-retry behavior: two SDK attempts (primary and reserve) are recorded when both time out. This was a test-only correction; no production fallback behavior changed. Commit `2d9b4b8b`; CI rerun pending.
