@@ -29,6 +29,7 @@ CLEAN_ENV = {
     "GEMINI_FALLBACK_MODEL": "",
     "GEMINI_PRIMARY_MODEL": "",
     "GEMINI_RESERVE_MODEL": "",
+    "GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL": "",
     # Retrieval-depth budgets are limits on REAL API calls: a developer's
     # .env must not decide what these tests assert.
     "SEARCH_MAX_PAGES": "",
@@ -97,6 +98,26 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(settings.database_path, "tmp/test.db")
         self.assertEqual(settings.logging_level, 10)  # logging.DEBUG
         self.assertTrue(settings.aliexpress.is_configured)
+
+    def test_selector_thinking_level_defaults_to_low_and_is_configurable(self) -> None:
+        with patch.dict(os.environ, CLEAN_ENV, clear=False):
+            self.assertEqual(
+                load_settings().gemini_conversation_selection_thinking_level, "low"
+            )
+        env = dict(CLEAN_ENV)
+        env["GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL"] = "MEDIUM"
+        with patch.dict(os.environ, env, clear=False):
+            self.assertEqual(
+                load_settings().gemini_conversation_selection_thinking_level, "medium"
+            )
+
+    def test_invalid_selector_thinking_level_falls_back_safely(self) -> None:
+        env = dict(CLEAN_ENV)
+        env["GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL"] = "extreme"
+        with patch.dict(os.environ, env, clear=False):
+            self.assertEqual(
+                load_settings().gemini_conversation_selection_thinking_level, "low"
+            )
 
     def test_primary_and_reserve_models_have_explicit_overrides(self) -> None:
         env = dict(CLEAN_ENV)
