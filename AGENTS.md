@@ -149,3 +149,12 @@ unfiltered full-suite pass.
 - Conversation-turn interpretation uses the production JSON response schema and explicit `minimal` thinking. Conversation candidate selection defaults to `low`, configurable only through `GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL` (`minimal|low|medium|high`).
 - Compare 3.1 and 3.5 on identical reviewed selector snapshots across thinking levels using `tests/eval_selector_replay_runner.py --thinking-levels minimal,low,medium`. Do not relax quote/identity evidence validation or change retrieval/filtering to improve model scores.
 - Dialogue benchmark Gemini requests must mirror the production schema and thinking config. Do not compare providers using a weaker/different request body.
+
+
+## Gemini stateless request and caching rules (2026-11-15)
+
+- Option C uses stateless `GenerateContent` calls and supplies no Gemini tools. Set `automatic_function_calling.disable=true` explicitly on direct SDK requests; do not migrate to `AsyncChat.send_message` unless a real bounded tool-calling workflow is introduced.
+- Keep the selector's invariant instructions at the start of its prompt and append query-specific context, requirements, IDs, budget and candidate rows afterwards. This supports Gemini implicit prefix caching without changing the candidate set or evidence contract.
+- Log cached input tokens from SDK usage metadata. Do not add explicit cache objects until measured cache-hit frequency and storage/read pricing show a positive break-even.
+- Keep structured-output responses bounded with operation-specific `max_output_tokens`; the limit must be high enough for the full schema-valid result and must be covered by tests.
+- Do not set `temperature`, `top_p`, or `top_k` on Gemini 3.5 unless a controlled experiment demonstrates a benefit.
