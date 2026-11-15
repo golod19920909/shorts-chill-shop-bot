@@ -1,28 +1,33 @@
+# Python environments and generated files
 .venv/
-.env
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Local secrets and application data
+.env
 database/*.db
 database/*.db-journal
-.vscode/
-.pytest_cache/
-*.egg-info/
-*.log
-
-.env
-.venv/
-__pycache__/
-*.pyc
-
-# Local SQLite backups and restore snapshots (never commit user data)
 database/backups/
 *.sqlite3
 *.sqlite3-*
 
-# Local evaluation artifacts can contain real selector prompts and product pools.
+# IDE and runtime logs
+.vscode/
+*.log
+
+# Local evaluation artifacts may contain real prompts and product pools.
 selector_captures/
 reports/selector-captures/
 eval-gemini-*-blind.json
 eval-gemini-*-private-map.json
 eval-selector-blind-results.json
 eval-selector-blind-map.json
+
+# Editor/experiment backup files
+*.bak
