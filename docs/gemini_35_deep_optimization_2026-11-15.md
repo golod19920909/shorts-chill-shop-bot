@@ -59,6 +59,21 @@ Conversation interpretation and candidate selection already use JSON response sc
 
 The limits are deliberately conservative but large enough for the documented response contracts; regression tests cover the SDK request config. The active Option C structured operations now include turn interpretation, candidate selection, short chat-action classification, product advice, paired comparison evidence and product-question evidence. Legacy parser/feed/catalog selectors remain unchanged under the protected-path scope. No `temperature`, `top_p`, or `top_k` overrides are added. Google's Gemini 3.5 guidance recommends controlling reasoning through `thinking_level` and avoiding legacy sampling overrides unless a measured need exists.
 
+### Operation inventory
+
+| Operation | Output contract | Decision |
+|---|---|---|
+| `conversation_turn` | JSON action, confidence, slots and response | Strict schema; bounded output |
+| `conversation_selection` | JSON product IDs and exact evidence | Strict dynamic schema; bounded by requested limit |
+| `chat_action` | JSON search/clarify decision | Strict schema; short output cap |
+| `product_advice` | JSON observations and recommendation | Strict schema; Python factual validation retained |
+| `product_comparison_evidence` | JSON paired listing quotes | Strict schema; Python exact-quote validation retained |
+| `product_question_answer` | JSON claims and recommendation evidence | Strict schema; Python builds all user-facing factual text |
+| `legacy_query_parse`, `discovery_ranking`, `photo_image_analysis`, `product_candidate_selection`, `findings_selection`, `feed_candidate_selection`, `subcategory_candidate_selection` | Prompt-constrained JSON with caller-side parsing/validation | Audited as legacy or protected flows; not changed in this pass |
+| `photo_query_description`, `no_results_reply`, `product_search_plan` | Plain text with caller-side length/content validation | No schema required; only no-results received a new explicit output cap |
+
+This pass deliberately scopes schema changes to the active conversational product path. The other flows are listed rather than silently rewritten, because their menus and ranking policies are protected by the project constraints.
+
 ## 3. Thinking policy and model decision
 
 - `conversation_turn`: explicit `minimal` thinking for the bounded structured dialogue decision.
@@ -83,6 +98,7 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 - Added strict response schemas for active Option C product advice, paired comparison evidence, product-question evidence and short chat-action classification, with per-operation output caps. GitHub Actions run #145 passed on code head `f384c070c8b6338d2d5b324902d9a7ae49db218d`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. These are scoped optimization regressions, not an unfiltered full-repository test run.
 - Tightened the conversation-turn schema with a [0,1] confidence range and no unexpected root/slot-update properties. Latest scoped workflow #157 passed on docs/context head `43d6ad70baae19a89ba9d92183cf072f91b3c0ee`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**.
 - Added mandatory human gold-label validation for every candidate, verbatim title/description evidence checks, 0–5 quality dimensions, diversity groups, ranking-tier coverage, critical-error flags, and weighted-quality/coverage/critical-error metrics. The first run exposed a quote-normalization bug in the new test validator; it was corrected. Final scoped workflow #177 passed on code head `45ddd8b41ab6c561304a50ebe80c5daf715a0f86`: **305 passed, 64 subtests passed, 5 deselected, 1 warning**.
+- The follow-up workflow #181 also passed on the updated documentation/context head: **305 passed, 64 subtests passed, 5 deselected, 1 warning**.
 
 ## 5. Google capability audit
 
