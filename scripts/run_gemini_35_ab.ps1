@@ -1,3 +1,10 @@
+param(
+    [ValidateSet("minimal", "low", "medium", "high")]
+    [string]$TurnThinkingLevel = "minimal",
+    [ValidateSet("minimal", "low", "medium", "high")]
+    [string]$ChatActionThinkingLevel = "minimal"
+)
+
 $ErrorActionPreference = "Stop"
 
 # Run the full frozen consultant dialogue benchmark against Gemini 3.1 and 3.5.
@@ -32,6 +39,8 @@ if ([string]::IsNullOrWhiteSpace($apiKey)) {
 $env:GEMINI_API_KEY = $apiKey
 $env:EVAL_GEMINI_MODEL = "gemini-3.1-flash-lite"
 $env:EVAL_GEMINI_LITE_MODEL = "gemini-3.5-flash-lite"
+$env:EVAL_GEMINI_CONVERSATION_TURN_THINKING_LEVEL = $TurnThinkingLevel
+$env:EVAL_GEMINI_CHAT_ACTION_THINKING_LEVEL = $ChatActionThinkingLevel
 
 $reportsDir = Join-Path $repoRoot "reports"
 New-Item -ItemType Directory -Force -Path $reportsDir | Out-Null
