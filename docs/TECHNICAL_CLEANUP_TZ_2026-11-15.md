@@ -495,3 +495,12 @@ Commit `77be512d`, GitHub Actions run [#1948](https://github.com/golod19920909/s
 - Классы shown-history, menu wiring, popular feed и связанные с ними проверки не добавлялись: они требуют отдельного аудита, поскольку затрагивают защищённые «Находки» и пользовательскую историю.
 - Broad suite продолжает исключать весь смешанный модуль; это не маскирует его оставшиеся тесты и не заявляет их устаревшими.
 - Workflow commit: `a792b098`. Результат нового focused run ожидает подтверждения.
+
+
+### Исправлен NameError в минимальной выдаче каталога
+
+- Targeted `CategoryCountryPropagationTests` выявили, что `handlers/search.py::send_search_results` вызывал `edit_catalog_message_or_replace`, но импортировал из `handlers.catalog_navigation` только `telegram_edit_is_unsupported`.
+- При выдаче меньше минимального числа карточек category flow падал с `NameError` вместо штатного обновления экрана.
+- Добавлен отсутствовавший импорт существующего helper; сам helper и условия его вызова не менялись.
+- Область: только catalog category delivery; Smart Search algorithm и «Находки» feed behavior не менялись.
+- Commit: `2c749777`. Новый CI run ожидает подтверждения.
