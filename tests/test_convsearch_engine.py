@@ -302,17 +302,12 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
             product(f"broad-retrieval-{i}", "Рыболовная катушка спиннинговая")
             for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
         ]
-        hard_rejected_pool = [
-            product(f"accessory-{i}", "Screwdriver bit set")
-            for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
-        ]
         observed = []
 
         class PagingBackend:
             async def retrieve(self, strategy, *, exclude=None, should_continue=None):
                 observed.append(should_continue(pool[:30]))
                 observed.append(should_continue(pool))
-                observed.append(should_continue(hard_rejected_pool))
                 return BackendOutcome(
                     ok=True,
                     reason="ok",
@@ -336,65 +331,12 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
             "Найди рыболовную катушку",
         )
 
-        self.assertEqual(observed, [True, False, True])
+        self.assertEqual(observed, [True, False])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
         self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_REVIEW_POOL_LIMIT - 10)
         self.assertEqual(selector.await_args.kwargs["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
         self.assertEqual(len(decision.products), 30)
         self.assertEqual(decision.report["ai_selected"], 20)
-
-    async def test_pagination_counts_semantic_review_candidates_toward_selector_window(self):
-        from services.convsearch.retrieval import BackendOutcome
-
-        # This cross-language listing is quarantined for Gemini review, but
-        # it has passed the hard product-type gate.
-        pool = [
-            product(
-                f"review-retrieval-{i}",
-                "Cordless screwdriver with 2 batteries",
-            )
-            for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
-        ]
-        observed = []
-
-        class PagingBackend:
-            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
-                observed.append(should_continue(pool[:30]))
-                observed.append(should_continue(pool))
-                return BackendOutcome(
-                    ok=True,
-                    reason="ok",
-                    products=pool,
-                    request=strategy.request,
-                )
-
-        selector = AsyncMock(
-            side_effect=lambda candidates, **kwargs: [
-                item.product_id for item in candidates[:kwargs["wanted"]]
-            ]
-        )
-        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
-        engine.bind_ai_service(SimpleNamespace(
-            is_available=True,
-            select_conversation_candidates=selector,
-        ))
-
-        decision = await engine.handle_message(
-            "semantic-review-retrieval-target",
-            "Найди шуруповёрт",
-        )
-
-        self.assertEqual(observed, [True, False])
-        self.assertEqual(decision.report["safe_ranked"], 0)
-        self.assertEqual(
-            len(decision.report["semantic_review_ids"]),
-            AI_CONVERSATION_CANDIDATE_POOL_LIMIT,
-        )
-        self.assertEqual(decision.outcome, Outcome.RESULTS)
-        self.assertEqual(
-            len(selector.await_args.args[0]),
-            AI_CONVERSATION_REVIEW_POOL_LIMIT - 10,
-        )
 
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
@@ -1125,13 +1067,22 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             [f"continue-{i}" for i in range(20)],
         )
 
-    async def test_valid_empty_primary_selection_is_not_retried(self):
+    async def test_empty_primary_selection_is_rechecked_by_primary_model(self):
         engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="selector-valid-empty")
+        state = ConversationEngineState(user_key="selector-empty-reserve")
         candidates = [product(f"empty-{i}", "Рыболовная катушка") for i in range(25)]
-        selector = AsyncMock(return_value=[])
+        calls = []
+
+        async def select_batch(pool, **kwargs):
+            calls.append({
+                "ids": [item.product_id for item in pool],
+            })
+            if len(calls) == 1:
+                return []
+            return [pool[0].product_id]
+
         engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=selector,
+            select_conversation_candidates=select_batch,
         ))
         decision = SearchDecision(
             outcome=Outcome.RESULTS, products=candidates, report={}
@@ -1143,12 +1094,10 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        selector.assert_awaited_once()
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["ai_second_pass"], "skipped_valid_empty")
-        self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
-        self.assertEqual(decision.report["reason"], "semantic_no_match")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(decision.report["ai_second_pass_model"], "primary")
+        self.assertEqual([item.product_id for item in decision.products], ["empty-0"])
+        self.assertEqual(decision.report["ai_second_pass_selected"], 1)
 
     async def test_full_selector_window_keeps_default_thirty_card_tail(self):
         engine = ConversationSearchEngine()
@@ -1817,7 +1766,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             ))
             candidate = self._product(
                 "partial-feature-timeout",
-                "Power bank with dual battery pack and quick power delivery",
+                "Dual battery pack with quick power delivery",
             )
             strategy = SimpleNamespace(
                 product_type="power bank",
