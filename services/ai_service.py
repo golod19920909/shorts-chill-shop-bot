@@ -2019,7 +2019,7 @@ class AIService:
             # diagnostic snapshot (including nested category-path values).
             if isinstance(value, str):
                 return re.sub(
-                    r"(?:https?://|www\\.)[^\\s<>\\"']+",
+                    r"(?:https?://|www\.)[^\s<>\"']+",
                     "[url-redacted]",
                     value,
                     flags=re.IGNORECASE,
