@@ -46,6 +46,11 @@ class Gemini35RequestParityTests(unittest.TestCase):
         self.assertEqual(
             models.kwargs["config"]["response_schema"], {"type": "object"}
         )
+        self.assertEqual(
+            models.kwargs["config"]["automatic_function_calling"],
+            {"disable": True},
+        )
+        self.assertEqual(models.kwargs["config"]["max_output_tokens"], 4096)
 
     def test_turn_generation_config_keeps_schema_and_minimal_thinking(self) -> None:
         class FakeModels:
@@ -75,6 +80,11 @@ class Gemini35RequestParityTests(unittest.TestCase):
         self.assertEqual(
             models.kwargs["config"]["response_schema"], CONVERSATION_TURN_SCHEMA
         )
+        self.assertEqual(
+            models.kwargs["config"]["automatic_function_calling"],
+            {"disable": True},
+        )
+        self.assertEqual(models.kwargs["config"]["max_output_tokens"], 512)
 
     def test_ai_service_defaults_to_35_primary_and_31_reserve(self) -> None:
         service = AIService(api_key=None)
