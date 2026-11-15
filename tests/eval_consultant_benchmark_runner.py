@@ -663,7 +663,7 @@ async def run_benchmark(
             "provider_key": p.key,
             "output_modes": {
                 "conversation_turn": {
-                    "google": "prompt_json_only_production",
+                    "google": "strict_json_schema_production",
                     "openai": "strict_json_schema",
                     "anthropic": "json_schema_without_numeric_bounds",
                     "deepseek": "json_object",
