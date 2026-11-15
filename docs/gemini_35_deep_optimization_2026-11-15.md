@@ -4,7 +4,7 @@
 **Repository:** `golod19920909/shorts-chill-shop-bot`  
 **Feature branch:** `fix/gemini-35-flash-lite-tuning`  
 **Base:** `optimize/performance-costs`  
-**Status:** First implementation pass committed; scoped CI and live selector-quality gate pending. No merge or deployment.
+**Status:** First implementation pass committed; scoped CI passed; live selector-quality gate pending. No merge or deployment.
 
 ## 1. Scope and protected behavior
 
@@ -52,6 +52,9 @@ Conversation interpretation and candidate selection already use JSON response sc
 | `conversation_turn` | 512 tokens |
 | `conversation_selection` | 4096 tokens |
 | `chat_action` | 128 tokens |
+| `product_advice` | 512 tokens |
+| `product_comparison_evidence` | 1024 tokens |
+| `product_question_answer` | 2048 tokens |
 | `no_results_reply` | 256 tokens |
 
 The limits are deliberately conservative but large enough for the documented response contracts; regression tests cover the SDK request config. The active Option C structured operations now include turn interpretation, candidate selection, short chat-action classification, product advice, paired comparison evidence and product-question evidence. Legacy parser/feed/catalog selectors remain unchanged under the protected-path scope. No `temperature`, `top_p`, or `top_k` overrides are added. Google's Gemini 3.5 guidance recommends controlling reasoning through `thinking_level` and avoiding legacy sampling overrides unless a measured need exists.
@@ -78,6 +81,7 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 - Updated `AGENTS.md` and `PROJECT_CONTEXT.md`.
 - GitHub Actions optimization regression workflow #129 passed on code head `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**.
 - Added strict response schemas for active Option C product advice, paired comparison evidence, product-question evidence and short chat-action classification, with per-operation output caps. GitHub Actions run #145 passed on code head `f384c070c8b6338d2d5b324902d9a7ae49db218d`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. These are scoped optimization regressions, not an unfiltered full-repository test run.
+- Tightened the conversation-turn schema with a [0,1] confidence range and no unexpected root/slot-update properties. Latest scoped workflow #157 passed on docs/context head `43d6ad70baae19a89ba9d92183cf072f91b3c0ee`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**.
 
 ## 5. Google capability audit
 
