@@ -10,6 +10,7 @@ on:
       - audit/aliexpress-portals-smoke-test
       - feat/catalog-quality-and-subcategories
       - fix/conversational-search-completion-20
+      - chore/repository-cleanup-2026-11-15
   pull_request:
     branches:
       - main
