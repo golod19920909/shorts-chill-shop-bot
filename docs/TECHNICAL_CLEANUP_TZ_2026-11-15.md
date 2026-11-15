@@ -521,3 +521,11 @@ Commit `2c749777`, GitHub Actions run [#1950](https://github.com/golod19920909/s
 - Добавлен `pytest.ini` с явным `asyncio_default_fixture_loop_scope = function`; это закрепляет ожидаемую изоляцию асинхронных fixture и устраняет предупреждение о будущем изменении default в pytest-asyncio.
 - GitHub Actions run [#1952](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43743967660), commit `c152e047`: production compile и smoke syntax — PASS; focused **533 passed, 1 baseline failure, 584 subtests**; broad configured **2,282 passed, 1 baseline failure, 1,259 subtests**.
 - Warning `asyncio_default_fixture_loop_scope is unset` отсутствует. Остались отдельные SQLite worker-thread и Google GenAI SDK warnings; их причины не скрывались и не подавлялись.
+
+
+### Устранена утечка временного Gemini telemetry writer в startup tests
+
+- Анализ SQLite worker-thread warnings выявил два теста в `tests/test_bot_startup.py`, которые вызывали `_post_init` и тем самым устанавливали глобальный writer на временную SQLite БД, но не вызывали `_post_shutdown`.
+- После удаления test temp directory следующий тест мог пытаться записать telemetry в уже несуществующий файл; это порождало `sqlite3.OperationalError: unable to open database file` и `RuntimeError: Event loop is closed`.
+- Оба теста теперь вызывают `_post_shutdown` в `finally`: ожидаются pending telemetry writes, writer отключается, provider clients закрываются до удаления temp directory.
+- Изменены только тестовые lifecycle cleanup hooks, production-код не менялся. Commit: `3a134e21`. CI ожидает подтверждения, что SQLite worker warnings исчезли или сократились.
