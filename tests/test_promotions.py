@@ -98,7 +98,7 @@ class PopularCurationContractTests(unittest.TestCase):
 
         code = source("services/search_service.py")
         return code.split("async def find_feed_page(")[1].split(
-            "async def find_discovery("
+            "async def curate_findings("
         )[0]
 
     def test_find_feed_page_runs_only_the_documented_mechanics(self) -> None:
