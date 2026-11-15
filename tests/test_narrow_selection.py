@@ -43,9 +43,11 @@ class FakeBot:
     def __init__(self):
         self.photos = []
         self.texts = []
+        self.messages = []
 
     async def send_message(self, chat_id, text, **kwargs):
         self.texts.append(text)
+        self.messages.append((chat_id, text, kwargs))
 
     async def send_photo(self, chat_id, photo, **kwargs):
         self.photos.append((photo, kwargs.get("caption", "")))
@@ -219,6 +221,9 @@ class NarrowDeliveryTests(NarrowBase):
         # summary - the generic count hint is not doubled here.
         self.assertIn("Оставил 5 из 30", message.bot.texts[0])
         self.assertEqual(len(message.bot.texts), 1)
+        # The summary is plain text; navigation stays on the product card.
+        self.assertEqual(len(message.bot.messages), 1)
+        self.assertNotIn("reply_markup", message.bot.messages[0][2])
 
     def test_quantity_only_keeps_existing_order(self) -> None:
         message = self._message("Выбери 5 лучших")
