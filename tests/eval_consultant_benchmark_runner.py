@@ -154,6 +154,7 @@ def _google_request(
             "responseMimeType": "application/json",
             "responseSchema": CONVERSATION_TURN_SCHEMA,
             "thinkingConfig": {"thinkingLevel": "minimal"},
+            "maxOutputTokens": 512,
         }
     return body
 
