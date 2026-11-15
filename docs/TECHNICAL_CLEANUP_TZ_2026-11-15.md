@@ -418,3 +418,11 @@
 - Размер `AGENTS.md` сокращён с 148 до 76 строк. Перенос не отменяет и не ослабляет ни одно из специальных ограничений.
 - Commits: reference `a3915763`; concise AGENTS `8d2ecc6f`.
 - Это документационное изменение; runtime и пользовательское поведение не менялись.
+
+
+### P2 — расширена проверка синтаксиса в offline CI
+
+- В workflow добавлен отдельный compileall step для production-пакетов `config`, `database`, `handlers`, `keyboards`, `models`, `services`, `curation`, `scripts`, а также entrypoints `main.py` и `manage_sales.py`.
+- Отдельная компиляция ручных live smoke scripts сохранена.
+- Это syntax check, не import smoke и не доказательство runtime-корректности; сетевые smoke scripts по-прежнему не запускаются в CI.
+- Commit: `1c7c6a74`. Результат CI для этого нового workflow commit ожидает подтверждения; предыдущий PASS не переносится автоматически.
