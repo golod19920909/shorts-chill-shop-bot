@@ -514,15 +514,18 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         service.captured_prompts = []
         service.captured_schemas = []
         service.captured_models = []
+        service.captured_thinking_levels = []
         service.fast_model = "gemini-3.1-flash-lite"
         service.fallback_model = "gemini-3.8-flash"
 
         async def fake_generate(
-            contents, *, models=None, operation="generate", response_schema=None
+            contents, *, models=None, operation="generate", response_schema=None,
+            thinking_level=None,
         ):
             service.captured_prompts.append(contents)
             service.captured_schemas.append(response_schema)
             service.captured_models.append(models)
+            service.captured_thinking_levels.append(thinking_level)
             self.assertEqual(operation, "conversation_selection")
             self.assertIn('"selections"', contents)
             return response
@@ -537,6 +540,18 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             title="Cordless screwdriver with 2 batteries",
             product_url="https://example.com/drill-1",
         )
+
+    def test_conversation_selection_uses_configured_thinking_level(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        service.conversation_selection_thinking_level = "medium"
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="cordless screwdriver"
+        ))
+        self.assertEqual(result, ["drill-1"])
+        self.assertEqual(service.captured_thinking_levels, ["medium"])
 
     def test_conversation_selection_uses_primary_model(self) -> None:
         service = self._service(
