@@ -59,13 +59,31 @@ def _snapshot():
         "candidates": candidates,
         "gold": {
             "eligible_ids": ["p1", "p2"],
-            "rejected": [{"id": "p3", "reason": "wrong_product_identity"}],
+            "rejected": [{"id": "p3", "reason": "wrong_product_identity", "critical": True}],
             "required_evidence": {
                 "p1": {"USB-C Power Delivery 65W": "USB-C Power Delivery 65W"},
                 "p2": {"USB-C Power Delivery 65W": "USB-C Power Delivery 65W"},
             },
             "identity_evidence": {"p1": "USB-C power bank"},
             "ranking_tiers": [["p1"], ["p2"]],
+            "quality_scores": {
+                "p1": {
+                    "query_match": 5,
+                    "product_type": 5,
+                    "required_features": 5,
+                    "compatibility": 5,
+                    "practical_appeal": 4,
+                    "diversity_group": "power_bank",
+                },
+                "p2": {
+                    "query_match": 5,
+                    "product_type": 5,
+                    "required_features": 5,
+                    "compatibility": 5,
+                    "practical_appeal": 5,
+                    "diversity_group": "power_bank",
+                },
+            },
         },
     }
 
@@ -90,6 +108,44 @@ def test_raw_or_unverified_capture_is_rejected_before_any_model_call(tmp_path):
     path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
 
     with pytest.raises(ValueError, match="provenance is not verified"):
+        load_snapshots(tmp_path)
+
+
+def test_snapshot_requires_every_candidate_to_be_labeled(tmp_path):
+    snapshot = _snapshot()
+    snapshot["gold"]["rejected"] = []
+    path = tmp_path / "unlabeled-candidate.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="every candidate must be independently labeled"):
+        load_snapshots(tmp_path)
+
+
+def test_snapshot_requires_exact_listing_quotes_and_complete_quality_scores(tmp_path):
+    snapshot = _snapshot()
+    snapshot["gold"]["required_evidence"]["p1"]["USB-C Power Delivery 65W"] = "Not in listing"
+    path = tmp_path / "ungrounded-quote.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="quote is not present in listing"):
+        load_snapshots(tmp_path)
+
+    snapshot = _snapshot()
+    snapshot["gold"]["quality_scores"].pop("p2")
+    path = tmp_path / "missing-quality-score.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="quality_scores must cover every eligible ID"):
+        load_snapshots(tmp_path)
+
+
+def test_snapshot_rejects_out_of_range_quality_scores(tmp_path):
+    snapshot = _snapshot()
+    snapshot["gold"]["quality_scores"]["p1"]["query_match"] = 6
+    path = tmp_path / "invalid-quality-score.json"
+    path.write_text(json.dumps(snapshot, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be an integer in \\[0, 5\\]"):
         load_snapshots(tmp_path)
 
 
@@ -134,10 +190,17 @@ def test_scoring_reports_precision_recall_false_positives_and_abstention():
     assert score["f1"] == 0.5
     assert score["unknown_ids"] == []
     assert score["correct_abstention"] is False
+    assert score["weighted_quality_score"] == 54.0
+    assert score["weighted_quality_coverage"] == 49.438202
+    assert score["critical_false_positive_count"] == 1
+    assert score["critical_false_positive_ids"] == ["p3"]
 
     empty_gold = copy.deepcopy(snapshot)
     empty_gold["gold"]["eligible_ids"] = []
     empty_gold["gold"]["required_evidence"] = {}
     empty_gold["gold"]["identity_evidence"] = {}
     empty_gold["gold"]["ranking_tiers"] = []
-    assert score_selection([], empty_gold)["correct_abstention"] is True
+    empty_gold["gold"]["quality_scores"] = {}
+    empty_score = score_selection([], empty_gold)
+    assert empty_score["correct_abstention"] is True
+    assert empty_score["weighted_quality_score"] == 100.0
