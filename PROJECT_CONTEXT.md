@@ -6787,3 +6787,11 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - No retrieval, ranking, product filtering, Gemini prompts, «Находки», or other Smart Search behavior was changed.
 - Commits: `e611337` (handler fix), `cb46b97` (regression test).
 - Awaiting CI for the focused and broad offline suites. No local PC/environment or production updater branch changes.
+
+
+### Correction to the narrowing-fix commit record
+
+- The first handler update attempt produced commit `e611337` but the repository contents endpoint still returned the old block. That commit did not contain the intended source change.
+- Re-applied the exact change and verified the branch file content after write: commit `81d1894` now contains the plain `send_message(chat_id, follow_up)` call with no undefined keyboard.
+- The regression test from `cb46b97` is present and asserts that the explanatory summary has no `reply_markup`.
+- The CI run on `cb46b97` was started against a tree where the handler fix was not yet present, so its five failures do not validate the corrected commit. Await the run for `81d1894` or a later commit.
