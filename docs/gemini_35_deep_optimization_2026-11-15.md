@@ -39,9 +39,9 @@ Direct generation now explicitly sets `automatic_function_calling.disable=true`.
 
 ### 2.3 Prompt caching
 
-Gemini implicit context caching is enabled automatically for supported models. The selector prompt previously placed the changing user query and IDs before the common selection instructions. The stable selection/evidence rules now lead the prompt; dynamic requirements, query, budget, IDs, seller terms and candidate rows follow them.
+The Gemini 3.5 Flash-Lite model card marks context caching as supported. Google's implicit-caching guide says it is automatic on supported Gemini 2.5+ models and recommends a common prefix, but its current minimum-token table does not explicitly list 3.5 Flash-Lite. This implementation therefore treats cache reuse as an experiment to measure, not a guaranteed saving. The selector prompt previously placed the changing user query and IDs before the common selection instructions. The stable selection/evidence rules now lead the prompt; dynamic requirements, query, budget, IDs, seller terms and candidate rows follow them.
 
-This is a cache-eligibility optimization, not a claim that cache hits have already occurred. Attempt logs now expose `cached_content_token_count`, and the existing telemetry/pricing layer already accounts for cached input at its configured rate. Explicit cache objects are not enabled until measured cache-hit frequency and storage/read pricing demonstrate break-even.
+Attempt logs now expose `cached_content_token_count`, and the existing telemetry/pricing layer accounts for cached input at its configured rate. Explicit cache reads are priced at $0.03/M input tokens and storage at $1/M tokens per hour. Ignoring cache-creation overhead, the storage-only break-even is roughly 3.7 full-prefix reads per hour. The selector currently makes at most two immediate passes and the common prefix is not yet measured, so explicit cache objects are not justified.
 
 ### 2.4 Structured output and generation parameters
 
@@ -86,9 +86,10 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 | Thinking levels | Gemini 3.5 Flash-Lite supports minimal/low/medium/high | Keep turn minimal; selector level configurable and benchmarked |
 | Structured output | Supported; schema still requires application-level semantic validation | Retain schemas and exact evidence validation |
 | Function calling | Supported by model, but unused in Option C | Disable SDK AFC for direct calls; no agent loop |
-| Implicit context caching | Automatic on supported models | Reorder stable prefix and measure cached-token counts |
-| Explicit context caching | Supported, but requires cache lifecycle and storage-cost analysis | Not enabled before measured break-even |
-| Batch API | Useful for offline evaluation, not synchronous Telegram search | Keep out of interactive search |
+| Implicit context caching | Gemini 3.5 Flash-Lite model card lists caching as supported; implicit caching is automatic on supported Gemini 2.5+ models | Reorder stable prefix and measure cached-token counts; minimum-token table does not explicitly list 3.5 Flash-Lite |
+| Explicit context caching | Supported for this GenerateContent model; cached input is $0.03/M tokens and storage is $1/M tokens/hour | Not enabled before measured break-even |
+| Batch API | Supported; 50% lower token rates, asynchronous with up to 24-hour processing | Suitable only for offline evaluation, not interactive Telegram search |
+| Flex inference | Supported; 50% lower token rates with a 1–15 minute target | Possible for background evaluation, not user-facing search |
 | Temperature/top-p/top-k | Not recommended as routine Gemini 3.5 tuning knobs | Do not set without controlled evidence |
 
 Official references:
@@ -96,6 +97,8 @@ Official references:
 - [Thinking levels and Gemini 3.5 guidance](https://ai.google.dev/gemini-api/docs/thinking)
 - [Structured output](https://ai.google.dev/gemini-api/docs/structured-output)
 - [Context caching](https://ai.google.dev/gemini-api/docs/caching)
+- [Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+- [Flex inference](https://ai.google.dev/gemini-api/docs/flex-inference)
 - [Gemini Developer API pricing](https://ai.google.dev/gemini-api/docs/pricing)
 - [Google Gen AI Python SDK](https://googleapis.github.io/python-genai/)
 
@@ -124,6 +127,8 @@ For scale only, assuming 30 searches per user per month and every search costing
 These are scenario estimates, not invoices; they exclude AliExpress API, hosting, Telegram and all other infrastructure. Actual cost must be recomputed from the new cached-token telemetry and a larger sample of successful/empty/clarification sessions.
 
 The earlier blind language-operation A/B report estimated $0.1863 for 312 requests on 3.5 versus $0.1403 for 312 requests on 3.1 (about 33% more for 3.5). That corpus did not include product selection and must not be used as a full-search cost comparison.
+
+Batch and Flex inference are each listed at 50% below Standard token rates for this model. Batch has asynchronous processing with a target up to 24 hours; Flex targets 1–15 minutes. The prior 624-request language benchmark cost about $0.33 in total, so Batch would save only about $0.16 on that one-off corpus. The current decision is to keep the existing online runner and avoid adding batch-job lifecycle code until the reviewed evaluation corpus becomes materially larger.
 
 ## 7. Remaining acceptance work
 
