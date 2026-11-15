@@ -86,6 +86,10 @@ class Database:
         """
 
         async with aiosqlite.connect(self.db_path, uri=self.is_memory) as conn:
+            # SQLite enables foreign-key enforcement per connection, not per
+            # database file. Apply it here so every repository operation gets
+            # the schema's declared ON DELETE / REFERENCES guarantees.
+            await conn.execute("PRAGMA foreign_keys = ON;")
             yield conn
 
     async def close(self) -> None:
