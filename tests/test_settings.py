@@ -119,6 +119,54 @@ class LoadSettingsTests(unittest.TestCase):
                 load_settings().gemini_conversation_selection_thinking_level, "low"
             )
 
+    def test_active_operations_have_independent_thinking_defaults_and_overrides(self) -> None:
+        with patch.dict(os.environ, CLEAN_ENV, clear=True):
+            defaults = load_settings()
+        self.assertEqual(defaults.gemini_conversation_turn_thinking_level, "minimal")
+        self.assertEqual(defaults.gemini_conversation_selection_thinking_level, "low")
+        self.assertEqual(defaults.gemini_chat_action_thinking_level, "minimal")
+        self.assertEqual(defaults.gemini_product_advice_thinking_level, "low")
+        self.assertEqual(defaults.gemini_product_comparison_thinking_level, "low")
+        self.assertEqual(defaults.gemini_product_question_thinking_level, "low")
+
+        env = dict(CLEAN_ENV)
+        env.update({
+            "GEMINI_CONVERSATION_TURN_THINKING_LEVEL": "medium",
+            "GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL": "high",
+            "GEMINI_CHAT_ACTION_THINKING_LEVEL": "low",
+            "GEMINI_PRODUCT_ADVICE_THINKING_LEVEL": "medium",
+            "GEMINI_PRODUCT_COMPARISON_THINKING_LEVEL": "high",
+            "GEMINI_PRODUCT_QUESTION_THINKING_LEVEL": "minimal",
+        })
+        with patch.dict(os.environ, env, clear=True):
+            configured = load_settings()
+        self.assertEqual(configured.gemini_conversation_turn_thinking_level, "medium")
+        self.assertEqual(configured.gemini_conversation_selection_thinking_level, "high")
+        self.assertEqual(configured.gemini_chat_action_thinking_level, "low")
+        self.assertEqual(configured.gemini_product_advice_thinking_level, "medium")
+        self.assertEqual(configured.gemini_product_comparison_thinking_level, "high")
+        self.assertEqual(configured.gemini_product_question_thinking_level, "minimal")
+
+    def test_invalid_operation_thinking_levels_fall_back_to_safe_defaults(self) -> None:
+        env = dict(CLEAN_ENV)
+        for key in (
+            "GEMINI_CONVERSATION_TURN_THINKING_LEVEL",
+            "GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL",
+            "GEMINI_CHAT_ACTION_THINKING_LEVEL",
+            "GEMINI_PRODUCT_ADVICE_THINKING_LEVEL",
+            "GEMINI_PRODUCT_COMPARISON_THINKING_LEVEL",
+            "GEMINI_PRODUCT_QUESTION_THINKING_LEVEL",
+        ):
+            env[key] = "extreme"
+        with patch.dict(os.environ, env, clear=True):
+            settings = load_settings()
+        self.assertEqual(settings.gemini_conversation_turn_thinking_level, "minimal")
+        self.assertEqual(settings.gemini_conversation_selection_thinking_level, "low")
+        self.assertEqual(settings.gemini_chat_action_thinking_level, "minimal")
+        self.assertEqual(settings.gemini_product_advice_thinking_level, "low")
+        self.assertEqual(settings.gemini_product_comparison_thinking_level, "low")
+        self.assertEqual(settings.gemini_product_question_thinking_level, "low")
+
     def test_primary_and_reserve_models_have_explicit_overrides(self) -> None:
         env = dict(CLEAN_ENV)
         env.update({
