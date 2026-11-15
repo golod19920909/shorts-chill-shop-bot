@@ -704,8 +704,8 @@ async def run_benchmark(
                 "qwen": None,
             }[p.provider],
             "thinking_levels": {
-                "conversation_turn": turn_thinking_level,
-                "chat_action": chat_action_thinking_level,
+                "conversation_turn": turn_thinking_level if p.provider == "google" else None,
+                "chat_action": chat_action_thinking_level if p.provider == "google" else None,
             },
             "resolved_models": [],
         }
