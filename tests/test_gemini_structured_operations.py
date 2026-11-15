@@ -27,8 +27,8 @@ def _product(product_id: str, title: str, description: str = "") -> Product:
 
 
 class StructuredOperationCallSiteTests(unittest.TestCase):
-    def _service(self, responses: dict[str, str]):
-        service = AIService(api_key=None)
+    def _service(self, responses: dict[str, str], **thinking_levels):
+        service = AIService(api_key=None, **thinking_levels)
         service._client = object()
         service.captured = []
 
@@ -40,7 +40,7 @@ class StructuredOperationCallSiteTests(unittest.TestCase):
             response_schema=None,
             thinking_level=None,
         ):
-            service.captured.append((operation, response_schema))
+            service.captured.append((operation, response_schema, thinking_level))
             return responses[operation]
 
         service._generate = fake_generate
@@ -49,31 +49,34 @@ class StructuredOperationCallSiteTests(unittest.TestCase):
 
 class TestStructuredOperationCallSites(StructuredOperationCallSiteTests):
     def test_chat_action_uses_schema(self):
-        service = self._service({
-            "chat_action": '{"action":"search","question":null}',
-        })
+        service = self._service(
+            {"chat_action": '{"action":"search","question":null}'},
+            chat_action_thinking_level="high",
+        )
         result = asyncio.run(service.decide_chat_action("Найди игровой ноутбук"))
         self.assertEqual(result, {"action": "search"})
-        self.assertEqual(service.captured, [("chat_action", CHAT_ACTION_SCHEMA)])
+        self.assertEqual(service.captured, [("chat_action", CHAT_ACTION_SCHEMA, "high")])
 
     def test_product_advice_uses_schema(self):
-        service = self._service({
-            "product_advice": '{"observations":[],"recommendation":null}',
-        })
+        service = self._service(
+            {"product_advice": '{"observations":[],"recommendation":null}'},
+            product_advice_thinking_level="medium",
+        )
         result = asyncio.run(service.analyze_product(
             _product("advice-1", "USB-C power bank 65W")
         ))
         self.assertIsNone(result)
-        self.assertEqual(service.captured, [("product_advice", PRODUCT_ADVICE_SCHEMA)])
+        self.assertEqual(service.captured, [("product_advice", PRODUCT_ADVICE_SCHEMA, "medium")])
 
     def test_comparison_evidence_uses_schema(self):
-        service = self._service({
-            "product_comparison_evidence": (
+        service = self._service(
+            {"product_comparison_evidence": (
                 '{"differences":[{"aspect":"other",'
                 '"first":{"product_id":"laptop-a","field":"title","quote":"16GB RAM"},'
                 '"second":{"product_id":"laptop-b","field":"title","quote":"8GB RAM"}}]}'
-            ),
-        })
+            )},
+            product_comparison_thinking_level="minimal",
+        )
         result = asyncio.run(service.extract_paired_listing_evidence(
             "У какого больше памяти?",
             [
@@ -84,18 +87,19 @@ class TestStructuredOperationCallSites(StructuredOperationCallSiteTests):
         self.assertEqual(result, [("other", "16GB RAM", "8GB RAM")])
         self.assertEqual(
             service.captured,
-            [("product_comparison_evidence", COMPARISON_EVIDENCE_SCHEMA)],
+            [("product_comparison_evidence", COMPARISON_EVIDENCE_SCHEMA, "minimal")],
         )
 
     def test_product_question_uses_schema(self):
-        service = self._service({
-            "product_question_answer": (
+        service = self._service(
+            {"product_question_answer": (
                 '{"claims":[{"product_id":"power-1","field":"title",'
                 '"quote":"USB-C power bank 65W"}],'
                 '"recommendation":{"product_id":null,"evidence":[]},'
                 '"clarification":null}'
-            ),
-        })
+            )},
+            product_question_thinking_level="high",
+        )
         answer, product_id = asyncio.run(
             service.answer_product_question_with_recommendation(
                 "Есть ли USB-C?", [_product("power-1", "USB-C power bank 65W")]
@@ -105,8 +109,36 @@ class TestStructuredOperationCallSites(StructuredOperationCallSiteTests):
         self.assertIsNone(product_id)
         self.assertEqual(
             service.captured,
-            [("product_question_answer", PRODUCT_QUESTION_SCHEMA)],
+            [("product_question_answer", PRODUCT_QUESTION_SCHEMA, "high")],
         )
+
+
+class TestPerOperationThinkingForwarding(unittest.TestCase):
+    def test_conversation_turn_uses_its_independent_thinking_level(self):
+        service = AIService(
+            api_key=None,
+            conversation_turn_thinking_level="medium",
+        )
+        service._client = object()
+        captured = []
+
+        async def fake_generate(
+            contents,
+            *,
+            models=None,
+            operation="generate",
+            response_schema=None,
+            thinking_level=None,
+        ):
+            captured.append((operation, thinking_level))
+            return None
+
+        service._generate = fake_generate
+        result = asyncio.run(
+            service.decide_conversation_turn("Нужен игровой ноутбук", context={})
+        )
+        self.assertIsNone(result)
+        self.assertEqual(captured, [("conversation_turn", "medium")])
 
 
 class TestGenericStructuredGenerateConfig(unittest.TestCase):
