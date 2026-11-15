@@ -110,29 +110,37 @@ class TestStructuredOperationCallSites(StructuredOperationCallSiteTests):
 
 
 class TestGenericStructuredGenerateConfig(unittest.TestCase):
-    def test_generic_structured_operation_sets_json_schema_and_output_cap(self):
-        class FakeModels:
-            kwargs = None
-
-            async def generate_content(self, **kwargs):
-                self.kwargs = kwargs
-                return SimpleNamespace(text='{"action":"search","question":null}')
-
-        models = FakeModels()
-        service = AIService(api_key=None)
-        service._client = SimpleNamespace(aio=SimpleNamespace(models=models))
-        raw = asyncio.run(service._generate(
-            "chat action prompt",
-            models=("gemini-3.5-flash-lite",),
-            operation="chat_action",
-            response_schema=CHAT_ACTION_SCHEMA,
-        ))
-        self.assertEqual(raw, '{"action":"search","question":null}')
-        config = models.kwargs["config"]
-        self.assertEqual(config["response_mime_type"], "application/json")
-        self.assertEqual(config["response_schema"], CHAT_ACTION_SCHEMA)
-        self.assertEqual(config["max_output_tokens"], 128)
-        self.assertEqual(
-            config["automatic_function_calling"],
-            {"disable": True},
+    def test_generic_structured_operations_set_json_schema_and_output_caps(self):
+        operations = (
+            ("chat_action", CHAT_ACTION_SCHEMA, 128),
+            ("product_advice", PRODUCT_ADVICE_SCHEMA, 512),
+            ("product_comparison_evidence", COMPARISON_EVIDENCE_SCHEMA, 1024),
+            ("product_question_answer", PRODUCT_QUESTION_SCHEMA, 2048),
         )
+        for operation, schema, output_cap in operations:
+            with self.subTest(operation=operation):
+                class FakeModels:
+                    kwargs = None
+
+                    async def generate_content(self, **kwargs):
+                        self.kwargs = kwargs
+                        return SimpleNamespace(text="{}")
+
+                models = FakeModels()
+                service = AIService(api_key=None)
+                service._client = SimpleNamespace(aio=SimpleNamespace(models=models))
+                raw = asyncio.run(service._generate(
+                    "structured prompt",
+                    models=("gemini-3.5-flash-lite",),
+                    operation=operation,
+                    response_schema=schema,
+                ))
+                self.assertEqual(raw, "{}")
+                config = models.kwargs["config"]
+                self.assertEqual(config["response_mime_type"], "application/json")
+                self.assertEqual(config["response_schema"], schema)
+                self.assertEqual(config["max_output_tokens"], output_cap)
+                self.assertEqual(
+                    config["automatic_function_calling"],
+                    {"disable": True},
+                )
