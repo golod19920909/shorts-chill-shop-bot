@@ -643,11 +643,9 @@ async def _narrow_shown_results(
         follow_up = _narrow_follow_up_text(
             selected, total=len(products), cheapest=cheapest, wanted=count
         )
-        await context.bot.send_message(
-            message.chat_id,
-            follow_up,
-            reply_markup=empty_keyboard,
-        )
+        # The product card already carries its own navigation keyboard.
+        # Keep this explanatory summary message plain; no extra keyboard is needed.
+        await context.bot.send_message(message.chat_id, follow_up)
     return True
 
 async def send_product_advice(
