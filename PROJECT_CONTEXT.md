@@ -6743,3 +6743,15 @@ Standard paid-tier per 1M tokens: 3.1 Flash-Lite input $0.25, output $1.50, cach
 The first CI run caught an unterminated string in the admin diagnostics edit; that syntax error was corrected. An unfiltered run then exposed five unrelated stale legacy failures: two tests import removed `services.agent_loop`, one expects only one Gemini attempt despite the configured fallback, one expects an older type-gate reason, and one expects every thematic route despite the current early-stop planner. The focused optimization workflow explicitly deselects these five known failures. Latest run #70 passed with selector replay validation and both benchmark CLI entrypoints smoke-tested: compileall succeeded; **253 passed, 5 deselected, 54 subtests passed**. No local pytest run or live provider calls were performed here.
 
 Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
+
+
+## 2026-11-15 — Repository cleanup and P0 search corrections
+
+- Active work is isolated on `chore/repository-cleanup-2026-11-15`, based on `3822fc95bed11070ba8f46c02ce4cdf69cc58af5`. Do not merge it into `main` or move the Telegram production-updater branch without explicit owner approval.
+- The user explicitly asked to keep the local PC untouched during this work. Do not request a local pull/update or change the user's `.env`, SQLite database, backups, or runtime environment.
+- Repository cleanup already removed only confirmed temporary probe outputs/backups, normalized `.gitignore`, fixed selector snapshot budget initialization, and enabled SQLite foreign keys on every new connection; regression tests were added for the two confirmed defects.
+- P0 implementation now counts all hard-gate-eligible ranked candidates (deterministic-safe plus quarantined semantic-review candidates) toward the conversational retrieval target. The previous safe-only stopping count could keep requesting marketplace pages even when the selector's review window was already populated.
+- P0 implementation also skips Gemini continuation after a valid empty selection. A non-empty partial selection may still receive one bounded continuation over only unselected IDs; invalid/no-valid-ID output does not trigger a continuation and falls back safely.
+- Added offline regressions for semantic-review candidates filling the retrieval target and for valid-empty selector output. These tests have been committed but have NOT been executed in a local environment or confirmed by CI yet. Never report them as passing until actually run.
+- Protected «Умный поиск» and «✨ Находки» behavior remains out of scope and must not be changed without separate explicit approval.
+- Latest known P0 commits: `85b6006c2e15742124cadda3eee1aff62db2273a` (engine) and `f4af907bcd69ce7237a3490b40a301078974ee8c` (regression tests). Fetch the branch head before further edits.
