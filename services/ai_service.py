@@ -78,10 +78,10 @@ logger = logging.getLogger(__name__)
 
 #: Default primary model. DEFAULT_MODEL stays the first constructor
 #: argument, so every existing caller keeps working unchanged.
-DEFAULT_MODEL = "gemini-3.1-flash-lite"
-DEFAULT_FAST_MODEL = "gemini-3.1-flash-lite"
-DEFAULT_VISION_MODEL = "gemini-3.1-flash-lite"
-DEFAULT_FALLBACK_MODEL = "gemini-3.8-flash"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_FAST_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_VISION_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_FALLBACK_MODEL = "gemini-3.1-flash-lite"
 
 
 #: How many candidates ONE selection may keep - the "строго 20 лучших" rule of
@@ -1340,6 +1340,7 @@ class AIService:
         fast_model: str | None = None,
         vision_model: str | None = None,
         fallback_model: str | None = None,
+        conversation_selection_thinking_level: str = "low",
     ) -> None:
         #: The "smart" model. ``model`` stays the first positional argument
         #: (and the value /admin reports) so existing callers are unchanged.
@@ -1348,6 +1349,12 @@ class AIService:
         self.fast_model = fast_model or DEFAULT_FAST_MODEL
         self.vision_model = vision_model or DEFAULT_VISION_MODEL
         self.fallback_model = fallback_model or DEFAULT_FALLBACK_MODEL
+        allowed_thinking_levels = {"minimal", "low", "medium", "high"}
+        requested_thinking_level = str(conversation_selection_thinking_level or "low").strip().lower()
+        self.conversation_selection_thinking_level = (
+            requested_thinking_level
+            if requested_thinking_level in allowed_thinking_levels else "low"
+        )
         self.timeout_seconds = timeout_seconds
         self._api_key = api_key
         self._client = None
@@ -2259,6 +2266,7 @@ seller_terms: {seller_terms_json}
             models=(self.fast_model,),
             operation="conversation_selection",
             response_schema=selection_schema,
+            thinking_level=self.conversation_selection_thinking_level,
         )
         response_parse_started = time.perf_counter()
         payload = self._extract_json_object(raw) if raw else None
@@ -3035,6 +3043,7 @@ seller_terms: {seller_terms_json}
         models: tuple[str, ...] | None = None,
         operation: str = "generate",
         response_schema: dict | None = None,
+        thinking_level: str | None = None,
     ) -> str | None:
         """Call Gemini, returning text or ``None`` on any failure.
 
@@ -3090,25 +3099,30 @@ seller_terms: {seller_terms_json}
             try:
                 async with asyncio.timeout(attempt_timeout):
                     request_kwargs = {"model": model, "contents": contents}
+                    generation_config: dict[str, object] = {}
                     if operation == "conversation_turn":
-                        # The same machine-readable dialogue contract is sent
-                        # to every model in the chain (primary and fallback).
-                        # Schema validation guarantees shape, while the caller
-                        # still performs semantic validation before trusting it.
-                        request_kwargs["config"] = {
+                        # Keep the interpreter's JSON contract identical on
+                        # primary and reserve models. Minimal thinking is enough
+                        # for this bounded classification; Python validates
+                        # the action and every state transition afterwards.
+                        generation_config.update({
                             "response_mime_type": "application/json",
                             "response_schema": CONVERSATION_TURN_SCHEMA,
-                        }
+                            "thinking_config": {"thinking_level": "minimal"},
+                        })
                     elif operation == "conversation_selection":
-                        # Candidate review is a bounded classification/ranking
-                        # step after deterministic safety filters. The caller
-                        # supplies a requirement-specific schema; the exact same
-                        # schema is used for primary and fallback models.
-                        request_kwargs["config"] = {
+                        # Candidate review follows deterministic safety filters.
+                        # The caller supplies a requirement-specific schema.
+                        generation_config.update({
                             "response_mime_type": "application/json",
                             "response_schema": response_schema,
-                            "thinking_config": {"thinking_level": "low"},
-                        }
+                        })
+                    if thinking_level:
+                        level = str(thinking_level).strip().lower()
+                        if level in {"minimal", "low", "medium", "high"}:
+                            generation_config["thinking_config"] = {"thinking_level": level}
+                    if generation_config:
+                        request_kwargs["config"] = generation_config
                     request_setup_ms = (time.perf_counter() - attempt_started) * 1000
                     sdk_started = time.perf_counter()
                     response = await self._client.aio.models.generate_content(
