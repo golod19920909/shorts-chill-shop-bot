@@ -150,7 +150,7 @@ def test_cost_formula_prices_cache_writes_as_a_separate_input_class():
     assert cost == 0.0011675
 
 
-def test_gemini_baseline_matches_production_structured_output_and_thinking():
+def test_gemini_benchmark_requests_match_production_schemas_thinking_and_caps():
     body = _google_request("exact prompt")
 
     assert body["contents"] == [{"parts": [{"text": "exact prompt"}]}]
@@ -158,15 +158,26 @@ def test_gemini_baseline_matches_production_structured_output_and_thinking():
     assert config["responseMimeType"] == "application/json"
     assert config["responseSchema"] == benchmark.CONVERSATION_TURN_SCHEMA
     assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
+    assert config["maxOutputTokens"] == 512
 
-    # Non-interpreter operations keep their production plain-text contract.
-    assert "generationConfig" not in _google_request(
-        "plain text", operation="no_results_reply"
-    )
+    chat_action = _google_request(
+        "chat prompt", operation="chat_action", thinking_level="medium"
+    )["generationConfig"]
+    assert chat_action["responseMimeType"] == "application/json"
+    assert chat_action["responseSchema"] == benchmark.GOOGLE_CHAT_ACTION_SCHEMA
+    assert chat_action["thinkingConfig"] == {"thinkingLevel": "medium"}
+    assert chat_action["maxOutputTokens"] == 128
+
+    # The no-results helper remains plain text, but shares production's output cap.
+    no_results = _google_request("plain text", operation="no_results_reply")
+    assert no_results["generationConfig"] == {"maxOutputTokens": 256}
 
 
 def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch):
-    async def fake_call_provider(provider, prompt, timeout_seconds, *, operation="conversation_turn"):
+    async def fake_call_provider(
+        provider, prompt, timeout_seconds, *, operation="conversation_turn",
+        thinking_level="minimal",
+    ):
         if operation == "chat_action":
             response_text = json.dumps(
                 {"action": "clarify", "question": "Какой именно товар вам нужен?"},
