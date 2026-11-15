@@ -535,7 +535,7 @@ def _apply_user_result_count(
     return request.model_copy(update={"result_limit": count})
 
 async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle any non-command text message as a product search query."""
+    """Route free text to general chat or the authoritative product-search engine."""
 
     # One wall-clock stamp for the whole turn: every exit path logs how long
     # the user actually waited, next to the per-stage timings the search
