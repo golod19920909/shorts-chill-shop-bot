@@ -1259,9 +1259,15 @@ class SearchService:
                     # union is cut to the cap. Every other search stops at the
                     # first full pool exactly as before (G24.8 P1.9).
                     if all_failed or (
-                        len(outcome.products) >= pool_target
+                        not is_thematic_request
+                        and len(outcome.products) >= pool_target
                         and (expansion is None or variant == expansion)
                     ):
+                        # A thematic shelf may have a numerically full pool
+                        # that represents too few canonical product types.
+                        # Its dedicated diversity gate above is the only
+                        # valid early stop; otherwise keep trying bounded
+                        # routes and the one deeper page.
                         break
                 # RAW conversational retrieval evaluates every bounded
                 # grounded route before fusion. Stopping as soon as the first
