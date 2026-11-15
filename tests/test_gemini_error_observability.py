@@ -155,8 +155,12 @@ class ErrorClassificationTests(unittest.TestCase):
 class StructuredLoggingTests(unittest.TestCase):
     def test_quota_failure_logs_status_and_model_without_secrets(self) -> None:
         service = make_service(
-            [api_error(ClientError, 429, "RESOURCE_EXHAUSTED",
-                       f"quota exceeded for key={FAKE_KEY}")],
+            [
+                api_error(ClientError, 429, "RESOURCE_EXHAUSTED",
+                          f"quota exceeded for key={FAKE_KEY}"),
+                api_error(ClientError, 429, "RESOURCE_EXHAUSTED",
+                          f"quota exceeded for key={FAKE_KEY}"),
+            ],
             api_key=FAKE_KEY,
         )
         with self.assertLogs("services.ai_service", level="WARNING") as captured:
@@ -170,6 +174,7 @@ class StructuredLoggingTests(unittest.TestCase):
         self.assertIn("http=429", joined)
         self.assertIn("api_status=RESOURCE_EXHAUSTED", joined)
         self.assertIn("origin=api", joined)
+        self.assertIn("fallback=yes", joined)
         self.assertIn("fallback=no", joined)
 
         # Never the key, the prompt or the user's text.
@@ -178,8 +183,11 @@ class StructuredLoggingTests(unittest.TestCase):
         self.assertNotIn(USER_TEXT, joined)
         self.assertNotIn("Ты помощник", joined)  # QUERY_PARSING_PROMPT
 
-        # Policy unchanged: quota stops, the fallback model is not attempted.
-        self.assertEqual(service._client.aio.models.calls, ["gemini-test-fast"])
+        # One reserve attempt is allowed because quota may be model-scoped.
+        self.assertEqual(
+            service._client.aio.models.calls,
+            ["gemini-test-fast", "gemini-test-fallback"],
+        )
         self.assertEqual(service.parse_fallback, 1)
         self.assertIsNotNone(parsed)  # deterministic parser still answered
 
@@ -221,16 +229,24 @@ class StructuredLoggingTests(unittest.TestCase):
         self.assertIn("fallback=no", joined)
         self.assertIn("boom", joined)  # original message kept (sanitized)
 
-    def test_timeout_is_logged_as_timeout_without_retrying(self) -> None:
-        service = make_service([TimeoutError("too slow"), "never-reached"])
-        with self.assertLogs("services.ai_service", level="ERROR") as captured:
+    def test_timeout_is_logged_as_timeout_and_tries_one_reserve(self) -> None:
+        service = make_service([
+            TimeoutError("too slow"),
+            TimeoutError("fallback too slow"),
+        ])
+        with self.assertLogs("services.ai_service", level="WARNING") as captured:
             text = run(service._generate("standalone prompt"))
         joined = "\n".join(captured.output)
 
         self.assertIsNone(text)
-        self.assertEqual(service._client.aio.models.calls, ["gemini-test-fast"])
+        self.assertEqual(
+            service._client.aio.models.calls,
+            ["gemini-test-fast", "gemini-test-fallback"],
+        )
         self.assertIn("kind=timeout", joined)
         self.assertIn("class=TimeoutError", joined)
+        self.assertIn("fallback=yes", joined)
+        self.assertIn("fallback=no", joined)
 
     def test_detail_fragment_never_contains_request_contents(self) -> None:
         detail = _format_gemini_error(
