@@ -6795,3 +6795,14 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - Re-applied the exact change and verified the branch file content after write: commit `81d1894` now contains the plain `send_message(chat_id, follow_up)` call with no undefined keyboard.
 - The regression test from `cb46b97` is present and asserts that the explanatory summary has no `reply_markup`.
 - The CI run on `cb46b97` was started against a tree where the handler fix was not yet present, so its five failures do not validate the corrected commit. Await the run for `81d1894` or a later commit.
+
+
+### Final CI result for authorized narrowing fix
+
+- CI run on verified source-fix commit `81d18945`: **success**.
+- Focused offline suite: **503 passed, 1 deselected, 582 subtests passed**.
+- Broad offline suite: **2,284 passed, 2 deselected, 1,259 subtests passed**.
+- The five `empty_keyboard` NameErrors are resolved. No failing tests in the configured broad offline suite.
+- CI run on the following documentation/context commit `5f347529`: **success** as well.
+- Remaining warnings include pytest asyncio fixture-loop deprecation and several SQLite connection worker thread warnings; they did not fail CI and should be tracked separately rather than mixed into this narrow fix.
+- No PC update, no local environment/DB changes, no merge, and no production updater branch movement.
