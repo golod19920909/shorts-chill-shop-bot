@@ -6825,3 +6825,6 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - Batch and Flex are listed at 50% below Standard token rates for 3.5 Flash-Lite. Batch is asynchronous (up to 24-hour target); Flex targets 1–15 minutes. They are not suitable for Telegram search. The earlier 624-request language benchmark cost about $0.33, so Batch would save only about $0.16 on that one-off test; no batch-job infrastructure was added.
 - Explicit cache pricing is $0.03/M cached input tokens plus $1/M tokens/hour storage. Storage-only break-even is about 3.7 full-prefix reads per hour before cache-creation overhead. No explicit cache is enabled; implicit cache hits are being measured.
 - Conversation-turn JSON schema now bounds confidence to [0,1] and rejects unexpected root/slot-update properties. Chat action, product advice, comparison evidence and product-question evidence also use strict structured schemas and per-operation output caps.
+
+
+- Latest scoped optimization regression workflow #157 passed on branch head `43d6ad70baae19a89ba9d92183cf072f91b3c0ee`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and benchmark CLI checks passed. No unfiltered full-suite pass or live API verification is claimed.
