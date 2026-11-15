@@ -56,7 +56,7 @@ jobs:
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
           -k "not test_text_query_is_parsed_and_searched"
-      - name: Run repository suite excluding stale legacy modules
+      - name: Run broad offline suite with explicit legacy exclusions
         if: always()
         run: >
           python -m pytest -q tests/
