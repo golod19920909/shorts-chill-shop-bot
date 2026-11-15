@@ -485,8 +485,9 @@ sudo journalctl -u shopbot -f
   сохраняется и применяется к реальным кандидатам.
 * Офлайн-проверки запускаются в GitHub Actions. На контрольной точке
   15.11.2026: production compile и syntax check smoke scripts проходят;
-  focused suite — 515 passed / 1 baseline failure; configured broad suite —
-  2,282 passed / 1 baseline failure (1,259 subtests). Broad suite намеренно
+  focused suite — 533 passed / 1 baseline failure (584 subtests);
+  configured broad suite — 2,282 passed / 1 baseline failure (1,259 subtests).
+  Broad suite намеренно
   исключает отдельные legacy-модули; это не полный unfiltered run.
   Единственный текущий failure — несовпадение reason в baseline-тесте
   защищённого «Умного поиска»; production-алгоритм не менялся ради зелёного
