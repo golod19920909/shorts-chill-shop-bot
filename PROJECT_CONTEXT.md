@@ -6755,3 +6755,14 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - Added offline regressions for semantic-review candidates filling the retrieval target and for valid-empty selector output. These tests have been committed but have NOT been executed in a local environment or confirmed by CI yet. Never report them as passing until actually run.
 - Protected «Умный поиск» and «✨ Находки» behavior remains out of scope and must not be changed without separate explicit approval.
 - Latest known P0 commits: `85b6006c2e15742124cadda3eee1aff62db2273a` (engine) and `f4af907bcd69ce7237a3490b40a301078974ee8c` (regression tests). Fetch the branch head before further edits.
+
+
+## 2026-11-15 — P0 privacy, category-search fix and CI audit
+
+- Selector snapshots now recursively redact URL fragments from candidate text and request text before writing JSON. The raw Gemini selection payload is unchanged; only the opt-in diagnostic copy is sanitized. Regression coverage includes URLs in query, title, description, category path and marketplace terms.
+- Fixed a confirmed NameError in SearchService.find_by_category: the method passed max_price into SearchRequest without defining it. Added an optional max_price: float | None = None after the existing exclude argument to preserve positional-call compatibility. Existing category-expansion tests now execute without this NameError.
+- Corrected three stale test fixtures so they exercise their intended contracts: welding apparatus candidates for a welding-apparatus semantic-empty test; a power-bank candidate for a power-bank required-feature test; complete Product instances for search-card delivery tests.
+- CI now runs on this working branch. The broad offline suite is configured with if: always() so it still executes after the focused suite fails.
+- Latest audited run at commit 55d04369ac25f3cda10183a88b17469370082be2: focused suite reported 493 passed, 10 failed, 1 deselected and 582 subtests passed; broad suite reported 2,242 passed, 45 failed, 2 deselected and 1,256 subtests passed. New retrieval/empty-selector regressions, selector snapshot tests, database tests and category-expansion tests did not appear among failures.
+- Remaining failures are concentrated in mismatched/older test contracts for catalog subcategories, AI menu/UI, Buy-button presentation, telemetry fakes, and Gemini timeout/log expectations. They require a separate source-vs-test audit; do not hide them with blanket ignores or change protected «Умный поиск» / «✨ Находки» behavior to satisfy stale assertions.
+- Local PC, .env, SQLite runtime data, main, and the production updater branch remain untouched.
