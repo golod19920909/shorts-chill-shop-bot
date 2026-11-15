@@ -497,3 +497,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Test lifecycle cleanup: two `tests/test_bot_startup.py` cases called `_post_init` (installing global Gemini telemetry persistence to a temp SQLite file) but omitted `_post_shutdown`. They now drain writes and detach the writer in `finally` before temp DB deletion. Test-only commit `3a134e21`; CI pending.
+
+
+- Verified CI run `43744173805` (commit `3a134e21`): focused **533 passed, 1 baseline failure, 584 subtests**; configured broad **2,282 passed, 1 baseline failure, 1,259 subtests**. SQLite worker-thread / closed-loop warnings are now zero; pytest-asyncio loop-scope warning is zero. Only remaining warning is Google GenAI SDK deprecation.
