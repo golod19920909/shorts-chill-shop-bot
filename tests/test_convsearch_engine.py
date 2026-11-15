@@ -1812,7 +1812,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             ))
             candidate = self._product(
                 "partial-feature-timeout",
-                "Dual battery pack with quick power delivery",
+                "Power bank with dual battery pack and quick power delivery",
             )
             strategy = SimpleNamespace(
                 product_type="power bank",
