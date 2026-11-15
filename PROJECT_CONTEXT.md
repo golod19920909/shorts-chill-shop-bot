@@ -484,3 +484,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Scope correction: an audit found earlier unauthorized algorithm changes in `services/convsearch/engine.py` (retrieval stop and empty-selector continuation). The file and `tests/test_convsearch_engine.py` have been restored exactly to baseline `3822fc95` (commits `0d8e3ced`, `73aba910`). Only the user-authorized `empty_keyboard` narrowing-follow-up fix remains in protected Smart Search code. No further search algorithm, ranking, candidate-pool, or Gemini continuation changes without explicit approval.
+
+
+- Post-restoration CI run `43743099397` on `77be512d`: production compile and manual smoke syntax PASS; focused suite **1 failed, 515 passed, 1 deselected, 582 subtests passed**; configured broad suite **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**. The single failure is a pre-existing baseline Smart Search test reason mismatch (`unverified_required_features` expected vs `rejected_by_type_gate` actual). Do not change protected algorithm/assertion without explicit approval.
