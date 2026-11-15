@@ -323,3 +323,24 @@
 - PROJECT_CONTEXT: `1e90dcab4172e536a524a650ebeca2605020b069`.
 
 **Проверка:** тесты добавлены, но пока не запускались. Успешное прохождение не заявляется. Локальный ПК, `.env`, SQLite и production updater branch не затрагивались.
+
+
+### P0.3 — приватность selector snapshots
+
+- URL-фрагменты рекурсивно удаляются из диагностической копии query, candidate text, category path, required features и marketplace terms.
+- Основной prompt Gemini не меняется; очищается только opt-in snapshot.
+- Добавлен regression test для URL в нескольких полях.
+
+### Дополнительный подтверждённый дефект категории
+
+- В SearchService.find_by_category использовалась переменная max_price, отсутствовавшая в сигнатуре метода.
+- Добавлен необязательный max_price со значением по умолчанию None после exclude, чтобы не ломать существующие позиционные вызовы.
+- Category-expansion тесты больше не падают с NameError на этом участке.
+
+### CI-аудит
+
+- Workflow подключён к рабочей ветке; broad offline suite запускается даже после ошибки focused suite.
+- Последний проверенный запуск: focused — 493 passed / 10 failed / 582 subtests passed; broad — 2,242 passed / 45 failed / 1,256 subtests passed.
+- Новые P0 retrieval/empty-selector тесты, selector snapshot tests, database tests и category-expansion tests не входят в список падений.
+- Остаточные падения относятся к старым/несогласованным контрактам catalog subcategories, AI menu/UI, Buy-button presentation, telemetry fakes и Gemini timeout/log tests. Их нужно отдельно сверить с текущим кодом и принятыми UX-решениями. Не добавлять массовые ignore и не менять защищённые «Умный поиск» / «Находки» ради устаревших ожиданий.
+- Локальный ПК и production updater не затронуты.
