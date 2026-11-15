@@ -6777,3 +6777,13 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - This path belongs to the protected «Умный поиск» flow. The code was deliberately NOT changed because the user has not separately authorized changes to «Умный поиск» / «Находки». Do not hide or xfail these tests. Ask for explicit approval before applying the minimal intended navigation-keyboard fix.
 - The callback-bound Buy flow, admin keyboard, AI menu keyboard, AliExpress diagnostics fake, Gemini reserve-policy tests, category search, thematic route diversity, thematic product-type coverage, catalog navigation tests, selector snapshot URL redaction, and SQLite connection tests were not listed among failures in this run.
 - No local PC/environment/database changes; no merge; production updater branch unchanged.
+
+
+## 2026-11-15 — Authorized Smart Search narrowing fix
+
+- User explicitly authorized the narrowly scoped fix for the remaining protected «Умный поиск» test failures.
+- Fixed `handlers/search.py::_narrow_shown_results`: the post-card explanatory summary previously passed an undefined `empty_keyboard` variable to `send_message`. It now sends plain text without `reply_markup`; navigation remains on the product card itself.
+- Extended `tests/test_narrow_selection.py` to assert that the summary message is sent and has no extra keyboard.
+- No retrieval, ranking, product filtering, Gemini prompts, «Находки», or other Smart Search behavior was changed.
+- Commits: `e611337` (handler fix), `cb46b97` (regression test).
+- Awaiting CI for the focused and broad offline suites. No local PC/environment or production updater branch changes.
