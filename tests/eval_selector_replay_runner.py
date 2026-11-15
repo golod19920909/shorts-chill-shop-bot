@@ -35,6 +35,26 @@ CANDIDATE_FIELDS = (
     "discount_percent", "rating", "positive_rate", "orders_count",
     "has_image", "availability",
 )
+QUALITY_SCORE_WEIGHTS = {
+    "query_match": 30,
+    "product_type": 20,
+    "required_features": 15,
+    "compatibility": 15,
+    "practical_appeal": 10,
+}
+REJECTION_REASONS = {
+    "wrong_product_type",
+    "wrong_product_identity",
+    "accessory_or_part",
+    "mandatory_feature_missing",
+    "compatibility_mismatch",
+    "budget_violation",
+    "explicit_exclusion",
+    "unsupported_evidence",
+    "duplicate_or_near_duplicate",
+    "low_relevance",
+    "other",
+}
 
 
 def _sha256(value: object) -> str:
@@ -94,6 +114,7 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
     evidence = gold.get("required_evidence")
     identity_evidence = gold.get("identity_evidence")
     tiers = gold.get("ranking_tiers")
+    quality_scores = gold.get("quality_scores")
     if not isinstance(eligible, list) or not all(isinstance(x, str) for x in eligible):
         raise ValueError(f"{path.name}: gold.eligible_ids must be a string list")
     if len(eligible) != len(set(eligible)) or not set(eligible) <= candidate_ids:
@@ -103,19 +124,29 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         or not isinstance(evidence, dict)
         or not isinstance(identity_evidence, dict)
         or not isinstance(tiers, list)
+        or not isinstance(quality_scores, dict)
     ):
         raise ValueError(
-            f"{path.name}: rejected/evidence/identity_evidence/ranking_tiers labels are required"
+            f"{path.name}: rejected/evidence/identity_evidence/ranking_tiers/quality_scores labels are required"
         )
     rejected_ids = []
+    rejected_by_id = {}
     for row in rejected:
-        if not isinstance(row, dict) or not isinstance(row.get("id"), str):
-            raise ValueError(f"{path.name}: invalid rejected label")
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("id"), str)
+            or row.get("reason") not in REJECTION_REASONS
+            or not isinstance(row.get("critical"), bool)
+        ):
+            raise ValueError(f"{path.name}: rejected labels require id, reason and critical boolean")
         rejected_ids.append(row["id"])
+        rejected_by_id[row["id"]] = row
     if len(rejected_ids) != len(set(rejected_ids)) or not set(rejected_ids) <= candidate_ids:
         raise ValueError(f"{path.name}: invalid rejected IDs")
     if set(eligible) & set(rejected_ids):
         raise ValueError(f"{path.name}: eligible and rejected IDs overlap")
+    if set(eligible) | set(rejected_ids) != candidate_ids:
+        raise ValueError(f"{path.name}: every candidate must be independently labeled eligible or rejected")
     if not set(evidence) <= set(eligible):
         raise ValueError(f"{path.name}: required_evidence contains a non-eligible ID")
     if not set(identity_evidence) <= set(eligible):
@@ -129,20 +160,52 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
     for product_id in eligible:
         if not required_features <= set(evidence.get(product_id, {})):
             raise ValueError(f"{path.name}: required evidence is incomplete for {product_id}")
-    for product_id in identity_evidence:
-        if not isinstance(identity_evidence[product_id], str) or not identity_evidence[product_id].strip():
-            raise ValueError(f"{path.name}: invalid identity evidence for {product_id}")
+
+    candidate_by_id = {row["id"]: row for row in candidates}
+
+    def quote_is_grounded(product_id: str, quote: object) -> bool:
+        if not isinstance(quote, str) or not quote.strip():
+            return False
+        candidate = candidate_by_id[product_id]
+        source = " ".join(
+            f"{candidate['title']} {candidate.get('description', '')}".casefold().split()
+        )
+        normalized_quote = " ".join(quote.casefold().split())
+        return normalized_quote in source
+
+    for product_id, quote in identity_evidence.items():
+        if not quote_is_grounded(product_id, quote):
+            raise ValueError(f"{path.name}: identity evidence quote is not present in listing {product_id}")
     for product_id, evidence_map in evidence.items():
-        if not isinstance(evidence_map, dict) or not all(
-            isinstance(requirement, str) and isinstance(quote, str) and bool(quote.strip())
-            for requirement, quote in evidence_map.items()
-        ):
+        if not isinstance(evidence_map, dict):
             raise ValueError(f"{path.name}: invalid evidence for {product_id}")
-    for tier in tiers:
-        if not isinstance(tier, list) or not all(isinstance(x, str) for x in tier):
-            raise ValueError(f"{path.name}: ranking tiers must be lists of IDs")
-        if not set(tier) <= set(eligible):
-            raise ValueError(f"{path.name}: ranking tier contains an ineligible ID")
+        if not set(evidence_map) <= required_features:
+            raise ValueError(f"{path.name}: evidence contains an unrequested feature for {product_id}")
+        for requirement, quote in evidence_map.items():
+            if not quote_is_grounded(product_id, quote):
+                raise ValueError(f"{path.name}: required evidence quote is not present in listing {product_id}")
+
+    if set(quality_scores) != set(eligible):
+        raise ValueError(f"{path.name}: quality_scores must cover every eligible ID exactly")
+    score_fields = set(QUALITY_SCORE_WEIGHTS)
+    for product_id, score in quality_scores.items():
+        if not isinstance(score, dict) or set(score) != score_fields | {"diversity_group"}:
+            raise ValueError(f"{path.name}: invalid quality score fields for {product_id}")
+        for field in score_fields:
+            value = score[field]
+            if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value <= 5:
+                raise ValueError(f"{path.name}: {field} score for {product_id} must be an integer in [0, 5]")
+        if not isinstance(score["diversity_group"], str) or not score["diversity_group"].strip():
+            raise ValueError(f"{path.name}: diversity_group is required for {product_id}")
+
+    tier_ids = [product_id for tier in tiers for product_id in tier] if all(
+        isinstance(tier, list) and all(isinstance(x, str) for x in tier)
+        for tier in tiers
+    ) else []
+    if any(not isinstance(tier, list) or not all(isinstance(x, str) for x in tier) for tier in tiers):
+        raise ValueError(f"{path.name}: ranking tiers must be lists of IDs")
+    if len(tier_ids) != len(set(tier_ids)) or set(tier_ids) != set(eligible):
+        raise ValueError(f"{path.name}: ranking tiers must cover every eligible ID exactly once")
     return snapshot
 
 
