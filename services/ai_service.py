@@ -1458,7 +1458,12 @@ class AIService:
         fast_model: str | None = None,
         vision_model: str | None = None,
         fallback_model: str | None = None,
+        conversation_turn_thinking_level: str = "minimal",
         conversation_selection_thinking_level: str = "low",
+        chat_action_thinking_level: str = "minimal",
+        product_advice_thinking_level: str = "low",
+        product_comparison_thinking_level: str = "low",
+        product_question_thinking_level: str = "low",
     ) -> None:
         #: The "smart" model. ``model`` stays the first positional argument
         #: (and the value /admin reports) so existing callers are unchanged.
@@ -1468,10 +1473,28 @@ class AIService:
         self.vision_model = vision_model or DEFAULT_VISION_MODEL
         self.fallback_model = fallback_model or DEFAULT_FALLBACK_MODEL
         allowed_thinking_levels = {"minimal", "low", "medium", "high"}
-        requested_thinking_level = str(conversation_selection_thinking_level or "low").strip().lower()
-        self.conversation_selection_thinking_level = (
-            requested_thinking_level
-            if requested_thinking_level in allowed_thinking_levels else "low"
+
+        def normalize_thinking_level(value: str, default: str) -> str:
+            requested = str(value or default).strip().lower()
+            return requested if requested in allowed_thinking_levels else default
+
+        self.conversation_turn_thinking_level = normalize_thinking_level(
+            conversation_turn_thinking_level, "minimal"
+        )
+        self.conversation_selection_thinking_level = normalize_thinking_level(
+            conversation_selection_thinking_level, "low"
+        )
+        self.chat_action_thinking_level = normalize_thinking_level(
+            chat_action_thinking_level, "minimal"
+        )
+        self.product_advice_thinking_level = normalize_thinking_level(
+            product_advice_thinking_level, "low"
+        )
+        self.product_comparison_thinking_level = normalize_thinking_level(
+            product_comparison_thinking_level, "low"
+        )
+        self.product_question_thinking_level = normalize_thinking_level(
+            product_question_thinking_level, "low"
         )
         self.timeout_seconds = timeout_seconds
         self._api_key = api_key
@@ -1774,6 +1797,7 @@ class AIService:
             models=(self.smart_model,),
             operation="product_advice",
             response_schema=PRODUCT_ADVICE_SCHEMA,
+            thinking_level=self.product_advice_thinking_level,
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
@@ -2633,6 +2657,7 @@ seller_terms: {seller_terms_json}
                     models=(self.smart_model,),
                     operation="product_comparison_evidence",
                     response_schema=COMPARISON_EVIDENCE_SCHEMA,
+                    thinking_level=self.product_comparison_thinking_level,
                 )
         except TimeoutError:
             logger.info("Gemini product-comparison evidence timed out; using factual fallback")
@@ -2732,6 +2757,7 @@ seller_terms: {seller_terms_json}
                     models=(self.smart_model,),
                     operation="product_question_answer",
                     response_schema=PRODUCT_QUESTION_SCHEMA,
+                    thinking_level=self.product_question_thinking_level,
                 )
         except TimeoutError:
             logger.info("Gemini product-question answer timed out; using safe fallback")
@@ -2937,6 +2963,7 @@ seller_terms: {seller_terms_json}
                     prompt,
                     models=(self.fast_model,),
                     operation="conversation_turn",
+                    thinking_level=self.conversation_turn_thinking_level,
                 )
         except TimeoutError:
             logger.info("Gemini turn interpretation timed out; using deterministic intent")
@@ -3170,6 +3197,7 @@ seller_terms: {seller_terms_json}
             models=(self.fast_model,),
             operation="chat_action",
             response_schema=CHAT_ACTION_SCHEMA,
+            thinking_level=self.chat_action_thinking_level,
         )
         payload = self._extract_json_object(raw) if raw else None
         if not isinstance(payload, dict):
