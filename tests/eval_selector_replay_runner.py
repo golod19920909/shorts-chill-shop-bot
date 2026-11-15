@@ -168,9 +168,10 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
             return False
         candidate = candidate_by_id[product_id]
         source = " ".join(
-            f"{candidate['title']} {candidate.get('description', '')}".casefold().split()
+            f"{candidate['title']} {candidate.get('description', '')}".split()
         )
-        normalized_quote = " ".join(quote.casefold().split())
+        source = " ".join(source)
+        normalized_quote = " ".join(quote.split())
         return normalized_quote in source
 
     for product_id, quote in identity_evidence.items():
@@ -611,7 +612,7 @@ async def run_replay(
             ),
             "critical_error_reasons": {
                 reason: sum(score["critical_error_reasons"].get(reason, 0) for score in scored)
-                for reason in REJECTION_REASONS
+                for reason in sorted(REJECTION_REASONS)
                 if any(score["critical_error_reasons"].get(reason, 0) for score in scored)
             },
             "false_positive": total_fp,
