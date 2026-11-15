@@ -999,3 +999,32 @@ context connectors and protects the switch from a contradictory Gemini
 must not leak into the new product search. Prepositional targets introduced
 by «на» / «для» are retained as soft use-case context, not hard product-type
 tokens or mandatory title features.
+
+
+### General AI assistant mode (2026-11-15)
+
+The free-text Telegram entry point now has two independent conversation
+contexts: the existing Option C shopping ledger and a bounded general-chat
+history. AssistantRouter uses the existing validated Gemini turn interpreter
+to distinguish general_chat from shopping actions. The same validated
+decision is passed into ConversationSearchEngine.handle_message so a
+shopping message is not classified twice. If Gemini routing is unavailable,
+the established deterministic shopping classifier remains the fallback.
+
+General chat uses AIService.answer_general with the SMART model and a
+dedicated system prompt. It has no AliExpress tools and cannot create product
+cards. The existing product-question menu, cached-result comparisons,
+pending clarifications, provider retrieval, hard constraints, product-type
+gate, ranking, and card delivery retain their existing authority.
+
+The general-chat history is stored separately in per-user context.user_data,
+limited to 12 turns and a 12-hour idle TTL. It is intentionally in-memory in
+this first increment; SQLite persistence is deferred until behaviour and
+retention policy are validated. The /new command clears both chat and
+shopping context while preserving favorites, tracking, and other persistent
+user data.
+
+No Gemini model IDs or deployment secrets are changed by this feature.
+The configured SMART / FAST / VISION / FALLBACK roles remain controlled by
+the existing environment settings. Model availability and billing must be
+verified against the owner's actual API key before changing production IDs.
