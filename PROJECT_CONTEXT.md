@@ -6852,3 +6852,6 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 
 - Live convsearch metrics now log aggregate selector returned IDs plus separate first-pass and continuation-pass counts. This makes a short first response distinguishable from an empty second pass in the next local Telegram test.
+
+
+- Latest CI after adding first/continuation selector-pass counts to the live log: GitHub Actions optimization regression run #228 passed on `2ea305549bda343f2523108c67aaa5cce4513ee0`: **308 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and benchmark CLI checks passed.
