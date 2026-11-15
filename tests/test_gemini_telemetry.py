@@ -160,9 +160,18 @@ class _GenerateInstrumentationTests(unittest.IsolatedAsyncioTestCase):
         with turn_scope("search") as usage:
             raw = await ai._generate("prompt", models=("m1",))
         self.assertIsNone(raw)
-        self.assertEqual(len(usage.attempts), 1)
-        self.assertEqual(usage.attempts[0].outcome, "timeout")
-        self.assertIsNone(usage.attempts[0].tokens)
+        # _generate retries an eligible timeout once with the configured
+        # reserve model. Telemetry records both real SDK attempts.
+        self.assertEqual(len(usage.attempts), 2)
+        self.assertEqual(
+            [attempt.model for attempt in usage.attempts],
+            ["m1", "gemini-3.8-flash"],
+        )
+        self.assertEqual(
+            [attempt.outcome for attempt in usage.attempts],
+            ["timeout", "timeout"],
+        )
+        self.assertTrue(all(attempt.tokens is None for attempt in usage.attempts))
 
     async def test_empty_response_records_empty_outcome(self):
         empty = _response(prompt_token_count=1, total_token_count=2)
