@@ -487,3 +487,7 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Post-restoration CI run `43743099397` on `77be512d`: production compile and manual smoke syntax PASS; focused suite **1 failed, 515 passed, 1 deselected, 582 subtests passed**; configured broad suite **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**. The single failure is a pre-existing baseline Smart Search test reason mismatch (`unverified_required_features` expected vs `rejected_by_type_gate` actual). Do not change protected algorithm/assertion without explicit approval.
+
+
+- Catalog category delivery fix: `handlers/search.py` now imports `edit_catalog_message_or_replace`, which was already used when category results fell below the minimum. Targeted `CategoryCountryPropagationTests` now pass; this is catalog navigation only, not Smart Search/Findings behavior.
+- Latest verified CI on code commit `2c749777` (run `43743673727`): compile and smoke syntax PASS; focused **533 passed, 1 baseline failure, 584 subtests**; configured broad **2,282 passed, 1 baseline failure, 1,259 subtests**. The sole failure remains the protected baseline Smart Search reason mismatch.
