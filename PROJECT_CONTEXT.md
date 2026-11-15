@@ -474,3 +474,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Gemini telemetry timeout test now reflects the established one-reserve-retry behavior: two SDK attempts (primary and reserve) are recorded when both time out. This was a test-only correction; no production fallback behavior changed. Commit `2d9b4b8b`; CI rerun pending.
+
+
+- Fixed a false-positive test in `tests/test_revision_ux.py`: a coroutine test method with no `await` was defined under `unittest.TestCase` and was never awaited. It is now a normal synchronous test so its assertions execute. Test-only change, commit `ff8b668d`; CI pending.
