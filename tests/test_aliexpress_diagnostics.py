@@ -264,6 +264,7 @@ class AdminApiDiagnosticsTests(unittest.TestCase):
                 self.calls_ok = 0
                 self.calls_err = 0
                 self.empty_results = 0
+                self.call_latencies_ms = []
                 self.last_ok_at = None
                 self.last_error_class = None
                 for name, value in overrides.items():
