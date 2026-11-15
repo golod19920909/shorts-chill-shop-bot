@@ -6759,3 +6759,26 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - AIService.select_conversation_candidates normalizes the budget constraint before invoking the opt-in selector snapshot writer. Previously the capture path referenced the normalized value before assignment; the exception was swallowed as a best-effort diagnostics failure, so capture files were silently absent whenever opt-in capture was enabled.
 - Added an offline regression that runs the selector method with a fake Gemini response and a real temporary capture directory, then verifies a capture file is created and its budget is normalized. No Gemini, AliExpress, or Telegram calls are made by the test.
 - Capture remains opt-in (SHORTS_CHILL_SELECTOR_CAPTURE=1); selector prompts, candidate payloads, model routing, and selection behavior are unchanged.
+
+
+## 2026-11-15 — Gemini model routing switch
+
+- The production routing defaults on `optimize/performance-costs` are now
+  Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) as the single primary model
+  for all roles (conversation, selection, product answers and vision), with
+  Gemini 3.1 Flash-Lite (`gemini-3.1-flash-lite`) as the sole reserve.
+- Gemini 3.8 Flash is removed from runtime primary/reserve defaults. The
+  existing pricing estimator retains historical 3.8 rates only so old
+  telemetry can still be cost-estimated; it is not a configured model route.
+- The environment contract remains `GEMINI_PRIMARY_MODEL` and
+  `GEMINI_RESERVE_MODEL`. Legacy role-specific variables
+  (`GEMINI_SMART_MODEL`, `GEMINI_FAST_MODEL`,
+  `GEMINI_VISION_MODEL`, `GEMINI_FALLBACK_MODEL`) are ignored.
+- Local deployments must update their untracked `.env` explicitly to:
+  `GEMINI_PRIMARY_MODEL=gemini-3.5-flash-lite` and
+  `GEMINI_RESERVE_MODEL=gemini-3.1-flash-lite`. No credentials or local
+  `.env` file are committed.
+- Offline configuration tests now assert the 3.5/3.1 defaults and that stale
+  legacy 3.8 role variables cannot restore 3.8 routing.
+- This change does not alter prompts, candidate limits, search routes,
+  ranking, validation, or Telegram delivery. Verification is pending.

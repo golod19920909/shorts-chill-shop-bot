@@ -100,13 +100,13 @@ class Settings:
 
     #: All roles use the same configured primary generation to keep one
     #: consistent quality bar across dialogue, selection, product answers and
-    #: photo understanding. GEMINI_PRIMARY_MODEL is the only primary override;
-    #: GEMINI_RESERVE_MODEL selects the one reserve used after eligible errors.
-    #: Model-scoped quota/rate-limit errors get one reserve attempt; if both models are limited, stop.
-    gemini_fast_model: str = "gemini-3.1-flash-lite"
-    gemini_smart_model: str = "gemini-3.1-flash-lite"
-    gemini_vision_model: str = "gemini-3.1-flash-lite"
-    gemini_fallback_model: str = "gemini-3.8-flash"
+    #: photo understanding. Gemini 3.5 Flash-Lite is primary; Gemini 3.1
+    #: Flash-Lite is the sole reserve after eligible errors. GEMINI_PRIMARY_MODEL
+    #: and GEMINI_RESERVE_MODEL remain explicit deployment overrides.
+    gemini_fast_model: str = "gemini-3.5-flash-lite"
+    gemini_smart_model: str = "gemini-3.5-flash-lite"
+    gemini_vision_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_model: str = "gemini-3.1-flash-lite"
 
     @property
     def gemini_model(self) -> str:
@@ -269,18 +269,18 @@ def load_settings() -> Settings:
             "FEED_MAX_PAGES_PER_OPEN", default=2, minimum=1, maximum=10
         ),
         gemini_fast_model=(
-            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.5-flash-lite"
         ),
         # The new primary/reserve names intentionally supersede legacy
         # role-specific variables so an old .env cannot leave 3.8 primary.
         gemini_smart_model=(
-            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.5-flash-lite"
         ),
         gemini_vision_model=(
-            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.1-flash-lite"
+            _get("GEMINI_PRIMARY_MODEL") or "gemini-3.5-flash-lite"
         ),
         gemini_fallback_model=(
-            _get("GEMINI_RESERVE_MODEL") or "gemini-3.8-flash"
+            _get("GEMINI_RESERVE_MODEL") or "gemini-3.1-flash-lite"
         ),
     )
 

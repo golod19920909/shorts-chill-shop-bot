@@ -196,3 +196,25 @@ No production model change, merge to `main`, PR merge or deployment has been per
 ## Selector capture ordering fix (2026-11-14)
 
 A code review found that select_conversation_candidates passed normalized_budget to the opt-in snapshot writer before assigning it. Because capture is best-effort and catches its own exceptions, normal selection continued but the requested snapshot was silently not written. The normalization now occurs before the capture block. A new offline regression exercises the full selector method with a fake Gemini response and asserts that exactly one capture file is created with the normalized budget. The change does not alter the selector prompt, candidate pool, selection result, production model routing, or the default-disabled capture setting. CI verification is pending for this commit.
+
+
+## 9. Follow-up decision — Gemini routing switched on 2026-11-15
+
+The user approved switching the bot to Gemini 3.5 Flash-Lite after reviewing
+the blind benchmark. The working branch now configures:
+
+- Primary for all generation roles: `gemini-3.5-flash-lite`.
+- Sole reserve after eligible primary errors: `gemini-3.1-flash-lite`.
+- `gemini-3.8-flash` is no longer a runtime primary or reserve default.
+
+The earlier benchmark limitations remain: application-validator acceptance is
+not human-scored semantic quality, selector parity on authentic AliExpress
+candidate pools is still unverified, and benchmark cost estimates were not
+authoritative billed costs. The switch is therefore a controlled model-routing
+decision, not a claim that end-to-end production economics have been proven.
+
+The pricing estimator deliberately retains historical 3.8 rates for older
+telemetry records; that is accounting compatibility only and does not make
+3.8 selectable by the new defaults. The local untracked `.env` must be
+updated separately to the two model IDs above. No production deployment,
+merge, or VPS change is implied.
