@@ -553,6 +553,21 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         self.assertEqual(result, ["drill-1"])
         self.assertEqual(service.captured_thinking_levels, ["medium"])
 
+    def test_selector_prompt_keeps_stable_policy_before_dynamic_query(self) -> None:
+        service = self._service(
+            '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
+            '"requirement_evidence":{}}]}'
+        )
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="уникальный динамический запрос"
+        ))
+        self.assertEqual(result, ["drill-1"])
+        prompt = service.captured_prompts[-1]
+        self.assertLess(
+            prompt.index("Сначала определи"),
+            prompt.index("Ориентир запроса: уникальный динамический запрос"),
+        )
+
     def test_conversation_selection_uses_primary_model(self) -> None:
         service = self._service(
             '{"selections":[{"id":"drill-1","identity_evidence":"Cordless screwdriver",'
