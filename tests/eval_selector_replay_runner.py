@@ -170,7 +170,6 @@ def validate_snapshot(snapshot: object, path: Path) -> dict[str, Any]:
         source = " ".join(
             f"{candidate['title']} {candidate.get('description', '')}".split()
         )
-        source = " ".join(source)
         normalized_quote = " ".join(quote.split())
         return normalized_quote in source
 
