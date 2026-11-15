@@ -150,11 +150,19 @@ def test_cost_formula_prices_cache_writes_as_a_separate_input_class():
     assert cost == 0.0011675
 
 
-def test_gemini_baseline_uses_the_same_prompt_only_json_mode_as_production():
+def test_gemini_baseline_matches_production_structured_output_and_thinking():
     body = _google_request("exact prompt")
 
-    assert body == {"contents": [{"parts": [{"text": "exact prompt"}]}]}
-    assert "generationConfig" not in body
+    assert body["contents"] == [{"parts": [{"text": "exact prompt"}]}]
+    config = body["generationConfig"]
+    assert config["responseMimeType"] == "application/json"
+    assert config["responseSchema"] == benchmark.CONVERSATION_TURN_SCHEMA
+    assert config["thinkingConfig"] == {"thinkingLevel": "minimal"}
+
+    # Non-interpreter operations keep their production plain-text contract.
+    assert "generationConfig" not in _google_request(
+        "plain text", operation="no_results_reply"
+    )
 
 
 def test_benchmark_results_do_not_reveal_provider_identity(tmp_path, monkeypatch):
