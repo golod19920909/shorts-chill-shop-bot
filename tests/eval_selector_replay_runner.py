@@ -297,6 +297,60 @@ def score_selection(
     ranking_pair_accuracy = (
         sum(ranked_pairs) / len(ranked_pairs) if ranked_pairs else None
     )
+
+    quality_scores = gold["quality_scores"]
+
+    def item_quality_score(product_id: str) -> float:
+        row = quality_scores[product_id]
+        return sum(
+            row[field] * weight
+            for field, weight in QUALITY_SCORE_WEIGHTS.items()
+        ) / 5.0
+
+    selected_item_scores = [
+        item_quality_score(product_id) if product_id in eligible else 0.0
+        for product_id in selected_ids
+    ]
+    correct_abstention = not eligible and not selected_set
+    base_quality_score = (
+        sum(selected_item_scores) / len(selected_item_scores)
+        if selected_item_scores
+        else (90.0 if correct_abstention else 0.0)
+    )
+    eligible_groups = {
+        quality_scores[product_id]["diversity_group"]
+        for product_id in eligible
+    }
+    selected_groups = {
+        quality_scores[product_id]["diversity_group"]
+        for product_id in selected_set & eligible
+    }
+    diversity_score = (
+        10.0 * len(selected_groups) / len(eligible_groups)
+        if eligible_groups
+        else (10.0 if correct_abstention else 0.0)
+    )
+    weighted_quality_score = base_quality_score + diversity_score
+    eligible_quality_total = sum(item_quality_score(product_id) for product_id in eligible)
+    selected_quality_total = sum(
+        item_quality_score(product_id) for product_id in selected_set & eligible
+    )
+    weighted_quality_coverage = (
+        selected_quality_total / eligible_quality_total * 100.0
+        if eligible_quality_total
+        else (100.0 if correct_abstention else 0.0)
+    )
+    rejected_by_id = {row["id"]: row for row in gold["rejected"]}
+    critical_false_positive_ids = sorted(
+        product_id
+        for product_id in selected_set
+        if product_id in rejected_by_id and rejected_by_id[product_id]["critical"]
+    )
+    critical_error_reasons: dict[str, int] = {}
+    for product_id in critical_false_positive_ids:
+        reason = rejected_by_id[product_id]["reason"]
+        critical_error_reasons[reason] = critical_error_reasons.get(reason, 0) + 1
+
     required_features = set(snapshot["request"]["required_features"])
     missing_required_evidence = {
         product_id: sorted(required_features - set(gold["required_evidence"].get(product_id, {})))
@@ -320,7 +374,7 @@ def score_selection(
         "unknown_ids": sorted(selected_set - candidate_ids),
         "duplicate_ids": len(selected_ids) - len(selected_set),
         "over_limit": len(selected_ids) > snapshot["request"]["wanted"],
-        "correct_abstention": not eligible and not selected_set,
+        "correct_abstention": correct_abstention,
         "missing_required_evidence": missing_required_evidence,
         "missing_identity_evidence": missing_identity_evidence,
         "gold_evidence_complete": not missing_required_evidence and not missing_identity_evidence,
@@ -328,6 +382,12 @@ def score_selection(
             round(ranking_pair_accuracy, 6)
             if ranking_pair_accuracy is not None else None
         ),
+        "weighted_quality_score": round(weighted_quality_score, 6),
+        "weighted_quality_coverage": round(weighted_quality_coverage, 6),
+        "diversity_score": round(diversity_score, 6),
+        "critical_false_positive_count": len(critical_false_positive_ids),
+        "critical_false_positive_ids": critical_false_positive_ids,
+        "critical_error_reasons": critical_error_reasons,
     }
 
 
@@ -509,6 +569,8 @@ async def run_replay(
         precision = total_tp / (total_tp + total_fp) if total_tp + total_fp else 1.0
         recall = total_tp / (total_tp + total_fn) if total_tp + total_fn else 1.0
         durations = [row["duration_ms"] for row in group]
+        weighted_scores = [score["weighted_quality_score"] for score in scored]
+        weighted_coverages = [score["weighted_quality_coverage"] for score in scored]
         costs = [row["cost_usd"] for row in group if row["cost_usd"] is not None]
         successful_costs = [
             row["cost_usd"] for row in group
@@ -536,6 +598,22 @@ async def run_replay(
                 2 * precision * recall / (precision + recall)
                 if precision + recall else 0.0, 6
             ),
+            "weighted_quality_score_mean": (
+                round(sum(weighted_scores) / len(weighted_scores), 6)
+                if weighted_scores else None
+            ),
+            "weighted_quality_coverage_mean": (
+                round(sum(weighted_coverages) / len(weighted_coverages), 6)
+                if weighted_coverages else None
+            ),
+            "critical_false_positives": sum(
+                score["critical_false_positive_count"] for score in scored
+            ),
+            "critical_error_reasons": {
+                reason: sum(score["critical_error_reasons"].get(reason, 0) for score in scored)
+                for reason in REJECTION_REASONS
+                if any(score["critical_error_reasons"].get(reason, 0) for score in scored)
+            },
             "false_positive": total_fp,
             "false_negative": total_fn,
             "latency_p50_ms": _percentile(durations, 0.50),
