@@ -302,12 +302,17 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
             product(f"broad-retrieval-{i}", "Рыболовная катушка спиннинговая")
             for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
         ]
+        hard_rejected_pool = [
+            product(f"accessory-{i}", "Screwdriver bit set")
+            for i in range(AI_CONVERSATION_CANDIDATE_POOL_LIMIT)
+        ]
         observed = []
 
         class PagingBackend:
             async def retrieve(self, strategy, *, exclude=None, should_continue=None):
                 observed.append(should_continue(pool[:30]))
                 observed.append(should_continue(pool))
+                observed.append(should_continue(hard_rejected_pool))
                 return BackendOutcome(
                     ok=True,
                     reason="ok",
@@ -331,7 +336,7 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
             "Найди рыболовную катушку",
         )
 
-        self.assertEqual(observed, [True, False])
+        self.assertEqual(observed, [True, False, True])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
         self.assertEqual(len(selector.await_args.args[0]), AI_CONVERSATION_REVIEW_POOL_LIMIT - 10)
         self.assertEqual(selector.await_args.kwargs["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
