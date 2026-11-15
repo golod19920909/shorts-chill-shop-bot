@@ -487,3 +487,11 @@ Commit `77be512d`, GitHub Actions run [#1948](https://github.com/golod19920909/s
 - Удалено утверждение «557 тестов, все проходят», которое больше не соответствовало реальному составу и результатам CI.
 - README теперь указывает подтверждённые focused/broad цифры, факт явных исключений из broad suite и единственное известное baseline failure.
 - Обновление документации, без runtime-изменений. Commit README: `99ee89b9`.
+
+
+### Расширено targeted CI-покрытие acceptance-модуля без изменения защищённых потоков
+
+- Из `tests/test_discovery_acceptance.py` в focused offline workflow добавлены только три изолированных класса: `FavoritesScreenTests`, `ScreenTextTests`, `CategoryCountryPropagationTests`.
+- Классы shown-history, menu wiring, popular feed и связанные с ними проверки не добавлялись: они требуют отдельного аудита, поскольку затрагивают защищённые «Находки» и пользовательскую историю.
+- Broad suite продолжает исключать весь смешанный модуль; это не маскирует его оставшиеся тесты и не заявляет их устаревшими.
+- Workflow commit: `a792b098`. Результат нового focused run ожидает подтверждения.
