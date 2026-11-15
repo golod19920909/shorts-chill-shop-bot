@@ -6844,3 +6844,8 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 
 - Selector replay cost reporting distinguishes any accepted model decision (including a valid empty/no-match) from a non-empty selection with no critical false positives and complete gold evidence. These are selector-only costs, not full-search costs; production turn telemetry remains the source for full search-attempt cost.
+
+
+- Active Option C Thinking is now configured per operation: turn=minimal, selector=low, chat_action=minimal, product_advice=low, product_comparison=low, product_question=low by default. Each has an independent GEMINI_*_THINKING_LEVEL override accepting minimal/low/medium/high. No .env changes are required; defaults are loaded safely.
+- The dialogue A/B runner now mirrors production structured schemas and output caps for conversation_turn, chat_action and no_results_reply. It accepts EVAL_GEMINI_CONVERSATION_TURN_THINKING_LEVEL and EVAL_GEMINI_CHAT_ACTION_THINKING_LEVEL; scripts/run_gemini_35_ab.ps1 exposes matching PowerShell parameters. The earlier Nov 14 A/B aggregate must be rerun because its chat_action path was prompt-only JSON, not production schema parity.
+- Latest scoped optimization CI run #219 passed on head `203f6c5f64973b17d6052047408d62e3b9af1f27`: **308 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and benchmark CLI checks passed. This is still the scoped workflow, not an unfiltered full-repository suite.
