@@ -284,7 +284,7 @@
 ## 10. Рекомендуемый порядок
 
 1. Проверить текущие изменения уборки и выполнить offline suite.
-2. Закрыть P0: retrieval stopping, Gemini continuation, selector capture regression.
+2. Закрывать retrieval stopping и Gemini continuation только после отдельного разрешения на изменение защищённого «Умного поиска»; selector capture regression можно вести отдельно как opt-in диагностику.
 3. Провести контролируемый golden-set тест на реальных карточках AliExpress.
 4. Оптимизировать Gemini prompt и число API calls по результатам измерений.
 5. Исправить фоновые API scheduling и проверить rate limits.
@@ -301,29 +301,15 @@
 
 **Последнее обновление:** 15 ноября 2026 года.
 
-### P0.1 — остановка retrieval по реальному окну отбора
+### P0.1 / P0.2 — отложены: защищённая логика «Умного поиска»
 
-- Реализовано в `services/convsearch/engine.py`.
-- Цель остановки теперь считается по всем кандидатам, прошедшим hard gates и ranking: безопасным плюс допущенным к semantic review.
-- Добавлена отдельная диагностика количества hard-rejected, review-eligible и safe-кандидатов.
-- Добавлен регрессионный тест: 80 cross-language кандидатов, ожидающих Gemini review, должны заполнить retrieval target и остановить дальнейшую пагинацию, хотя safe-кандидатов среди них нет.
-
-### P0.2 — контракт continuation Gemini
-
-- Реализовано в `services/convsearch/engine.py`.
-- Второй проход больше не вызывается после валидного пустого списка.
-- Для непустого частичного результата сохранён один ограниченный проход только по невыбранным ID и в рамках общего deadline.
-- Неизвестные/невалидные ID без валидного выбора не запускают continuation; применяется безопасный fallback.
-- Обновлён тест пустого ответа: ожидается один вызов selector и `semantic_no_match`.
-
-### Коммиты
-
-- Engine: `85b6006c2e15742124cadda3eee1aff62db2273a`.
-- Regression tests: `f4af907bcd69ce7237a3490b40a301078974ee8c`.
-- PROJECT_CONTEXT: `1e90dcab4172e536a524a650ebeca2605020b069`.
-
-**Проверка:** тесты добавлены, но пока не запускались. Успешное прохождение не заявляется. Локальный ПК, `.env`, SQLite и production updater branch не затрагивались.
-
+- Ранее в этой ветке были внесены изменения в `services/convsearch/engine.py`: условие остановки retrieval по окну semantic review и правило пропуска второго Gemini pass после валидного пустого списка.
+- Эти изменения меняли алгоритм защищённого раздела «Умный поиск» и выходили за пределы точечной авторизации пользователя.
+- По результатам повторного аудита оба изменения и связанные regression tests в `tests/test_convsearch_engine.py` возвращены к точному содержимому baseline `3822fc95`.
+- Текущий код поиска, порядок маршрутов, candidate pool, лимиты, Gemini continuation и семантика пустого ответа остаются как в baseline. Новые изменения этих алгоритмов не считаются выполненными.
+- Эти улучшения остаются только предложениями для отдельного ТЗ и требуют отдельного явного разрешения пользователя.
+- Revert commits: engine `0d8e3ced`; tests `73aba910`.
+- Единственное разрешённое изменение в защищённом «Умном поиске» — точечное исправление undefined `empty_keyboard` в narrowing follow-up (commit `81d18945`), с регрессионным тестом. Оно сохранено.
 
 ### P0.3 — приватность selector snapshots
 
@@ -474,3 +460,11 @@ Commit `ff8b668d`, GitHub Actions run [#1945](https://github.com/golod19920909/s
 - Broad configured offline suite: **2,284 passed, 2 deselected, 1,259 subtests passed**.
 - Async test warning `coroutine ... was never awaited` устранён в проверенном запуске; warning count в broad suite уменьшился с 7 до 6.
 - Оставшиеся предупреждения относятся к pytest-asyncio loop-scope, SQLite worker lifecycle и Google GenAI SDK deprecation. Их причины требуют отдельного адресного исследования; массовые изменения event-loop / database lifecycle не выполнялись.
+
+
+### Повторная проверка границ разрешения — Smart Search
+
+- Аудит истории показал, что commits `85b6006c` и `f4af907b` ранее меняли protected `services/convsearch/engine.py` и соответствующие тесты без отдельного подтверждения на эти алгоритмические изменения.
+- Чтобы соблюдать ограничение владельца проекта, `services/convsearch/engine.py` и `tests/test_convsearch_engine.py` восстановлены из baseline `3822fc95`.
+- Сравнение с baseline подтверждает: в `handlers/search.py` остаётся только разрешённое исправление narrowing follow-up; `services/convsearch/engine.py` и `tests/test_convsearch_engine.py` больше не отличаются от baseline.
+- Никакие новые изменения retrieval, ранжирования, candidate pool или Gemini continuation не оставлены в ветке.
