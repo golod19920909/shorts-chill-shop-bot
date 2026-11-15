@@ -62,6 +62,9 @@ jobs:
           tests/test_gemini_telemetry.py::_GenerateInstrumentationTests
           tests/test_gemini_telemetry.py::ConcurrencyTests
           tests/test_gemini_telemetry.py::PersistenceTests
+          tests/test_discovery_acceptance.py::FavoritesScreenTests
+          tests/test_discovery_acceptance.py::ScreenTextTests
+          tests/test_discovery_acceptance.py::CategoryCountryPropagationTests
           tests/test_query_intent.py
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
