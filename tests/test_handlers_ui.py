@@ -46,6 +46,7 @@ from keyboards.admin import (
 )
 from keyboards.hot_discounts import hot_discounts_keyboard
 from keyboards.products import (
+    CB_PREFIX_BUY,
     CB_PREFIX_FAVORITE,
     CB_PREFIX_TRACK,
     CARD_ACTION_LABELS,
@@ -534,7 +535,7 @@ class SendSearchResultsTests(unittest.TestCase):
         )
         with_affiliate = make_outcome(count=1, products=[product])
         context = make_context()
-        run(search_handlers.send_search_results(context, 47, with_affiliate))
+        session_id = run(search_handlers.send_search_results(context, 47, with_affiliate))
         labels = labels_of(context.bot.keyboards[0])
         self.assertEqual(labels[0], "🛒 Купить")
         buy_button = next(
@@ -543,10 +544,13 @@ class SendSearchResultsTests(unittest.TestCase):
             for button in row
             if button.text == "🛒 Купить"
         )
-        # The URL button opens exactly the affiliate URL, not a callback
-        # and not the plain product URL.
-        self.assertEqual(buy_button.url, "https://s.click.aliexpress.com/real1")
-        self.assertIsNone(buy_button.callback_data)
+        # The callback is bound to this exact cached product; the handler
+        # sends its affiliate URL after recording the request.
+        self.assertIsNone(buy_button.url)
+        self.assertEqual(
+            buy_button.callback_data,
+            f"{CB_PREFIX_BUY}:{session_id}:0",
+        )
 
     def test_cached_meta_is_not_lost_when_the_cache_rotates(self) -> None:
         context = make_context()
