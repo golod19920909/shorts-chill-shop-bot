@@ -6813,3 +6813,9 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 
 - First implementation-pass CI: GitHub Actions optimization regression run #129 passed on `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI entrypoints passed. This is the scoped workflow, not an unfiltered full-suite pass.
 - The selector's dynamic JSON schema now caps `selections` at the requested `limit`, disallows unexpected root/item/evidence properties, and describes the evidence fields. Python still verifies every returned ID and exact quote.
+
+
+- Active Option C structured outputs now also use schemas for `chat_action`, `product_advice`, `product_comparison_evidence`, and `product_question_answer`. Their callers retain the existing exact quote/fact validation. The legacy parser, feed/catalog selectors and other protected flows were not changed.
+- Structured-operation CI: GitHub Actions run #145 passed on `f384c070c8b6338d2d5b324902d9a7ae49db218d`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI entrypoints passed. This is the scoped workflow, not an unfiltered full-suite pass.
+- One live 2026-11-15 3.5 search trace cost approximately `$0.00856060` over three calls (turn $0.00086360; two selector passes $0.00393790 + $0.00375910), 26,927 input tokens and 193 candidate-output tokens. It returned one card, so it is a per-attempt observation, not a representative success average.
+- At 30 searches/user/month, repeating that same high-cost trace gives scenario estimates of $5.14 / $12.84 / $25.68 / $128.41 per month for 20 / 50 / 100 / 500 users respectively. This excludes hosting and marketplace costs and must be recalculated after cached-token telemetry and a larger live sample.
