@@ -238,7 +238,7 @@ def record_attempt(
 
     logger.info(
         "gemini_attempt request_id=%s op=%s model=%s dur_ms=%.0f "
-        "outcome=%s prompt=%s candidates=%s thoughts=%s total=%s "
+        "outcome=%s prompt=%s cached=%s candidates=%s thoughts=%s total=%s "
         "cost_usd=%s cost_status=%s",
         attempt.request_id or "unscoped",
         operation,
@@ -246,6 +246,7 @@ def record_attempt(
         duration_ms,
         outcome,
         (tokens or {}).get("prompt_token_count", "unavailable"),
+        (tokens or {}).get("cached_content_token_count", "unavailable"),
         (tokens or {}).get("candidates_token_count", "unavailable"),
         (tokens or {}).get("thoughts_token_count", "unavailable"),
         (tokens or {}).get("total_token_count", "unavailable"),
