@@ -2012,8 +2012,29 @@ class AIService:
             "discount_percent", "rating", "positive_rate", "orders_count",
             "has_image", "availability",
         )
+
+        def redact_urls(value):
+            # Candidate descriptions and even a user query are external text.
+            # Keep the useful wording but never persist URL fragments in a
+            # diagnostic snapshot (including nested category-path values).
+            if isinstance(value, str):
+                return re.sub(
+                    r"(?:https?://|www\\.)[^\\s<>\\"']+",
+                    "[url-redacted]",
+                    value,
+                    flags=re.IGNORECASE,
+                )
+            if isinstance(value, list):
+                return [redact_urls(item) for item in value]
+            if isinstance(value, dict):
+                return {key: redact_urls(item) for key, item in value.items()}
+            return value
+
         candidates = [
-            {key: payload.get(key) for key in allowed_fields}
+            {
+                key: redact_urls(payload.get(key))
+                for key in allowed_fields
+            }
             for payload in candidate_payloads
         ]
         snapshot = {
@@ -2029,12 +2050,12 @@ class AIService:
                 "candidate_count": len(candidates),
             },
             "request": {
-                "query": query,
+                "query": redact_urls(query),
                 "wanted": wanted,
-                "required_features": list(required_features),
+                "required_features": redact_urls(list(required_features)),
                 "identity_review_ids": list(identity_review_ids),
-                "marketplace_terms": list(marketplace_terms),
-                "budget_constraint": budget_constraint,
+                "marketplace_terms": redact_urls(list(marketplace_terms)),
+                "budget_constraint": redact_urls(budget_constraint),
             },
             "candidates": candidates,
             "gold": None,
