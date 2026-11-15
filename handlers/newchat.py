@@ -17,7 +17,7 @@ from handlers.search import reset_conversation
 from keyboards.main import back_to_menu_keyboard
 
 RESET_TEXT = (
-    "🧹 Начинаем новый подбор. Опишите, что ищете — "
+    "🧹 Начинаем новый диалог или подбор. Напишите, что хотите обсудить или найти — "
     "например: «беспроводные наушники для пробежек до 3000»."
 )
 
