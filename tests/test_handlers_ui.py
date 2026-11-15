@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from handlers import discovery
 from handlers import favorites
@@ -103,6 +104,7 @@ class FakeQuery:
 
     def __init__(self, data: str) -> None:
         self.data = data
+        self.message = FakeMessage()
         self.answers: list[str] = []
         self.edits: list[tuple[str, dict]] = []
 
@@ -1168,21 +1170,26 @@ class MainMenuEndToEndTests(unittest.TestCase):
         self.assertIn(CB_THEMATIC_COLLECTIONS, callbacks_of(main_menu_keyboard().inline_keyboard))
         context = make_context()
 
-        for callback in MAIN_MENU_CALLBACKS:
-            with self.subTest(callback=callback):
-                query = FakeQuery(callback)
-                query.message = FakeMessage()
-                query.message.message_id = 1
-                update = FakeUpdate(callback_query=query)
-                messages_before = len(context.bot.messages)
+        async def fake_show_feed(update, _context):
+            await update.callback_query.edit_message_text("feed screen")
 
-                run(start.menu_callback(update, context))
+        with patch("handlers.discovery.show_feed", new=AsyncMock(side_effect=fake_show_feed)) as show_feed:
+            for callback in MAIN_MENU_CALLBACKS:
+                with self.subTest(callback=callback):
+                    query = FakeQuery(callback)
+                    query.message.message_id = 1
+                    update = FakeUpdate(callback_query=query)
+                    messages_before = len(context.bot.messages)
 
-                produced = bool(query.edits) or len(context.bot.messages) > messages_before
-                self.assertTrue(produced, f"{callback} ничего не показал")
-                if callback == CB_THEMATIC_COLLECTIONS:
-                    self.assertTrue(query.edits)
-                    self.assertEqual(len(context.bot.messages), messages_before)
+                    run(start.menu_callback(update, context))
+
+                    produced = bool(query.edits) or len(context.bot.messages) > messages_before
+                    self.assertTrue(produced, f"{callback} ничего не показал")
+                    if callback == CB_THEMATIC_COLLECTIONS:
+                        self.assertTrue(query.edits)
+                        self.assertEqual(len(context.bot.messages), messages_before)
+
+        self.assertEqual(show_feed.await_count, 2)
 
 
 if __name__ == "__main__":
