@@ -97,8 +97,9 @@ class ThematicCollectionConfigTests(unittest.TestCase):
                 )
                 self.assertTrue(shelf.product_types)
                 self.assertTrue(shelf.product_type_groups)
-                # The runtime route planner merges the three priority phrases
-                # with one representative from every canonical product type.
+                # The runtime route planner merges every configured
+                # priority route with one representative from each canonical
+                # product type not already covered by those routes.
                 route_plan = list(dict.fromkeys([
                     *shelf.query_routes,
                     *(group[0] for group in shelf.product_type_groups),
@@ -110,7 +111,7 @@ class ThematicCollectionConfigTests(unittest.TestCase):
                 self.assertGreater(len(route_plan), 3)
                 self.assertLessEqual(len(route_plan), 20)
                 self.assertEqual(
-                    set(route.casefold() for route in route_plan[3:]),
+                    set(route.casefold() for route in route_plan[len(shelf.query_routes):]),
                     set(
                         group[0].casefold()
                         for group in shelf.product_type_groups
