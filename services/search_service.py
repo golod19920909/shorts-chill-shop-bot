@@ -2828,6 +2828,7 @@ class SearchService:
         country: str | None = None,
         currency: str | None = None,
         exclude: set[tuple[str, str]] | None = None,
+        max_price: float | None = None,
     ) -> SearchOutcome:
         """Search inside one catalog category.
 
