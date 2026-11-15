@@ -82,6 +82,7 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 - GitHub Actions optimization regression workflow #129 passed on code head `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**.
 - Added strict response schemas for active Option C product advice, paired comparison evidence, product-question evidence and short chat-action classification, with per-operation output caps. GitHub Actions run #145 passed on code head `f384c070c8b6338d2d5b324902d9a7ae49db218d`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. These are scoped optimization regressions, not an unfiltered full-repository test run.
 - Tightened the conversation-turn schema with a [0,1] confidence range and no unexpected root/slot-update properties. Latest scoped workflow #157 passed on docs/context head `43d6ad70baae19a89ba9d92183cf072f91b3c0ee`: **302 passed, 64 subtests passed, 5 deselected, 1 warning**.
+- Added mandatory human gold-label validation for every candidate, verbatim title/description evidence checks, 0–5 quality dimensions, diversity groups, ranking-tier coverage, critical-error flags, and weighted-quality/coverage/critical-error metrics. The first run exposed a quote-normalization bug in the new test validator; it was corrected. Final scoped workflow #177 passed on code head `45ddd8b41ab6c561304a50ebe80c5daf715a0f86`: **305 passed, 64 subtests passed, 5 deselected, 1 warning**.
 
 ## 5. Google capability audit
 
