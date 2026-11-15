@@ -6809,3 +6809,7 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
 - Conversation-turn structured schema and Thinking remain `minimal`; selector Thinking remains configurable with default `low` and the existing replay matrix `minimal,low,medium`. No evidence currently justifies `high`.
 - No search routes, provider page depth, candidate pool sizes, ranking, type validation, evidence requirements, exclusions, budget checks, product card delivery, Smart Search, Findings, catalog or thematic shelves were changed.
 - Remaining acceptance gate: run the scoped offline regression workflow; then capture real AliExpress selector inputs, independently label eligibility/evidence/ranking, and run the blind 3.1/3.5 replay. Until that is complete, no final model-promotion decision is recorded.
+
+
+- First implementation-pass CI: GitHub Actions optimization regression run #129 passed on `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI entrypoints passed. This is the scoped workflow, not an unfiltered full-suite pass.
+- The selector's dynamic JSON schema now caps `selections` at the requested `limit`, disallows unexpected root/item/evidence properties, and describes the evidence fields. Python still verifies every returned ID and exact quote.
