@@ -451,3 +451,15 @@
 - Метод не содержит `await`, но был объявлен как `async def` внутри синхронного `unittest.TestCase`; unittest возвращал coroutine и фактически не выполнял assertions.
 - Метод переведён в обычный `def`, чтобы регрессионная проверка affiliate Buy-кнопки реально исполнялась.
 - Изменён только тест, production-код не менялся. Commit: `ff8b668d`. CI rerun ожидает результата.
+
+
+### Подтверждённый CI после исправления telemetry test
+
+Commit `17a156fc`, GitHub Actions run [#1943](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43742522032) — SUCCESS:
+- Production `compileall` — passed.
+- Manual smoke-script syntax check — passed.
+- Focused offline suite: **517 passed, 1 deselected, 582 subtests passed**.
+- Broad configured offline suite: **2,284 passed, 2 deselected, 1,259 subtests passed**.
+- После telemetry timeout test correction focused suite полностью зелёный.
+- Предупреждения остаются: pytest-asyncio loop-scope deprecation, SQLite worker threads / closed event loops, а также Google GenAI SDK deprecation warning. Они не привели к падению этого запуска.
+- Отдельный test hygiene fix для неисполнявшегося async test в `test_revision_ux.py` сделан позже, в commit `ff8b668d`; его CI run ещё выполняется и не включён в эти цифры.
