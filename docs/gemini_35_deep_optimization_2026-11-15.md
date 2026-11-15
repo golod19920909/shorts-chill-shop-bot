@@ -79,9 +79,11 @@ This pass deliberately scopes schema changes to the active conversational produc
 - `conversation_turn`: explicit `minimal` thinking for the bounded structured dialogue decision.
 - `conversation_selection`: configurable `minimal|low|medium|high`; current default remains `low`.
 - The selector replay runner supports a controlled `minimal,low,medium` comparison on identical reviewed snapshots.
+- Thinking is now independently configurable for every active Option C operation. Defaults: turn `minimal`, selector `low`, chat action `minimal`, product advice `low`, product comparison `low`, product question `low`. All accept `minimal|low|medium|high`; these are conservative starting points, not claims of optimality.
+- The Gemini dialogue A/B script accepts `-TurnThinkingLevel` and `-ChatActionThinkingLevel`; both models receive the same levels and production structured schemas/output caps.
 - `high` is not selected without evidence that its quality improvement justifies extra latency and output cost.
 
-The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for the measured language operations. It did **not** evaluate product-selection relevance, compatibility, hard-constraint compliance, or final shopping-session quality. Therefore the 3.5 promotion decision remains provisional; selector quality must be evaluated separately against Gemini 3.1.
+The earlier blind dialogue A/B result favored Gemini 3.5 on acceptance and latency, but its chat-action request was prompt-only JSON rather than the production structured schema, and it predated the current per-operation output caps. The new runner has been corrected to mirror production schemas, caps and per-operation Thinking; the earlier aggregate result must be rerun before it is treated as a final language-operation comparison. Neither benchmark evaluates product-selection relevance, compatibility, hard-constraint compliance, or final shopping-session quality. Therefore the 3.5 promotion decision remains provisional; selector quality must be evaluated separately against Gemini 3.1.
 
 ## 4. Implementation completed in this pass
 
