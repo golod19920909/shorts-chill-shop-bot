@@ -443,3 +443,11 @@
 - Единственный focused failure: `test_timeout_recorded_without_behavior_change` ожидал один telemetry attempt при timeout. Фактический и действующий контракт `AIService._generate` — один reserve retry для timeout, то есть два реальных SDK attempts.
 - Исправлен только тест: теперь он явно проверяет primary timeout и reserve-model timeout, без изменения production-кода или fallback-поведения.
 - Commit: `2d9b4b8b`. Новый CI run ожидает результата.
+
+
+### P2 — устранён ложноположительный async UX test
+
+- Broad CI лог выявил `RuntimeWarning: coroutine ... was never awaited` в `tests/test_revision_ux.py::BuyCallbackTests::test_products_without_affiliate_url_have_no_buy_button`.
+- Метод не содержит `await`, но был объявлен как `async def` внутри синхронного `unittest.TestCase`; unittest возвращал coroutine и фактически не выполнял assertions.
+- Метод переведён в обычный `def`, чтобы регрессионная проверка affiliate Buy-кнопки реально исполнялась.
+- Изменён только тест, production-код не менялся. Commit: `ff8b668d`. CI rerun ожидает результата.
