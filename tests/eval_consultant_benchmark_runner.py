@@ -42,6 +42,7 @@ if str(ROOT) not in sys.path:
 from services.ai_service import (
     AIService, CHAT_ACTION_PROMPT, CONVERSATION_TURN_PROMPT,
     CONVERSATION_TURN_SCHEMA,
+    CHAT_ACTION_SCHEMA as GOOGLE_CHAT_ACTION_SCHEMA,
 )
 from tests.eval_consultant_dialogue_dataset import DIALOGUE_CASES, DATASET_VERSION
 from tests.eval_consultant_optimization_dataset import (
@@ -145,17 +146,29 @@ def _usage(**values: Any) -> dict[str, int | None]:
 
 
 def _google_request(
-    prompt: str, *, operation: str = "conversation_turn"
+    prompt: str,
+    *,
+    operation: str = "conversation_turn",
+    thinking_level: str = "minimal",
 ) -> dict[str, Any]:
-    """Build the same structured-output request used by the production AIService."""
+    """Build the same structured-output request used by production AIService."""
     body: dict[str, Any] = {"contents": [{"parts": [{"text": prompt}]}]}
     if operation == "conversation_turn":
         body["generationConfig"] = {
             "responseMimeType": "application/json",
             "responseSchema": CONVERSATION_TURN_SCHEMA,
-            "thinkingConfig": {"thinkingLevel": "minimal"},
+            "thinkingConfig": {"thinkingLevel": thinking_level},
             "maxOutputTokens": 512,
         }
+    elif operation == "chat_action":
+        body["generationConfig"] = {
+            "responseMimeType": "application/json",
+            "responseSchema": GOOGLE_CHAT_ACTION_SCHEMA,
+            "thinkingConfig": {"thinkingLevel": thinking_level},
+            "maxOutputTokens": 128,
+        }
+    elif operation == "no_results_reply":
+        body["generationConfig"] = {"maxOutputTokens": 256}
     return body
 
 
@@ -262,6 +275,7 @@ async def call_provider(
     timeout_seconds: float,
     *,
     operation: str = "conversation_turn",
+    thinking_level: str = "minimal",
 ) -> ModelResponse:
     """One provider attempt. No retries, fallback, prompt logging or key logging.
 
@@ -276,9 +290,11 @@ async def call_provider(
             response = await client.post(
                 url,
                 headers={"x-goog-api-key": provider.api_key},
-                # Match production response schema and minimal-thinking
-                # configuration; otherwise the model comparison is not apples-to-apples.
-                json=_google_request(prompt, operation=operation),
+                # Match production response schemas, output limits and per-operation
+                # Thinking level so the model comparison is apples-to-apples.
+                json=_google_request(
+                    prompt, operation=operation, thinking_level=thinking_level
+                ),
             )
         elif provider.provider == "openai":
             body: dict[str, Any] = {
@@ -612,6 +628,23 @@ async def run_benchmark(
 ) -> None:
     validate_provider_roster(providers)
 
+    allowed_thinking_levels = {"minimal", "low", "medium", "high"}
+
+    def configured_thinking_level(name: str, default: str) -> str:
+        value = os.getenv(name, default).strip().lower()
+        if value not in allowed_thinking_levels:
+            raise ValueError(
+                f"{name} must be one of minimal, low, medium, high; got {value!r}"
+            )
+        return value
+
+    turn_thinking_level = configured_thinking_level(
+        "EVAL_GEMINI_CONVERSATION_TURN_THINKING_LEVEL", "minimal"
+    )
+    chat_action_thinking_level = configured_thinking_level(
+        "EVAL_GEMINI_CHAT_ACTION_THINKING_LEVEL", "minimal"
+    )
+
     run_started_at_utc = datetime.now(timezone.utc).isoformat()
     rng = random.Random(seed)
     shuffled = providers[:]
@@ -646,7 +679,7 @@ async def run_benchmark(
                 "no_results_reply": "plain_text",
             },
             "reasoning_mode": {
-                "google": "provider_default",
+                "google": "explicit_per_operation_thinking_level",
                 "openai": "medium",
                 "anthropic": "medium",
                 "deepseek": "provider_default_thinking",
@@ -659,6 +692,10 @@ async def run_benchmark(
                 "deepseek": None,
                 "qwen": None,
             }[p.provider],
+            "thinking_levels": {
+                "conversation_turn": turn_thinking_level,
+                "chat_action": chat_action_thinking_level,
+            },
             "resolved_models": [],
         }
         for p in providers
@@ -700,18 +737,38 @@ async def run_benchmark(
                 8.5 if operation == "conversation_turn"
                 else operation_timeout
             ),
+            conversation_turn_thinking_level=turn_thinking_level,
+            chat_action_thinking_level=chat_action_thinking_level,
         )
         ai._client = object()
         call_record: dict[str, Any] = {}
 
-        async def injected_generate(contents, *, models=None, operation="generate"):
+        async def injected_generate(
+            contents,
+            *,
+            models=None,
+            operation="generate",
+            response_schema=None,
+            thinking_level=None,
+        ):
             effective_operation = (
                 benchmark_operation if operation == "generate" else operation
             )
+            effective_thinking_level = (
+                thinking_level
+                or (
+                    chat_action_thinking_level
+                    if effective_operation == "chat_action"
+                    else turn_thinking_level
+                )
+            )
             try:
                 response = await call_provider(
-                    provider, str(contents), operation_timeout,
+                    provider,
+                    str(contents),
+                    operation_timeout,
                     operation=effective_operation,
+                    thinking_level=effective_thinking_level,
                 )
             except Exception as exc:
                 call_record["duration_ms"] = getattr(exc, "duration_ms", None)
