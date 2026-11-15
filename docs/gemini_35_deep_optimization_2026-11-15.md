@@ -138,9 +138,9 @@ Batch and Flex inference are each listed at 50% below Standard token rates for t
 
 1. Run the scoped GitHub Actions optimization regression workflow on the latest feature-branch commit. Report the exact run and result; do not describe the filtered workflow as a full-suite pass.
 2. Capture real selector inputs from AliExpress using the existing opt-in `SHORTS_CHILL_SELECTOR_CAPTURE=1` mechanism. These raw captures are not gold-labeled and must not be used as quality truth until independently reviewed.
-3. Build a reviewed set with eligible/rejected IDs, exact identity/requirement evidence, ranking tiers, and critical-error labels.
+3. Independently label every candidate as eligible or rejected, exact evidence, critical errors, per-candidate quality scores and ranking tiers using [the selector snapshot review guide](selector_snapshot_review_guide.md).
 4. Run blind 3.1 vs 3.5 selector replay on identical snapshots at minimal/low/medium, with repeated runs and no reserve retry.
-5. Evaluate the user's requested weighted quality criteria and critical errors separately from JSON acceptance. Compare p50/p95, prompt/output/thinking/cached tokens, and cost per successful search.
+5. Compare weighted human-reviewed quality, weighted coverage, critical errors, p50/p95, cached/input/output/thinking tokens, and cost per successful search.
 6. Only after those gates decide whether 3.5 should remain primary for candidate selection. If it does not match or exceed 3.1 quality without unacceptable latency/cost, keep 3.1 primary for that operation.
 
 **No live Gemini, AliExpress, or Telegram call was made by this implementation pass. No local pytest result is claimed here.**
