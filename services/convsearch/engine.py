@@ -1085,6 +1085,8 @@ class ConversationSearchEngine:
         decision.report["selection_input_count"] = len(selector_pool)
         decision.report["selection_requested_count"] = wanted
         decision.report["selection_returned_count"] = 0
+        decision.report["selection_first_pass_returned_count"] = 0
+        decision.report["selection_second_pass_returned_count"] = 0
         decision.report["selection_validated_count"] = 0
         def deterministic_safe_pool() -> list[Product]:
             return [
@@ -1234,6 +1236,13 @@ class ConversationSearchEngine:
         if selected_ids is None or not isinstance(selected_ids, list):
             return finish_fallback("unavailable_fallback")
 
+        # select_conversation_candidates returns only IDs that passed its
+        # listing-evidence checks. Count the first response as well as the
+        # continuation so the aggregate log cannot report returned=0 while
+        # the first pass actually supplied validated candidates.
+        decision.report["selection_first_pass_returned_count"] = len(selected_ids)
+        decision.report["selection_returned_count"] = len(selected_ids)
+
         allowed = {
             product.product_id: product
             for product in selector_pool
@@ -1303,6 +1312,7 @@ class ConversationSearchEngine:
                 else:
                     decision.report["ai_second_pass"] = "completed"
                 if isinstance(second_ids, list):
+                    decision.report["selection_second_pass_returned_count"] = len(second_ids)
                     decision.report["selection_returned_count"] += len(second_ids)
                     remaining_allowed = {
                         product.product_id: product
