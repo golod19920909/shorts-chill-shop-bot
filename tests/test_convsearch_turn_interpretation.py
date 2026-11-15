@@ -1659,8 +1659,8 @@ class ConversationalTurnIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         ai = EmptySelectingAI(None)
         backend = FakeBackend([
-            listing("mask-1", "Сварочная маска автоматическая"),
-            listing("mask-2", "Маска сварщика защитная"),
+            listing("welder-1", "Сварочный аппарат инверторный 220V"),
+            listing("welder-2", "Сварочный аппарат MMA 250A"),
         ])
         engine = ConversationSearchEngine(retrieval_backend=backend)
         engine.bind_ai_service(ai)
