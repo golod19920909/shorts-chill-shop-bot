@@ -463,3 +463,14 @@ Commit `17a156fc`, GitHub Actions run [#1943](https://github.com/golod19920909/s
 - После telemetry timeout test correction focused suite полностью зелёный.
 - Предупреждения остаются: pytest-asyncio loop-scope deprecation, SQLite worker threads / closed event loops, а также Google GenAI SDK deprecation warning. Они не привели к падению этого запуска.
 - Отдельный test hygiene fix для неисполнявшегося async test в `test_revision_ux.py` сделан позже, в commit `ff8b668d`; его CI run ещё выполняется и не включён в эти цифры.
+
+
+### Подтверждение исправления async UX test
+
+Commit `ff8b668d`, GitHub Actions run [#1945](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43742653098) — SUCCESS:
+- Production compile — passed.
+- Manual smoke-script syntax check — passed.
+- Focused offline suite: **517 passed, 1 deselected, 582 subtests passed**.
+- Broad configured offline suite: **2,284 passed, 2 deselected, 1,259 subtests passed**.
+- Async test warning `coroutine ... was never awaited` устранён в проверенном запуске; warning count в broad suite уменьшился с 7 до 6.
+- Оставшиеся предупреждения относятся к pytest-asyncio loop-scope, SQLite worker lifecycle и Google GenAI SDK deprecation. Их причины требуют отдельного адресного исследования; массовые изменения event-loop / database lifecycle не выполнялись.
