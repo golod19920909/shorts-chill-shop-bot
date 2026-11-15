@@ -73,8 +73,10 @@ The blind dialogue A/B result favored Gemini 3.5 on acceptance and latency for t
 - Explicitly disabled SDK AFC on direct stateless generation requests.
 - Added output-token caps for bounded structured and short-text operations.
 - Added cached-input token count to per-attempt logs.
-- Updated offline tests for request configuration, stable prompt ordering, selector counter attribution, cached-token persistence, and benchmark/production output-cap parity.
+- The selector's dynamic JSON schema caps `selections` at the requested limit, disallows unexpected root/item/evidence properties, and describes the evidence fields. Python still verifies every returned ID and exact quote.
+- Updated offline tests for request configuration, stable prompt ordering, strict selector schema shape/maximum item count, selector counter attribution, cached-token persistence, and benchmark/production output-cap parity.
 - Updated `AGENTS.md` and `PROJECT_CONTEXT.md`.
+- GitHub Actions optimization regression workflow #129 passed on code head `5567514b69ff86895e78dd672fc1a0a7153ea4a1`: **297 passed, 60 subtests passed, 5 deselected, 1 warning**. Compileall and both benchmark CLI checks passed. This is the scoped optimization workflow, not an unfiltered full-repository test run.
 
 ## 5. Google capability audit
 
