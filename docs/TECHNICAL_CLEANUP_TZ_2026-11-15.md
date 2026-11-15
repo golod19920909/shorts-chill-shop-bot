@@ -514,3 +514,10 @@ Commit `2c749777`, GitHub Actions run [#1950](https://github.com/golod19920909/s
 - Broad configured offline suite: **1 failed, 2,282 passed, 2 deselected, 1,259 subtests passed**.
 - Все три адресно включённых класса из `test_discovery_acceptance.py` прошли, включая `CategoryCountryPropagationTests`; NameError устранён.
 - Единственное оставшееся падение — baseline Smart Search reason mismatch, описанный выше. Production engine и его baseline assertion не менялись.
+
+
+### Устранено предупреждение pytest-asyncio о неявном event-loop scope
+
+- Добавлен `pytest.ini` с явным `asyncio_default_fixture_loop_scope = function`; это закрепляет ожидаемую изоляцию асинхронных fixture и устраняет предупреждение о будущем изменении default в pytest-asyncio.
+- GitHub Actions run [#1952](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43743967660), commit `c152e047`: production compile и smoke syntax — PASS; focused **533 passed, 1 baseline failure, 584 subtests**; broad configured **2,282 passed, 1 baseline failure, 1,259 subtests**.
+- Warning `asyncio_default_fixture_loop_scope is unset` отсутствует. Остались отдельные SQLite worker-thread и Google GenAI SDK warnings; их причины не скрывались и не подавлялись.
