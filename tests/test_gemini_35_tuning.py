@@ -17,6 +17,7 @@ class Gemini35RequestParityTests(unittest.TestCase):
         self.assertEqual(config["responseMimeType"], "application/json")
         self.assertEqual(config["responseSchema"], CONVERSATION_TURN_SCHEMA)
         self.assertEqual(config["thinkingConfig"], {"thinkingLevel": "minimal"})
+        self.assertEqual(config["maxOutputTokens"], 512)
 
     def test_selector_generation_config_uses_requested_thinking_level(self) -> None:
         class FakeModels:
