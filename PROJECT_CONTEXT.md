@@ -481,3 +481,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 - Verified CI run `43742522032` on commit `17a156fc`: production compile PASS; manual smoke syntax PASS; focused offline **517 passed, 1 deselected, 582 subtests passed**; configured broad offline **2,284 passed, 2 deselected, 1,259 subtests passed**.
 - Test-only correction `ff8b668d` changes an un-awaited async UX test into a synchronous test; GitHub Actions run `43742653098` passed on that commit (focused **517 passed**, broad configured **2,284 passed**; 582 and 1,259 subtests respectively).
+
+
+- Scope correction: an audit found earlier unauthorized algorithm changes in `services/convsearch/engine.py` (retrieval stop and empty-selector continuation). The file and `tests/test_convsearch_engine.py` have been restored exactly to baseline `3822fc95` (commits `0d8e3ced`, `73aba910`). Only the user-authorized `empty_keyboard` narrowing-follow-up fix remains in protected Smart Search code. No further search algorithm, ranking, candidate-pool, or Gemini continuation changes without explicit approval.
