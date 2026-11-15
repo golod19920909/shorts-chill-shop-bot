@@ -113,11 +113,6 @@ def admin_period_keyboard(period: str) -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
 
-    if section == "affiliate":
-        rows.append(
-            [InlineKeyboardButton("🔄 Синхронизировать за 30 дней", callback_data=f"{CB_ADMIN_PREFIX}:{CB_ADMIN_AFFILIATE_SYNC_KEY}")]
-        )
-
     rows.append(
         [
             InlineKeyboardButton(
@@ -186,6 +181,16 @@ def admin_screen_keyboard(
                 )
             )
         rows.append(period_row)
+
+    if section == "affiliate":
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    "🔄 Синхронизировать за 30 дней",
+                    callback_data=f"{CB_ADMIN_PREFIX}:{CB_ADMIN_AFFILIATE_SYNC_KEY}",
+                )
+            ]
+        )
 
     if has_next or page > 0:
         nav: list[InlineKeyboardButton] = []
