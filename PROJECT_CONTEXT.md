@@ -6782,3 +6782,14 @@ Detailed report: `docs/performance_cost_optimization_audit_2026-11-14.md`.
   legacy 3.8 role variables cannot restore 3.8 routing.
 - This change does not alter prompts, candidate limits, search routes,
   ranking, validation, or Telegram delivery. Verification is pending.
+
+
+## Gemini 3.5 Flash-Lite tuning update — 2026-11-15
+
+- Dedicated branch: `fix/gemini-35-flash-lite-tuning` (branched from `optimize/performance-costs`; not merged or deployed).
+- Aligned `AIService` constructor defaults with production: 3.5 Flash-Lite primary for model/fast/vision roles; 3.1 Flash-Lite reserve. Production settings already passed the configured primary/reserve into the service; this also protects direct service construction in scripts/tests.
+- Made conversation-selection Thinking level configurable with validated `GEMINI_CONVERSATION_SELECTION_THINKING_LEVEL`; default remains `low`. Dialogue interpretation explicitly uses `minimal` with its existing production JSON schema. Other operations retain the model default (minimal) unless separately tuned.
+- Updated the dialogue benchmark Gemini request to use the same `CONVERSATION_TURN_SCHEMA` and `minimal` thinking config as production. The previous benchmark omitted these settings and was not a valid apples-to-apples comparison.
+- Expanded selector replay to test both 3.1 and 3.5 over the same verified snapshots at each requested Thinking level; default matrix is minimal/low/medium. The result manifest records each model/level pair and reserve retries remain disabled.
+- Added regression coverage for model defaults, selector Thinking configuration, and benchmark/production request parity. Tests have not yet been executed in the user's local environment; no runtime or paid API result is claimed.
+- Scope guard: no changes to AliExpress retrieval routes, candidate pool sizes, deterministic filters, product validation, catalog, Smart Search, Findings, or thematic collections.
