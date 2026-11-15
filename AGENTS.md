@@ -54,3 +54,17 @@ unfiltered full-suite pass.
 | AliExpress API and provider | `services/marketplaces/aliexpress.py`, `aliexpress_client.py` |
 | Telegram integration and card delivery | `handlers/search.py` |
 | Provider orchestration and performance diagnostics | `services/search_service.py` |
+
+
+## General assistant mode
+
+- Keep ordinary-chat memory separate from the Option C shopping ledger.
+- Route free text through AssistantRouter; pass its validated shopping turn
+  into ConversationSearchEngine so Gemini does not classify the same message
+  twice.
+- General chat must never call AliExpress retrieval or create product cards.
+  Product facts and links remain restricted to the verified marketplace path.
+- The /new command clears transient general-chat and shopping context only;
+  it must not delete favorites, price tracking, or persistent user data.
+- Keep general-chat history bounded and short-lived. Do not add permanent
+  memory or external tools without a separate design and privacy review.
