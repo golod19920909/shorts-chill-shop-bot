@@ -27,10 +27,11 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   DeprecationWarning remains; it is not a project failure. The newer tests and
   edits listed below have not yet received a confirmed CI rerun.
 - Follow-up regression tests cover mixed safe/review retrieval pools,
-  empty/partial/full selector outcomes, continuation ID validation, malformed
-  responses, evidence validation and selector-capture opt-in/privacy. The
-  selector snapshot now redacts URLs, emails, phone numbers, Telegram IDs and
-  credential-like values before writing.
+  hard-reject exclusion from the retrieval target, empty/partial/full selector
+  outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
+  validation, identical primary/reserve prompt+schema, and selector-capture
+  opt-in/privacy. Snapshots redact URLs, emails, phone numbers, Telegram IDs
+  and credential-like values before writing.
 - `.env.example` was statically reconciled with settings and selector-capture
   runtime variables. CI now compiles root `bot.py` and runs startup,
   database-migration and price-tracker tests in the focused offline job.
