@@ -53,6 +53,7 @@ jobs:
           tests/test_convsearch_engine.py
           tests/test_convsearch_type_validation.py
           tests/test_database.py
+          tests/test_settings.py
           tests/test_price_tracker.py
           tests/test_bot_startup.py
           tests/test_search_service.py
