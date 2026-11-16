@@ -541,3 +541,43 @@ Commit `3a134e21`, GitHub Actions run [#1975](https://github.com/golod19920909/s
 - pytest-asyncio implicit fixture loop scope warning — **0 occurrences**.
 - Единственное предупреждение — upstream Google GenAI SDK `_UnionGenericAlias` deprecation.
 - Единственное падение остаётся baseline Smart Search reason mismatch; тест и engine не изменялись.
+
+
+---
+
+## Актуальный статус продолжения — 16 ноября 2026
+
+Этот раздел дополняет первоначальный план и имеет приоритет над более ранними промежуточными отметками в документе.
+
+### Подтверждено выполнено в рабочей ветке
+
+- **P0.1 Retrieval stopping:** условие продолжения учитывает safe и semantic-review-eligible кандидатов; hard rejects не заполняют окно отбора. Ограничения страниц/маршрутов, порядок grounded routes и отмена ненужного prefetch сохранены. Stage diagnostics включают raw, hard-rejected, review-eligible, safe, selector-window и final.
+- **P0.2 Gemini continuation:** валидный пустой ответ не запускает лишний второй проход; continuation ограничен валидным частичным результатом и только оставшимися ID. Используется общий deadline; повторные/неизвестные ID и неподтверждённое evidence не принимаются. Причина, размеры наборов и длительность отражаются в telemetry.
+- **P0.3 Type gate / selector capture:** отказы разделяются по машинно-читаемым причинам; отсутствие доказательства не превращается в доказательство несовместимости. Opt-in snapshots очищаются от URL, контактов, Telegram ID и credential-like значений. Проверяется верхнеуровневый путь создания снимка.
+- **P1 Gemini telemetry:** interpretation, первичный selection, continuation и no-results reply учитываются раздельно; usage и длительности агрегируются по operation/model, доступны наблюдаемые p50/p95.
+- **P1 AliExpress / price tracker:** глобальная параллельность API ограничена двумя запросами; price tracking остаётся последовательным, первый запуск отложен на 30 секунд. Provider/search diagnostics содержат ограниченные p50/p95 выборки без пользовательского текста.
+- **P1 SQLite:** применяются атомарные нумерованные миграции 001–003. Offline-тесты покрывают обновление старых схем, идемпотентность, rollback, foreign keys и delete semantics. Production/локальная база не открывалась и не изменялась.
+- **P2 сопровождение:** Python 3.14 dependency graph закреплён в `requirements.lock`; CI выполняет `pip check`, production compile и startup/database/price-tracker regressions. README, AGENTS и PROJECT_CONTEXT приведены к текущей архитектуре; исторический контекст сохранён в архиве.
+
+### Последняя подтверждённая проверка и границы её применимости
+
+GitHub Actions run [#43842771485](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43842771485), commit `9cbf90f155abd934f673300a4c9a36f8e4d689b8` — SUCCESS:
+
+- Focused offline suite: **638 passed, 1 deselected, 593 subtests**.
+- Broad configured offline suite: **2,295 passed, 2 deselected, 1,259 subtests**.
+- Production compile, live-smoke syntax, dependency lock consistency и `pip check`: PASS.
+- Одно предупреждение upstream Google GenAI SDK deprecation.
+
+На момент продолжения рабочая ветка содержит ещё 11 коммитов поверх указанного CI head. Поэтому эти цифры подтверждают commit `9cbf90f`, но **не являются проверкой текущего HEAD**. В текущем workflow дополнительно выбраны два теста session isolation и `EngineInstrumentationTests`; их результат следует считать неподтверждённым до нового CI run на текущем коде. Broad suite остаётся намеренно filtered и не является unfiltered запуском всех тестовых модулей.
+
+### Оставшаяся работа
+
+1. Получить новый CI PASS на текущем HEAD, включая дополнительные targeted session-isolation и engine-instrumentation tests. При падениях исправлять сначала тестовую fixture/контракт; не менять production-поведение защищённых потоков без отдельной причины и проверки.
+2. Продолжить адресный аудит смешанных/legacy test modules. Не удалять их, не маскировать blanket skip/xfail и не восстанавливать старый chat-router/ShoppingAgent.
+3. После CI выполнить пользовательские acceptance-сценарии обычными сообщениями в Telegram: новый поиск, уточнение, бюджет, альтернативы, смена типа товара, accessory и честный no-results. Пользователь не должен готовить или отправлять JSON.
+4. Провести контролируемый live golden-set: получить 70 реальных карточек AliExpress, вручную присвоить gold labels и только затем оценивать recall/precision и причину потерь. До этого не делать выводов о качестве Gemini на запросе «игровой ноутбук».
+5. По результатам live-проверок сравнить latency/API calls и подтвердить, что лимиты и rate-limit поведение не ухудшились.
+
+### Защита данных и пользовательских потоков
+
+По-прежнему запрещено без отдельного явного разрешения менять алгоритмы/поведение «Умного поиска» и «Находок», локальный `.env`, SQLite, пользовательские данные, резервные копии, production updater branch или `main`. Работа ведётся только в `chore/repository-cleanup-2026-11-15`; merge не выполняется.
