@@ -471,6 +471,14 @@ async def main() -> int:
                     f"Follow-up outcome={compare.outcome.value}; "
                     f"wall_ms={followup_ms:.1f}; gemini_attempts={followup_metrics['attempts']}"
                 )
+                for operation, metrics in followup_metrics["by_operation"].items():
+                    print(
+                        f"FOLLOWUP GEMINI operation={operation} attempts={metrics['attempts']} "
+                        f"duration_ms={metrics['duration_ms']:.1f} "
+                        f"tokens={metrics['tokens']} "
+                        f"known_cost_usd={metrics['known_cost_usd']:.10f} "
+                        f"cost_known_attempts={metrics['cost_known_attempts']}"
+                    )
                 if compare.outcome is not Outcome.COMPARE:
                     failures.append(f"{label}: shown-product question did not route to COMPARE")
                     continue
@@ -539,6 +547,21 @@ async def main() -> int:
             "Follow-up/comparison wall time p50/p95: "
             f"{_series_summary([row['wall_ms'] for row in followup_rows])}"
         )
+        followup_durations: dict[str, list[float]] = defaultdict(list)
+        followup_tokens: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        followup_costs: dict[str, float] = defaultdict(float)
+        for row in followup_rows:
+            for operation, metrics in row["gemini"]["by_operation"].items():
+                followup_durations[operation].append(metrics["duration_ms"])
+                followup_costs[operation] += metrics["known_cost_usd"]
+                for name, value in metrics["tokens"].items():
+                    followup_tokens[operation][name] += value
+        for operation, durations in sorted(followup_durations.items()):
+            print(
+                f"Follow-up Gemini {operation}: duration p50/p95={_series_summary(durations)}; "
+                f"tokens_total={dict(followup_tokens[operation])}; "
+                f"known_cost_usd_total={followup_costs[operation]:.10f}"
+            )
 
     if warnings:
         print("\nDEGRADED BUT RESILIENT:")
