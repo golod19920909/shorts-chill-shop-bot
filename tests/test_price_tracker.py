@@ -182,6 +182,40 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(notifier.calls, [])
         self.assertEqual(db.history, [])
 
+    async def test_background_batch_never_fans_out_provider_calls(self):
+        import asyncio
+
+        rows = [
+            make_row(
+                id=index,
+                product_id=f"tracked-{index}",
+                last_checked_price=None,
+            )
+            for index in range(1, 4)
+        ]
+
+        class ConcurrencyProbe:
+            def __init__(self):
+                self.active = 0
+                self.max_active = 0
+
+            async def get_product(self, product_id, currency=None):
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+                await asyncio.sleep(0)
+                self.active -= 1
+                return StubProduct(price=10.0)
+
+        provider = ConcurrencyProbe()
+        tracker = PriceTracker(
+            StubDatabase(rows), provider, NotifierSpy()
+        )
+
+        await tracker.check_all()
+
+        self.assertEqual(provider.max_active, 1)
+        self.assertEqual(provider.active, 0)
+
     async def test_provider_error_does_not_break_batch(self):
         db = StubDatabase(
             [make_row(id=1, product_id="BAD"), make_row(id=2, product_id="GOOD")]
