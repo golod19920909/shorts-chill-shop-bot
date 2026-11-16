@@ -1415,3 +1415,16 @@ def _build_text(
         lines.append(f"🕒 Граница периода: {common.escape(since)} UTC.")
 
     return "\n".join(lines)
+async def _edit_or_reply(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs
+) -> None:
+    """Edit the screen a callback came from, or reply to the command."""
+
+    query = update.callback_query
+    if query is not None:
+        await query.edit_message_text(text, **kwargs)
+        return
+
+    message = update.effective_message
+    if message is not None:
+        await message.reply_text(text, **kwargs)
