@@ -773,7 +773,7 @@ class MenuWiringTests(unittest.TestCase):
         )
 
     def test_category_screen_passes_the_history_into_the_search(self) -> None:
-        new_product = make_product("200", TITLE + " премиум")
+        new_product = make_product("200", "Наушники беспроводные TWS Pro премиум")
         service = _RecordingDiscoveryService(new_product)
         context = self._context(service)
         query = FakeQuery(f"{CB_CATEGORY_PREFIX}:{CATEGORIES[0].code}")
@@ -800,7 +800,7 @@ class MenuWiringTests(unittest.TestCase):
         pricey = Product(
             marketplace=Marketplace.ALIEXPRESS,
             product_id="300",
-            title=TITLE,
+            title="Беспроводные наушники TWS Pro",
             product_url="https://www.aliexpress.com/item/300.html",
             affiliate_url=AFFILIATE,
             price=60.0,
