@@ -829,13 +829,19 @@ class ConversationSearchEngine:
                 refined=refined, intent=intent, observation=observation,
                 exclude_shown=(intent is MessageIntent.ALTERNATIVES),
             )
+            review_eligible = int(
+                preview.report.get(
+                    "review_eligible", preview.report.get("ranked", 0)
+                )
+            )
             safe_count = int(preview.report.get("safe_ranked", 0))
-            should_continue = safe_count < candidate_target
+            should_continue = review_eligible < candidate_target
             logger.info(
-                "convsearch page eligibility raw=%d ranked=%d verified=%d "
-                "target=%d continue=%s",
+                "convsearch page eligibility raw=%d hard_rejected=%d "
+                "review_eligible=%d safe=%d target=%d continue=%s",
                 len(products),
-                preview.report.get("ranked", 0),
+                preview.report.get("hard_rejected", 0),
+                review_eligible,
                 safe_count,
                 candidate_target,
                 should_continue,
@@ -958,21 +964,23 @@ class ConversationSearchEngine:
         # One INFO line per turn: the intent, the action and the pool fate -
         # counts only, no user text (§7 traceability).
         logger.info(
-            "convsearch pool stages raw=%d type=%d features=%d exclusions=%d "
-            "budget=%d dedup=%d rank_rejected=%d ranked=%d verified=%d "
-            "semantic_review=%d ai_selected=%d final=%d",
+            "convsearch pool stages raw=%d hard_rejected=%d "
+            "review_eligible=%d safe=%d selector_window=%d final=%d "
+            "type=%d features=%d exclusions=%d budget=%d dedup=%d "
+            "rank_rejected=%d ai_selected=%d",
             decision.report.get("raw", 0),
+            decision.report.get("hard_rejected", 0),
+            decision.report.get("review_eligible", 0),
+            decision.report.get("safe_ranked", 0),
+            decision.report.get("selector_window", 0),
+            len(decision.products),
             decision.report.get("after_type", 0),
             decision.report.get("after_feature", 0),
             decision.report.get("after_exclusion", 0),
             decision.report.get("after_budget", 0),
             decision.report.get("after_dedup", 0),
             decision.report.get("rank_rejected", 0),
-            decision.report.get("ranked", 0),
-            decision.report.get("safe_ranked", 0),
-            len(decision.report.get("semantic_review_ids", [])),
             decision.report.get("ai_selected", 0),
-            len(decision.products),
         )
         logger.info(
             "convsearch rejection reasons=%s",
@@ -1083,6 +1091,7 @@ class ConversationSearchEngine:
         decision.report["ai_review_in_window"] = review_quota
         decision.report["ai_ordinary_in_window"] = ordinary_quota
         decision.report["selection_input_count"] = len(selector_pool)
+        decision.report["selector_window"] = len(selector_pool)
         decision.report["selection_requested_count"] = wanted
         decision.report["selection_returned_count"] = 0
         decision.report["selection_validated_count"] = 0
@@ -1258,8 +1267,10 @@ class ConversationSearchEngine:
         # hard requirements. The second pass cannot see or repeat chosen IDs;
         # the shared deadline prevents an unbounded Gemini loop.
         decision.report["ai_first_pass_selected"] = len(selected)
-        decision.report["ai_second_pass"] = "not_needed"
-        if isinstance(selected_ids, list) and len(selected) < wanted:
+        decision.report["ai_second_pass"] = (
+            "skipped_valid_empty" if selected_ids == [] else "not_needed"
+        )
+        if isinstance(selected_ids, list) and selected and len(selected) < wanted:
             remaining_pool = [
                 product for product in selector_pool
                 if product.product_id and product.product_id not in seen
@@ -1420,6 +1431,11 @@ class ConversationSearchEngine:
             "after_shown": 0,
             "ranked": 0,
             "rank_rejected": 0,
+            "hard_rejected": 0,
+            "review_eligible": 0,
+            "safe_ranked": 0,
+            "selector_window": 0,
+            "final_cards_count": 0,
             "ai_selected": 0,
             "rejected_type": 0,
             "rejected_feature": 0,
@@ -1508,6 +1524,13 @@ class ConversationSearchEngine:
             "ranking_validation": report["rank_rejected"],
         }
         review_ids = set(report["semantic_review_ids"])
+        report["review_eligible"] = len(ranked)
+        report["hard_rejected"] = (
+            report["rejected_type"]
+            + report["rejected_exclusion"]
+            + report["rejected_budget"]
+            + report["rank_rejected"]
+        )
         report["safe_ranked"] = sum(
             1 for product in ranked
             if product.product_id not in review_ids
