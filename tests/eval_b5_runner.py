@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
+"""LIVE / API-COSTING when invoked with --live; otherwise deterministic mock evaluation.
+
 B5: search-pipeline evaluation runner (standalone, NOT part of the pytest suite).
 
 Runs the B5_DATASET through ``SearchService.find_products_from_text`` (the
@@ -718,12 +719,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--out",
-        default="tests/eval_b5_results.json",
+        default="reports/eval_b5_results.json",
         help="Path for machine-readable JSON results.",
     )
     parser.add_argument(
         "--report",
-        default="tests/eval_b5_report.md",
+        default="reports/eval_b5_report.md",
         help="Path for the human-readable markdown report.",
     )
     parser.add_argument(
@@ -738,6 +739,8 @@ def main() -> int:
 
     out_path = Path(args.out)
     report_path = Path(args.report)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     write_results(results, out_path)
     write_report(results, report_path, out_path)
 

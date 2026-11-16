@@ -1,9 +1,12 @@
-"""Blind replay of reviewed real AliExpress selector snapshots against Gemini models.
+"""LIVE / API-COSTING: blind replay of reviewed selector snapshots against Gemini.
+
+Each case/repetition makes real Gemini model calls and may incur API charges.
+It never searches AliExpress; both models receive the same frozen candidate pool.
 
 This runner is intentionally separate from the conversation-turn benchmark.
 It requires raw captures to be independently reviewed and marked
-capture_kind=real_api_response with non-null gold labels before any API call.
-It never searches AliExpress: both models receive the same frozen candidate pool.
+capture_kind=real_api_response with non-null gold labels before any paid call.
+Do not run until the 70-card gold set is ready; it is never part of CI.
 """
 
 from __future__ import annotations

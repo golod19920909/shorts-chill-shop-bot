@@ -28,6 +28,9 @@ eval-gemini-*-blind.json
 eval-gemini-*-private-map.json
 eval-selector-blind-results.json
 eval-selector-blind-map.json
+eval-results.json
+tmp_stage44b5_capture.jsonl
+tmp_stage44b5_capture.lock
 
 # Editor/experiment backup files
 *.bak

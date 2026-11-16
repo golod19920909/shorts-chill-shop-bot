@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Stage 44-B5 — LIVE Gemini capture runner (owner-authorized).
+"""LIVE / API-COSTING: Stage 44-B5 Gemini capture runner (owner-authorized).
+
+Each capture attempt calls Gemini and may incur usage charges. The hard call
+budget and quota stop remain mandatory; this tool is not part of CI.
 
 This is the runner deliberately left unimplemented in Stage 44-B4. It is
 isolated test tooling (NOT production code) and reuses every Stage 44-B4
