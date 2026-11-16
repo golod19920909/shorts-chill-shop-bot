@@ -697,6 +697,70 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
         self.assertIn("цена не должна превышать указанную границу", prompt)
 
 
+    def test_malformed_conversation_selection_shape_returns_none(self) -> None:
+        service = self._service('{"selections":"not-a-list"}')
+        result = asyncio.run(service.select_conversation_candidates(
+            [self._product()], query="cordless screwdriver"
+        ))
+        self.assertIsNone(result)
+
+    def test_selector_capture_is_written_only_through_opt_in_public_method(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        product = self._product().model_copy(update={
+            "description": "Two batteries. https://seller.example/item?token=private-secret",
+            "affiliate_url": "https://s.click.aliexpress.com/e/private-affiliate",
+            "image_url": "https://img.example/private-image.jpg",
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "SHORTS_CHILL_SELECTOR_CAPTURE": "1",
+                "SHORTS_CHILL_SELECTOR_CAPTURE_DIR": directory,
+            }
+            with patch.dict(os.environ, environment):
+                service = self._service('{"selections":[]}')
+                result = asyncio.run(service.select_conversation_candidates(
+                    [product],
+                    query="cordless screwdriver https://example.com/?token=query-secret",
+                ))
+
+            self.assertEqual(result, [])
+            captures = list(Path(directory).glob("selector_*.json"))
+            self.assertEqual(len(captures), 1)
+            snapshot_text = captures[0].read_text(encoding="utf-8")
+            snapshot = json.loads(snapshot_text)
+            self.assertNotIn("https://", snapshot_text)
+            self.assertNotIn("affiliate_url", snapshot_text)
+            self.assertNotIn("telegram_id", snapshot_text)
+            self.assertNotIn("private-secret", snapshot_text)
+            self.assertNotIn("private-affiliate", snapshot_text)
+            self.assertNotIn("query-secret", snapshot_text)
+            self.assertEqual(snapshot["source"]["provider"], "AliExpress Affiliate API")
+            self.assertEqual(snapshot["candidates"][0]["id"], "drill-1")
+
+    def test_selector_capture_is_not_written_without_opt_in(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "SHORTS_CHILL_SELECTOR_CAPTURE": "",
+                "SHORTS_CHILL_SELECTOR_CAPTURE_DIR": directory,
+            }
+            with patch.dict(os.environ, environment):
+                service = self._service('{"selections":[]}')
+                result = asyncio.run(service.select_conversation_candidates(
+                    [self._product()], query="cordless screwdriver"
+                ))
+
+            self.assertEqual(result, [])
+            self.assertEqual(list(Path(directory).glob("selector_*.json")), [])
+
 class SubcategorySelectorReserveTests(unittest.TestCase):
     def test_subcategory_selector_can_return_forty_ranked_ids(self) -> None:
         service = AIService(api_key=None)
