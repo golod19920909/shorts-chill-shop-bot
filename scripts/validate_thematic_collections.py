@@ -1,4 +1,9 @@
-"""Run bounded live quality checks for all approved thematic collections.
+"""LIVE / API-COSTING: bounded quality checks for approved thematic shelves.
+
+This runs real Affiliate API retrieval and Gemini selection for each checked
+shelf. It can generate substantial API/model usage; never run in CI or against
+ordinary user traffic. Reports can contain product and affiliate URLs and are
+local-only/Git-ignored. No Telegram or user-history writes are performed.
 
 This is an operator diagnostic, not an offline test. It uses the production
 AliExpress Affiliate API SearchService, the configured Gemini selector and the
