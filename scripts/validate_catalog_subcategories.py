@@ -1,4 +1,8 @@
-"""Run bounded real AliExpress quality checks for every catalog subcategory.
+"""LIVE / API-COSTING: bounded real AliExpress quality checks for catalog shelves.
+
+This runs real Affiliate API retrieval and Gemini selection for each checked
+subcategory. It can generate substantial API/model usage; never run in CI or
+against ordinary user traffic. Generated reports are local-only and Git-ignored.
 
 This is an operator smoke test, not an offline unit test. It uses the same
 SearchService, AliExpress Affiliate API and single Gemini selector as the bot.
