@@ -606,3 +606,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Final CI verification after primary and diagnostic workflow hardening: branch HEAD `3793d4bedd0cafe297124a25dfbe491967250e1c`, run [#43892353377](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43892353377) — SUCCESS. Focused **689 passed, 1 deselected, 604 subtests**; configured broad **2,308 passed, 2 deselected, 1,259 subtests**. Dependency lock, `pip check`, production compile and live-smoke syntax checks passed. One upstream Google GenAI SDK deprecation warning remains. This does not manually execute `.github/workflows/legacy-test-audit.yml`; that diagnostic workflow remains manual-only.
+
+
+- 16 Nov diagnostic workflow precision: `.github/workflows/legacy-test-audit.yml` now selects `WiringGuardTests` instead of the mixed legacy `test_search_intent.py` module, selects `ConversationSelectionEvidenceTests` for selector capture opt-in/privacy coverage, and selects only `EngineInstrumentationTests` from `test_latency_and_failures.py` (the other class depends on the retired chat router). Commit `2945aac842dd622e576f058a34db58dce8baa83f`. The manual-only workflow has not yet been dispatched; no test result is claimed for this change.
