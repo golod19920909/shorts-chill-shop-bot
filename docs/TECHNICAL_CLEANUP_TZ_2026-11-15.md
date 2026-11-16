@@ -742,3 +742,21 @@ API/Telegram вызовов в CI не было.
 - No production settings behavior or default values were changed.
 - CI on the new test selection is pending; do not count the new tests as passed
   until a fresh run on the resulting branch head succeeds.
+
+
+### Повторная проверка CI на текущем HEAD — 16 ноября 2026
+
+- Рабочий HEAD перед следующим изменением: `f4c151a550c85bf5e38d4914029e85dc6b16e28d`.
+- GitHub Actions run [#43885118561](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43885118561) — SUCCESS.
+- Focused offline suite: **689 passed, 1 deselected, 604 subtests passed**.
+- Configured broad offline suite: **2,308 passed, 2 deselected, 1,259 subtests passed**.
+- Production compile, manual live-smoke syntax compile, dependency lock consistency и `pip check` — PASS.
+- Осталось одно предупреждение upstream Google GenAI SDK о deprecated `_UnionGenericAlias`; оно не подавлялось и не является падением теста.
+- Broad suite остаётся filtered; это не unfiltered запуск всех исторических тестовых модулей.
+
+### Дополнительное hardening ручного legacy-test audit workflow — 16 ноября 2026
+
+- В `.github/workflows/legacy-test-audit.yml` actions checkout/setup-python обновлены с `@v4/@v5` до `@v7`.
+- Workflow получил минимальные `contents: read` permissions; checkout использует `persist-credentials: false`.
+- Сохранён `workflow_dispatch`: изолированные диагностические тесты не запускаются на каждом push и не влияют на обязательный offline CI.
+- Commit: `b3065f894ed3f86c7263466c286ea85225d4fe5f`. Workflow ещё не запускался вручную после обновления; изменение только инфраструктурное.
