@@ -727,3 +727,18 @@ API/Telegram вызовов в CI не было.
 - The Google GenAI warning is separate: it originates in the pinned upstream
   SDK's use of Python's deprecated `_UnionGenericAlias`. It is not a project
   test failure; no warning suppression or untested SDK upgrade was introduced.
+
+
+### Configuration test isolation and coverage — 16 November 2026
+
+- tests/test_settings.py now clears the admin, analytics dashboard and
+  price-tracking environment variables in its shared clean environment. Tests
+  therefore cannot inherit these values from a developer's local .env.
+- Added offline coverage for safe admin/dashboard defaults, administrator ID
+  parsing and deduplication, dashboard configuration and port bounds, and the
+  default/disabled price-tracking interval.
+- Added tests/test_settings.py to the focused CI suite so configuration
+  regressions fail the fast required job as well as the configured broad suite.
+- No production settings behavior or default values were changed.
+- CI on the new test selection is pending; do not count the new tests as passed
+  until a fresh run on the resulting branch head succeeds.
