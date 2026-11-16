@@ -203,8 +203,8 @@ class FakeContext:
 class SessionIsolationTests(unittest.TestCase):
     """One user, one chat, one SQLite file - and separate sessions."""
 
-    STRAP = "Защитный ремешок для умных часов, силиконовый браслет"
-    STRAP_TWO = "Ремешок кожаный для часов 20 мм"
+    HEADPHONES = "Беспроводные наушники TWS Pro"
+    HEADPHONES_TWO = "Наушники беспроводные Bluetooth с микрофоном"
     PLASMA = "Плазморезка CUT-50 плазменный резак 220В"
     PLASMA_TWO = "Плазморезка инверторная 40А"
 
@@ -217,9 +217,9 @@ class SessionIsolationTests(unittest.TestCase):
         run(self.db.get_or_create_user(555, "tester", "Tester"))
         self.provider = CatalogStub(
             by_phrase={
-                "ремешок часов": [
-                    listing("strap", self.STRAP),
-                    listing("strap2", self.STRAP_TWO),
+                "наушники": [
+                    listing("headphones", self.HEADPHONES),
+                    listing("headphones2", self.HEADPHONES_TWO),
                 ],
                 "плазморезка": [
                     listing("plasma", self.PLASMA),
@@ -368,7 +368,7 @@ class SessionIsolationTests(unittest.TestCase):
     def test_a_new_search_never_inherits_the_previous_query(self) -> None:
         context = self.context()
 
-        self.search(context, "ремешок часов")
+        self.search(context, "наушники")
         first_card = self.card(context)
         first_session = next(iter(self.sessions(context)))
         first_queries = len(self.provider.queries)
@@ -377,7 +377,7 @@ class SessionIsolationTests(unittest.TestCase):
         second_card = self.card(context)
         sessions = self.sessions(context)
 
-        self.assertIn("ремешок", first_card)
+        self.assertIn("наушники", first_card)
         self.assertIn("Плазморезка", second_card)
         self.assertNotIn("ремешок", second_card)
         # Every phrase the second search asked was grounded in ITS own query.
@@ -391,7 +391,7 @@ class SessionIsolationTests(unittest.TestCase):
         self.assertIn(first_session, sessions)
         self.assertEqual(
             [p.product_id for p in sessions[first_session].products],
-            ["strap", "strap2"],
+            ["headphones", "headphones2"],
         )
 
     def test_a_stale_card_browses_its_own_session_only(self) -> None:
@@ -409,7 +409,7 @@ class SessionIsolationTests(unittest.TestCase):
         run(search_handlers.browse_callback(FakeUpdate(query=query), context))
 
         self.assertEqual(len(query.edits), 1)
-        self.assertIn("кожаный", query.edits[-1])
+        self.assertIn("наушники", query.edits[-1])
         self.assertNotIn("Плазморезка", query.edits[-1])
         # The newer session kept its own position and its own products.
         self.assertEqual(
