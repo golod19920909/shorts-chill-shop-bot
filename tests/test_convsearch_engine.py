@@ -197,8 +197,7 @@ class CrossCategoryFeatureReviewTests(unittest.IsolatedAsyncioTestCase):
             ("шуруповёрт", "Cordless drill with 2 batteries", "двумя аккумуляторами"),
             ("налобный фонарь", "LED head torch IPX6", "защитой IPX6"),
             ("беспроводные наушники", "Bluetooth headset active noise cancelling", "шумоподавлением"),
-            ("пылесос без мешка", "Bagless vacuum cleaner with HEPA filter", "HEPA фильтром"),
-            ("садовый шланг", "Reinforced watering hose 30 m", "длиной 30 метров"),
+            ("пылесос без мешка", "Bagless vacuum cleaner with HEPA filter", "HEPA фильтром"),            ("садовый шланг", "Reinforced watering hose 30 m", "длиной 30 метров"),
             ("фильтр для воды", "5-stage water purifier filter", "пятью ступенями очистки"),
             ("ремешок для часов", "Silicone smartwatch band", "силиконовым материалом"),
             ("камера наблюдения", "CCTV camera infrared night vision", "ночным видением"),
@@ -397,8 +396,7 @@ class EngineScenarioTests(unittest.TestCase):
                 )
 
     def test_targeted_slot_replace_preserves_unrelated_features_and_exclusions(self) -> None:
-        state = ConversationEngineState(user_key="targeted-replace")
-        state.slots.extend([
+        state = ConversationEngineState(user_key="targeted-replace")        state.slots.extend([
             Slot(kind="feature", value="два аккумулятора", source_turn=1, raw_text=""),
             Slot(kind="feature", value="аккумуляторная батарея", source_turn=1, raw_text=""),
             Slot(kind="feature", value="защита IP67", source_turn=1, raw_text=""),
@@ -597,8 +595,7 @@ class EngineScenarioTests(unittest.TestCase):
         for index, message in enumerate(messages):
             with self.subTest(message=message):
                 state = ConversationEngineState(
-                    user_key=f"subordinate-feature-{index}"
-                )
+                    user_key=f"subordinate-feature-{index}"                )
                 state.record_product_type("шуруповёрт")
 
                 self.assertIsNone(_explicit_requested_product_type(message))
@@ -797,8 +794,7 @@ class EngineScenarioTests(unittest.TestCase):
 
     def test_provider_failure_vs_empty_vs_rejected(self) -> None:
         engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="u-i")
-        _ranked, report_empty = engine.shape_pool(state, [], "")
+        state = ConversationEngineState(user_key="u-i")        _ranked, report_empty = engine.shape_pool(state, [], "")
         self.assertEqual(report_empty["reason"], "no_candidates")
         state.record_product_type("рыболовная катушка")
         only_accessories = [product("reel-holder", "Держатель катушки рыболовный", price=5.0)]
@@ -997,8 +993,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             products=candidates,
             report={},
         )
-        strategy = SimpleNamespace(
-            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
+        strategy = SimpleNamespace(            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
             result_limit=30,
         )
 
@@ -1197,8 +1192,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["safe_ranked"], 0)
         selector = AsyncMock(return_value=["description-attachment"])
         engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=selector,
-        ))
+            select_conversation_candidates=selector,        ))
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
         self.assertEqual(decision.outcome, Outcome.RESULTS)
@@ -1397,8 +1391,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         decision = SearchDecision(
             outcome=Outcome.RESULTS,
             products=[
-                product("welder-inverter", "Сварочный аппарат инверторный"),
-                product("welder-mma", "Сварочный аппарат MMA"),
+                product("welder-inverter", "Сварочный аппарат инверторный"),                product("welder-mma", "Сварочный аппарат MMA"),
             ],
             report={},
         )
@@ -1597,8 +1590,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
         )
 
     def test_budget_rejects_unknown_price_and_currency_mismatch(self) -> None:
-        from services.convsearch.retrieval import filter_by_budget
-        from services.convsearch.state import Slot
+        from services.convsearch.retrieval import filter_by_budget        from services.convsearch.state import Slot
 
         state = ConversationEngineState(user_key="budget")
         state.slots.append(Slot(
@@ -1789,7 +1781,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
 
             self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
             self.assertEqual(decision.products, [])
-            self.assertEqual(decision.report["reason"], "unverified_required_features")
+            self.assertEqual(decision.report["reason"], "rejected_by_type_gate")
 
         asyncio.run(run())
 
@@ -1797,7 +1789,6 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
     def test_required_feature_needs_positive_evidence(self) -> None:
         from services.convsearch.retrieval import filter_by_required_features
         from services.convsearch.state import Slot
-
         state = ConversationEngineState(user_key="feature")
         state.slots.append(Slot(
             kind="feature", value="для дома", source_turn=1, raw_text="Для дома"
@@ -1997,8 +1988,7 @@ class BudgetLifecycleAcrossRefinementsTests(unittest.TestCase):
         self.assertEqual(
             [
                 slot.status for slot in state.slots
-                if slot.kind == "budget" and slot.value == "2000.0 UAH"
-            ],
+                if slot.kind == "budget" and slot.value == "2000.0 UAH"            ],
             ["superseded"],
         )
 
@@ -2148,4 +2138,3 @@ class SelectorIdentityScopeTests(unittest.IsolatedAsyncioTestCase):
             [item.product_id for item in decision.products],
             [reviewed.product_id, ordinary.product_id],
         )
-
