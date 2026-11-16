@@ -2581,8 +2581,8 @@ seller_terms: {seller_terms_json}
 
     async def answer_product_question_with_recommendation(
         self, question: str, products: list[Product]
-    ) -> tuple[str | None, list[str]]:
-        """Return grounded answer text and validated referenced product IDs.
+    ) -> tuple[str | None, str | None]:
+        """Return grounded answer text and an optional validated recommendation ID.
 
         Gemini selects relevant evidence; the application, not the model,
         constructs factual text and validates every recommendation against
