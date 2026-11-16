@@ -53,15 +53,18 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   The branch is not merged into `main` or the production updater branch.
 - Targeted test audit added current contracts to focused CI: result-limit
   summaries, singular grounded recommendation IDs, Option C handler delegation,
-  category menu wiring, and five isolated feed-history/cursor scenarios.
-  Test-only fixture/expectation corrections did not alter product/search runtime
-  behavior. The two remaining search-session tests in
-  `test_session_isolation.py` are not included: their helper treats any text
-  response as a product card and then assumes an `outcome_cache` session exists;
-  this needs a dedicated Option C fixture rewrite.
-- `test_latency_and_failures.py` remains excluded: it mixes an obsolete
-  `services.chat_router` import with current-engine fakes that do not accept
-  the current retrieval keyword contract. Do not restore the removed router.
+  category menu wiring, and isolated feed-history/cursor scenarios. Test-only
+  fixture/expectation corrections did not alter product/search runtime behavior.
+- Follow-up fixture corrections now give `test_session_isolation.py` a
+  deterministic Option C turn interpreter and a strict photo-card assertion;
+  the two previously unselected new-search/stale-card tests are now selected
+  individually in focused CI. They were added after CI run `43842771485`, so
+  their result awaits the next run.
+- `test_latency_and_failures.py` remains excluded from broad CI because it
+  contains legacy router tests. Its current `EngineInstrumentationTests` class
+  is now selected individually in focused CI, with a fake SearchService that
+  accepts the current retrieval keyword contract. This selection also awaits
+  the next CI run. Do not restore the removed router.
 - No local `.env`, SQLite file, PC environment, backup or user data was read,
   changed or uploaded during this repository-only work.
 
