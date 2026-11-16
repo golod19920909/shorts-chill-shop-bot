@@ -220,6 +220,41 @@ class Database:
         await Database._ensure_shown_flow_column(conn)
 
     @staticmethod
+    async def _ensure_shown_flow_column(conn: aiosqlite.Connection) -> None:
+        """Rebuild the legacy shown table to include the flow uniqueness scope."""
+
+        cursor = await conn.execute("PRAGMA table_info(popular_shown);")
+        columns = {row[1] for row in await cursor.fetchall()}
+        if not columns or "flow" in columns:
+            return
+
+        logger.info("Migrating: rebuilding popular_shown with a flow column")
+        await conn.execute("ALTER TABLE popular_shown RENAME TO popular_shown_legacy;")
+        await conn.execute("DROP INDEX IF EXISTS idx_popular_shown_user;")
+        await conn.execute(CREATE_POPULAR_SHOWN_TABLE)
+        await conn.execute(
+            "INSERT OR IGNORE INTO popular_shown "
+            "(user_id, marketplace, product_id, flow, shown_at) "
+            f"SELECT user_id, marketplace, product_id, '{FLOW_FEED}', shown_at "
+            "FROM popular_shown_legacy;"
+        )
+        await conn.execute("DROP TABLE popular_shown_legacy;")
+
+    @staticmethod
+    async def _migrate_legacy_feed_scope(conn: aiosqlite.Connection) -> None:
+        """Migration 003: move the legacy popular scope onto the feed scope."""
+
+        await Database._migrate_legacy_feed_scope_rows(conn)
+
+    @staticmethod
+    async def _ensure_columns(conn: aiosqlite.Connection) -> None:
+        """Compatibility helper applying all pre-versioned schema changes."""
+
+        await Database._migrate_user_profile_columns(conn)
+        await Database._migrate_popular_shown_flow(conn)
+        await Database._migrate_legacy_feed_scope(conn)
+
+    @staticmethod
     async def _migrate_legacy_feed_scope_rows(conn: aiosqlite.Connection) -> None:
         """Apply migration 003 data rewrite; safe to repeat."""
 

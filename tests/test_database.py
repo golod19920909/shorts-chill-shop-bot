@@ -372,6 +372,7 @@ class DatabaseTests(unittest.TestCase):
         async def rebuild_legacy_schema() -> None:
             async with aiosqlite.connect(self.db_path) as conn:
                 await conn.execute("DROP TABLE popular_shown;")
+                await conn.execute("DROP TABLE schema_migrations;")
                 await conn.execute(
                     "CREATE TABLE popular_shown ("
                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
