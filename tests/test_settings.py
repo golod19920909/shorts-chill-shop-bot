@@ -29,6 +29,12 @@ CLEAN_ENV = {
     "GEMINI_FALLBACK_MODEL": "",
     "GEMINI_PRIMARY_MODEL": "",
     "GEMINI_RESERVE_MODEL": "",
+    "ADMIN_IDS": "",
+    "ANALYTICS_DASHBOARD_PASSWORD": "",
+    "ANALYTICS_DASHBOARD_USERNAME": "",
+    "ANALYTICS_DASHBOARD_HOST": "",
+    "ANALYTICS_DASHBOARD_PORT": "",
+    "TRACKING_INTERVAL_MINUTES": "",
     # Retrieval-depth budgets are limits on REAL API calls: a developer's
     # .env must not decide what these tests assert.
     "SEARCH_MAX_PAGES": "",
@@ -63,6 +69,57 @@ class LoadSettingsTests(unittest.TestCase):
         # to new users", so a stale default would silently disable the AI.
         self.assertEqual(settings.gemini_model, "gemini-3.1-flash-lite")
         self.assertEqual(settings.gemini_fallback_model, "gemini-3.8-flash")
+
+    def test_admin_and_dashboard_defaults_are_safe(self) -> None:
+        with patch.dict(os.environ, CLEAN_ENV, clear=False):
+            settings = load_settings()
+
+        self.assertEqual(settings.admin_ids, ())
+        self.assertFalse(settings.has_admins)
+        self.assertFalse(settings.is_admin(12345))
+        self.assertFalse(settings.is_analytics_dashboard_enabled)
+        self.assertEqual(settings.analytics_dashboard_username, "admin")
+        self.assertEqual(settings.analytics_dashboard_host, "127.0.0.1")
+        self.assertEqual(settings.analytics_dashboard_port, 8765)
+
+    def test_admin_ids_and_dashboard_settings_are_configurable(self) -> None:
+        env = dict(CLEAN_ENV)
+        env.update({
+            "ADMIN_IDS": "123, 456;123;invalid",
+            "ANALYTICS_DASHBOARD_PASSWORD": "local-test-password",
+            "ANALYTICS_DASHBOARD_USERNAME": "operator",
+            "ANALYTICS_DASHBOARD_HOST": "127.0.0.2",
+            "ANALYTICS_DASHBOARD_PORT": "9000",
+        })
+        with patch.dict(os.environ, env, clear=False):
+            settings = load_settings()
+
+        self.assertEqual(settings.admin_ids, (123, 456))
+        self.assertTrue(settings.is_admin(123))
+        self.assertFalse(settings.is_admin(999))
+        self.assertTrue(settings.is_analytics_dashboard_enabled)
+        self.assertEqual(settings.analytics_dashboard_username, "operator")
+        self.assertEqual(settings.analytics_dashboard_host, "127.0.0.2")
+        self.assertEqual(settings.analytics_dashboard_port, 9000)
+
+    def test_dashboard_port_out_of_range_uses_safe_default(self) -> None:
+        env = dict(CLEAN_ENV)
+        env["ANALYTICS_DASHBOARD_PORT"] = "70000"
+        with patch.dict(os.environ, env, clear=False):
+            settings = load_settings()
+
+        self.assertEqual(settings.analytics_dashboard_port, 8765)
+
+    def test_price_tracking_interval_defaults_and_can_be_disabled(self) -> None:
+        with patch.dict(os.environ, CLEAN_ENV, clear=False):
+            settings = load_settings()
+        self.assertEqual(settings.tracking_interval_minutes, 1440)
+
+        env = dict(CLEAN_ENV)
+        env["TRACKING_INTERVAL_MINUTES"] = "0"
+        with patch.dict(os.environ, env, clear=False):
+            settings = load_settings()
+        self.assertEqual(settings.tracking_interval_minutes, 0)
 
     def test_defaults_for_database_and_log_level(self) -> None:
         with patch.dict(os.environ, CLEAN_ENV, clear=False):
