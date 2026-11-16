@@ -5,7 +5,7 @@ Guidance for AI agents and maintainers working in this repository.
 ## Environment
 
 - Windows / PowerShell. Use PowerShell commands, not bash syntax.
-- Python: `.venv\\Scripts\\python.exe` (Python 3.14).
+- Python: `.venv\Scripts\python.exe` (Python 3.14).
 - Read `PROJECT_CONTEXT.md` before changing conversational-search behavior.
 - Inspect current source and call sites before editing; do not rely on old
   architecture notes or historical logs.
@@ -47,11 +47,11 @@ Guidance for AI agents and maintainers working in this repository.
 ## Test commands
 
 ```powershell
-.venv\\Scripts\\python.exe -m pytest -q tests/test_database.py
-.venv\\Scripts\\python.exe -m pytest -q tests/test_price_tracker.py
-.venv\\Scripts\\python.exe -m pytest -q tests/test_bot_startup.py
-.venv\\Scripts\\python.exe -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py
-.venv\\Scripts\\python.exe -m pytest -q tests/test_search_service.py
+.venv\Scripts\python.exe -m pytest -q tests/test_database.py
+.venv\Scripts\python.exe -m pytest -q tests/test_price_tracker.py
+.venv\Scripts\python.exe -m pytest -q tests/test_bot_startup.py
+.venv\Scripts\python.exe -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py
+.venv\Scripts\python.exe -m pytest -q tests/test_search_service.py
 ```
 
 The authoritative focused and broad configured offline suites are defined in

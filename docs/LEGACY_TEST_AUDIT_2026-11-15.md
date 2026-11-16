@@ -62,20 +62,27 @@
 The broad-suite log showed that `BuyCallbackTests.test_products_without_affiliate_url_have_no_buy_button` had been declared async without any await under `unittest.TestCase`, so unittest did not await it and its assertions were not actually executed. It is now synchronous. This is test-only; CI run [#1945](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43742653098) for commit `ff8b668d` passed, and the warning disappeared from the broad suite.
 
 
-## Protected Smart Search baseline test observation
+## Protected Smart Search baseline observation (historical state before full cleanup approval)
 
-- `services/convsearch/engine.py` and `tests/test_convsearch_engine.py` were restored byte-for-byte to baseline `3822fc95` after identifying earlier unapproved algorithm changes.
-- The baseline focused and broad CI runs now expose one existing assertion mismatch in `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`: expected `unverified_required_features`, actual `rejected_by_type_gate`.
-- The production algorithm and assertion are intentionally left unchanged. This test is not a legacy exclusion and has not been xfailed or ignored. Any investigation that changes Smart Search semantics requires separate explicit user approval.
+At the time of the original baseline audit, the owner had not yet approved
+algorithm changes. The engine and tests were restored to baseline
+`3822fc95`, and the audit recorded the then-current expectation mismatch in
+`ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`.
+This historical observation is not the current authorization state.
 
+## Interim narrow authorization (16 November 2026; later superseded)
 
-## Дополнение от 16 ноября 2026 года
+At an intermediate stage, the owner permitted only the test expectation change
+from `unverified_required_features` to `rejected_by_type_gate`. At that point
+the algorithm was intentionally left unchanged. A valid-empty continuation
+expectation was also aligned with the existing implementation. The narrow
+permission was subsequently superseded by explicit approval of the complete
+repository-cleanup specification, recorded below.
 
-Пользователь отдельно разрешил узкую синхронизацию устаревшего ожидания в тесте Smart Search: в сценарии отказа по hard type gate ожидаемая причина заменена с `unverified_required_features` на фактическую `rejected_by_type_gate`. Алгоритм, валидатор, фильтрация и пользовательское поведение поиска не менялись.
-
-В рамках проверки контракта continuation также исправлено устаревшее ожидание повторного Gemini-запроса после валидного пустого ответа: теперь тест требует один вызов и явный semantic no-match. Это соответствует уже существующей реализации и разделу 4.2 cleanup-ТЗ.
-
-Добавлены офлайн-регрессии для смешанного safe/review retrieval pool, повторных/неизвестных ID, malformed selector response и opt-in selector capture. Сам capture дополнительно очищает URL, email, телефон, Telegram ID и credential-like значения. Эти новые тесты ещё не подтверждены повторным CI-запуском; последняя зафиксированная успешная статистика выше относится к предыдущему состоянию ветки.
+The opt-in selector capture regression tests additionally verify redaction of
+URLs, email addresses, phone numbers, Telegram IDs and credential-like values.
+The later configured CI run confirmed these tests; see the superseding
+authorization section.
 
 
 ## Superseding authorization — 2026-11-16
@@ -106,4 +113,3 @@ every historical test module.
 The owner-side Telegram acceptance scenarios and the real 70-card AliExpress
 gold-set with manual labels remain pending. No local .env, SQLite database,
 backup, user PC or production data was accessed or modified.
-
