@@ -74,6 +74,7 @@ def make_product(
     *,
     product_url: str = LINK,
     affiliate_url: str | None = AFFILIATE,
+    image_url: str | None = None,
 ) -> Product:
     return Product(
         marketplace=Marketplace.ALIEXPRESS,
@@ -81,6 +82,7 @@ def make_product(
         title=title,
         product_url=product_url,
         affiliate_url=affiliate_url,
+        image_url=image_url,
         price=10.0,
         currency="USD",
     )
@@ -773,7 +775,11 @@ class MenuWiringTests(unittest.TestCase):
         )
 
     def test_category_screen_passes_the_history_into_the_search(self) -> None:
-        new_product = make_product("200", "Наушники беспроводные TWS Pro премиум")
+        new_product = make_product(
+            "200",
+            "Наушники беспроводные TWS Pro премиум",
+            image_url="https://ae01.alicdn.com/kf/200.jpg",
+        )
         service = _RecordingDiscoveryService(new_product)
         context = self._context(service)
         query = FakeQuery(f"{CB_CATEGORY_PREFIX}:{CATEGORIES[0].code}")
@@ -802,6 +808,7 @@ class MenuWiringTests(unittest.TestCase):
             product_id="300",
             title="Беспроводные наушники TWS Pro",
             product_url="https://www.aliexpress.com/item/300.html",
+            image_url="https://ae01.alicdn.com/kf/300.jpg",
             affiliate_url=AFFILIATE,
             price=60.0,
             currency="USD",
