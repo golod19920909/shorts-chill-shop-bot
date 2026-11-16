@@ -654,10 +654,12 @@ class _RecordingDiscoveryService:
         self.last_findings_stats: dict = {}
         self._product = product
 
-    def _result(self, query: str) -> SearchOutcome:
+    def _result(
+        self, query: str, *, mode: SearchMode = SearchMode.SEARCH
+    ) -> SearchOutcome:
         products = [] if self._product is None else [self._product]
         return SearchOutcome(
-            request=SearchRequest(original_query=query, mode=SearchMode.SEARCH),
+            request=SearchRequest(original_query=query, mode=mode),
             products=products,
             products_before_filtering=len(products),
         )
@@ -669,7 +671,7 @@ class _RecordingDiscoveryService:
         # G24.8 P1.4: the handler's country/currency arguments are the
         # evidence under test - recorded, not acted on.
         self.category_kwargs.append({"country": country, "currency": currency})
-        return self._result(category.query)
+        return self._result(category.query, mode=SearchMode.CATEGORY)
 
     async def find_feed_page(
         self, *, currency=None, country=None, page=1, exclude=None, limit=None
