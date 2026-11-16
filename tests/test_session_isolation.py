@@ -336,7 +336,7 @@ class SessionIsolationTests(unittest.TestCase):
         # and the reset press - history cleared, cursor kept - continues
         # at the persisted cursor with pages 2/41.
         self.assertEqual(self.provider.feed_calls, [1, 40, 2, 41])
-        self.assertEqual(context.user_data[discovery.FEED_PAGE_KEY], 5)
+        self.assertEqual(context.user_data[discovery.FEED_PAGE_KEY], 3)
         # ...the search-like flows keep their own state - a search never
         # advances the rotation and the reset never wipes a search's novelty.
         self.assertIn(
@@ -359,9 +359,9 @@ class SessionIsolationTests(unittest.TestCase):
 
         # G24: the feed deliberately samples spaced marketplace pages 1/40,
         # then resumes at 2/41 after restart; it does not walk sequentially.
-        self.assertEqual(self.provider.feed_calls, [1, 2, 3, 4])
+        self.assertEqual(self.provider.feed_calls, [1, 40, 2, 41])
         self.assertIn("Механическая клавиатура RGB", self.card(restarted))
-        self.assertEqual(run(self.db.get_feed_page(1)), 5)
+        self.assertEqual(run(self.db.get_feed_page(1)), 3)
 
     # -- B. a new search starts a new session -----------------------------
 
