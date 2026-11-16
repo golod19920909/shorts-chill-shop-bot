@@ -657,11 +657,23 @@ class _RecordingDiscoveryService:
         self._product = product
 
     def _result(
-        self, query: str, *, mode: SearchMode = SearchMode.SEARCH
+        self,
+        query: str,
+        *,
+        mode: SearchMode = SearchMode.SEARCH,
+        category: str | None = None,
+        keywords: tuple[str, ...] | list[str] = (),
+        normalized_query: str | None = None,
     ) -> SearchOutcome:
         products = [] if self._product is None else [self._product]
         return SearchOutcome(
-            request=SearchRequest(original_query=query, mode=mode),
+            request=SearchRequest(
+                original_query=query,
+                normalized_query=normalized_query,
+                mode=mode,
+                category=category,
+                keywords=list(keywords),
+            ),
             products=products,
             products_before_filtering=len(products),
         )
@@ -673,7 +685,13 @@ class _RecordingDiscoveryService:
         # G24.8 P1.4: the handler's country/currency arguments are the
         # evidence under test - recorded, not acted on.
         self.category_kwargs.append({"country": country, "currency": currency})
-        return self._result(category.query, mode=SearchMode.CATEGORY)
+        return self._result(
+            category.title,
+            mode=SearchMode.CATEGORY,
+            category=category.code,
+            keywords=category.keywords,
+            normalized_query=category.query,
+        )
 
     async def find_feed_page(
         self, *, currency=None, country=None, page=1, exclude=None, limit=None
