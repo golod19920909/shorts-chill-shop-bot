@@ -76,6 +76,9 @@ jobs:
           tests/test_discovery_acceptance.py::ScreenTextTests
           tests/test_discovery_acceptance.py::CategoryCountryPropagationTests
           tests/test_discovery_acceptance.py::MenuWiringTests
+          tests/test_discovery_acceptance.py::ShownHistoryTests
+          tests/test_discovery_acceptance.py::RelevanceRegressionTests
+          tests/test_discovery_acceptance.py::EngineInstrumentationTests
           tests/test_session_isolation.py::SessionIsolationTests::test_a_search_after_an_exhausted_rotation_shows_its_own_product
           tests/test_session_isolation.py::SessionIsolationTests::test_the_rotation_is_not_exhausted_by_a_search_history
           tests/test_session_isolation.py::SessionIsolationTests::test_a_search_is_not_emptied_by_the_popular_rotation
