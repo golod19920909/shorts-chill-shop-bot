@@ -20,12 +20,10 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   consistency, `pip check`, production compile and manual smoke syntax.
   Gemini operation telemetry separates interpretation, selection,
   continuation and no-results reply, with observed p50/p95.
-- Latest verified pre-hardening CI was run `43868102039` on commit
-  `112c4960197840af10115cffb66febfa368fad3a` — PASS (focused **667 passed**;
-  configured broad **2,304 passed**). The workflow was subsequently hardened:
+- The primary conversational regression workflow is hardened with
   `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
-  and `persist-credentials: false`. CI for those workflow changes is pending;
-  do not treat the earlier PASS as verification of the new action versions.
+  and `persist-credentials: false`. Current branch-head CI on `f4c151a`
+  confirms the primary workflow and deterministic settings tests.
 - Latest verified branch-head CI:
   [#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
   on `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — PASS. Focused offline suite:
@@ -602,3 +600,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 - The successful broad suite remains configured/filtered, not unfiltered:
   historical Agent/chat-router/temporary-runner modules remain excluded and
   preserved. See `docs/LEGACY_TEST_AUDIT_2026-11-15.md` for exact boundaries.
+
+
+- The manual-only legacy diagnostic workflow was also hardened: checkout/setup-python upgraded to `@v7`, token restricted to `contents: read`, and checkout credentials are not persisted. It remains `workflow_dispatch` only so diagnostic suites do not run on every push. Commit `b3065f8`; the workflow itself has not yet been manually dispatched after this update.
