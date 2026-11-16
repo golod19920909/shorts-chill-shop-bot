@@ -21,13 +21,7 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   first selection, continuation and no-results reply as separate operations.
   Admin usage reports expose observed p50/p95 duration per operation/model;
   search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Latest completed CI run before the current workflow-only correction: run
-  #2022 on commit `c1760699` passed. Focused suite: 598 passed, 1 deselected,
-  591 subtests; broad configured offline suite: 2295 passed, 2 deselected,
-  1259 subtests. One third-party google-genai DeprecationWarning remains.
-  The workflow-only correction in commit `1965962` replaces the nonexistent
-  root `bot.py` compile target with the actual `bot/` package; its CI rerun is
-  pending and must be verified before calling the latest commit green.
+- Latest verified CI run: `43808312724`, commit `1272dc3336d335f1b47dd873dd3f3480157b7101` — PASS. Focused suite: 598 passed, 1 deselected, 591 subtests; broad configured offline suite: 2295 passed, 2 deselected, 1259 subtests. Both production compile and live-smoke syntax checks passed. One third-party google-genai DeprecationWarning remains. The compile target was corrected from nonexistent root `bot.py` to the actual `bot/` package.
 - Follow-up regression tests cover mixed safe/review retrieval pools,
   hard-reject exclusion from the retrieval target, empty/partial/full selector
   outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
@@ -53,10 +47,8 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   in the cleanup brief. No user-prepared JSON is required. The real AliExpress
   golden-set step remains evidence-gated and must not be replaced by synthetic
   data or guessed model-quality conclusions.
-- Latest completed test commit: `c1760699be42acb0561555d46e24227b441cfbb2`.
-  Current workflow correction commit: `1965962f3efb56bca1af82e13ddefe04fcb887f9`
-  (CI rerun pending). The branch is not merged into `main` or the production
-  updater branch.
+- Latest verified code/workflow commit: `1272dc3336d335f1b47dd873dd3f3480157b7101`.
+  The branch is not merged into `main` or the production updater branch.
 - No local `.env`, SQLite file, PC environment, backup or user data was read,
   changed or uploaded during this repository-only work.
 
