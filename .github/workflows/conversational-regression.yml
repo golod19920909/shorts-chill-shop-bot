@@ -62,6 +62,7 @@ jobs:
           tests/test_ai_service.py::OperationAttributionTests
           tests/test_ai_service.py::FindingsSelectorTests
           tests/test_ai_service.py::ConversationSelectionEvidenceTests
+          tests/test_ai_service.py::GroundedProductQuestionTests
           tests/test_ai_service.py::SubcategorySelectorReserveTests
           tests/test_ai_service.py::CandidatePayloadTests
           tests/test_gemini_telemetry.py::ExtractUsageTests
