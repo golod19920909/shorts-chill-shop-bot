@@ -35,7 +35,7 @@ jobs:
         run: >
           python -m compileall -q
           config database handlers keyboards models services curation scripts
-          bot.py main.py manage_sales.py
+          bot main.py manage_sales.py
       - name: Compile manual live smoke scripts
         run: python -m py_compile smoke_aliexpress.py smoke_conversational_search.py
       - name: Run focused offline tests
