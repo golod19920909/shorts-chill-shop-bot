@@ -191,9 +191,10 @@ class Database:
 
         if "updated_at" not in existing:
             logger.info("Migrating: adding users.updated_at column")
+            await conn.execute("ALTER TABLE users ADD COLUMN updated_at TEXT;")
             await conn.execute(
-                "ALTER TABLE users ADD COLUMN updated_at TEXT "
-                "NOT NULL DEFAULT (datetime('now'));"
+                "UPDATE users SET updated_at = datetime('now') "
+                "WHERE updated_at IS NULL;"
             )
 
         for column in ("country", "currency"):
@@ -316,7 +317,9 @@ class Database:
                 return int(row["id"])
 
             cursor = await conn.execute(
-                "INSERT INTO users (telegram_id, username, first_name) VALUES (?, ?, ?)",
+                "INSERT INTO users "
+                "(telegram_id, username, first_name, updated_at) "
+                "VALUES (?, ?, ?, datetime('now'))",
                 (telegram_id, username, first_name),
             )
             await conn.commit()
