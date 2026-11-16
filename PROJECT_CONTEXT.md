@@ -628,3 +628,24 @@ The dated implementation notes and prior live-test findings have been preserved 
   `unittest discover` recommendation with the same targeted offline pytest
   checks already documented above. No runtime code or user-facing flow changed.
   CI for this README-only commit is pending at the time of this note.
+
+### Linux deployment and SQLite backup documentation review — 16 November 2026
+
+- Проверены README deployment instructions against
+  `scripts/deploy_update.sh`, `scripts/database_maintenance.py`,
+  `deploy/shopbot-backup.service` and `deploy/shopbot-backup.timer`.
+- Исправлен порядок установки: создание systemd service и установка backup
+  units выполняются администратором; приложение и guarded update — от
+  `shopbot`. Ранее README предлагал выполнять `sudo cp` уже после перехода
+  к `shopbot`, до описания sudoers setup, что могло завершиться отказом в
+  правах. Добавлены явные команды установки systemd units, безопасный режим
+  `.env` (0600), проверка sudoers и разделение ролей.
+- Уточнены backup instructions и обновлена устаревшая CI-сводка в README.
+- Commit: `b9865b2f5c4dffb333e040b6270ad73a54198149`.
+- CI run на README commit ещё требуется проверить; на предыдущем HEAD
+  `e857e69` CI run `43927807717` — SUCCESS: focused **689 passed,
+  1 deselected, 604 subtests**; configured broad **2,308 passed,
+  2 deselected, 1,259 subtests**; compile, live-smoke syntax, lock consistency
+  and `pip check` passed. One upstream Google GenAI SDK deprecation warning.
+- No deployment was performed. No server, local PC, `.env`, SQLite database,
+  `main`, or production updater branch was touched.
