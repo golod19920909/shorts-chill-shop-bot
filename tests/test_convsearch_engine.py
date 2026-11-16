@@ -386,6 +386,55 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["hard_rejected"], 0)
         self.assertEqual(len(selector.await_args.args[0]), 80)
 
+    async def test_pagination_does_not_count_hard_type_rejects_as_eligible(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        safe = [
+            product(f"safe-drill-{i}", "Дрель аккумуляторная ударная 21V")
+            for i in range(80)
+        ]
+        hard_rejected = [
+            product(f"drill-bits-{i}", "Набор свёрл для дрели 100 шт")
+            for i in range(40)
+        ]
+        first_page_pool = safe[:40] + hard_rejected
+        second_page_pool = first_page_pool + safe[40:]
+        observed = []
+
+        class PagingBackend:
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
+                observed.append(should_continue(first_page_pool))
+                observed.append(should_continue(second_page_pool))
+                return BackendOutcome(
+                    ok=True,
+                    reason="ok",
+                    products=second_page_pool,
+                    request=strategy.request,
+                )
+
+        selector = AsyncMock(
+            side_effect=lambda candidates, **kwargs: [
+                item.product_id for item in candidates[:kwargs["wanted"]]
+            ]
+        )
+        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
+        engine.bind_ai_service(SimpleNamespace(
+            is_available=True,
+            select_conversation_candidates=selector,
+        ))
+
+        decision = await engine.handle_message(
+            "hard-reject-pagination",
+            "Найди дрель",
+        )
+
+        self.assertEqual(observed, [True, False])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(decision.report["hard_rejected"], 40)
+        self.assertEqual(decision.report["review_eligible"], 80)
+        self.assertEqual(decision.report["safe_ranked"], 80)
+        self.assertEqual(len(selector.await_args.args[0]), 80)
+
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
 
