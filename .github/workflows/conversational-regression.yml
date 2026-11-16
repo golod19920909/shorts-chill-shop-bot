@@ -51,6 +51,7 @@ jobs:
           tests/test_price_tracker.py
           tests/test_bot_startup.py
           tests/test_search_service.py
+          tests/test_result_limit_and_followup.py
           tests/test_catalog_subcategories.py
           tests/test_subcategory_search.py
           tests/test_subcategory_navigation.py
