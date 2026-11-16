@@ -10,6 +10,7 @@ import asyncio
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import aiosqlite
@@ -237,6 +238,90 @@ class DatabaseTests(unittest.TestCase):
             self.run_async(self.db.get_feed_shown(user_id)),
             [("aliexpress", "old-popular")],
         )
+
+
+    def test_foreign_key_delete_actions_preserve_declared_semantics(self) -> None:
+        self.run_async(self.db.initialize())
+        user_id = self.run_async(self.db.get_or_create_user(555, "fk-user"))
+
+        async def seed_rows():
+            async with self.db._connect() as conn:
+                await conn.execute(
+                    "INSERT INTO favorites (user_id, marketplace, product_id, product_json) "
+                    "VALUES (?, 'aliexpress', 'favorite-1', '{}')",
+                    (user_id,),
+                )
+                await conn.execute(
+                    "INSERT INTO saved_products (user_id, marketplace, product_id, product_json) "
+                    "VALUES (?, 'aliexpress', 'saved-1', '{}')",
+                    (user_id,),
+                )
+                cursor = await conn.execute(
+                    "INSERT INTO tracked_products "
+                    "(user_id, marketplace, product_id, product_url) "
+                    "VALUES (?, 'aliexpress', 'tracked-1', 'https://example.test/item')",
+                    (user_id,),
+                )
+                tracked_id = cursor.lastrowid
+                await conn.execute(
+                    "INSERT INTO price_history (tracked_product_id, price, currency) "
+                    "VALUES (?, 12.5, 'USD')",
+                    (tracked_id,),
+                )
+                await conn.execute(
+                    "INSERT INTO analytics_events (user_id, event_type) "
+                    "VALUES (?, 'test_event')",
+                    (user_id,),
+                )
+                await conn.commit()
+
+        self.run_async(seed_rows())
+
+        async def delete_user_and_inspect():
+            async with self.db._connect() as conn:
+                await conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+                await conn.commit()
+                results = {}
+                for table in ("favorites", "saved_products", "tracked_products", "price_history"):
+                    cursor = await conn.execute(f"SELECT COUNT(*) FROM {table}")
+                    results[table] = (await cursor.fetchone())[0]
+                cursor = await conn.execute(
+                    "SELECT user_id FROM analytics_events WHERE event_type='test_event'"
+                )
+                event = await cursor.fetchone()
+                return results, event[0]
+
+        cascaded, analytics_user_id = self.run_async(delete_user_and_inspect())
+        self.assertEqual(cascaded, {
+            "favorites": 0,
+            "saved_products": 0,
+            "tracked_products": 0,
+            "price_history": 0,
+        })
+        self.assertIsNone(analytics_user_id)
+
+    def test_failed_schema_migration_rolls_back_schema_and_version(self) -> None:
+        original = Database._migrate_popular_shown_flow
+
+        async def fail_migration(conn):
+            raise RuntimeError("simulated migration failure")
+
+        with patch.object(Database, "_migrate_popular_shown_flow", staticmethod(fail_migration)):
+            with self.assertRaisesRegex(RuntimeError, "simulated migration failure"):
+                self.run_async(self.db.initialize())
+
+        Database._migrate_popular_shown_flow = staticmethod(original)
+
+        async def inspect_rollback():
+            async with aiosqlite.connect(self.db_path) as conn:
+                cursor = await conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='schema_migrations'"
+                )
+                migration_table = await cursor.fetchone()
+                return migration_table
+
+        self.assertIsNone(self.run_async(inspect_rollback()))
 
     def test_creates_missing_parent_directory(self) -> None:
         nested = Path(self._tmp_dir.name) / "nested" / "dir" / "x.db"
