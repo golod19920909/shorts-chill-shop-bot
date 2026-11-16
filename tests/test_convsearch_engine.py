@@ -1565,6 +1565,40 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([p.product_id for p in decision.products], ["p1"])
         self.assertEqual(decision.report["ai_selection"], "turn_budget_exhausted")
 
+    async def test_malformed_selector_response_does_not_continue(self):
+        engine = ConversationSearchEngine()
+        selector = AsyncMock(return_value=None)
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=selector,
+        ))
+        state = ConversationEngineState(user_key="selector-malformed")
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS,
+            products=[product("safe-candidate", "Рыболовная катушка спиннинговая")],
+            report={},
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        selector.assert_awaited_once()
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(
+            [item.product_id for item in decision.products],
+            ["safe-candidate"],
+        )
+        self.assertEqual(decision.report["ai_selection"], "unavailable_fallback")
+        self.assertEqual(
+            decision.report["ai_second_pass_reason"],
+            "malformed_or_unavailable_response",
+        )
+
     async def test_selector_error_fails_closed_instead_of_showing_unreviewed_pool(self):
         engine = ConversationSearchEngine()
         selector = AsyncMock(side_effect=RuntimeError("model unavailable"))
