@@ -1,6 +1,10 @@
-"""Live, multi-category smoke test against the AliExpress Affiliate API.
+"""LIVE / API-COSTING smoke test against the AliExpress Affiliate API.
 
-Run manually from the project root (uses the local .env; never runs in CI):
+Requires local AliExpress credentials and makes real marketplace requests;
+each run consumes API quota and may be subject to rate limits. It is a manual
+diagnostic only and is never executed by CI.
+
+Run manually from the project root (uses the local .env):
 
     .venv/Scripts/python.exe smoke_aliexpress.py
 
