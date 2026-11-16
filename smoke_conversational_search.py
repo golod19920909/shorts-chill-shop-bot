@@ -317,6 +317,11 @@ async def main() -> int:
         help="run one controlled query instead of the default eight-case matrix",
     )
     parser.add_argument(
+        "--search-only",
+        action="store_true",
+        help="skip shown-product follow-up and comparison calls (lower API/model usage)",
+    )
+    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -346,7 +351,7 @@ async def main() -> int:
     print(
         "AliExpress conversational page depth: "
         f"{search_service.max_search_pages}; repetitions={args.repeat}; "
-        f"cases={len(search_cases)}"
+        f"cases={len(search_cases)}; search_only={args.search_only}"
     )
     engine = ConversationSearchEngine()
     engine.bind_search_service(search_service)
@@ -467,6 +472,9 @@ async def main() -> int:
                     warnings.append(
                         f"{label}: Gemini selection degraded ({stages['ai_selection']})"
                     )
+
+                if args.search_only:
+                    continue
 
                 # Follow-up and comparison work is measured separately from
                 # the search request so it cannot inflate search wall time.
