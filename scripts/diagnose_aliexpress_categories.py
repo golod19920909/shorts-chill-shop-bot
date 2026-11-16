@@ -1,4 +1,7 @@
-"""Credential-safe, read-only probe of the AliExpress Affiliate category tree.
+"""LIVE / API-COSTING: credential-safe, read-only AliExpress category probe.
+
+This performs a real Affiliate API request, consumes API quota, and is not a
+unit test or CI task. The generated report is local-only and ignored by Git.
 
 Run from the repository root:
     .venv\\Scripts\\python.exe scripts\\diagnose_aliexpress_categories.py
