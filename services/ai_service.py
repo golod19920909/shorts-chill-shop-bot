@@ -1976,11 +1976,12 @@ class AIService:
         marketplace_terms: list[str],
         budget_constraint: str | None,
     ) -> str | None:
-        """Write an opt-in raw selector snapshot without URLs or user IDs.
+        """Write an opt-in selector snapshot with external identifiers redacted.
 
-        Enable only during controlled live AliExpress testing with
-        SHORTS_CHILL_SELECTOR_CAPTURE=1. Gold labels are intentionally null;
-        the file is not benchmark-ready until independently reviewed.
+        URLs, contact details, Telegram IDs and credential-like values are
+        scrubbed before persistence. Enable only during controlled live
+        AliExpress testing with SHORTS_CHILL_SELECTOR_CAPTURE=1. Gold labels
+        are intentionally null; the file is not benchmark-ready until reviewed.
         """
 
         if os.getenv("SHORTS_CHILL_SELECTOR_CAPTURE", "").strip() != "1":
