@@ -2,9 +2,6 @@ name: Legacy test audit (diagnostic only)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - chore/repository-cleanup-2026-11-15
 
 jobs:
   isolated-tests:
