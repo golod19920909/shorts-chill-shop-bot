@@ -113,3 +113,83 @@ every historical test module.
 The owner-side Telegram acceptance scenarios and the real 70-card AliExpress
 gold-set with manual labels remain pending. No local .env, SQLite database,
 backup, user PC or production data was accessed or modified.
+
+
+## Targeted diagnostic execution — 2026-11-16
+
+An isolated diagnostic workflow was added at
+`.github/workflows/legacy-test-audit.yml`. It runs one module/class per matrix
+job, installs the pinned Python 3.14 dependency graph, and is **manual-only**
+(`workflow_dispatch`) so routine commits do not repeatedly install dependencies
+for the entire diagnostic matrix.
+
+Initial run [#43840032391](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43840032391)
+confirmed that the excluded set is mixed: several current contracts pass, while
+some tests still assert retired helpers, old router wiring, or incomplete fakes.
+No blanket skips, xfails, test deletions or production search behavior changes
+were used to hide these results.
+
+### Corrections made and now covered by focused CI
+
+- `test_result_limit_and_followup.py`: two tests referenced the removed
+  `_agent_follow_up_text` helper. They now exercise the current
+  `_result_summary_text` function. All 11 tests pass; the module is in focused
+  CI.
+- `GroundedProductQuestionTests`: the service returns one optional
+  recommendation ID, not a list of all claim IDs. The return annotation and
+  docstring now match the implementation; tests distinguish a recommendation
+  ID from claims-only answers. The class is in focused CI.
+- `WiringGuardTests`: the old source guard expected parsing, merge and direct
+  retrieval inside `handlers/search.py`. It now verifies the Option C boundary:
+  the handler delegates to `ConversationSearchEngine.handle_message` and does
+  not contain the retired parser/resolver pipeline. The class is in focused CI.
+- `MenuWiringTests`: the fake category service now returns a real
+  `SearchMode.CATEGORY` request with category code, normalized route and
+  keywords. Tests also respect the existing 12-product category-screen
+  minimum: a one-product result is not delivered or recorded as shown, while
+  the category quality profile still accepts a valid $60 listing. This is
+  test-fixture/expectation alignment only; production category behavior was
+  not changed. The class is in focused CI.
+- `test_session_isolation.py`: feed page expectations now match the live
+  documented sampling contract (pages 1/40, then 2/41; next cursor 3), rather
+  than the obsolete sequential 1/2/3/4 expectation. Five feed/history
+  isolation scenarios are now selected individually in focused CI.
+
+The latest verified run
+[#43842771485](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43842771485)
+on commit `9cbf90f` passed:
+- focused offline suite: **638 passed, 1 deselected, 593 subtests**;
+- broad configured offline suite: **2,295 passed, 2 deselected, 1,259 subtests**;
+- production compile, manual live-smoke syntax check, locked dependency
+  consistency and `pip check`: PASS;
+- one upstream Google GenAI SDK deprecation warning remains.
+
+### Remaining diagnostic failures / boundaries
+
+- Two tests in `test_session_isolation.py` remain outside focused CI:
+  `test_a_new_search_never_inherits_the_previous_query` and
+  `test_a_stale_card_browses_its_own_session_only`. The helper `card()`
+  falls back to the last arbitrary bot text when no photo card exists, so its
+  assertion that a product card was shown is not reliable. The subsequent
+  `outcome_cache` KeyError shows no cached browsing session was created in
+  that fixture. These tests need a deterministic Option C engine/provider
+  fixture that yields a real `RESULTS` decision; do not patch production
+  session handling based on the current fixture alone.
+- `test_latency_and_failures.py` is mixed: its two
+  `RouterAIEscalationCapTests` import the removed `services.chat_router`;
+  three current-engine instrumentation tests use a `RecordingSearchService`
+  fake whose `find_products` signature does not accept the current retrieval
+  keywords, and one expects an old INFO log contract. The current engine
+  instrumentation subset in `test_discovery_acceptance.py` passes in focused
+  CI. Do not restore the old router.
+- The rest of `test_search_intent.py` and `test_ai_service.py` are mixed
+  modules. Only the reviewed Option C wiring guard and grounded
+  product-question class were promoted to focused CI; no entire file was
+  declared stale or promoted wholesale.
+- The historical Agent/tool-loop, old chat-router and stage acceptance
+  harness modules remain excluded pending their own contract-by-contract
+  migration. This diagnostic did not run every excluded module.
+
+No user-facing «Умный поиск» or «✨ Находки» production behavior was changed in
+these follow-ups. No local `.env`, SQLite file, backups, user PC or production
+data were accessed.
