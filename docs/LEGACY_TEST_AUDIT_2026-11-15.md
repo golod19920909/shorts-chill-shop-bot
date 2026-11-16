@@ -241,3 +241,32 @@ GitHub file inspection подтвердил отсутствие указанн�
 Новый pytest запуск этих девяти модулей в этой проверке не выполнялся. Их
 ошибка импорта предсказуема по исходникам, но в отчёте она не называется
 результатом фактического запуска.
+
+
+## CI result after targeted mixed-module audit — 16 November 2026
+
+The first run that included the newly selected session-isolation cases and
+`EngineInstrumentationTests` exposed one **test assertion selection bug**,
+not a production failure. The test selected the first log record containing
+`convsearch`, which was a retrieval-page eligibility diagnostic rather than
+the final per-turn summary. The assertion now selects the explicit
+`convsearch action=` record. Production code and logging behavior were not
+changed.
+
+- Test-only correction: commit
+  `aa1bea772190f85f4f6bfabaf2a47d796b963f53`.
+- Verified workflow run
+  [#43857002754](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43857002754)
+  on that exact commit: **PASS**.
+- Focused offline suite: **644 passed, 1 deselected, 598 subtests passed**.
+- Configured broad offline suite: **2,295 passed, 2 deselected, 1,259 subtests passed**.
+- Production compile, manual live-smoke syntax compile, dependency lock
+  consistency and `pip check`: **PASS**.
+- One upstream Google GenAI SDK deprecation warning remains.
+
+This is a successful configured/filtered offline CI run, not an unfiltered
+execution of every historical test module. The nine modules listed above
+remain excluded based on their retired imports/entrypoints. Other mixed
+modules remain class-selected only where explicitly reviewed. No
+`services/convsearch/engine.py` production behavior was changed for this
+test correction.
