@@ -20,6 +20,12 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   consistency, `pip check`, production compile and manual smoke syntax.
   Gemini operation telemetry separates interpretation, selection,
   continuation and no-results reply, with observed p50/p95.
+- Latest verified pre-hardening CI was run `43868102039` on commit
+  `112c4960197840af10115cffb66febfa368fad3a` — PASS (focused **667 passed**;
+  configured broad **2,304 passed**). The workflow was subsequently hardened:
+  `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
+  and `persist-credentials: false`. CI for those workflow changes is pending;
+  do not treat the earlier PASS as verification of the new action versions.
 - Latest verified branch-head CI:
   [#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
   on `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — PASS. Focused offline suite:
