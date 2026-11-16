@@ -389,10 +389,12 @@ async def main() -> int:
                         currency="USD",
                         result_limit=30,
                     )
-                    advice = await assistant.answer(
-                        "Сравни два варианта и объясни, чем они отличаются.",
-                        decision.products,
-                    )
+                    advice = None
+                    if compare.outcome is Outcome.COMPARE:
+                        advice = await assistant.answer(
+                            "Сравни два варианта и объясни, чем они отличаются.",
+                            decision.products,
+                        )
                     followup_ms = (time.perf_counter() - followup_started) * 1000
                 followup_metrics = _gemini_summary(followup_usage)
                 followup_rows.append({
