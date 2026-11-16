@@ -273,26 +273,46 @@ python main.py                                 # бот сообщит о нас
 `SearchService(providers=[...])` — это ровно то, что делают тесты
 (`tests/test_search_service.py`).
 
-## Деплой на Linux-сервер (следующий этап)
+## Деплой на Linux-сервер
+
+Ниже — порядок установки для одного Linux-сервера с systemd. Команды
+разделены по правам: создание systemd units и sudoers выполняется
+администратором (root), приложение и guarded update — пользователем
+`shopbot`. Не запускайте команды установки systemd из shell пользователя
+`shopbot`, если ему ещё не выданы соответствующие права.
+
+**1. Создать пользователя и подготовить приложение (администратор):**
 
 ```bash
 sudo apt update && sudo apt install -y python3.14 python3.14-venv git
 sudo useradd -m -s /bin/bash shopbot
 sudo -iu shopbot
-git clone <repo-url> ~/shorts-chill-shop-bot
-cd ~/shorts-chill-shop-bot
-python3.14 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.lock
-cp .env.example .env && nano .env      # BOT_TOKEN и ключи
-python main.py                         # проверка запуска
 ```
 
-`systemd`-юнит (`/etc/systemd/system/shopbot.service`):
+**2. Установить приложение и заполнить конфигурацию (пользователь shopbot):**
+
+```bash
+git clone <repo-url> ~/shorts-chill-shop-bot
+cd ~/shorts-chill-shop-bot
+python3.14 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.lock
+cp .env.example .env
+chmod 600 .env
+nano .env                         # как минимум BOT_TOKEN
+python main.py                    # проверить запуск, затем остановить Ctrl+C
+exit
+```
+
+**3. Установить systemd units и включить сервисы (администратор):**
+
+Создайте `/etc/systemd/system/shopbot.service`:
 
 ```ini
 [Unit]
-Description=AI Product Search Telegram Bot
+Description=Shorts Chill Shop Bot
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -307,28 +327,55 @@ Environment=PYTHONUNBUFFERED=1
 WantedBy=multi-user.target
 ```
 
+Затем от администратора выполните:
+
 ```bash
+sudo install -o root -g root -m 644 /home/shopbot/shorts-chill-shop-bot/deploy/shopbot-backup.service /etc/systemd/system/shopbot-backup.service
+sudo install -o root -g root -m 644 /home/shopbot/shorts-chill-shop-bot/deploy/shopbot-backup.timer /etc/systemd/system/shopbot-backup.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now shopbot
-
-# Daily SQLite backup (03:15 local server time)
-sudo cp deploy/shopbot-backup.service /etc/systemd/system/
-sudo cp deploy/shopbot-backup.timer /etc/systemd/system/
-sudo systemctl daemon-reload
 sudo systemctl enable --now shopbot-backup.timer
-systemctl list-timers shopbot-backup.timer
+sudo systemctl list-timers shopbot-backup.timer
+```
 
-# One-time: allow shopbot to restart/check ONLY this systemd service.
-# Create with: sudo visudo -f /etc/sudoers.d/shopbot-deploy
-# File contents:
-# shopbot ALL=(root) NOPASSWD: /usr/bin/systemctl restart shopbot, /usr/bin/systemctl is-active --quiet shopbot
+**4. Разрешить guarded update только для службы shopbot (администратор):**
 
-# Guarded update from the deployed branch (default: main); run as shopbot
+Создайте правило через `sudo visudo -f /etc/sudoers.d/shopbot-deploy`:
+
+```sudoers
+shopbot ALL=(root) NOPASSWD: /usr/bin/systemctl restart shopbot, /usr/bin/systemctl is-active --quiet shopbot
+```
+
+Проверьте синтаксис sudoers командой `sudo visudo -c`. Не выдавайте
+пользователю `shopbot` общий sudo-доступ.
+
+**5. Обновлять приложение (пользователь shopbot):**
+
+```bash
+sudo -iu shopbot
 cd ~/shorts-chill-shop-bot
 DEPLOY_REF=main bash scripts/deploy_update.sh
-
-sudo journalctl -u shopbot -f
 ```
+
+Скрипт требует чистую рабочую копию, текущую ветку `main` (или явно
+заданную `DEPLOY_REF`) и fast-forward обновление. Перед изменением кода он
+создаёт проверенную SQLite-копию, устанавливает закреплённые runtime
+зависимости из `requirements.txt`, создаёт временное изолированное
+окружение для pytest, компилирует приложение, запускает целевые
+регрессионные тесты и только затем перезапускает сервис. Тестовые
+зависимости не устанавливаются в production `.venv`.
+
+При ошибке после начала обновления скрипт возвращает Git-код к предыдущему
+commit, восстанавливает runtime-зависимости и проверяет повторный запуск
+службы. SQLite автоматически не откатывается: резервная копия сохраняется
+отдельно, чтобы не потерять новые пользовательские данные. Если потребуется
+откат несовместимой миграции, базу восстанавливают отдельно после остановки
+бота.
+
+Грязная рабочая копия, другая текущая ветка или не-fast-forward обновление
+приводят к отказу до изменения кода. Это серверная Linux/systemd процедура,
+не для локальной Windows-разработки. Для просмотра логов используйте
+`sudo journalctl -u shopbot -f`.
 
 Обновление существующей установки:
 
@@ -447,14 +494,15 @@ sudo journalctl -u shopbot -f
   конвейер с широким seed из слов пользователя; явный бюджет («до $20»)
   сохраняется и применяется к реальным кандидатам.
 * Офлайн-проверки запускаются в GitHub Actions. Последняя проверенная
-  точка 16.11.2026: production compile, syntax check live smoke scripts и
-  dependency consistency проходят; focused suite — 638 passed,
-  1 deselected (593 subtests); configured broad suite — 2,295 passed,
-  2 deselected (1,259 subtests). Осталось одно предупреждение upstream
-  Google GenAI SDK о deprecation. Broad suite намеренно исключает отдельные
-  legacy и смешанные модули; это не полный unfiltered run. Изолированный
-  диагностический workflow для них: `.github/workflows/legacy-test-audit.yml`.
-  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43842771485).
+  точка 16.11.2026: production compile, syntax check live smoke scripts,
+  dependency lock consistency и `pip check` проходят; focused suite —
+  **689 passed, 1 deselected (604 subtests)**; configured broad suite —
+  **2,308 passed, 2 deselected (1,259 subtests)**. Осталось одно
+  предупреждение upstream Google GenAI SDK о deprecation. Broad suite
+  намеренно исключает отдельные legacy и смешанные модули; это не полный
+  unfiltered run. Изолированный диагностический workflow для них:
+  `.github/workflows/legacy-test-audit.yml`.
+  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43927807717).
 
 ## Что намеренно НЕ реализовано
 
@@ -486,7 +534,17 @@ sudo journalctl -u shopbot -f
 
 ### Обслуживание базы данных
 
-`python -m scripts.database_maintenance backup` создаёт согласованную SQLite-копию через встроенный backup API, проверяет её целостность и применяет ротацию (14 последних файлов). Путь можно переопределить через `DATABASE_BACKUP_DIR`. В репозитории есть `deploy/shopbot-backup.service` и `.timer` для ежедневного запуска в 03:15; после установки проверьте `systemctl list-timers shopbot-backup.timer`. Команда `list` показывает копии. Восстановление выполняется только после остановки бота: `python -m scripts.database_maintenance restore <backup-file> --confirm-restore`; перед заменой создаётся pre-restore backup. Локальные копии исключены из Git.
+`python -m scripts.database_maintenance backup` создаёт согласованную
+SQLite-копию через встроенный backup API, проверяет её целостность и
+применяет ротацию (14 последних файлов). Путь можно переопределить через
+`DATABASE_BACKUP_DIR`. В репозитории есть `deploy/shopbot-backup.service`
+и `.timer` для ежедневного запуска в 03:15 по локальному времени сервера;
+после установки проверьте `systemctl list-timers shopbot-backup.timer`.
+Команда `list` показывает копии. Восстановление выполняется только после
+остановки бота: `python -m scripts.database_maintenance restore <backup-file> --confirm-restore`;
+перед заменой создаётся pre-restore backup. Для ручного запуска backup
+используйте пользователя, которому доступна база и каталог резервных копий.
+Локальные копии исключены из Git.
 
 
 ### Партнёрская аналитика и заказы
