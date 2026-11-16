@@ -52,6 +52,23 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   No local `.env`, SQLite file, PC environment, backups or user data were
   accessed, changed or uploaded.
 
+- The manual live smoke runner `smoke_conversational_search.py` now supports
+  `--query` for one controlled phrase and `--search-only` to avoid
+  unnecessary follow-up/comparison model calls. It can run with
+  `SHORTS_CHILL_SELECTOR_CAPTURE=1` to create the exact pre-selector raw
+  candidate snapshot. Its metrics include SearchService retrieval time,
+  provider route/page counts, Affiliate API calls/retries/latency, Gemini
+  operations/tokens/known cost and candidate-stage counts. `--repeat 3`
+  is opt-in only; default is one pass.
+- Offline tests for the live-smoke metric helpers are in
+  `tests/test_live_smoke_metrics.py` and are selected in focused CI. They
+  exercise fake clients only and never call AliExpress, Gemini or Telegram.
+- The 70-card golden-set process is now documented with a low-cost direct
+  Option C capture command in `tests/eval_selector_capture_schema.md`.
+  Raw captures still require independent provenance verification, page-depth
+  annotation and human gold labels before any selector replay. No real capture
+  has been run and no model-quality conclusion is available yet.
+
 
 ## What this is
 

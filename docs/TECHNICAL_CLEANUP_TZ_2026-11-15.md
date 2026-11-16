@@ -657,3 +657,35 @@ workflow для последующего документационного comm
 - Остаются live Telegram acceptance, 70 реальных карточек с независимой
   gold-разметкой и production latency/API-call measurement. Нельзя
   подменять их synthetic fixtures или mock timings.
+
+
+### Live performance and selector-capture tooling — 16 November 2026
+
+- `smoke_conversational_search.py` now supports a single custom query
+  (`--query`) and a low-cost search-only mode (`--search-only`) that skips
+  shown-product follow-up and comparison calls. The default eight-case matrix
+  remains unchanged.
+- Per search it reports total wall time, actual SearchService retrieval wall
+  time, provider route calls, unique requested page numbers, logical Affiliate
+  API requests, HTTP attempts including retries, API call p50/p95, Gemini
+  attempts/duration/tokens/known cost by operation, candidate-stage counts,
+  final cards and decision/no-results reasons.
+- `--repeat 1..5` is opt-in; default is one pass. Follow-up/comparison work,
+  when enabled, is measured separately so it does not inflate search latency.
+  A failed COMPARE route no longer triggers an unnecessary ProductAssistant
+  Gemini call.
+- `tests/test_live_smoke_metrics.py` covers percentile math, API retry /
+  coalescing counters, Gemini usage grouping, candidate stage summaries,
+  retrieval route instrumentation and custom-query normalization. It is
+  included in focused CI and uses fake objects only.
+- For the controlled 70-card selector capture, use the procedure in
+  `tests/eval_selector_capture_schema.md`. The direct smoke runner exercises
+  the authoritative Option C engine without Telegram polling, but still uses
+  real Affiliate API and Gemini credentials and therefore incurs real usage.
+  `--search-only` avoids extra comparison calls. Captures remain
+  `selector_input_capture` with null page_count/gold until independently
+  reviewed; no live capture or gold labeling was performed by this repository
+  work.
+- No real Telegram acceptance test or production latency run was executed.
+  Those require the owner's local credentials/runtime and must remain a
+  separately controlled manual step.

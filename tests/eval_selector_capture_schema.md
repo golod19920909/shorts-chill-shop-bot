@@ -160,3 +160,38 @@ The runner:
 - writes a blind result file and a separate private model map; it temporarily captures usage in memory instead of writing evaluation calls into the bot's persistent telemetry database.
 
 The reconstructed placeholder product/image URLs are never sent to the model: the runner verifies the exact selector payload after reconstruction, and `_rank_payload` contains only the frozen fields above. Do not inspect the private map until blind scoring is complete.
+
+
+### Direct Option C capture with the live smoke runner
+
+For one controlled query, the same authoritative
+`ConversationSearchEngine -> RetrievalBackend -> SearchService -> AIService`
+path can be exercised without starting Telegram polling. This avoids the
+extra shown-product comparison calls and makes the real retrieval page/API
+metrics visible next to the selector capture.
+
+PowerShell (run only when ready to spend real AliExpress/Gemini quota):
+
+```powershell
+$env:SHORTS_CHILL_SELECTOR_CAPTURE = "1"
+$env:SHORTS_CHILL_SELECTOR_CAPTURE_DIR = "reports/selector-captures"
+python smoke_conversational_search.py --query "игровой ноутбук" --search-only
+Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE -ErrorAction SilentlyContinue
+Remove-Item Env:SHORTS_CHILL_SELECTOR_CAPTURE_DIR -ErrorAction SilentlyContinue
+```
+
+The runner defaults to one pass and one search case in this mode. It reports
+search wall time, SearchService retrieval wall time, provider route calls,
+requested page numbers, logical Affiliate API requests, actual attempts
+including retries, API latency, Gemini operations/tokens/known cost, and
+candidate-stage counts. It does not print affiliate URLs or credentials.
+`--repeat 3` is available for a repeated performance sample but is not
+recommended for the first capture because it multiplies real API/model usage.
+
+The capture remains deliberately untrusted until reviewed:
+`capture_kind` remains `selector_input_capture`, `page_count` remains null,
+and `gold` remains null. Confirm that the run used the real Affiliate API,
+use the printed requested page numbers to verify the page-depth metadata,
+independently label every candidate and add evidence quotes. Do not simply
+change the provenance marker without checking the run. The runner never
+creates gold labels automatically.
