@@ -59,6 +59,15 @@ SEARCH_CASES = (
     ("lighting", "налобный фонарь"),
 )
 
+def _selected_search_cases(custom_query: str | None) -> tuple[tuple[str, str], ...]:
+    if custom_query is None:
+        return SEARCH_CASES
+    normalized = " ".join(custom_query.split())
+    if not normalized:
+        raise ValueError("--query must contain a non-empty search phrase")
+    return (("custom", normalized),)
+
+
 STAGE_FIELDS = (
     "raw",
     "hard_rejected",
@@ -303,6 +312,11 @@ async def main() -> int:
         help="override the configured AliExpress page depth (default: runtime setting)",
     )
     parser.add_argument(
+        "--query",
+        default=None,
+        help="run one controlled query instead of the default eight-case matrix",
+    )
+    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -313,6 +327,10 @@ async def main() -> int:
     args = parser.parse_args()
     if args.max_search_pages is not None and args.max_search_pages < 1:
         parser.error("--max-search-pages must be at least 1")
+    try:
+        search_cases = _selected_search_cases(args.query)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     settings = load_settings()
     if not settings.aliexpress.is_configured:
@@ -327,7 +345,8 @@ async def main() -> int:
         search_service.max_search_pages = args.max_search_pages
     print(
         "AliExpress conversational page depth: "
-        f"{search_service.max_search_pages}; repetitions={args.repeat}"
+        f"{search_service.max_search_pages}; repetitions={args.repeat}; "
+        f"cases={len(search_cases)}"
     )
     engine = ConversationSearchEngine()
     engine.bind_search_service(search_service)
@@ -341,7 +360,7 @@ async def main() -> int:
 
     try:
         for repetition in range(1, args.repeat + 1):
-            for label, query in SEARCH_CASES:
+            for label, query in search_cases:
                 user_key = f"live-smoke-{repetition}-{label}"
                 state = ConversationEngineState(user_key=user_key)
                 print(f"\n=== {label} (run {repetition}/{args.repeat}): {query} ===")

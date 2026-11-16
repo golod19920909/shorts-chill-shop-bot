@@ -168,3 +168,22 @@ def test_count_summary_uses_count_units_not_milliseconds():
     assert _count_summary([1, 2, 3, 4]) == {
         "samples": 4, "avg": 2.5, "p50": 2.0, "p95": 4.0
     }
+
+
+
+def test_custom_live_smoke_query_is_normalized_and_default_matrix_is_preserved():
+    from smoke_conversational_search import SEARCH_CASES, _selected_search_cases
+
+    assert _selected_search_cases(None) == SEARCH_CASES
+    assert _selected_search_cases("  игровой   ноутбук  ") == (
+        ("custom", "игровой ноутбук"),
+    )
+
+
+def test_custom_live_smoke_query_rejects_empty_text():
+    import pytest
+
+    from smoke_conversational_search import _selected_search_cases
+
+    with pytest.raises(ValueError, match="non-empty search phrase"):
+        _selected_search_cases("   ")
