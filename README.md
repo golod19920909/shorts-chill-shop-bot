@@ -487,15 +487,15 @@ sudo journalctl -u shopbot -f
 * Запросы «удиви меня» / «что-нибудь прикольное для машины» идут в тот же
   конвейер с широким seed из слов пользователя; явный бюджет («до $20»)
   сохраняется и применяется к реальным кандидатам.
-* Офлайн-проверки запускаются в GitHub Actions. На контрольной точке
-  15.11.2026: production compile и syntax check smoke scripts проходят;
-  focused suite — 533 passed / 1 baseline failure (584 subtests);
-  configured broad suite — 2,282 passed / 1 baseline failure (1,259 subtests).
-  Broad suite намеренно
-  исключает отдельные legacy-модули; это не полный unfiltered run.
-  Единственный текущий failure — несовпадение reason в baseline-тесте
-  защищённого «Умного поиска»; production-алгоритм не менялся ради зелёного
-  CI. Актуальный статус и точные run-ссылки находятся в техническом ТЗ.
+* Офлайн-проверки запускаются в GitHub Actions. Последняя проверенная
+  точка 16.11.2026: production compile, syntax check live smoke scripts и
+  dependency consistency проходят; focused suite — 638 passed,
+  1 deselected (593 subtests); configured broad suite — 2,295 passed,
+  2 deselected (1,259 subtests). Осталось одно предупреждение upstream
+  Google GenAI SDK о deprecation. Broad suite намеренно исключает отдельные
+  legacy и смешанные модули; это не полный unfiltered run. Изолированный
+  диагностический workflow для них: `.github/workflows/legacy-test-audit.yml`.
+  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43842771485).
 
 ## Что намеренно НЕ реализовано
 
