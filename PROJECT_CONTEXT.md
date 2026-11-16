@@ -33,6 +33,11 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   **2,304 passed, 2 deselected, 1,259 subtests**. Production compile, manual
   smoke syntax, dependency lock consistency and `pip check` passed. One
   upstream Google GenAI SDK deprecation warning remains.
+- Configuration tests now explicitly clear admin IDs, analytics dashboard and
+  price-tracking environment variables and cover their safe defaults, parsing,
+  dashboard port bounds and the disabled tracking interval. These tests were
+  added to focused CI; the new workflow/test commits still require a fresh
+  successful run before being treated as verified.
 - Focused CI now selects reviewed classes from mixed modules rather than
   excluding every useful test with the whole file: discovery favorites/text,
   category-country, menu wiring, shown-history, relevance and engine
