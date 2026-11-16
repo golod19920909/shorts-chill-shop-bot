@@ -547,33 +547,23 @@ class WiringGuardTests(unittest.TestCase):
         with io.open(path, encoding="utf-8") as handle:
             return handle.read()
 
-    def test_search_handler_order_and_single_parse(self) -> None:
-        source = self._source("handlers/search.py")
-        early_exit = source.find("if ai_service is None")
-        # parse_query and parse_query_intent are INDEPENDENT, so they are issued
-        # CONCURRENTLY (asyncio.gather) - the intent PARSE may precede the merge.
-        # The invariant the pipeline actually relies on is therefore anchored on
-        # APPLY, not parse: the parsed intent must be applied AFTER the merge,
-        # and retrieval must happen after that. ``parse_query_intent`` must
-        # still exist exactly once (single parse - the duplication guard).
-        intent_parse = source.find("parse_query_intent(text, ai_service)")
-        resolved = source.find("await resolve_request(")
-        applied = source.find("apply_intent(")
-        # The retrieval call itself (assigned, then returned - the exact
-        # return syntax must not couple this order guard to the code style).
-        searched = source.find("await search_service.find_products(")
-        self.assertGreater(intent_parse, -1)
-        self.assertGreater(applied, -1)
-        self.assertGreater(resolved, -1)
-        self.assertGreater(searched, -1)
-        # The ai_service-is-None branch (Path B) returns BEFORE _search's
-        # own intent call -> no path parses intent twice.
-        self.assertGreater(intent_parse, early_exit)
-        # Single parse: the concurrent block references parse_query_intent once.
-        self.assertEqual(source.count("parse_query_intent(text, ai_service)"), 1)
-        # Mandatory order: merge first, then intent APPLIED, then retrieval.
-        self.assertGreater(applied, resolved)
-        self.assertGreater(searched, applied)
+    def test_search_handler_delegates_turn_policy_to_option_c_engine(self) -> None:
+        handler = self._source("handlers/search.py")
+        engine = self._source("services/convsearch/engine.py")
+
+        # The Telegram handler is deliberately a thin adapter: it delegates
+        # each turn to the authoritative conversation engine. Intent parsing,
+        # merge policy and retrieval no longer live in the handler.
+        self.assertIn("engine.handle_message(", handler)
+        self.assertNotIn("parse_query_intent", handler)
+        self.assertNotIn("resolve_request(", handler)
+        self.assertNotIn("apply_intent(", handler)
+        self.assertNotIn("search_service.find_products(", handler)
+
+        # Option C keeps turn interpretation inside the engine, where it is
+        # bounded and applied against the conversation context.
+        self.assertIn("async def handle_message(", engine)
+        self.assertIn("decide_conversation_turn", engine)
 
     def test_find_products_from_text_uses_the_same_layer(self) -> None:
         source = self._source("services/search_service.py")
