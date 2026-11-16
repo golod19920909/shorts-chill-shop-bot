@@ -334,8 +334,8 @@ class SessionIsolationTests(unittest.TestCase):
         # (never the same first cards). G24: one open is bounded by
         # ``FEED_MAX_PAGES_PER_OPEN`` (2), so the first press walks 1..2,
         # and the reset press - history cleared, cursor kept - continues
-        # at the persisted cursor with 3..4.
-        self.assertEqual(self.provider.feed_calls, [1, 2, 3, 4])
+        # at the persisted cursor with pages 2/41.
+        self.assertEqual(self.provider.feed_calls, [1, 40, 2, 41])
         self.assertEqual(context.user_data[discovery.FEED_PAGE_KEY], 5)
         # ...the search-like flows keep their own state - a search never
         # advances the rotation and the reset never wipes a search's novelty.
@@ -357,9 +357,8 @@ class SessionIsolationTests(unittest.TestCase):
 
         self.open_popular(restarted)
 
-        # G24: press 1 walked pages 1..2 (the ``FEED_MAX_PAGES_PER_OPEN``
-        # bound), the restarted worker resumes at the persisted cursor and
-        # walks 3..4 - never back at page 1.
+        # G24: the feed deliberately samples spaced marketplace pages 1/40,
+        # then resumes at 2/41 after restart; it does not walk sequentially.
         self.assertEqual(self.provider.feed_calls, [1, 2, 3, 4])
         self.assertIn("Механическая клавиатура RGB", self.card(restarted))
         self.assertEqual(run(self.db.get_feed_page(1)), 5)
