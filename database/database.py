@@ -31,6 +31,21 @@ from database.models import (
 
 logger = logging.getLogger(__name__)
 
+SCHEMA_MIGRATIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+SCHEMA_MIGRATIONS = (
+    (1, "user_profile_columns"),
+    (2, "popular_shown_flow"),
+    (3, "legacy_feed_scope"),
+)
+LATEST_SCHEMA_VERSION = SCHEMA_MIGRATIONS[-1][0]
+
 
 #: The path that asks for a real IN-MEMORY database. A connection-per-call
 #: layer cannot serve it directly: SQLite hands every ``:memory:`` connection
@@ -121,29 +136,55 @@ class Database:
         if not self.is_memory:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         async with self._connect() as conn:
+            # Schema creation and numbered migrations share one write
+            # transaction. Failure cannot leave a partial migration behind.
+            await conn.execute("BEGIN IMMEDIATE;")
+            try:
+                for statement in ALL_TABLES:
+                    await conn.execute(statement)
+                await conn.execute(SCHEMA_MIGRATIONS_TABLE)
+                cursor = await conn.execute(
+                    "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+                )
+                row = await cursor.fetchone()
+                current_version = int(row[0] or 0)
+                if current_version > LATEST_SCHEMA_VERSION:
+                    raise RuntimeError(
+                        "Database schema version "
+                        f"{current_version} is newer than this application "
+                        f"supports ({LATEST_SCHEMA_VERSION})"
+                    )
 
-            await conn.execute("PRAGMA foreign_keys = ON;")
-            for statement in ALL_TABLES:
-                await conn.execute(statement)
-            await self._ensure_columns(conn)
-            for statement in ALL_INDEXES:
-                await conn.execute(statement)
-            await conn.commit()
-        logger.info("Database initialized at %s", self.db_path)
+                migrations = (
+                    (1, "user_profile_columns", self._migrate_user_profile_columns),
+                    (2, "popular_shown_flow", self._migrate_popular_shown_flow),
+                    (3, "legacy_feed_scope", self._migrate_legacy_feed_scope),
+                )
+                for version, name, migration in migrations:
+                    if version <= current_version:
+                        continue
+                    await migration(conn)
+                    await conn.execute(
+                        "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+                        (version, name),
+                    )
+                    logger.info("Applied SQLite migration %03d: %s", version, name)
+
+                for statement in ALL_INDEXES:
+                    await conn.execute(statement)
+                await conn.commit()
+            except Exception:
+                await conn.rollback()
+                raise
+        logger.info(
+            "Database initialized at %s (schema_version=%d)",
+            self.db_path,
+            LATEST_SCHEMA_VERSION,
+        )
 
     @staticmethod
-    async def _ensure_columns(conn: aiosqlite.Connection) -> None:
-        """Add columns introduced after the first release of a table.
-
-        ``CREATE TABLE IF NOT EXISTS`` does not alter an existing table,
-        so a database created by an older build would miss newer
-        columns (``users.updated_at``, ``users.country``,
-        ``users.currency``, ``popular_shown.flow``).
-
-        TODO: replace this with a real migration mechanism (e.g.
-        numbered SQL migrations or Alembic) once the schema changes
-        more often than the database is recreated.
-        """
+    async def _migrate_user_profile_columns(conn: aiosqlite.Connection) -> None:
+        """Migration 001: add user profile and notification preference fields."""
 
         cursor = await conn.execute("PRAGMA table_info(users);")
         existing = {row[1] for row in await cursor.fetchall()}
@@ -155,15 +196,11 @@ class Database:
                 "NOT NULL DEFAULT (datetime('now'));"
             )
 
-        # Country/currency are optional user preferences; a NULL value
-        # means "not specified", which is a fully supported state.
         for column in ("country", "currency"):
             if column not in existing:
                 logger.info("Migrating: adding users.%s column", column)
                 await conn.execute(f"ALTER TABLE users ADD COLUMN {column} TEXT;")
 
-        # Onboarding flag and the price-notification preference (both have
-        # honest defaults: not onboarded yet / notifications enabled).
         if "onboarded" not in existing:
             logger.info("Migrating: adding users.onboarded column")
             await conn.execute(
@@ -176,52 +213,15 @@ class Database:
                 "INTEGER NOT NULL DEFAULT 1;"
             )
 
+    @staticmethod
+    async def _migrate_popular_shown_flow(conn: aiosqlite.Connection) -> None:
+        """Migration 002: give shown history its independent flow scope."""
+
         await Database._ensure_shown_flow_column(conn)
-        await Database._migrate_legacy_feed_scope(conn)
 
     @staticmethod
-    async def _ensure_shown_flow_column(conn: aiosqlite.Connection) -> None:
-        """Give an existing ``popular_shown`` table the ``flow`` column.
-
-        The column cannot be added with ``ALTER TABLE``: the scope is part of
-        the row's UNIQUE key (one product may be recorded once per flow), and
-        SQLite cannot alter a table constraint. The table is therefore
-        rebuilt once - rows written by an older build carry no scope, and
-        they are kept as ROTATION rows (:data:`~database.models.FLOW_POPULAR`):
-        that scope is the conservative one (it can only make the popular feed
-        skip a product, never hide a search result), and it starts the search
-        scope from a clean, honest slate instead of inheriting state written
-        for a different screen.
-        """
-
-        cursor = await conn.execute("PRAGMA table_info(popular_shown);")
-        columns = {row[1] for row in await cursor.fetchall()}
-        if not columns or "flow" in columns:
-            return
-
-        logger.info("Migrating: rebuilding popular_shown with a flow column")
-        await conn.execute("ALTER TABLE popular_shown RENAME TO popular_shown_legacy;")
-        await conn.execute("DROP INDEX IF EXISTS idx_popular_shown_user;")
-        await conn.execute(CREATE_POPULAR_SHOWN_TABLE)
-        await conn.execute(
-            "INSERT OR IGNORE INTO popular_shown "
-            "(user_id, marketplace, product_id, flow, shown_at) "
-            f"SELECT user_id, marketplace, product_id, '{FLOW_FEED}', shown_at "
-            "FROM popular_shown_legacy;"
-        )
-        await conn.execute("DROP TABLE popular_shown_legacy;")
-
-    @staticmethod
-    async def _migrate_legacy_feed_scope(conn: aiosqlite.Connection) -> None:
-        """Move the removed «🔥 Популярное» scope onto the feed scope.
-
-        The G24 feed replaced the old rotation in place: its table
-        (``popular_shown``) and its rows stay, only the scope VALUE changed
-        ``"popular"`` -> ``"feed"``. Rewriting the rows in ``initialize``
-        keeps every user's shown-history instead of letting the feed replay
-        cards its owner already displayed. Idempotent (a second startup
-        simply matches no rows).
-        """
+    async def _migrate_legacy_feed_scope_rows(conn: aiosqlite.Connection) -> None:
+        """Apply migration 003 data rewrite; safe to repeat."""
 
         cursor = await conn.execute(
             "UPDATE popular_shown SET flow = ? WHERE flow = ?",
@@ -232,7 +232,6 @@ class Database:
                 "Migrating: %d popular-scope rows moved to the feed scope",
                 cursor.rowcount,
             )
-
 
     async def list_tables(self) -> list[str]:
         """Return the names of all user tables in the database.
@@ -1497,7 +1496,6 @@ class Database:
             query += " AND created_at >= ?"
             params.append(since)
         query += " GROUP BY event_type"
-
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
             cursor = await conn.execute(query, params)

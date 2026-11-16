@@ -140,6 +140,104 @@ class DatabaseTests(unittest.TestCase):
         self.run_async(self.db.initialize())
         self.assertTrue(Path(self.db_path).exists())
 
+
+    def test_numbered_schema_migrations_are_recorded_and_idempotent(self) -> None:
+        self.run_async(self.db.initialize())
+
+        async def read_versions():
+            async with self.db._connect() as conn:
+                cursor = await conn.execute(
+                    "SELECT version, name FROM schema_migrations ORDER BY version"
+                )
+                return await cursor.fetchall()
+
+        expected = [
+            (1, "user_profile_columns"),
+            (2, "popular_shown_flow"),
+            (3, "legacy_feed_scope"),
+        ]
+        self.assertEqual(self.run_async(read_versions()), expected)
+        self.run_async(self.db.initialize())
+        self.assertEqual(self.run_async(read_versions()), expected)
+
+    def test_legacy_schema_migrates_user_columns_and_preserves_shown_rows(self) -> None:
+        async def create_legacy_schema():
+            async with aiosqlite.connect(self.db_path) as conn:
+                await conn.execute(
+                    "CREATE TABLE users ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "telegram_id INTEGER NOT NULL UNIQUE, "
+                    "username TEXT, "
+                    "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+                )
+                await conn.execute(
+                    "INSERT INTO users (telegram_id, username) VALUES (555, 'legacy')"
+                )
+                await conn.execute(
+                    "CREATE TABLE popular_shown ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+                    "marketplace TEXT NOT NULL, product_id TEXT NOT NULL, "
+                    "shown_at TEXT NOT NULL DEFAULT (datetime('now')), "
+                    "UNIQUE (user_id, marketplace, product_id))"
+                )
+                await conn.execute(
+                    "INSERT INTO popular_shown (user_id, marketplace, product_id) "
+                    "VALUES (1, 'aliexpress', 'legacy-shown')"
+                )
+                await conn.commit()
+
+        self.run_async(create_legacy_schema())
+        self.run_async(self.db.initialize())
+
+        async def inspect_migrated_schema():
+            async with self.db._connect() as conn:
+                cursor = await conn.execute("PRAGMA table_info(users)")
+                user_columns = {row[1] for row in await cursor.fetchall()}
+                cursor = await conn.execute(
+                    "SELECT flow FROM popular_shown WHERE product_id='legacy-shown'"
+                )
+                shown_flow = await cursor.fetchone()
+                cursor = await conn.execute(
+                    "SELECT version FROM schema_migrations ORDER BY version"
+                )
+                versions = [row[0] for row in await cursor.fetchall()]
+                cursor = await conn.execute("PRAGMA foreign_key_check")
+                foreign_key_errors = await cursor.fetchall()
+                return user_columns, shown_flow[0], versions, foreign_key_errors
+
+        columns, flow, versions, fk_errors = self.run_async(inspect_migrated_schema())
+        self.assertTrue({
+            "updated_at", "country", "currency", "onboarded",
+            "notify_price_changes",
+        }.issubset(columns))
+        self.assertEqual(flow, "feed")
+        self.assertEqual(versions, [1, 2, 3])
+        self.assertEqual(fk_errors, [])
+
+    def test_version_two_migration_rewrites_legacy_feed_scope(self) -> None:
+        self.run_async(self.db.initialize())
+        user_id = self.run_async(self.db.get_or_create_user(555, "scope-test"))
+        self.run_async(self.db.add_feed_shown(user_id, "aliexpress", "old-popular"))
+
+        async def simulate_schema_version_two():
+            async with self.db._connect() as conn:
+                await conn.execute(
+                    "UPDATE popular_shown SET flow='popular' "
+                    "WHERE product_id='old-popular'"
+                )
+                await conn.execute(
+                    "DELETE FROM schema_migrations WHERE version=3"
+                )
+                await conn.commit()
+
+        self.run_async(simulate_schema_version_two())
+        self.run_async(self.db.initialize())
+        self.assertEqual(
+            self.run_async(self.db.get_feed_shown(user_id)),
+            [("aliexpress", "old-popular")],
+        )
+
     def test_creates_missing_parent_directory(self) -> None:
         nested = Path(self._tmp_dir.name) / "nested" / "dir" / "x.db"
         self.run_async(Database(str(nested)).initialize())
