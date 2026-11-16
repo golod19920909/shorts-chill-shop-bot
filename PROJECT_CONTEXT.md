@@ -21,10 +21,13 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   first selection, continuation and no-results reply as separate operations.
   Admin usage reports expose observed p50/p95 duration per operation/model;
   search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Latest verified CI run (commit `6e481c2`): focused 598 passed,
-  1 deselected, 591 subtests; broad configured offline suite 2295 passed,
-  2 deselected, 1259 subtests. One third-party google-genai DeprecationWarning
-  remains; it is not a project failure.
+- Latest completed CI run before the current workflow-only correction: run
+  #2022 on commit `c1760699` passed. Focused suite: 598 passed, 1 deselected,
+  591 subtests; broad configured offline suite: 2295 passed, 2 deselected,
+  1259 subtests. One third-party google-genai DeprecationWarning remains.
+  The workflow-only correction in commit `1965962` replaces the nonexistent
+  root `bot.py` compile target with the actual `bot/` package; its CI rerun is
+  pending and must be verified before calling the latest commit green.
 - Follow-up regression tests cover mixed safe/review retrieval pools,
   hard-reject exclusion from the retrieval target, empty/partial/full selector
   outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
@@ -32,8 +35,9 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   opt-in/privacy. Snapshots redact URLs, emails, phone numbers, Telegram IDs
   and credential-like values before writing.
 - `.env.example` was statically reconciled with settings and selector-capture
-  runtime variables. CI now compiles root `bot.py` and runs startup,
-  database-migration and price-tracker tests in the focused offline job.
+  runtime variables. CI compiles the actual `bot/` package and `main.py`, and
+  runs startup, database-migration and price-tracker tests in the focused
+  offline job.
 - Price tracking remains sequential and globally API-bounded; its first
   scheduled check is delayed 30 seconds. Redundant per-method SQLite foreign
   key PRAGMAs were removed; the connection factory remains the single source
@@ -49,9 +53,10 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   in the cleanup brief. No user-prepared JSON is required. The real AliExpress
   golden-set step remains evidence-gated and must not be replaced by synthetic
   data or guessed model-quality conclusions.
-- Current verified branch commit before this documentation update:
-  `6e481c22d74c1955231a282e2b3ca2f8190cdb00`. The branch is not merged into
-  `main` or the production updater branch.
+- Latest completed test commit: `c1760699be42acb0561555d46e24227b441cfbb2`.
+  Current workflow correction commit: `1965962f3efb56bca1af82e13ddefe04fcb887f9`
+  (CI rerun pending). The branch is not merged into `main` or the production
+  updater branch.
 - No local `.env`, SQLite file, PC environment, backup or user data was read,
   changed or uploaded during this repository-only work.
 
