@@ -1,4 +1,9 @@
-"""Live multi-category smoke test for the Option C shopping consultant.
+"""LIVE / API-COSTING smoke test for the Option C shopping consultant.
+
+Requires local AliExpress and Gemini credentials. It makes real marketplace
+requests and Gemini model calls, consuming API quota/usage and potentially
+incurring model charges. It is a manual diagnostic only and is never executed
+by CI.
 
 Run manually from the project root (uses the local .env):
 
