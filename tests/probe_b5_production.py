@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Probe: run the PRODUCTION query-understanding path for the B5 dataset.
+"""Legacy B5 diagnostic probe for the historical query-understanding path.
 
-For every dataset query it shows what the app would actually do:
-  - chat_router classification (search / clarify / compare / ...)
-  - AI parse (normalized_query, keywords, price bounds, currency, mode)
-  - structured intent (product_type, budget, source)
-  - the effective request after resolve_request + apply_intent
+LIVE / API-COSTING: requires GEMINI_API_KEY and sends model requests for the
+dataset cases; each run can incur Gemini usage charges. It is deliberately
+excluded from CI and must not be treated as an offline test.
 
-Read-only probe: no state is changed, no product is shown to anybody.
+This probe uses the historical chat_router / query_intent / resolve_request
+pipeline. It is NOT the current Option C ConversationSearchEngine path.
+It is read-only with respect to bot state and never shows products to users.
 """
 from __future__ import annotations
 
