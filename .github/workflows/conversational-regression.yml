@@ -80,6 +80,8 @@ jobs:
           tests/test_session_isolation.py::SessionIsolationTests::test_a_search_is_not_emptied_by_the_popular_rotation
           tests/test_session_isolation.py::SessionIsolationTests::test_the_explicit_restart_resets_only_the_rotation
           tests/test_session_isolation.py::SessionIsolationTests::test_a_restarted_worker_continues_the_rotation
+          tests/test_session_isolation.py::SessionIsolationTests::test_a_new_search_never_inherits_the_previous_query
+          tests/test_session_isolation.py::SessionIsolationTests::test_a_stale_card_browses_its_own_session_only
           tests/test_query_intent.py
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
