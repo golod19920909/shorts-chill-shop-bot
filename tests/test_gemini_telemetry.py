@@ -32,9 +32,11 @@ class _FakeModels:
     def __init__(self, results):
         self.results = list(results)
         self.calls = 0
+        self.arguments = []
 
     async def generate_content(self, **kwargs):
         self.calls += 1
+        self.arguments.append(kwargs)
         result = self.results.pop(0)
         if isinstance(result, Exception):
             raise result
@@ -145,6 +147,47 @@ class _GenerateInstrumentationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(usage.attempts[0].outcome, "error")
         self.assertEqual(usage.attempts[0].operation, "parse_query")
         self.assertTrue(usage.tokens_partial)
+
+    async def test_selection_reserve_receives_identical_candidate_prompt_and_schema(self):
+        class _ModelUnavailable(Exception):
+            status_code = 503
+
+        schema = {
+            "type": "OBJECT",
+            "properties": {"selections": {"type": "ARRAY"}},
+            "required": ["selections"],
+        }
+        ai, fake = _ai_with([
+            _ModelUnavailable("503 unavailable"),
+            _response(text='{"selections":[]}'),
+        ])
+
+        with turn_scope("selection") as usage:
+            raw = await ai._generate(
+                "same candidate payload and constraints",
+                models=("primary",),
+                operation="conversation_selection",
+                response_schema=schema,
+            )
+
+        self.assertEqual(raw, '{"selections":[]}')
+        self.assertEqual(fake.calls, 2)
+        self.assertEqual(
+            [call["model"] for call in fake.arguments],
+            ["primary", "gemini-3.8-flash"],
+        )
+        self.assertEqual(
+            [call["contents"] for call in fake.arguments],
+            ["same candidate payload and constraints"] * 2,
+        )
+        self.assertEqual(
+            [call["config"]["response_schema"] for call in fake.arguments],
+            [schema, schema],
+        )
+        self.assertEqual(
+            [attempt.operation for attempt in usage.attempts],
+            ["conversation_selection", "conversation_selection"],
+        )
 
     async def test_timeout_recorded_without_behavior_change(self):
         async def hang(**kwargs):
