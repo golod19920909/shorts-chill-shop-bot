@@ -697,7 +697,6 @@ QUESTION_PROMPT = """Найди в карточках только прямые 
 
 Верни ТОЛЬКО JSON такого вида:
 {{"claims":[{{"product_id":"точный id","field":"title или description","quote":"точная непрерывная цитата из этого поля"}}],"recommendation":{{"product_id":"точный id или null","evidence":[{{"field":"title или description","quote":"точная непрерывная цитата"}}]}},"clarification":"один короткий уточняющий вопрос или null"}}
-
 Правила:
 - quote должен дословно присутствовать в указанном поле товара; не исправляй и не пересказывай цитату.
 - Выбирай только цитаты, которые прямо относятся к вопросу. Не делай выводов по типичному комплекту, категории, цене, рейтингу или фотографии.
@@ -2082,6 +2081,7 @@ class AIService:
         identity_review_ids: list[str] | None = None,
         marketplace_terms: list[str] | None = None,
         budget_constraint: str | None = None,
+        operation: str = "conversation_selection",
     ) -> list[str] | None:
         """Select grounded candidates; uncertain claims require listing quotes.
 
@@ -2257,13 +2257,14 @@ seller_terms: {seller_terms_json}
             (time.perf_counter() - prompt_build_started) * 1000,
         )
         logger.info(
-            "Gemini conversation selection model route: pass=primary model=%s",
+            "Gemini conversation selection model route: op=%s pass=primary model=%s",
+            operation,
             self.fast_model,
         )
         raw = await self._generate(
             prompt,
             models=(self.fast_model,),
-            operation="conversation_selection",
+            operation=operation,
             response_schema=selection_schema,
         )
         response_parse_started = time.perf_counter()
@@ -2272,8 +2273,8 @@ seller_terms: {seller_terms_json}
             isinstance(payload, dict) and isinstance(payload.get("selections"), list)
         )
         logger.info(
-            "Gemini response processed: op=conversation_selection parse_ms=%.0f "
-            "valid_shape=%s",
+            "Gemini response processed: op=%s parse_ms=%.0f valid_shape=%s",
+            operation,
             (time.perf_counter() - response_parse_started) * 1000,
             valid_selection_shape,
         )
@@ -3079,7 +3080,7 @@ seller_terms: {seller_terms_json}
             attempt_started = time.perf_counter()
             attempt_timeout = self.timeout_seconds
             prompt_chars = len(contents) if isinstance(contents, str) else None
-            if operation == "conversation_selection":
+            if operation in {"conversation_selection", "conversation_selection_continuation"}:
                 attempt_timeout = min(
                     attempt_timeout, CONVERSATION_SELECTION_ATTEMPT_TIMEOUT_SECONDS
                 )
@@ -3105,7 +3106,7 @@ seller_terms: {seller_terms_json}
                             "response_mime_type": "application/json",
                             "response_schema": CONVERSATION_TURN_SCHEMA,
                         }
-                    elif operation == "conversation_selection":
+                    elif operation in {"conversation_selection", "conversation_selection_continuation"}:
                         # Candidate review is a bounded classification/ranking
                         # step after deterministic safety filters. The caller
                         # supplies a requirement-specific schema; the exact same
@@ -3223,7 +3224,7 @@ seller_terms: {seller_terms_json}
                     response=response,
                 )
                 if (
-                    operation in {"conversation_turn", "conversation_selection"}
+                    operation in {"conversation_turn", "conversation_selection", "conversation_selection_continuation"}
                     and index + 1 < len(chain)
                 ):
                     logger.warning(
@@ -3238,7 +3239,7 @@ seller_terms: {seller_terms_json}
             # Reject malformed consultant JSON before accepting an attempt.
             # The reserve receives the identical prompt/schema; semantic and
             # grounding checks remain in the existing caller validators.
-            if operation in {"conversation_turn", "conversation_selection"}:
+            if operation in {"conversation_turn", "conversation_selection", "conversation_selection_continuation"}:
                 structured = self._extract_json_object(text)
                 if operation == "conversation_turn":
                     confidence = (

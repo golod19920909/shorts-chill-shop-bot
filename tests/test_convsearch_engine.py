@@ -1146,6 +1146,42 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.report["ai_second_pass"], "skipped_valid_empty")
 
 
+
+    async def test_partial_selection_is_attributed_as_continuation_operation(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-operation-attribution")
+        candidates = [
+            product(f"operation-{i}", "Рыболовная катушка")
+            for i in range(25)
+        ]
+        operations = []
+
+        async def select_batch(pool, *, operation="conversation_selection", **kwargs):
+            operations.append(operation)
+            return [pool[0].product_id]
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=select_batch,
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS, products=candidates, report={}
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(
+            operations,
+            ["conversation_selection", "conversation_selection_continuation"],
+        )
+        self.assertEqual(decision.report["ai_second_pass"], "completed")
+
     async def test_unknown_selector_ids_do_not_trigger_continuation(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="selector-unknown-id")

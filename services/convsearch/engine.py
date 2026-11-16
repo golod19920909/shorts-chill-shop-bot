@@ -1301,6 +1301,13 @@ class ConversationSearchEngine:
             if remaining_pool and remaining_wanted > 0:
                 second_kwargs = dict(selector_kwargs)
                 second_kwargs["wanted"] = remaining_wanted
+                try:
+                    if "operation" in inspect.signature(selector).parameters:
+                        second_kwargs["operation"] = (
+                            "conversation_selection_continuation"
+                        )
+                except (TypeError, ValueError):
+                    pass
                 # A valid but short/empty selection is not a model outage.
                 # Keep the continuation on the same primary model; _generate
                 # alone may invoke the reserve after a real request failure.
@@ -1397,7 +1404,6 @@ class ConversationSearchEngine:
     @staticmethod
     def _clarification_question(ai_turn: dict | None = None) -> str:
         """Reuse the interpreter's validated question; never reinterpret twice.
-
         `conversation_turn` already decides whether clarification is needed
         and returns the question in its structured contract. If that field is
         absent or invalid, use the deterministic default instead of issuing a
