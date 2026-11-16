@@ -36,7 +36,6 @@ from handlers import search as search_handlers
 from handlers.search import search_message
 from keyboards.products import CB_PREFIX_NAV
 from models.product import Marketplace, Product
-from services.ai_service import AIService
 from services.search_service import SearchService
 
 
@@ -59,6 +58,24 @@ def listing(product_id: str, title: str, *, affiliate: bool = True) -> Product:
             f"https://s.click.aliexpress.com/e/_{product_id}" if affiliate else None
         ),
     )
+
+
+class StubTurnInterpreter:
+    """Deterministic Option C interpreter for handler/session tests."""
+
+    async def decide_conversation_turn(self, text: str, *, context=None) -> dict:
+        product_type = (
+            "плазморезка" if "плазморез" in text.casefold() else "наушники"
+        )
+        return {
+            "action": "new_search",
+            "confidence": 0.99,
+            "product_type": product_type,
+            "marketplace_terms": [],
+            "question": None,
+            "response": None,
+            "slot_updates": [],
+        }
 
 
 class CatalogStub:
@@ -239,7 +256,7 @@ class SessionIsolationTests(unittest.TestCase):
             bot_data={
                 "database": self.db,
                 "search_service": SearchService([self.provider]),
-                "ai_service": AIService(api_key=None),
+                "ai_service": StubTurnInterpreter(),
             }
         )
 
