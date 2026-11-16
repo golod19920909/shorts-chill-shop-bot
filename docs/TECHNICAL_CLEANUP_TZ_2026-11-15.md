@@ -709,3 +709,21 @@ GitHub Actions run
 normalization, provider route instrumentation, API retries/coalescing,
 Gemini usage grouping и проверку candidate-stage summaries. Никаких live
 API/Telegram вызовов в CI не было.
+
+
+### CI workflow runtime and permission hardening — 16 November 2026
+
+- Replaced `actions/checkout@v4` and `actions/setup-python@v5` with
+  `@v7` releases, which use the supported Node.js 24 runtime.
+- Restricted the workflow token to `contents: read`.
+- Set `persist-credentials: false` because this workflow does not push or
+  otherwise need authenticated Git operations after checkout.
+- No application code, dependency versions, test selection, or runtime
+  configuration changed.
+- The last verified CI before this workflow-only change was run
+  `43868102039` on `112c4960197840af10115cffb66febfa368fad3a` and passed.
+  A fresh CI run on the hardened workflow is required before treating these
+  action upgrades as accepted.
+- The Google GenAI warning is separate: it originates in the pinned upstream
+  SDK's use of Python's deprecated `_UnionGenericAlias`. It is not a project
+  test failure; no warning suppression or untested SDK upgrade was introduced.
