@@ -2012,26 +2012,52 @@ class AIService:
             "has_image", "availability",
         )
 
-        def redact_urls(value):
-            # Candidate descriptions and even a user query are external text.
-            # Keep the useful wording but never persist URL fragments in a
-            # diagnostic snapshot (including nested category-path values).
+        def redact_sensitive_text(value):
+            # Queries and listing descriptions are external text. Keep useful
+            # product wording while removing URLs, contact details, account
+            # identifiers and credential-like values before persistence.
             if isinstance(value, str):
-                return re.sub(
+                sanitized = re.sub(
                     r"(?:https?://|www\.)[^\s<>\"']+",
                     "[url-redacted]",
                     value,
                     flags=re.IGNORECASE,
                 )
+                sanitized = re.sub(
+                    r"\b(?:telegram[_ -]?id|tg[_ -]?id)\s*[:=]\s*\d+\b",
+                    "[telegram-id-redacted]",
+                    sanitized,
+                    flags=re.IGNORECASE,
+                )
+                sanitized = re.sub(
+                    r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+                    "[email-redacted]",
+                    sanitized,
+                    flags=re.IGNORECASE,
+                )
+                sanitized = re.sub(
+                    r"\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|authorization)\s*[:=]\s*(?:bearer\s+)?[^\s,;]+",
+                    lambda match: f"{match.group(1)}=[redacted]",
+                    sanitized,
+                    flags=re.IGNORECASE,
+                )
+                return re.sub(
+                    r"(?<!\w)(?:\+\d{1,3}[\s().-]?)?(?:\(?\d{2,4}\)?[\s.-])\d{2,4}[\s.-]\d{2,4}(?!\w)",
+                    "[phone-redacted]",
+                    sanitized,
+                )
             if isinstance(value, list):
-                return [redact_urls(item) for item in value]
+                return [redact_sensitive_text(item) for item in value]
             if isinstance(value, dict):
-                return {key: redact_urls(item) for key, item in value.items()}
+                return {
+                    key: redact_sensitive_text(item)
+                    for key, item in value.items()
+                }
             return value
 
         candidates = [
             {
-                key: redact_urls(payload.get(key))
+                key: redact_sensitive_text(payload.get(key))
                 for key in allowed_fields
             }
             for payload in candidate_payloads
@@ -2049,12 +2075,12 @@ class AIService:
                 "candidate_count": len(candidates),
             },
             "request": {
-                "query": redact_urls(query),
+                "query": redact_sensitive_text(query),
                 "wanted": wanted,
-                "required_features": redact_urls(list(required_features)),
+                "required_features": redact_sensitive_text(list(required_features)),
                 "identity_review_ids": list(identity_review_ids),
-                "marketplace_terms": redact_urls(list(marketplace_terms)),
-                "budget_constraint": redact_urls(budget_constraint),
+                "marketplace_terms": redact_sensitive_text(list(marketplace_terms)),
+                "budget_constraint": redact_sensitive_text(budget_constraint),
             },
             "candidates": candidates,
             "gold": None,
