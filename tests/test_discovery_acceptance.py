@@ -808,11 +808,14 @@ class MenuWiringTests(unittest.TestCase):
         run(discovery.category_callback(FakeUpdate(callback_query=query), context))
 
         self.assertEqual(service.calls, [("category", self.seen)])
-        # The card just shown joins the SAME history of the same user.
+        # A single candidate is below the category screen's documented
+        # minimum (12), so it is not delivered or recorded as shown. The
+        # category handler still passes the user's existing history to search.
+        self.assertTrue(query.edits)
+        self.assertIn("не меньше 12", query.edits[-1][0])
         rows = run(self.db.get_shown_products(self.user_id))
         self.assertIn(("aliexpress", "100"), rows)
-        self.assertIn(("aliexpress", "200"), rows)
-        self.assertTrue(context.bot.messages)
+        self.assertNotIn(("aliexpress", "200"), rows)
 
     def test_category_results_are_gated_by_the_category_profile(self) -> None:
         """The category screen hands its CATEGORY mode to the gate (G24.8 P0.2).
@@ -843,8 +846,10 @@ class MenuWiringTests(unittest.TestCase):
 
         # The card opened: category eligibility is no longer the $1..$20
         # recommendation window.
-        texts = [text for _, text, _ in context.bot.messages]
+        texts = [text for text, _ in query.edits]
         self.assertTrue(texts)
+        self.assertIn("только 1", texts[-1])
+        self.assertIn("не меньше 12", texts[-1])
         self.assertNotIn(EMPTY_RESULT_TEXT, texts)
 
         # The same product, the same database, the same card - only the
