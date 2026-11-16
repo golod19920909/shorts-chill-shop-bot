@@ -1115,6 +1115,57 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             [f"continue-{i}" for i in range(20)],
         )
 
+    async def test_selector_ignores_repeated_and_unknown_ids_across_both_passes(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-invalid-ids")
+        candidates = [
+            product(f"candidate-{index}", "Рыболовная катушка")
+            for index in range(25)
+        ]
+        calls = []
+
+        async def select_batch(pool, **kwargs):
+            calls.append({
+                "ids": [item.product_id for item in pool],
+                "wanted": kwargs["wanted"],
+            })
+            if len(calls) == 1:
+                return [
+                    "candidate-0",
+                    "candidate-0",
+                    "unknown-first-pass",
+                    "candidate-1",
+                ]
+            return ["candidate-2", "candidate-2", "unknown-second-pass"]
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=select_batch,
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS, products=candidates, report={}
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
+        self.assertEqual(calls[1]["wanted"], AI_CONVERSATION_SELECTION_LIMIT - 2)
+        self.assertEqual(len(calls[1]["ids"]), 23)
+        self.assertNotIn("candidate-0", calls[1]["ids"])
+        self.assertNotIn("candidate-1", calls[1]["ids"])
+        self.assertEqual(
+            [item.product_id for item in decision.products],
+            ["candidate-0", "candidate-1", "candidate-2"],
+        )
+        self.assertEqual(decision.report["ai_second_pass_added_count"], 1)
+
     async def test_valid_empty_primary_selection_does_not_continue(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="selector-empty-primary")
