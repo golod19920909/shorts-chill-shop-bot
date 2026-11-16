@@ -324,7 +324,6 @@ class Database:
 
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
-            await conn.execute("PRAGMA foreign_keys = ON;")
             cursor = await conn.execute(
                 "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
             )
@@ -427,7 +426,6 @@ class Database:
         self, user_id: int, original_query: str, search_request_json: dict[str, Any]
     ) -> None:
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO search_history (user_id, original_query, search_request_json) "
                 "VALUES (?, ?, ?)",
@@ -459,7 +457,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO favorites "
                 "(user_id, marketplace, product_id, product_json) VALUES (?, ?, ?, ?) "
@@ -519,7 +516,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT OR IGNORE INTO popular_shown "
                 "(user_id, marketplace, product_id, flow) VALUES (?, ?, ?, ?)",
@@ -669,7 +665,6 @@ class Database:
         """Remember which feed page the next open continues from."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO popular_state (user_id, step, updated_at) "
                 "VALUES (?, ?, datetime('now')) "
@@ -705,7 +700,6 @@ class Database:
             return
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.executemany(
                 "INSERT OR IGNORE INTO user_view_history (user_id, product_id) "
                 "VALUES (?, ?)",
@@ -752,7 +746,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO tracked_products "
                 "(user_id, marketplace, product_id, title, product_url, initial_price, "
@@ -914,7 +907,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO price_history "
                 "(tracked_product_id, price, shipping_cost, currency) "
@@ -952,7 +944,6 @@ class Database:
         """Store/refresh a product snapshot the user asked to keep."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO saved_products "
                 "(user_id, marketplace, product_id, product_json, note) "
@@ -1540,7 +1531,6 @@ class Database:
         }
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO analytics_events "
                 "(user_id, telegram_id, event_type, marketplace, product_id, "
