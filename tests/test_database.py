@@ -94,6 +94,38 @@ class DatabaseTests(unittest.TestCase):
             stats["operations"][0]["operation"], "conversation_selection"
         )
 
+
+    def test_gemini_usage_stats_report_observed_p50_and_p95_durations(self) -> None:
+        self.run_async(self.db.initialize())
+        base = {
+            "request_id": "latency-percentiles",
+            "operation": "conversation_selection",
+            "model": "gemini-3.1-flash-lite",
+            "outcome": "ok",
+            "prompt_token_count": 100,
+            "candidates_token_count": 10,
+            "total_token_count": 110,
+            "cost_usd": 0.00001,
+            "cost_status": "estimated",
+            "pricing_version": "test",
+            "created_at": "2026-11-16T04:00:00+00:00",
+        }
+        for index, duration in enumerate((100.0, 200.0, 1000.0)):
+            self.run_async(self.db.record_gemini_attempt(dict(
+                base,
+                attempt_id=f"latency-attempt-{index}",
+                duration_ms=duration,
+            )))
+
+        stats = self.run_async(self.db.get_gemini_usage_stats())
+        self.assertEqual(stats["totals"]["duration_samples"], 3)
+        self.assertEqual(stats["totals"]["duration_p50_ms"], 200.0)
+        self.assertEqual(stats["totals"]["duration_p95_ms"], 1000.0)
+        operation = stats["operations"][0]
+        self.assertEqual(operation["operation"], "conversation_selection")
+        self.assertEqual(operation["duration_p50_ms"], 200.0)
+        self.assertEqual(operation["duration_p95_ms"], 1000.0)
+
     def test_gemini_usage_requests_are_grouped_without_prompt_data(self) -> None:
         self.run_async(self.db.initialize())
         base = {

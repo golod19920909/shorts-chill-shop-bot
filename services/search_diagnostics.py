@@ -45,10 +45,30 @@ Privacy and operational safety (hard rules):
 from __future__ import annotations
 
 import logging
+import math
 from collections import Counter, deque
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
+
+
+def _latency_percentiles_ms(samples) -> dict[str, float | int | None]:
+    """Summarize bounded observed latencies using nearest-rank percentiles."""
+
+    ordered = sorted(float(value) for value in samples)
+    count = len(ordered)
+    if not count:
+        return {"samples": 0, "p50_ms": None, "p95_ms": None}
+
+    def nearest_rank(percentile: float) -> float:
+        index = max(0, min(count - 1, math.ceil(percentile * count) - 1))
+        return round(ordered[index], 3)
+
+    return {
+        "samples": count,
+        "p50_ms": nearest_rank(0.50),
+        "p95_ms": nearest_rank(0.95),
+    }
 
 # ---------------------------------------------------------------------------
 # Outcome labels (diagnostic categories, not a public API enum)
@@ -187,6 +207,7 @@ class _ProviderStats:
             "errors": self.errors,
             "timeouts": self.timeouts,
             "latencies_ms": list(self.latencies_ms),
+            "latency_percentiles_ms": _latency_percentiles_ms(self.latencies_ms),
         }
 
 
@@ -368,6 +389,11 @@ class SearchDiagnostics:
             "search_latencies_ms": list(self.search_latencies_ms),
             "parse_latencies_ms": list(self.parse_latencies_ms),
             "intent_latencies_ms": list(self.intent_latencies_ms),
+            "latency_percentiles_ms": {
+                "search": _latency_percentiles_ms(self.search_latencies_ms),
+                "parse": _latency_percentiles_ms(self.parse_latencies_ms),
+                "intent": _latency_percentiles_ms(self.intent_latencies_ms),
+            },
             "intent_ai_searches": self.intent_ai_searches,
             "intent_fallback_searches": self.intent_fallback_searches,
             "title_scripts": {

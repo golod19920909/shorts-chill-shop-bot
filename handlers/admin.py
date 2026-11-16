@@ -145,13 +145,32 @@ async def _send_gemini_usage_report(
         f"Thinking tokens: {number(totals.get('thoughts_tokens'))}",
         f"Расчётная стоимость: <b>${float(totals.get('estimated_cost_usd') or 0.0):.8f}</b>",
         f"Стоимость неизвестна для вызовов: {number(totals.get('unknown_costs'))}",
+        "Длительность вызова p50/p95: "
+        + (
+            f"{number(totals.get('duration_p50_ms'))}/"
+            f"{number(totals.get('duration_p95_ms'))} мс"
+            if totals.get("duration_samples") else "нет данных"
+        ),
     ]
+
+    lines.extend(["", "<b>По операциям:</b>"])
+    for row in usage.get("operations") or []:
+        lines.append(
+            f"• {common.escape(str(row['operation']))}: "
+            f"{number(row['attempts'])} выз.; "
+            f"p50/p95 {number(row.get('duration_p50_ms'))}/"
+            f"{number(row.get('duration_p95_ms'))} мс"
+        )
+    if not usage.get("operations"):
+        lines.append("• Пока нет данных")
 
     if by_models:
         lines.extend(["", "<b>По моделям:</b>"])
         for row in usage.get("models") or []:
             lines.append(
                 f"• {common.escape(str(row['model']))}: {number(row['attempts'])} выз., "
+                f"p50/p95 {number(row.get('duration_p50_ms'))}/"
+                f"{number(row.get('duration_p95_ms'))} мс; "
                 f"${float(row['estimated_cost_usd'] or 0.0):.8f}; "
                 f"input {number(row['prompt_tokens'])}, "
                 f"output+thinking {number(max(0, int(row['total_tokens'] or 0) - int(row['prompt_tokens'] or 0)))}"
@@ -1396,18 +1415,3 @@ def _build_text(
         lines.append(f"🕒 Граница периода: {common.escape(since)} UTC.")
 
     return "\n".join(lines)
-
-
-async def _edit_or_reply(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs
-) -> None:
-    """Edit the screen a callback came from, or reply to the command."""
-
-    query = update.callback_query
-    if query is not None:
-        await query.edit_message_text(text, **kwargs)
-        return
-
-    message = update.effective_message
-    if message is not None:
-        await message.reply_text(text, **kwargs)

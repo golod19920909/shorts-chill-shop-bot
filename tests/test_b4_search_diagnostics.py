@@ -372,6 +372,31 @@ class LatencyAndLanguageTests(B4TestCase):
         self.assertGreaterEqual(min(snapshot["search_latencies_ms"]), 40.0)
         self.assertTrue(outcome.products)
 
+
+    def test_search_and_provider_p50_p95_use_observed_samples(self) -> None:
+        provider_samples = (10.0, 20.0, 100.0)
+        search_samples = (15.0, 25.0, 125.0)
+        for duration in provider_samples:
+            SEARCH_DIAGNOSTICS.record_provider_call(
+                "AliExpress", latency_ms=duration, rows=1
+            )
+        for duration in search_samples:
+            SEARCH_DIAGNOSTICS.record_search(
+                SearchOutcome(request=self.request()),
+                label=OUTCOME_OTHER_OR_UNKNOWN,
+                duration_ms=duration,
+            )
+
+        snapshot = SEARCH_DIAGNOSTICS.snapshot()
+        self.assertEqual(
+            snapshot["latency_percentiles_ms"]["search"],
+            {"samples": 3, "p50_ms": 25.0, "p95_ms": 125.0},
+        )
+        self.assertEqual(
+            snapshot["providers"]["AliExpress"]["latency_percentiles_ms"],
+            {"samples": 3, "p50_ms": 20.0, "p95_ms": 100.0},
+        )
+
     def test_cross_script_titles_are_counted_but_never_filtered(self) -> None:
         rows = [
             listing("p1", "Наушники проводные"),          # same script

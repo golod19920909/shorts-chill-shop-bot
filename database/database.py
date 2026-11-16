@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sqlite3
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
@@ -45,6 +46,29 @@ SCHEMA_MIGRATIONS = (
     (3, "legacy_feed_scope"),
 )
 LATEST_SCHEMA_VERSION = SCHEMA_MIGRATIONS[-1][0]
+
+
+def _duration_percentiles(values: list[float]) -> dict[str, float | int | None]:
+    """Nearest-rank p50/p95 over observed attempt durations only."""
+
+    ordered = sorted(float(value) for value in values)
+    count = len(ordered)
+    if not count:
+        return {
+            "duration_samples": 0,
+            "duration_p50_ms": None,
+            "duration_p95_ms": None,
+        }
+
+    def nearest_rank(percentile: float) -> float:
+        index = max(0, min(count - 1, math.ceil(percentile * count) - 1))
+        return round(ordered[index], 2)
+
+    return {
+        "duration_samples": count,
+        "duration_p50_ms": nearest_rank(0.50),
+        "duration_p95_ms": nearest_rank(0.95),
+    }
 
 
 #: The path that asks for a real IN-MEMORY database. A connection-per-call
@@ -697,7 +721,6 @@ class Database:
         index is on ``(user_id, id DESC)``. ``limit <= 0`` answers "nothing has
         been seen", the honest reading of a zero-sized window.
         """
-
         if limit <= 0:
             return set()
 
@@ -1346,11 +1369,42 @@ class Database:
             model_rows = await model_cursor.fetchall()
             operation_cursor = await conn.execute(operation_query, params)
             operation_rows = await operation_cursor.fetchall()
+            duration_cursor = await conn.execute(
+                "SELECT operation, model, duration_ms FROM gemini_usage" + where,
+                params,
+            )
+            duration_rows = await duration_cursor.fetchall()
+
+        all_durations: list[float] = []
+        durations_by_model: dict[str, list[float]] = {}
+        durations_by_operation: dict[str, list[float]] = {}
+        for row in duration_rows:
+            duration = float(row["duration_ms"] or 0.0)
+            all_durations.append(duration)
+            durations_by_model.setdefault(str(row["model"]), []).append(duration)
+            durations_by_operation.setdefault(str(row["operation"]), []).append(duration)
+
+        totals = dict(total_row) if total_row is not None else {}
+        totals.update(_duration_percentiles(all_durations))
+        models = []
+        for row in model_rows:
+            item = dict(row)
+            item.update(_duration_percentiles(
+                durations_by_model.get(str(item["model"]), [])
+            ))
+            models.append(item)
+        operations = []
+        for row in operation_rows:
+            item = dict(row)
+            item.update(_duration_percentiles(
+                durations_by_operation.get(str(item["operation"]), [])
+            ))
+            operations.append(item)
 
         return {
-            "totals": dict(total_row) if total_row is not None else {},
-            "models": [dict(row) for row in model_rows],
-            "operations": [dict(row) for row in operation_rows],
+            "totals": totals,
+            "models": models,
+            "operations": operations,
         }
 
     async def list_gemini_usage_requests(
