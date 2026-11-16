@@ -1260,6 +1260,7 @@ class ConversationSearchEngine:
             return finish_fallback("error_fallback")
 
         if selected_ids is None or not isinstance(selected_ids, list):
+            decision.report["ai_second_pass_reason"] = "malformed_or_unavailable_response"
             return finish_fallback("unavailable_fallback")
 
         allowed = {
@@ -1289,6 +1290,14 @@ class ConversationSearchEngine:
         decision.report["ai_second_pass"] = (
             "skipped_valid_empty" if selected_ids == [] else "not_needed"
         )
+        if selected_ids == []:
+            decision.report["ai_second_pass_reason"] = "valid_empty_response"
+        elif selected and len(selected) < wanted:
+            decision.report["ai_second_pass_reason"] = "valid_partial_selection"
+        elif selected:
+            decision.report["ai_second_pass_reason"] = "full_selection"
+        else:
+            decision.report["ai_second_pass_reason"] = "no_valid_candidate_ids"
         if isinstance(selected_ids, list) and selected and len(selected) < wanted:
             remaining_pool = [
                 product for product in selector_pool
@@ -1299,6 +1308,12 @@ class ConversationSearchEngine:
             }
             remaining_wanted = wanted - len(selected)
             if remaining_pool and remaining_wanted > 0:
+                second_started = time.perf_counter()
+                second_returned_count = 0
+                added = 0
+                decision.report["ai_second_pass_input_count"] = len(remaining_pool)
+                decision.report["ai_second_pass_remaining_count"] = len(remaining_ids)
+                decision.report["ai_second_pass_requested_count"] = remaining_wanted
                 second_kwargs = dict(selector_kwargs)
                 second_kwargs["wanted"] = remaining_wanted
                 try:
@@ -1340,6 +1355,7 @@ class ConversationSearchEngine:
                 else:
                     decision.report["ai_second_pass"] = "completed"
                 if isinstance(second_ids, list):
+                    second_returned_count = len(second_ids)
                     decision.report["selection_returned_count"] += len(second_ids)
                     remaining_allowed = {
                         product.product_id: product
@@ -1358,6 +1374,24 @@ class ConversationSearchEngine:
                         if len(selected) >= wanted:
                             break
                     decision.report["ai_second_pass_selected"] = added
+                decision.report["ai_second_pass_returned_count"] = second_returned_count
+                decision.report["ai_second_pass_added_count"] = added
+                decision.report["ai_second_pass_duration_ms"] = round(
+                    (time.perf_counter() - second_started) * 1000, 2
+                )
+                logger.info(
+                    "convsearch selector continuation reason=%s input=%d "
+                    "remaining=%d requested=%d returned=%d added=%d "
+                    "duration_ms=%.2f status=%s",
+                    decision.report.get("ai_second_pass_reason", "unknown"),
+                    decision.report.get("ai_second_pass_input_count", 0),
+                    decision.report.get("ai_second_pass_remaining_count", 0),
+                    decision.report.get("ai_second_pass_requested_count", 0),
+                    decision.report.get("ai_second_pass_returned_count", 0),
+                    decision.report.get("ai_second_pass_added_count", 0),
+                    decision.report.get("ai_second_pass_duration_ms", 0.0),
+                    decision.report.get("ai_second_pass", "unknown"),
+                )
 
         # AIService distinguishes a valid empty ID list (no supplied
         # listing fits) from an unusable response (None). Respect that

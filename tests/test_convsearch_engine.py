@@ -1144,6 +1144,9 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(decision.products, [])
         self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
         self.assertEqual(decision.report["ai_second_pass"], "skipped_valid_empty")
+        self.assertEqual(
+            decision.report["ai_second_pass_reason"], "valid_empty_response"
+        )
 
 
 
@@ -1181,6 +1184,14 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             ["conversation_selection", "conversation_selection_continuation"],
         )
         self.assertEqual(decision.report["ai_second_pass"], "completed")
+        self.assertEqual(
+            decision.report["ai_second_pass_reason"], "valid_partial_selection"
+        )
+        self.assertEqual(decision.report["ai_second_pass_input_count"], 24)
+        self.assertEqual(decision.report["ai_second_pass_remaining_count"], 24)
+        self.assertEqual(decision.report["ai_second_pass_returned_count"], 1)
+        self.assertEqual(decision.report["ai_second_pass_added_count"], 1)
+        self.assertGreaterEqual(decision.report["ai_second_pass_duration_ms"], 0)
 
     async def test_unknown_selector_ids_do_not_trigger_continuation(self):
         engine = ConversationSearchEngine()
@@ -1207,6 +1218,9 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(calls), 1)
         self.assertEqual(decision.report["ai_selection"], "empty_fallback")
+        self.assertEqual(
+            decision.report["ai_second_pass_reason"], "no_valid_candidate_ids"
+        )
         self.assertEqual(
             [item.product_id for item in decision.products],
             [item.product_id for item in candidates],

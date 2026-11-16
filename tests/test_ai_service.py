@@ -1036,6 +1036,37 @@ class GroundedProductComparisonTests(unittest.TestCase):
 
 
 class OperationAttributionTests(unittest.TestCase):
+
+    def test_continuation_selection_uses_a_distinct_telemetry_operation(self) -> None:
+        service = AIService(api_key=None)
+        service._client = object()
+        operations = []
+
+        async def fake_generate(
+            contents, *, models=None, operation="generate", response_schema=None
+        ):
+            operations.append(operation)
+            return (
+                '{"selections":[{"id":"continuation-1",'
+                '"identity_evidence":"","requirement_evidence":{}}]}'
+            )
+
+        service._generate = fake_generate
+        candidate = Product(
+            marketplace=Marketplace.ALIEXPRESS,
+            product_id="continuation-1",
+            title="Power bank 20000mAh",
+            product_url="https://example.test/continuation-1",
+        )
+        selected = asyncio.run(service.select_conversation_candidates(
+            [candidate],
+            query="power bank",
+            operation="conversation_selection_continuation",
+        ))
+
+        self.assertEqual(selected, ["continuation-1"])
+        self.assertEqual(operations, ["conversation_selection_continuation"])
+
     def test_short_chat_action_has_a_distinct_telemetry_operation(self) -> None:
         service = AIService(api_key=None)
         service._client = object()
