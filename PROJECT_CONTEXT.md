@@ -575,7 +575,15 @@ The dated implementation notes and prior live-test findings have been preserved 
   or dynamically load missing `tmp_g252d_*` experiment scripts. They remain
   preserved, not deleted; do not restore those retired entrypoints. Details:
   `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
-- Latest PASS remains run `43842771485` on `9cbf90f`; it does not verify the
-  later focused-CI additions or documentation commits. Current-HEAD CI
-  verification remains outstanding. Do not report the new session-isolation
-  tests or `EngineInstrumentationTests` as passed until a fresh run confirms.
+- Verified current cleanup-branch CI run
+  `43857002754` on commit `aa1bea772190f85f4f6bfabaf2a47d796b963f53`:
+  production compile, manual live-smoke syntax compile, lock consistency and
+  `pip check` PASS; focused offline **644 passed, 1 deselected, 598 subtests**;
+  configured broad offline **2,295 passed, 2 deselected, 1,259 subtests**.
+  One upstream Google GenAI SDK deprecation warning remains.
+- The CI run exposed only a test-log selection bug in
+  `EngineInstrumentationTests`; test-only fix selects the explicit
+  `convsearch action=` summary line. No production behavior changed.
+- The successful broad suite remains configured/filtered, not unfiltered:
+  historical Agent/chat-router/temporary-runner modules remain excluded and
+  preserved. See `docs/LEGACY_TEST_AUDIT_2026-11-15.md` for exact boundaries.
