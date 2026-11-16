@@ -182,6 +182,9 @@ python main.py
 | `FEED_MAX_PAGES_PER_OPEN` | нет | `2` | «✨ Находки»: максимум страниц AliExpress (`page_no`, `page_size=50`), запрашиваемых за одно новое открытие ленты (1..10) |
 | `ALIEXPRESS_APP_KEY` | нет | — | ключ AliExpress Open Platform |
 | `ALIEXPRESS_APP_SECRET` | нет | — | секрет AliExpress Open Platform |
+| `SEARCH_MAX_PAGES` | нет | `5` | максимальное число страниц текстового поиска (1..10); новые страницы запрашиваются только пока не заполнено окно пригодных кандидатов или не исчерпан временной бюджет |
+| `PHOTO_SEARCH_PAGES` | нет | `2` | максимум страниц на одну гипотезу поиска по фото (1..5) |
+| `PHOTO_SEARCH_HYPOTHESES` | нет | `4` | максимум grounded-гипотез для одного поиска по фото (1..6) |
 | `ADMIN_IDS` | нет | пусто | Telegram id администраторов через запятую; пусто = панель `/admin` недоступна никому |
 | `ANALYTICS_DASHBOARD_PASSWORD` | нет | выключено | включает read-only веб-панель расходов Gemini; задайте длинный уникальный пароль |
 | `ANALYTICS_DASHBOARD_USERNAME` | нет | `admin` | логин HTTP Basic для веб-панели |
@@ -235,41 +238,38 @@ loopback-интерфейс. На сервере оставляйте его з�
 публикуйте Basic Auth напрямую через открытый HTTP. Панель не меняет настройки
 бота и не вызывает Gemini.
 
+## SQLite schema migrations
+
+При старте `Database.initialize()` применяет нумерованные миграции через
+таблицу `schema_migrations`. Создание схемы, применение миграций и создание
+индексов выполняются в одной транзакции SQLite `BEGIN IMMEDIATE`; при ошибке
+изменения откатываются вместе с записью версии. Миграции идемпотентны и
+сохраняют существующие строки. Текущие версии: профиль пользователя,
+scope для `popular_shown`, перенос legacy feed scope. Перед обновлением
+production-базы всё равно требуется резервная копия и проверка на её копии.
+
 ## Тестирование
 
-```powershell
-# всё сразу (стандартная библиотека, без сети и без реальных ключей)
-python -m unittest discover -s tests -t . -v
+Все обязательные проверки выполняются офлайн на Python 3.14. Они используют
+временные SQLite-файлы, fake Telegram/API clients и mock-транспорт; реальные
+ключи и сетевые запросы не нужны.
 
-# по модулям
-python -m unittest tests.test_settings -v
-python -m unittest tests.test_product_model tests.test_search_request -v
-python -m unittest tests.test_product_normalizer -v
-python -m unittest tests.test_database -v
-python -m unittest tests.test_marketplace_providers -v
-python -m unittest tests.test_promotions -v   # guard'ы удалённых фич
-python -m unittest tests.test_search_service tests.test_ai_service -v
-python -m unittest tests.test_bot_startup -v
-
-# офлайн-smoke всех потоков обнаружения (карточка сразу, без счётчиков и списков)
-python smoke_ux_flows.py     # печатает SMOKE OK / SMOKE FAILED
-```
-
-Альтернативно через pytest (не требуется):
+Локальные адресные проверки:
 
 ```powershell
-pip install -r requirements-dev.txt
-pytest -q
+python -m pytest -q tests/test_database.py
+python -m pytest -q tests/test_bot_startup.py
+python -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py
+python -m pytest -q tests/test_search_service.py
 ```
 
-Что покрыто: загрузка конфигурации, модель `Product`, модель `SearchRequest` и
-локальный парсер, нормализация значений маркетплейсов, инициализация БД и CRUD,
-поведение провайдеров без ключей и с mock-транспортом (поиск, детали, фид),
-деградация поиска при ошибке источника,
-программная фильтрация/сортировка, сборка `Application` и полный офлайн-прогон
-пайплайна «старт → поиск → shutdown».
-
-Тесты **не требуют** реальных ключей маркетплейсов и не делают сетевых запросов.
+Авторитетные focused и broad configured offline suites запускаются GitHub
+Actions workflow:
+`.github/workflows/conversational-regression.yml`. Broad suite намеренно
+исключает отдельные legacy и смешанные тестовые модули; точная классификация
+каждого исключения находится в
+`docs/LEGACY_TEST_AUDIT_2026-11-15.md`. Поэтому результат этого workflow
+не следует называть полным unfiltered запуском всех тестов репозитория.
 
 ## Подключение реальных API
 
@@ -497,7 +497,6 @@ sudo journalctl -u shopbot -f
 
 Честный список того, чего сейчас нет — в коде для этих случаев нет
 подделок, бот прямо говорит пользователю правду:
-
 | Возможность | Состояние |
 | --- | --- |
 | Живая приёмка Gemini | **не проверена**: квота Free Tier была исчерпана во время приёмки. Архитектура покрыта офлайн-тестами с подменёнными ответами модели; реальный запрос будет выполнен отдельно после восстановления квоты |

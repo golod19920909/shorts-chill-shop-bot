@@ -2,6 +2,29 @@
 
 Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 
+## Current maintenance state (2026-11-16)
+
+- Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not merge
+  to `main` or move the production updater branch without separate approval.
+- Current work closes P0 retrieval stopping, Gemini continuation semantics and
+  machine-readable rejection diagnostics. Search and recommendation quality
+  gates remain deterministic; unknown feature evidence is quarantined, while
+  explicitly negated mandatory features are hard rejected.
+- SQLite schema is now versioned through atomic migrations 001-003. Migration
+  tests use temporary databases and cover legacy upgrades, idempotence,
+  rollback, foreign-key enforcement and delete semantics. No local or
+  production database was accessed or modified during repository work.
+- Last verified CI run before documentation updates: focused 538 passed,
+  1 deselected, 584 subtests; broad configured offline suite 2292 passed,
+  2 deselected, 1259 subtests. One third-party google-genai DeprecationWarning
+  remains; it is not a project failure.
+- The broad suite is filtered by explicit legacy exclusions. See
+  `docs/LEGACY_TEST_AUDIT_2026-11-15.md`; do not describe it as an
+  unfiltered full-suite run.
+- Still requires ordinary Telegram acceptance tests for the manual scenarios
+  in the cleanup brief. No JSON or diagnostic payload is required from the user.
+
+
 ## What this is
 
 A Telegram shopping-assistant bot (Russian UI): AliExpress Affiliate API
@@ -37,9 +60,12 @@ tests/       offline unit tests (pytest)
 # run the bot
 .venv\Scripts\python.exe main.py
 
-# focused and broad filtered regression suites are defined in
+# addressable offline checks
+.venv\Scripts\python.exe -m pytest -q tests/test_database.py
+.venv\Scripts\python.exe -m pytest -q tests/test_bot_startup.py
+# authoritative focused/broad configured suites:
 # .github/workflows/conversational-regression.yml
-.venv\Scripts\python.exe -m pytest tests -q
+# broad CI is filtered; see docs/LEGACY_TEST_AUDIT_2026-11-15.md
 ```
 
 ## Conversational search architecture (authoritative, since 2026-10-28)
@@ -497,6 +523,5 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - Test lifecycle cleanup: two `tests/test_bot_startup.py` cases called `_post_init` (installing global Gemini telemetry persistence to a temp SQLite file) but omitted `_post_shutdown`. They now drain writes and detach the writer in `finally` before temp DB deletion. Test-only commit `3a134e21`; CI pending.
-
 
 - Verified CI run `43744173805` (commit `3a134e21`): focused **533 passed, 1 baseline failure, 584 subtests**; configured broad **2,282 passed, 1 baseline failure, 1,259 subtests**. SQLite worker-thread / closed-loop warnings are now zero; pytest-asyncio loop-scope warning is zero. Only remaining warning is Google GenAI SDK deprecation.
