@@ -9,17 +9,20 @@ Run manually from the project root (uses the local .env):
 
     .venv/Scripts/python.exe smoke_conversational_search.py
     .venv/Scripts/python.exe smoke_conversational_search.py --max-search-pages 1
+    .venv/Scripts/python.exe smoke_conversational_search.py --repeat 3
 
 By default, the smoke uses the SearchService's configured page depth. The
-optional flag overrides it for a deliberately shallow run.
+optional page-depth flag overrides it. Repetitions default to one; increase
+them explicitly when a meaningful p50/p95 sample is needed.
 
 Requires both ALIEXPRESS_APP_KEY/SECRET and GEMINI_API_KEY. It runs eight
 broad Russian-language searches across different product families through
 the real ConversationSearchEngine, AliExpress Affiliate API and Gemini, then
 asks a shown-products comparison question without starting another marketplace
-search. It prints bounded
-diagnostics and a few real listing titles; it never prints credentials or
-affiliate URLs.
+search. It reports per-search wall time, actual Affiliate API request/attempt
+counts and call latency, Gemini attempts/tokens/cost by operation, candidate
+stage counts, final cards and no-result reason. It never prints credentials
+or affiliate URLs.
 
 This is an intentionally small live smoke, not a benchmark and not a claim
 that eight queries represent the whole AliExpress catalogue. The broader
@@ -30,13 +33,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import math
+import statistics
 import sys
+import time
+from collections import defaultdict
 
 from bot import build_search_service
 from config.settings import load_settings
 from services.convsearch.contract import Outcome
 from services.convsearch.engine import ConversationSearchEngine
 from services.convsearch.state import ConversationEngineState
+from services.gemini_telemetry import turn_scope
 from services.product_assistant import ProductAssistant
 
 
@@ -50,6 +58,167 @@ SEARCH_CASES = (
     ("garden_equipment", "садовый шланг для полива"),
     ("lighting", "налобный фонарь"),
 )
+
+STAGE_FIELDS = (
+    "raw",
+    "hard_rejected",
+    "review_eligible",
+    "safe_ranked",
+    "after_type",
+    "after_feature",
+    "after_exclusion",
+    "after_budget",
+    "after_dedup",
+    "ranked",
+    "candidate_pool",
+    "candidate_pool_limit",
+    "selection_input_count",
+    "selection_requested_count",
+    "selection_returned_count",
+    "selection_validated_count",
+    "final_cards_count",
+)
+
+
+def _percentile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(float(value) for value in values)
+    index = max(0, min(len(ordered) - 1, math.ceil(len(ordered) * fraction) - 1))
+    return round(ordered[index], 1)
+
+
+def _series_summary(values: list[float]) -> dict[str, float | int | None]:
+    if not values:
+        return {"count": 0, "avg_ms": None, "p50_ms": None, "p95_ms": None}
+    return {
+        "count": len(values),
+        "avg_ms": round(statistics.fmean(values), 1),
+        "p50_ms": _percentile(values, 0.50),
+        "p95_ms": _percentile(values, 0.95),
+    }
+
+
+def _api_snapshot(search_service) -> dict[str, dict]:
+    """Read only the safe counters from provider clients; never request data."""
+    snapshot = {}
+    for index, provider in enumerate(getattr(search_service, "providers", ())):
+        client = getattr(provider, "_client", None)
+        if client is None:
+            continue
+        marketplace = getattr(provider, "marketplace", None)
+        label = str(getattr(marketplace, "value", marketplace) or type(provider).__name__)
+        key = f"{label}:{index}"
+        snapshot[key] = {
+            "calls_requested": int(getattr(client, "calls_requested", 0) or 0),
+            "calls_ok": int(getattr(client, "calls_ok", 0) or 0),
+            "calls_err": int(getattr(client, "calls_err", 0) or 0),
+            "retries_spent": int(getattr(client, "retries_spent", 0) or 0),
+            "coalesced_requests": int(getattr(client, "coalesced_requests", 0) or 0),
+            "latencies_ms": list(getattr(client, "call_latencies_ms", ()) or ()),
+        }
+    return snapshot
+
+
+def _api_delta(before: dict[str, dict], after: dict[str, dict]) -> dict:
+    totals = {
+        "logical_requests": 0,
+        "successful_calls": 0,
+        "failed_calls": 0,
+        "retries": 0,
+        "coalesced_requests": 0,
+        "http_attempts": 0,
+        "latencies_ms": [],
+        "providers": {},
+    }
+    for key, current in after.items():
+        previous = before.get(key, {})
+        delta = {
+            field: max(0, int(current.get(field, 0)) - int(previous.get(field, 0)))
+            for field in (
+                "calls_requested",
+                "calls_ok",
+                "calls_err",
+                "retries_spent",
+                "coalesced_requests",
+            )
+        }
+        old_latencies = previous.get("latencies_ms", [])
+        new_latencies = current.get("latencies_ms", [])
+        if len(new_latencies) >= len(old_latencies):
+            latencies = new_latencies[len(old_latencies):]
+        else:  # bounded deque rolled over; retain the available new sample
+            latencies = new_latencies
+        row = {
+            "logical_requests": delta["calls_requested"],
+            "successful_calls": delta["calls_ok"],
+            "failed_calls": delta["calls_err"],
+            "retries": delta["retries_spent"],
+            "coalesced_requests": delta["coalesced_requests"],
+            "http_attempts": delta["calls_ok"] + delta["calls_err"] + delta["retries_spent"],
+            "api_latency": _series_summary(latencies),
+        }
+        totals["providers"][key] = row
+        for field in (
+            "logical_requests", "successful_calls", "failed_calls",
+            "retries", "coalesced_requests", "http_attempts",
+        ):
+            totals[field] += row[field]
+        totals["latencies_ms"].extend(latencies)
+    totals["api_latency"] = _series_summary(totals["latencies_ms"])
+    return totals
+
+
+def _gemini_summary(usage) -> dict:
+    by_operation: dict[str, dict] = {}
+    for attempt in getattr(usage, "attempts", ()):
+        operation = str(getattr(attempt, "operation", "unknown"))
+        row = by_operation.setdefault(
+            operation,
+            {
+                "attempts": 0,
+                "duration_ms": 0.0,
+                "outcomes": {},
+                "tokens": defaultdict(int),
+                "known_cost_usd": 0.0,
+                "cost_known_attempts": 0,
+            },
+        )
+        row["attempts"] += 1
+        row["duration_ms"] += float(getattr(attempt, "duration_ms", 0.0) or 0.0)
+        outcome = str(getattr(attempt, "outcome", "unknown"))
+        row["outcomes"][outcome] = row["outcomes"].get(outcome, 0) + 1
+        tokens = getattr(attempt, "tokens", None) or {}
+        for name, value in tokens.items():
+            if isinstance(value, int):
+                row["tokens"][name] += value
+        cost = getattr(attempt, "cost_usd", None)
+        if cost is not None:
+            row["known_cost_usd"] += float(cost)
+            row["cost_known_attempts"] += 1
+
+    result = {}
+    for operation, row in by_operation.items():
+        result[operation] = {
+            "attempts": row["attempts"],
+            "duration_ms": round(row["duration_ms"], 1),
+            "outcomes": row["outcomes"],
+            "tokens": dict(row["tokens"]),
+            "known_cost_usd": round(row["known_cost_usd"], 10),
+            "cost_known_attempts": row["cost_known_attempts"],
+        }
+    return {
+        "attempts": sum(row["attempts"] for row in result.values()),
+        "by_operation": result,
+    }
+
+
+def _stage_counts(report: dict, final_count: int) -> dict:
+    counts = {field: report.get(field) for field in STAGE_FIELDS if field in report}
+    counts["final_cards_count"] = int(report.get("final_cards_count", final_count))
+    counts["reason"] = report.get("reason")
+    counts["ai_selection"] = report.get("ai_selection", "not-run")
+    return counts
 
 
 def _sample_products(products) -> str:
@@ -75,6 +244,14 @@ async def main() -> int:
         default=None,
         help="override the configured AliExpress page depth (default: runtime setting)",
     )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        choices=range(1, 6),
+        metavar="{1,2,3,4,5}",
+        help="repeat the eight-case matrix for a more useful p50/p95 sample (default: 1)",
+    )
     args = parser.parse_args()
     if args.max_search_pages is not None and args.max_search_pages < 1:
         parser.error("--max-search-pages must be at least 1")
@@ -92,7 +269,7 @@ async def main() -> int:
         search_service.max_search_pages = args.max_search_pages
     print(
         "AliExpress conversational page depth: "
-        f"{search_service.max_search_pages}"
+        f"{search_service.max_search_pages}; repetitions={args.repeat}"
     )
     engine = ConversationSearchEngine()
     engine.bind_search_service(search_service)
@@ -100,86 +277,180 @@ async def main() -> int:
     assistant = ProductAssistant(ai_service=ai_service, search_service=search_service)
     failures: list[str] = []
     warnings: list[str] = []
+    search_rows: list[dict] = []
+    followup_rows: list[dict] = []
 
     try:
-        for label, query in SEARCH_CASES:
-            user_key = f"live-smoke-{label}"
-            state = ConversationEngineState(user_key=user_key)
-            print(f"\n=== {label}: {query} ===")
-            try:
-                decision = await engine.handle_message(
-                    user_key,
-                    query,
-                    state=state,
-                    currency="USD",
-                    result_limit=30,
+        for repetition in range(1, args.repeat + 1):
+            for label, query in SEARCH_CASES:
+                user_key = f"live-smoke-{repetition}-{label}"
+                state = ConversationEngineState(user_key=user_key)
+                print(f"\n=== {label} (run {repetition}/{args.repeat}): {query} ===")
+                api_before = _api_snapshot(search_service)
+                search_started = time.perf_counter()
+                with turn_scope(f"live-smoke-search-{repetition}-{label}") as search_usage:
+                    try:
+                        decision = await engine.handle_message(
+                            user_key,
+                            query,
+                            state=state,
+                            currency="USD",
+                            result_limit=30,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - smoke must report a safe verdict
+                        wall_ms = (time.perf_counter() - search_started) * 1000
+                        api_delta = _api_delta(api_before, _api_snapshot(search_service))
+                        search_rows.append({
+                            "label": label,
+                            "repetition": repetition,
+                            "wall_ms": wall_ms,
+                            "api": api_delta,
+                            "gemini": _gemini_summary(search_usage),
+                            "stages": {"reason": f"engine_exception:{type(exc).__name__}"},
+                        })
+                        failures.append(f"{label}: engine exception {type(exc).__name__}")
+                        print(f"FAIL: engine exception {type(exc).__name__}")
+                        continue
+                wall_ms = (time.perf_counter() - search_started) * 1000
+                api_delta = _api_delta(api_before, _api_snapshot(search_service))
+                gemini_delta = _gemini_summary(search_usage)
+                stages = _stage_counts(decision.report, len(decision.products))
+                search_rows.append({
+                    "label": label,
+                    "repetition": repetition,
+                    "wall_ms": wall_ms,
+                    "api": api_delta,
+                    "gemini": gemini_delta,
+                    "stages": stages,
+                })
+
+                print(
+                    f"Outcome={decision.outcome.value}; products={len(decision.products)}; "
+                    f"AI-selection={stages['ai_selection']}; reason={stages['reason']}"
                 )
-            except Exception as exc:  # noqa: BLE001 - smoke must report a safe verdict
-                failures.append(f"{label}: engine exception {type(exc).__name__}")
-                print(f"FAIL: engine exception {type(exc).__name__}")
-                continue
-
-            selection = decision.report.get("ai_selection", "not-run")
-            print(
-                f"Outcome={decision.outcome.value}; products={len(decision.products)}; "
-                f"AI-selection={selection}"
-            )
-            print(_sample_products(decision.products))
-            if decision.outcome is not Outcome.RESULTS or not decision.products:
-                failures.append(f"{label}: no result cards ({decision.outcome.value})")
-                continue
-
-            ids = [product.product_id for product in decision.products]
-            if len(ids) != len(set(ids)):
-                failures.append(f"{label}: duplicate product IDs in final result")
-            if len(decision.products) > 30:
-                failures.append(f"{label}: presentation cap exceeded")
-            if any(not product.affiliate_url for product in decision.products):
-                failures.append(f"{label}: one or more results lack affiliate links")
-            if selection in {
-                "timeout_fallback",
-                "error_fallback",
-                "unavailable_fallback",
-                "turn_budget_exhausted",
-                "semantic_review_unavailable",
-            }:
-                # Candidate selection is an optional quality layer. A safe
-                # deterministic result is still a resilient outcome when
-                # Gemini is unavailable; report the degradation separately.
-                warnings.append(
-                    f"{label}: Gemini selection degraded ({selection})"
+                print(_sample_products(decision.products))
+                print(
+                    "METRICS "
+                    f"wall_ms={wall_ms:.1f} "
+                    f"api_requests={api_delta['logical_requests']} "
+                    f"api_attempts={api_delta['http_attempts']} "
+                    f"api_retries={api_delta['retries']} "
+                    f"api_latency_p50/p95="
+                    f"{api_delta['api_latency']['p50_ms']}/"
+                    f"{api_delta['api_latency']['p95_ms']} "
+                    f"gemini_attempts={gemini_delta['attempts']}"
                 )
+                print(
+                    "STAGES "
+                    + " ".join(f"{key}={value}" for key, value in stages.items())
+                )
+                for operation, metrics in gemini_delta["by_operation"].items():
+                    print(
+                        f"GEMINI operation={operation} attempts={metrics['attempts']} "
+                        f"duration_ms={metrics['duration_ms']:.1f} "
+                        f"tokens={metrics['tokens']} "
+                        f"known_cost_usd={metrics['known_cost_usd']:.10f} "
+                        f"cost_known_attempts={metrics['cost_known_attempts']} "
+                        f"outcomes={metrics['outcomes']}"
+                    )
 
-            # Simulate the handler's actual shown-product ledger before asking
-            # the engine to interpret a follow-up about these cards.
-            state.record_shown(ids)
-            compare = await engine.handle_message(
-                user_key,
-                "Какой из них лучше?",
-                state=state,
-                shown_products=decision.products,
-                currency="USD",
-                result_limit=30,
-            )
-            print(f"Follow-up outcome={compare.outcome.value}")
-            if compare.outcome is not Outcome.COMPARE:
-                failures.append(f"{label}: shown-product question did not route to COMPARE")
-                continue
+                if decision.outcome is not Outcome.RESULTS or not decision.products:
+                    failures.append(f"{label}: no result cards ({decision.outcome.value})")
+                    continue
 
-            advice = await assistant.answer(
-                "Сравни два варианта и объясни, чем они отличаются.",
-                decision.products,
-            )
-            if advice is None or not advice.text.strip():
-                failures.append(f"{label}: product comparison returned no answer")
-                print("Comparison: no grounded answer available")
-            else:
-                print(f"Comparison: {advice.text[:500]}")
-                if "Вариант 1" not in advice.text or "Вариант 2" not in advice.text:
-                    failures.append(f"{label}: comparison did not render two distinct options")
+                ids = [product.product_id for product in decision.products]
+                if len(ids) != len(set(ids)):
+                    failures.append(f"{label}: duplicate product IDs in final result")
+                if len(decision.products) > 30:
+                    failures.append(f"{label}: presentation cap exceeded")
+                if any(not product.affiliate_url for product in decision.products):
+                    failures.append(f"{label}: one or more results lack affiliate links")
+                if stages["ai_selection"] in {
+                    "timeout_fallback",
+                    "error_fallback",
+                    "unavailable_fallback",
+                    "turn_budget_exhausted",
+                    "semantic_review_unavailable",
+                }:
+                    warnings.append(
+                        f"{label}: Gemini selection degraded ({stages['ai_selection']})"
+                    )
+
+                # Follow-up and comparison work is measured separately from
+                # the search request so it cannot inflate search wall time.
+                with turn_scope(f"live-smoke-followup-{repetition}-{label}") as followup_usage:
+                    followup_started = time.perf_counter()
+                    state.record_shown(ids)
+                    compare = await engine.handle_message(
+                        user_key,
+                        "Какой из них лучше?",
+                        state=state,
+                        shown_products=decision.products,
+                        currency="USD",
+                        result_limit=30,
+                    )
+                    advice = await assistant.answer(
+                        "Сравни два варианта и объясни, чем они отличаются.",
+                        decision.products,
+                    )
+                    followup_ms = (time.perf_counter() - followup_started) * 1000
+                followup_metrics = _gemini_summary(followup_usage)
+                followup_rows.append({
+                    "label": label,
+                    "repetition": repetition,
+                    "wall_ms": followup_ms,
+                    "gemini": followup_metrics,
+                    "compare_outcome": compare.outcome.value,
+                    "comparison_answer": bool(advice and advice.text.strip()),
+                })
+                print(
+                    f"Follow-up outcome={compare.outcome.value}; "
+                    f"wall_ms={followup_ms:.1f}; gemini_attempts={followup_metrics['attempts']}"
+                )
+                if compare.outcome is not Outcome.COMPARE:
+                    failures.append(f"{label}: shown-product question did not route to COMPARE")
+                    continue
+                if advice is None or not advice.text.strip():
+                    failures.append(f"{label}: product comparison returned no answer")
+                    print("Comparison: no grounded answer available")
+                else:
+                    print(f"Comparison: {advice.text[:500]}")
+                    if "Вариант 1" not in advice.text or "Вариант 2" not in advice.text:
+                        failures.append(f"{label}: comparison did not render two distinct options")
 
     finally:
         await search_service.aclose()
+
+    wall_values = [row["wall_ms"] for row in search_rows]
+    api_latency_values = [
+        value
+        for row in search_rows
+        for value in row["api"]["latencies_ms"]
+    ]
+    api_attempts = sum(row["api"]["http_attempts"] for row in search_rows)
+    api_requests = sum(row["api"]["logical_requests"] for row in search_rows)
+    operation_durations: dict[str, list[float]] = defaultdict(list)
+    operation_tokens: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for row in search_rows:
+        for operation, metrics in row["gemini"]["by_operation"].items():
+            operation_durations[operation].append(metrics["duration_ms"])
+            for name, value in metrics["tokens"].items():
+                operation_tokens[operation][name] += value
+
+    print("\n=== LIVE PERFORMANCE SUMMARY ===")
+    print(f"Search wall time p50/p95: {_series_summary(wall_values)}")
+    print(f"Affiliate API call latency p50/p95: {_series_summary(api_latency_values)}")
+    print(f"Affiliate API logical requests={api_requests}; HTTP attempts including retries={api_attempts}")
+    for operation, durations in sorted(operation_durations.items()):
+        print(
+            f"Gemini {operation}: duration p50/p95={_series_summary(durations)}; "
+            f"tokens_total={dict(operation_tokens[operation])}"
+        )
+    if followup_rows:
+        print(
+            "Follow-up/comparison wall time p50/p95: "
+            f"{_series_summary([row['wall_ms'] for row in followup_rows])}"
+        )
 
     if warnings:
         print("\nDEGRADED BUT RESILIENT:")
