@@ -335,9 +335,10 @@ class ScheduleTests(unittest.IsolatedAsyncioTestCase):
 
         jq = FakeJQ()
         self.assertTrue(schedule_price_tracking(self._app(jq, 60)))
-        callback, interval, _first, name = jq.calls[0]
+        callback, interval, first, name = jq.calls[0]
         self.assertIs(callback, price_tracking_job)
         self.assertEqual(interval, 3600)
+        self.assertEqual(first, 30.0)
         self.assertEqual(name, PRICE_TRACKING_JOB_NAME)
 
     def test_schedule_disabled_on_zero(self):
