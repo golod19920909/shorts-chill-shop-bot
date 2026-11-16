@@ -21,7 +21,7 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   first selection, continuation and no-results reply as separate operations.
   Admin usage reports expose observed p50/p95 duration per operation/model;
   search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Latest verified CI run: `43808312724`, commit `1272dc3336d335f1b47dd873dd3f3480157b7101` — PASS. Focused suite: 598 passed, 1 deselected, 591 subtests; broad configured offline suite: 2295 passed, 2 deselected, 1259 subtests. Both production compile and live-smoke syntax checks passed. One third-party google-genai DeprecationWarning remains. The compile target was corrected from nonexistent root `bot.py` to the actual `bot/` package.
+- Latest verified CI run: `43842771485`, commit `9cbf90f155abd934f673300a4c9a36f8e4d689b8` — PASS. Focused suite: **638 passed, 1 deselected, 593 subtests**; broad configured offline suite: **2295 passed, 2 deselected, 1259 subtests**. Production compile, live-smoke syntax, dependency lock consistency and `pip check` passed. One upstream Google GenAI SDK deprecation warning remains.
 - Follow-up regression tests cover mixed safe/review retrieval pools,
   hard-reject exclusion from the retrieval target, empty/partial/full selector
   outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
@@ -42,13 +42,26 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   gaming-laptop model quality is made without that evidence.
 - The broad suite is filtered by explicit legacy exclusions. See
   `docs/LEGACY_TEST_AUDIT_2026-11-15.md`; do not describe it as an
-  unfiltered full-suite run.
+  unfiltered full-suite run. An isolated diagnostic workflow
+  `.github/workflows/legacy-test-audit.yml` is manual-only to avoid repeated
+  matrix runs on every repository commit.
 - Still requires ordinary Telegram acceptance tests for the manual scenarios
   in the cleanup brief. No user-prepared JSON is required. The real AliExpress
   golden-set step remains evidence-gated and must not be replaced by synthetic
   data or guessed model-quality conclusions.
-- Latest verified code/workflow commit: `1272dc3336d335f1b47dd873dd3f3480157b7101`.
+- Latest verified code/workflow commit: `9cbf90f155abd934f673300a4c9a36f8e4d689b8`.
   The branch is not merged into `main` or the production updater branch.
+- Targeted test audit added current contracts to focused CI: result-limit
+  summaries, singular grounded recommendation IDs, Option C handler delegation,
+  category menu wiring, and five isolated feed-history/cursor scenarios.
+  Test-only fixture/expectation corrections did not alter product/search runtime
+  behavior. The two remaining search-session tests in
+  `test_session_isolation.py` are not included: their helper treats any text
+  response as a product card and then assumes an `outcome_cache` session exists;
+  this needs a dedicated Option C fixture rewrite.
+- `test_latency_and_failures.py` remains excluded: it mixes an obsolete
+  `services.chat_router` import with current-engine fakes that do not accept
+  the current retrieval keyword contract. Do not restore the removed router.
 - No local `.env`, SQLite file, PC environment, backup or user data was read,
   changed or uploaded during this repository-only work.
 
