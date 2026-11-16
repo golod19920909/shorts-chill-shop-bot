@@ -350,3 +350,30 @@ test correction.
 Проверка была статической по исходникам. Ни один live diagnostic script не
 запускался; Affiliate API/Gemini usage не расходовался; локальные .env,
 SQLite и пользовательские данные не открывались.
+
+
+## Live-smoke metrics test coverage — 16 November 2026
+
+The manual Option C smoke runner now has an offline-tested measurement layer.
+`tests/test_live_smoke_metrics.py` is included in focused and broad CI and
+uses fake provider/client/usage objects only. It verifies:
+
+- nearest-rank p50/p95 calculations and distinct count-vs-time units;
+- logical API requests vs successful/failed attempts, retries and coalesced
+  requests;
+- Gemini usage grouped by operation, including unknown token/cost coverage;
+- compact candidate-stage summaries without copying arbitrary debug fields;
+- retrieval wall-time and provider route/page instrumentation;
+- custom query normalization while preserving the default eight-case matrix.
+
+The live smoke itself is never run by CI. It now supports
+`--query "игровой ноутбук" --search-only` for a single controlled selector
+capture, with optional `--repeat 1..5` for performance samples. These options
+make real API calls only when an owner runs the script locally with credentials.
+
+Verified CI run
+[#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
+on commit `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — PASS:
+focused **667 passed, 1 deselected, 598 subtests**; broad configured
+**2,304 passed, 2 deselected, 1,259 subtests**. The broad suite remains
+filtered; this is not an unfiltered historical test run.

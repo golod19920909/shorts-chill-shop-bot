@@ -20,13 +20,13 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   consistency, `pip check`, production compile and manual smoke syntax.
   Gemini operation telemetry separates interpretation, selection,
   continuation and no-results reply, with observed p50/p95.
-- Latest verified test-bearing commit:
-  `8c28b0f442bd4e0ef5061fdf659269a53df81d81`, CI run
-  [#43865572436](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43865572436)
-  — PASS. Focused offline suite: **658 passed, 1 deselected, 598 subtests**;
-  configured broad offline suite: **2,295 passed, 2 deselected, 1,259 subtests**.
-  Production compile, manual smoke syntax, dependency lock consistency and
-  `pip check` passed. One upstream Google GenAI SDK deprecation warning remains.
+- Latest verified branch-head CI:
+  [#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
+  on `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — PASS. Focused offline suite:
+  **667 passed, 1 deselected, 598 subtests**; configured broad offline suite:
+  **2,304 passed, 2 deselected, 1,259 subtests**. Production compile, manual
+  smoke syntax, dependency lock consistency and `pip check` passed. One
+  upstream Google GenAI SDK deprecation warning remains.
 - Focused CI now selects reviewed classes from mixed modules rather than
   excluding every useful test with the whole file: discovery favorites/text,
   category-country, menu wiring, shown-history, relevance and engine
@@ -68,6 +68,9 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   Raw captures still require independent provenance verification, page-depth
   annotation and human gold labels before any selector replay. No real capture
   has been run and no model-quality conclusion is available yet.
+- Latest live-smoke measurement code and the custom-query/search-only capture
+  path are covered by the latest passing CI. `tests/test_live_smoke_metrics.py`
+  runs offline with fakes only; it does not consume provider quota.
 
 
 ## What this is

@@ -689,3 +689,23 @@ workflow для последующего документационного comm
 - No real Telegram acceptance test or production latency run was executed.
   Those require the owner's local credentials/runtime and must remain a
   separately controlled manual step.
+
+
+### Подтверждение обновлённого live-smoke tooling — CI PASS
+
+GitHub Actions run
+[#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
+на commit `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — SUCCESS:
+
+- Focused offline suite: **667 passed, 1 deselected, 598 subtests passed**.
+- Configured broad offline suite: **2,304 passed, 2 deselected, 1,259 subtests passed**.
+- Production compile, manual live-smoke syntax compile, dependency lock
+  consistency и `pip check`: PASS.
+- Один pytest warning upstream Google GenAI SDK deprecation. Runner также
+  выводит platform warning о будущей замене Node.js 20 в GitHub Actions;
+  это не ошибка Python tests.
+
+Этот run включает `tests/test_live_smoke_metrics.py`, custom query
+normalization, provider route instrumentation, API retries/coalescing,
+Gemini usage grouping и проверку candidate-stage summaries. Никаких live
+API/Telegram вызовов в CI не было.
