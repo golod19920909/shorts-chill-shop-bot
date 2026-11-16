@@ -590,3 +590,44 @@ GitHub Actions run [#43842771485](https://github.com/golod19920909/shorts-chill-
 - Подробная классификация и доказательства записаны в `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
 - Это статическая проверка GitHub исходников; новый pytest запуск этих исторических модулей не выполнялся.
 - Последний известный PASS всё ещё относится к run `43842771485` / commit `9cbf90f`. Он не подтверждает последующие изменения. Ветка на момент этой проверки на 14 коммитов впереди указанного CI head; новый CI PASS на актуальном HEAD остаётся обязательным.
+
+
+### Актуализация после повторного CI — 16 ноября 2026
+
+Этот блок имеет приоритет над более ранними отметками «CI pending» и
+«current HEAD verification outstanding» выше.
+
+- Test-only исправление: `tests/test_latency_and_failures.py` теперь выбирает
+  итоговую запись `convsearch action=`, а не первую промежуточную строку
+  диагностики. Production-код не менялся. Commit:
+  `aa1bea772190f85f4f6bfabaf2a47d796b963f53`.
+- GitHub Actions run
+  [#43857002754](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43857002754)
+  на указанном commit — **SUCCESS**.
+- Focused offline suite: **644 passed, 1 deselected, 598 subtests passed**.
+- Configured broad offline suite: **2,295 passed, 2 deselected, 1,259 subtests passed**.
+- Production compile, manual live-smoke syntax compile, dependency lock
+  consistency и `pip check` — **PASS**.
+- Осталось одно upstream предупреждение Google GenAI SDK deprecation.
+- Подробности о class-level selection и legacy exclusion сохранены в
+  `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
+
+Важно: run проверил кодовый commit `aa1bea7`. После него были созданы
+документирующие commits `e707838` и `26b079e`; на момент этой записи
+workflow для последующего документационного commit ещё выполняется.
+Поэтому нельзя называть более поздний HEAD проверенным до завершения его CI.
+
+### Оставшиеся acceptance-пункты без подмены тестовыми фикстурами
+
+1. Ручная Telegram-проверка владельцем: новый поиск, уточнение, бюджет,
+   альтернативы, смена типа товара, аксессуар и честный no-results. Эти
+   сценарии нельзя достоверно закрыть только offline mocks.
+2. Live golden-set из 70 реальных AliExpress карточек: карточки должны быть
+   получены через реальный Affiliate API и вручную размечены до расчёта
+   precision/recall. Не создавать фиктивные карточки или gold labels.
+3. Сопоставление реальных latency/API-call counts и rate-limit поведения.
+   Mock latency не выдавать за production latency.
+
+Эти три пункта требуют живого окружения и/или ручного подтверждения владельца.
+Локальная машина, `.env`, SQLite, production updater branch и `main` не
+затрагивались.
