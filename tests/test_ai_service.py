@@ -374,9 +374,9 @@ class GroundedProductQuestionTests(unittest.TestCase):
             )
         )
         self.assertIn("наиболее подходящим выглядит", answer)
-        self.assertEqual(product_ids, ["item-1"])
+        self.assertEqual(product_ids, "item-1")
 
-    def test_grounded_claims_return_every_referenced_product_id(self) -> None:
+    def test_grounded_claims_do_not_select_a_recommendation_id(self) -> None:
         products = self._products() + [
             Product(
                 marketplace=Marketplace.ALIEXPRESS,
@@ -396,7 +396,7 @@ class GroundedProductQuestionTests(unittest.TestCase):
             service.answer_product_question_with_recommendation("Сравни их", products)
         )
         self.assertIn("По данным карточек AliExpress", answer)
-        self.assertEqual(product_ids, ["item-1", "item-2"])
+        self.assertIsNone(product_ids)
 
     def test_recommendation_with_invented_evidence_is_not_accepted(self) -> None:
         service = self._service(
