@@ -569,3 +569,13 @@ The dated implementation notes and prior live-test findings have been preserved 
 - Test lifecycle cleanup: two `tests/test_bot_startup.py` cases called `_post_init` (installing global Gemini telemetry persistence to a temp SQLite file) but omitted `_post_shutdown`. They now drain writes and detach the writer in `finally` before temp DB deletion. Test-only commit `3a134e21`; CI pending.
 
 - Verified CI run `43744173805` (commit `3a134e21`): focused **533 passed, 1 baseline failure, 584 subtests**; configured broad **2,282 passed, 1 baseline failure, 1,259 subtests**. SQLite worker-thread / closed-loop warnings are now zero; pytest-asyncio loop-scope warning is zero. Only remaining warning is Google GenAI SDK deprecation.
+
+- 16 Nov follow-up: legacy-test audit confirmed nine excluded historical modules
+  are not current CI candidates: they import removed Agent/chat-router modules
+  or dynamically load missing `tmp_g252d_*` experiment scripts. They remain
+  preserved, not deleted; do not restore those retired entrypoints. Details:
+  `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
+- Latest PASS remains run `43842771485` on `9cbf90f`; it does not verify the
+  later focused-CI additions or documentation commits. Current-HEAD CI
+  verification remains outstanding. Do not report the new session-isolation
+  tests or `EngineInstrumentationTests` as passed until a fresh run confirms.
