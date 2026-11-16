@@ -1187,11 +1187,48 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             decision.report["ai_second_pass_reason"], "valid_partial_selection"
         )
-        self.assertEqual(decision.report["ai_second_pass_input_count"], 24)
-        self.assertEqual(decision.report["ai_second_pass_remaining_count"], 24)
+        self.assertEqual(decision.report["ai_second_pass_input_count"], 19)
+        self.assertEqual(decision.report["ai_second_pass_remaining_count"], 19)
         self.assertEqual(decision.report["ai_second_pass_returned_count"], 1)
         self.assertEqual(decision.report["ai_second_pass_added_count"], 1)
         self.assertGreaterEqual(decision.report["ai_second_pass_duration_ms"], 0)
+
+
+    async def test_malformed_continuation_response_is_reported_separately(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="selector-malformed-continuation")
+        candidates = [
+            product(f"malformed-{i}", "Рыболовная катушка")
+            for i in range(25)
+        ]
+        calls = []
+
+        async def select_batch(pool, **kwargs):
+            calls.append(len(pool))
+            if len(calls) == 1:
+                return [pool[0].product_id]
+            return None
+
+        engine.bind_ai_service(SimpleNamespace(
+            select_conversation_candidates=select_batch,
+        ))
+        decision = SearchDecision(
+            outcome=Outcome.RESULTS, products=candidates, report={}
+        )
+        strategy = SimpleNamespace(
+            request=SimpleNamespace(
+                normalized_query="рыболовная катушка",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+
+        await engine._apply_ai_candidate_selection(decision, strategy, state)
+
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(decision.report["ai_second_pass"], "malformed_response")
+        self.assertEqual(decision.report["ai_second_pass_returned_count"], 0)
+        self.assertEqual(decision.report["ai_second_pass_added_count"], 0)
 
     async def test_unknown_selector_ids_do_not_trigger_continuation(self):
         engine = ConversationSearchEngine()

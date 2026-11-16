@@ -1253,9 +1253,11 @@ class ConversationSearchEngine:
         try:
             selected_ids = await request_selection(selector_pool, selector_kwargs)
         except TimeoutError:
+            decision.report["ai_second_pass_reason"] = "first_pass_timeout"
             logger.info("Gemini conversation selection timed out")
             return finish_fallback("timeout_fallback")
         except Exception:
+            decision.report["ai_second_pass_reason"] = "first_pass_provider_error"
             logger.exception("Gemini conversation selection failed")
             return finish_fallback("error_fallback")
 
@@ -1353,7 +1355,11 @@ class ConversationSearchEngine:
                         exc_info=True,
                     )
                 else:
-                    decision.report["ai_second_pass"] = "completed"
+                    decision.report["ai_second_pass"] = (
+                        "completed"
+                        if isinstance(second_ids, list)
+                        else "malformed_response"
+                    )
                 if isinstance(second_ids, list):
                     second_returned_count = len(second_ids)
                     decision.report["selection_returned_count"] += len(second_ids)
