@@ -6,10 +6,12 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 
 - Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not merge
   to `main` or move the production updater branch without separate approval.
-- Current work closes P0 retrieval stopping, Gemini continuation semantics and
-  machine-readable rejection diagnostics. Search and recommendation quality
-  gates remain deterministic; unknown feature evidence is quarantined, while
-  explicitly negated mandatory features are hard rejected.
+- P0 code review confirms retrieval stopping counts both safe and
+  semantic-review-eligible candidates; bounded pages, grounded route order and
+  prefetch cancellation remain intact. Gemini continuation is limited to
+  validated partial selections; a valid empty selection does not trigger a
+  second request. Hard filters remain deterministic and unknown evidence stays
+  quarantined.
 - SQLite schema is now versioned through atomic migrations 001-003. Migration
   tests use temporary databases and cover legacy upgrades, idempotence,
   rollback, foreign-key enforcement and delete semantics. No local or
@@ -19,15 +21,36 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   first selection, continuation and no-results reply as separate operations.
   Admin usage reports expose observed p50/p95 duration per operation/model;
   search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Last verified CI run before documentation updates: focused 538 passed,
-  1 deselected, 584 subtests; broad configured offline suite 2292 passed,
-  2 deselected, 1259 subtests. One third-party google-genai DeprecationWarning
-  remains; it is not a project failure.
+- Last verified CI run BEFORE the latest cleanup follow-ups: focused
+  538 passed, 1 deselected, 584 subtests; broad configured offline suite
+  2292 passed, 2 deselected, 1259 subtests. One third-party google-genai
+  DeprecationWarning remains; it is not a project failure. The newer tests and
+  edits listed below have not yet received a confirmed CI rerun.
+- Follow-up regression tests cover mixed safe/review retrieval pools,
+  empty/partial/full selector outcomes, continuation ID validation, malformed
+  responses, evidence validation and selector-capture opt-in/privacy. The
+  selector snapshot now redacts URLs, emails, phone numbers, Telegram IDs and
+  credential-like values before writing.
+- `.env.example` was statically reconciled with settings and selector-capture
+  runtime variables. CI now compiles root `bot.py` and runs startup,
+  database-migration and price-tracker tests in the focused offline job.
+- Price tracking remains sequential and globally API-bounded; its first
+  scheduled check is delayed 30 seconds. Redundant per-method SQLite foreign
+  key PRAGMAs were removed; the connection factory remains the single source
+  of enforcement.
+- Live smoke/probe scripts now clearly identify their network/API-costing
+  behavior and are not run in CI. A real 70-card AliExpress golden set with
+  manual labels is still pending a controlled live test; no claim about
+  gaming-laptop model quality is made without that evidence.
 - The broad suite is filtered by explicit legacy exclusions. See
   `docs/LEGACY_TEST_AUDIT_2026-11-15.md`; do not describe it as an
   unfiltered full-suite run.
 - Still requires ordinary Telegram acceptance tests for the manual scenarios
-  in the cleanup brief. No JSON or diagnostic payload is required from the user.
+  in the cleanup brief. No user-prepared JSON is required. The real AliExpress
+  golden-set step remains evidence-gated and must not be replaced by synthetic
+  data or guessed model-quality conclusions.
+- No local `.env`, SQLite file, PC environment, backup or user data was read,
+  changed or uploaded during this repository-only work.
 
 
 ## What this is
