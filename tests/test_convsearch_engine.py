@@ -338,6 +338,54 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(decision.products), 30)
         self.assertEqual(decision.report["ai_selected"], 20)
 
+    async def test_pagination_counts_semantic_review_candidates_separately_from_safe(self):
+        from services.convsearch.retrieval import BackendOutcome
+
+        safe = [
+            product(f"safe-screw-{i}", "Аккумуляторный шуруповёрт 20V")
+            for i in range(40)
+        ]
+        review = [
+            product(f"review-screw-{i}", "Cordless drill with 2 batteries")
+            for i in range(40)
+        ]
+        pool = safe + review
+        observed = []
+
+        class PagingBackend:
+            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
+                observed.append(should_continue(pool[:30]))
+                observed.append(should_continue(pool))
+                return BackendOutcome(
+                    ok=True,
+                    reason="ok",
+                    products=pool,
+                    request=strategy.request,
+                )
+
+        selector = AsyncMock(
+            side_effect=lambda candidates, **kwargs: [
+                item.product_id for item in candidates[:kwargs["wanted"]]
+            ]
+        )
+        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
+        engine.bind_ai_service(SimpleNamespace(
+            is_available=True,
+            select_conversation_candidates=selector,
+        ))
+
+        decision = await engine.handle_message(
+            "mixed-review-pagination",
+            "Найди шуруповёрт",
+        )
+
+        self.assertEqual(observed, [True, False])
+        self.assertEqual(decision.outcome, Outcome.RESULTS)
+        self.assertEqual(decision.report["review_eligible"], 80)
+        self.assertEqual(decision.report["safe_ranked"], 40)
+        self.assertEqual(decision.report["hard_rejected"], 0)
+        self.assertEqual(len(selector.await_args.args[0]), 80)
+
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
 
