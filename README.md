@@ -149,17 +149,15 @@ cd C:\shorts-chill-shop-bot
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# 2. Зависимости
-pip install -r requirements.txt
-# опционально, для запуска тестов через pytest:
-pip install -r requirements-dev.txt
+# 2. Зависимости: полный lock, проверенный в CI на Python 3.14
+pip install -r requirements.lock
 
 # 3. Конфигурация
 Copy-Item .env.example .env
 # отредактируйте .env: как минимум BOT_TOKEN
 
-# 4. Тесты
-python -m unittest discover -s tests -t . -v
+# 4. Адресная офлайн-проверка
+python -m pytest -q tests/test_database.py tests/test_bot_startup.py
 
 # 5. Запуск
 python main.py
@@ -319,7 +317,7 @@ sudo -iu shopbot
 git clone <repo-url> ~/shorts-chill-shop-bot
 cd ~/shorts-chill-shop-bot
 python3.14 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock
 cp .env.example .env && nano .env      # BOT_TOKEN и ключи
 python main.py                         # проверка запуска
 ```
