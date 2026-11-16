@@ -87,6 +87,25 @@ def is_alternatives_request(text: str) -> bool:
     return bool(_ALTERNATIVES_RE.search(text or ""))
 
 
+def _type_rejection_reason_code(reasons: list[str]) -> str:
+    """Map detailed validator evidence to a stable diagnostic category."""
+
+    accessory_reasons = {
+        "type_only_in_role_clause",
+        "type_is_accessory_of_host_product",
+        "requested_type_is_host_for_accessory",
+        "type_mentioned_as_genitive_modifier",
+    }
+    if any(
+        reason.startswith("accessory_head:") or reason in accessory_reasons
+        for reason in reasons
+    ):
+        return "accessory_or_spare_part_mismatch"
+    if any(reason in {"ambiguous_bare_noun", "empty_title"} for reason in reasons):
+        return "unclear_product_identity"
+    return "product_type_mismatch"
+
+
 # Pronouns and deictic references whose meaning depends on already-shown cards.
 # A general concept question ("Что означает IP67?") is still eligible for a
 # natural answer; a card reference ("А он водонепроницаемый?") must go through
@@ -1444,7 +1463,12 @@ class ConversationSearchEngine:
             "excluded_shown": 0,
             "type_rejections": [],
             "semantic_review_ids": [],
+            "semantic_review_reasons": [],
             "feature_review_ids": [],
+            "feature_review_reasons": [],
+            "feature_incompatibility_rejections": [],
+            "exclusion_rejections": [],
+            "budget_rejections": [],
         }
 
         if not products:
@@ -1472,11 +1496,18 @@ class ConversationSearchEngine:
                 eligible.append(product)
                 if any(reason in _SEMANTIC_REVIEW_REASONS for reason in verdict.reasons):
                     report["semantic_review_ids"].append(product.product_id)
+                    report["semantic_review_reasons"].append({
+                        "id": product.product_id,
+                        "reason_code": "unclear_product_identity",
+                        "reasons": verdict.reasons[:5],
+                    })
             else:
                 rejected_type.append(product)
-                report["type_rejections"].append(
-                    {"id": product.product_id, "reasons": verdict.reasons[:3]}
-                )
+                report["type_rejections"].append({
+                    "id": product.product_id,
+                    "reason_code": _type_rejection_reason_code(verdict.reasons),
+                    "reasons": verdict.reasons[:5],
+                })
         report["rejected_type"] = len(rejected_type)
         report["after_type"] = len(eligible)
 
@@ -1484,20 +1515,46 @@ class ConversationSearchEngine:
         #    Missing listing evidence is UNKNOWN, not proof of mismatch:
         #    quarantine it for semantic review instead of silently dropping
         #    a potentially suitable product with a sparse AliExpress title.
-        verified_features, feature_review = (
-            retrieval_mod.partition_required_feature_evidence(eligible, state)
+        verified_features, feature_review, incompatible_features = (
+            retrieval_mod.partition_required_feature_evidence_detailed(
+                eligible, state
+            )
         )
+        required_features = [
+            *state.active_values("feature"),
+            *state.active_values("compatibility"),
+        ]
         report["feature_review_ids"] = [
             product.product_id for product in feature_review if product.product_id
         ]
         report["semantic_review_ids"].extend(report["feature_review_ids"])
+        report["feature_review_reasons"] = [
+            {
+                "id": product.product_id,
+                "reason_code": "required_feature_unverified",
+                "features": required_features,
+            }
+            for product in feature_review
+        ]
+        report["feature_incompatibility_rejections"] = [
+            {
+                "id": product.product_id,
+                "reason_code": "explicit_incompatibility",
+                "features": required_features,
+            }
+            for product in incompatible_features
+        ]
         eligible = verified_features + feature_review
-        report["rejected_feature"] = 0
+        report["rejected_feature"] = len(incompatible_features)
         report["after_feature"] = len(eligible)
 
         # 3. Explicit negative and budget constraints are hard filters.
         eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
         report["rejected_exclusion"] = len(rejected_ex)
+        report["exclusion_rejections"] = [
+            {"id": product.product_id, "reason_code": "explicit_exclusion"}
+            for product in rejected_ex
+        ]
         report["after_exclusion"] = len(eligible)
         eligible, rejected_budget = retrieval_mod.filter_by_budget(
             eligible, state,
@@ -1506,6 +1563,10 @@ class ConversationSearchEngine:
             ),
         )
         report["rejected_budget"] = len(rejected_budget)
+        report["budget_rejections"] = [
+            {"id": product.product_id, "reason_code": "budget_or_currency_mismatch"}
+            for product in rejected_budget
+        ]
         report["after_budget"] = len(eligible)
 
         # 3. Dedup by stable identity, then requirement-aware ranking.
@@ -1517,8 +1578,19 @@ class ConversationSearchEngine:
         report["ranked"] = len(ranked)
         report["rank_rejected"] = max(0, report["after_dedup"] - len(ranked))
         report["rejection_reasons"] = {
-            "wrong_product_type": report["rejected_type"],
+            "accessory_or_spare_part_mismatch": sum(
+                item["reason_code"] == "accessory_or_spare_part_mismatch"
+                for item in report["type_rejections"]
+            ),
+            "product_type_mismatch": sum(
+                item["reason_code"] == "product_type_mismatch"
+                for item in report["type_rejections"]
+            ),
+            "unclear_product_identity_review": len(
+                report["semantic_review_reasons"]
+            ),
             "required_feature_unverified_quarantined": len(feature_review),
+            "explicit_incompatibility": len(incompatible_features),
             "explicit_exclusion": report["rejected_exclusion"],
             "budget_or_currency_mismatch": report["rejected_budget"],
             "ranking_validation": report["rank_rejected"],
@@ -1527,6 +1599,7 @@ class ConversationSearchEngine:
         report["review_eligible"] = len(ranked)
         report["hard_rejected"] = (
             report["rejected_type"]
+            + report["rejected_feature"]
             + report["rejected_exclusion"]
             + report["rejected_budget"]
             + report["rank_rejected"]
@@ -1566,7 +1639,10 @@ class ConversationSearchEngine:
         # pool. The reason names the FIRST stage that produced zero
         # survivors from a non-empty pool, so the log line can never
         # attribute an empty outcome to a stage that still had candidates.
-        if ranked is not None and not ranked and not rejected_type and not rejected_ex and not rejected_budget:
+        if (
+            ranked is not None and not ranked and not rejected_type
+            and not incompatible_features and not rejected_ex and not rejected_budget
+        ):
             report["reason"] = "no_candidates"
             return SearchDecision(
                 outcome=Outcome.NO_CANDIDATES, refined=refined,
@@ -1575,6 +1651,8 @@ class ConversationSearchEngine:
 
         if rejected_type:
             report["reason"] = "rejected_by_type_gate"
+        elif incompatible_features:
+            report["reason"] = "rejected_by_explicit_incompatibility"
         elif rejected_ex:
             report["reason"] = "rejected_by_exclusions"
         elif rejected_budget:

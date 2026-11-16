@@ -2224,3 +2224,77 @@ class SelectorIdentityScopeTests(unittest.IsolatedAsyncioTestCase):
             [item.product_id for item in decision.products],
             [reviewed.product_id, ordinary.product_id],
         )
+
+class ExplicitFeatureCompatibilityDiagnosticsTests(unittest.TestCase):
+    def test_explicitly_negated_required_feature_is_hard_rejected(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="explicit-feature-negative")
+        state.record_product_type("power bank")
+        state.slots.append(Slot(
+            kind="feature",
+            value="wireless charging",
+            source_turn=1,
+            raw_text="wireless charging",
+        ))
+        candidate = product(
+            "power-bank-no-wireless",
+            "Power bank 20000mAh wireless charging not supported",
+        )
+        strategy = SimpleNamespace(
+            product_type="power bank",
+            request=SimpleNamespace(
+                normalized_query="power bank wireless charging",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        decision = engine._evaluate_pool(
+            state, [candidate], strategy,
+            refined=True, intent=MessageIntent.REFINE,
+            observation={}, exclude_shown=False,
+        )
+        self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
+        self.assertEqual(decision.products, [])
+        self.assertEqual(decision.report["rejected_feature"], 1)
+        self.assertEqual(
+            decision.report["feature_incompatibility_rejections"],
+            [{
+                "id": "power-bank-no-wireless",
+                "reason_code": "explicit_incompatibility",
+                "features": ["wireless charging"],
+            }],
+        )
+        self.assertEqual(decision.report["reason"], "rejected_by_explicit_incompatibility")
+        self.assertEqual(decision.report["hard_rejected"], 1)
+
+    def test_missing_required_feature_evidence_remains_semantic_review(self):
+        engine = ConversationSearchEngine()
+        state = ConversationEngineState(user_key="unknown-feature-evidence")
+        state.record_product_type("power bank")
+        state.slots.append(Slot(
+            kind="feature",
+            value="wireless charging",
+            source_turn=1,
+            raw_text="wireless charging",
+        ))
+        candidate = product("power-bank-unknown", "Power bank 20000mAh")
+        strategy = SimpleNamespace(
+            product_type="power bank",
+            request=SimpleNamespace(
+                normalized_query="power bank wireless charging",
+                original_query="",
+            ),
+            result_limit=30,
+        )
+        decision = engine._evaluate_pool(
+            state, [candidate], strategy,
+            refined=True, intent=MessageIntent.REFINE,
+            observation={}, exclude_shown=False,
+        )
+        self.assertIs(decision.outcome, Outcome.RESULTS)
+        self.assertIn(candidate.product_id, decision.report["feature_review_ids"])
+        self.assertEqual(decision.report["rejected_feature"], 0)
+        self.assertEqual(
+            decision.report["feature_review_reasons"][0]["reason_code"],
+            "required_feature_unverified",
+        )

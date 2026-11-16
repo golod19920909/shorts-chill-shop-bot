@@ -200,26 +200,25 @@ _FEATURE_NEGATION_TOKENS = frozenset({
 })
 
 
-def _feature_is_evidenced(product: Product, feature: str) -> bool:
-    """Require one contiguous, affirmative evidence span in a single field.
+def _feature_evidence_status(product: Product, feature: str) -> str:
+    """Classify listing evidence without treating missing text as a mismatch.
 
-    Token presence scattered across a title and description is not proof of
-    a relationship: a listing can mention "two modes" and "one battery" while
-    the user explicitly requires two batteries. Negated mentions are also
-    unknown, not positive evidence, and must go to semantic review.
+    Returns verified, unverified or explicit_incompatibility. A negated exact
+    feature mention is a hard contradiction; no mention is merely unknown.
     """
 
     from services.convsearch.type_validation import _raw_tokens, stems_match
 
     wanted = _raw_tokens(feature)
     if not wanted:
-        return True
+        return "verified"
 
-    def has_positive_span(text: str) -> bool:
+    saw_negated_span = False
+    for text in (product.title or "", product.description or ""):
         observed = _raw_tokens(text)
         width = len(wanted)
         if width > len(observed):
-            return False
+            continue
         for start in range(len(observed) - width + 1):
             end = start + width
             if not all(
@@ -227,48 +226,73 @@ def _feature_is_evidenced(product: Product, feature: str) -> bool:
                 for offset in range(width)
             ):
                 continue
-            # Keep a small context window around the exact feature span.
-            # If it is explicitly negated ("not compatible with X",
-            # "without two batteries", "X not included"), do not call it
-            # verified; the bounded semantic selector may inspect it.
             context = (
                 observed[max(0, start - 3):start]
                 + observed[end:min(len(observed), end + 3)]
             )
             if any(token in _FEATURE_NEGATION_TOKENS for token in context):
+                saw_negated_span = True
                 continue
-            return True
-        return False
+            return "verified"
 
-    return has_positive_span(product.title or "") or has_positive_span(
-        product.description or ""
-    )
+    return "explicit_incompatibility" if saw_negated_span else "unverified"
+
+
+def _feature_is_evidenced(product: Product, feature: str) -> bool:
+    """Whether the listing contains affirmative evidence for one requirement."""
+
+    return _feature_evidence_status(product, feature) == "verified"
+
+
+def required_feature_evidence_statuses(
+    product: Product,
+    state: ConversationEngineState,
+) -> dict[str, str]:
+    """Return a machine-readable evidence status for every hard feature slot."""
+
+    required = [*state.active_values("feature"), *state.active_values("compatibility")]
+    return {
+        feature: _feature_evidence_status(product, feature)
+        for feature in required
+    }
+
+
+def partition_required_feature_evidence_detailed(
+    products: list[Product],
+    state: ConversationEngineState,
+) -> tuple[list[Product], list[Product], list[Product]]:
+    """Split verified, unknown and explicitly incompatible candidates.
+
+    Missing listing evidence is UNKNOWN, not proof that a product lacks the
+    feature. Explicitly negated evidence is a contradiction and is rejected;
+    unknown candidates stay quarantined for Gemini's grounded review.
+    """
+
+    verified: list[Product] = []
+    needs_review: list[Product] = []
+    incompatible: list[Product] = []
+    for product in products:
+        statuses = required_feature_evidence_statuses(product, state)
+        values = list(statuses.values())
+        if "explicit_incompatibility" in values:
+            incompatible.append(product)
+        elif all(status == "verified" for status in values):
+            verified.append(product)
+        else:
+            needs_review.append(product)
+    return verified, needs_review, incompatible
 
 
 def partition_required_feature_evidence(
     products: list[Product],
     state: ConversationEngineState,
 ) -> tuple[list[Product], list[Product]]:
-    """Separate proven feature matches from candidates needing semantic review.
+    """Compatibility wrapper: return verified and all non-verified candidates."""
 
-    A missing phrase in an AliExpress title/description is not proof that the
-    product lacks the requested feature. Keep such candidates in a separate
-    review bucket; the conversation engine may show them only after Gemini
-    positively verifies every mandatory feature from the supplied listing
-    data. If semantic review is unavailable, they remain quarantined.
-    """
-
-    required = [*state.active_values("feature"), *state.active_values("compatibility")]
-    if not required:
-        return list(products), []
-    verified: list[Product] = []
-    needs_review: list[Product] = []
-    for product in products:
-        if all(_feature_is_evidenced(product, feature) for feature in required):
-            verified.append(product)
-        else:
-            needs_review.append(product)
-    return verified, needs_review
+    verified, needs_review, incompatible = (
+        partition_required_feature_evidence_detailed(products, state)
+    )
+    return verified, needs_review + incompatible
 
 
 def filter_by_required_features(
