@@ -67,3 +67,12 @@ The broad-suite log showed that `BuyCallbackTests.test_products_without_affiliat
 - `services/convsearch/engine.py` and `tests/test_convsearch_engine.py` were restored byte-for-byte to baseline `3822fc95` after identifying earlier unapproved algorithm changes.
 - The baseline focused and broad CI runs now expose one existing assertion mismatch in `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`: expected `unverified_required_features`, actual `rejected_by_type_gate`.
 - The production algorithm and assertion are intentionally left unchanged. This test is not a legacy exclusion and has not been xfailed or ignored. Any investigation that changes Smart Search semantics requires separate explicit user approval.
+
+
+## Дополнение от 16 ноября 2026 года
+
+Пользователь отдельно разрешил узкую синхронизацию устаревшего ожидания в тесте Smart Search: в сценарии отказа по hard type gate ожидаемая причина заменена с `unverified_required_features` на фактическую `rejected_by_type_gate`. Алгоритм, валидатор, фильтрация и пользовательское поведение поиска не менялись.
+
+В рамках проверки контракта continuation также исправлено устаревшее ожидание повторного Gemini-запроса после валидного пустого ответа: теперь тест требует один вызов и явный semantic no-match. Это соответствует уже существующей реализации и разделу 4.2 cleanup-ТЗ.
+
+Добавлены офлайн-регрессии для смешанного safe/review retrieval pool, повторных/неизвестных ID, malformed selector response и opt-in selector capture. Сам capture дополнительно очищает URL, email, телефон, Telegram ID и credential-like значения. Эти новые тесты ещё не подтверждены повторным CI-запуском; последняя зафиксированная успешная статистика выше относится к предыдущему состоянию ветки.
