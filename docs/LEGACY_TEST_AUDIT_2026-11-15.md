@@ -24,7 +24,7 @@
 | `test_stage47_conversational.py` | Импортирует `services.chat_router`, `services.conversation` и старый routing API. | Legacy routing suite; отдельные сценарии можно перенести в engine tests, но старый contract не должен управлять production behavior. |
 | `test_stage49_followups.py` | Тестирует `services.chat_router` и `services.conversation.resolve_request`. | Legacy follow-up suite; требует переноса сценариев на текущий engine, а не механического включения. |
 | `test_variant_b_conversation.py` | Небольшой набор тестов старого `chat_router`. | Legacy routing contract. |
-| `test_discovery_acceptance.py` | Смешивает favorites/text/category-country acceptance tests с shown-history, menu wiring и Findings/feed behavior. | **Частично включён в focused CI:** `FavoritesScreenTests`, `ScreenTextTests`, `CategoryCountryPropagationTests`; защищённые history/menu/feed классы не затронуты и остаются исключёнными до отдельного аудита. |
+| `test_discovery_acceptance.py` | Смешивает favorites/text/category-country acceptance tests с shown-history, menu wiring, relevance и Findings/feed behavior. | **Частично включён в focused CI:** `FavoritesScreenTests`, `ScreenTextTests`, `CategoryCountryPropagationTests`, `MenuWiringTests`, `ShownHistoryTests`, `RelevanceRegressionTests`, `EngineInstrumentationTests`. В broad suite файл остаётся исключённым целиком; выбранные классы проверяются отдельно. |
 | `test_gemini_telemetry.py` | Смешивает актуальные telemetry/instrumentation tests и исторический `AgentLoopTests`. | **Частично возвращён в focused CI:** пять текущих классов выполняются отдельно; старый AgentLoop-класс остаётся исключённым. |
 | `test_ai_service.py` | Большой смешанный модуль текущего `AIService`; отдельные классы уже запускаются в focused suite, весь файл исключён из broad suite. | **Смешанный модуль, не stale целиком.** Разделить по операциям/контрактам; не включать или исключать весь файл одним решением. |
 | `test_conversation.py` | Проверяет старый `services.conversation` state/merge helper. | Legacy helper contract; сверить оставшиеся call sites и перенести только действующие общие функции. |
@@ -270,3 +270,83 @@ remain excluded based on their retired imports/entrypoints. Other mixed
 modules remain class-selected only where explicitly reviewed. No
 `services/convsearch/engine.py` production behavior was changed for this
 test correction.
+
+
+## Follow-up: дополнительные discovery regression tests — 16 ноября 2026
+
+После адресной проверки смешанного `test_discovery_acceptance.py` в focused CI
+добавлены ещё три класса:
+
+- `ShownHistoryTests`: восемь проверок persistence, per-user isolation,
+  idempotency, повторной выдачи после history exclusion, порядка relevance /
+  history и передачи history в Option C retrieval.
+- `RelevanceRegressionTests`: пять проверок отклонения нерелевантного товара,
+  сохранения релевантного товара, корректного фильтра, валидности URL и
+  отказа от ложного сравнения между неподдерживаемыми языковыми токенами.
+- `EngineInstrumentationTests`: одна проверка итогового action/reason лога
+  authoritative Conversation Search Engine.
+
+Точный CI run
+[#43865572436](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43865572436)
+на commit `8c28b0f442bd4e0ef5061fdf659269a53df81d81` — SUCCESS:
+
+- Focused offline suite: **658 passed, 1 deselected, 598 subtests passed**.
+- Configured broad offline suite: **2,295 passed, 2 deselected, 1,259 subtests passed**.
+- Production compile, manual smoke syntax compile, lock consistency и
+  `pip check`: PASS.
+- One upstream Google GenAI SDK deprecation warning remains.
+
+Эти тесты только закрепляют текущие контракты; production-код «Умного поиска»,
+«Находок», relevance, history и Conversation Search Engine в этом изменении
+не менялся. Broad suite всё ещё filtered и не запускает весь
+`test_discovery_acceptance.py` целиком.
+
+### Остальные mixed modules: адресная граница
+
+- `test_conversation.py`, `test_stage3a_merge_feature_protection.py` и
+  `test_stage3c_merge_constraint_protection.py` построены вокруг старого
+  `services.conversation` resolver/merge path; не включать их целиком в
+  Option C regression CI и не восстанавливать этот path ради тестов.
+- `test_search_intent.py`: текущий `WiringGuardTests` уже выбран в focused
+  CI; остальные классы проверяют legacy parser/resolver и SearchService text
+  compatibility path. Не менять «Умный поиск» ради механического расширения
+  CI; дальнейшее включение требует отдельного доказательства актуальности.
+- `test_ai_service.py`: сохраняется class-level selection для reviewed
+  Option C / grounded evidence / candidate payload / telemetry contracts;
+  старые parse/ranking classes не объявляются stale автоматически.
+- `test_gemini_telemetry.py`: актуальные operation, usage, concurrency и
+  persistence классы выбраны отдельно; `AgentLoopTests` остаётся вне CI,
+  поскольку относится к удалённому Agent loop.
+- `test_latency_and_failures.py`: `EngineInstrumentationTests` выбран,
+  `RouterAIEscalationCapTests` исключён из-за удалённого chat-router API.
+- `test_session_isolation.py`: все семь актуальных сценариев выбраны
+  индивидуально в focused CI; broad suite исключает смешанный файл целиком.
+
+### Проверка live diagnostics и локальных артефактов
+
+Проверены назначение и side effects поддерживаемых диагностических entrypoints:
+
+- `scripts/diagnose_aliexpress_categories.py`: один read-only Affiliate API
+  category request; сохраняет локальный JSON report.
+- `scripts/diagnose_aliexpress_portals.py`: по умолчанию один campaign и
+  четыре order-status API request; optional featured-product probe добавляет
+  ещё один request. Не открывает БД, не печатает order rows или commercial
+  details, retry отключён.
+- `scripts/validate_catalog_subcategories.py` и
+  `scripts/validate_thematic_collections.py`: live SearchService + Affiliate
+  API + Gemini diagnostics; могут создавать заметную API/model нагрузку и
+  не запускаются в CI. Thematic report может содержать product/affiliate URLs.
+- `scripts/database_maintenance.py`: отдельный backup/list/explicit-confirm
+  restore tool; не запускался.
+- `scripts/deploy_update.sh`: deployment/rollback entrypoint; не запускался.
+- `tests/probe_b5_production.py`: historical live probe старого
+  `services.chat_router`/query-intent path, не является проверкой Option C и
+  не запускается в CI. Сохранён как исторический материал, не восстановлен.
+- Удалён подтверждённый tracked backup `tests/eval_b5_runner.py.bak_b6`
+  (commit `3b863f2663996c8e04571aa119fa8960a1bfb71f`).
+- `.gitignore` теперь исключает локальный `reports/` и `*.bak_*`, чтобы
+  диагностические output files и editor backups не попадали в tracked repo.
+
+Проверка была статической по исходникам. Ни один live diagnostic script не
+запускался; Affiliate API/Gemini usage не расходовался; локальные .env,
+SQLite и пользовательские данные не открывались.

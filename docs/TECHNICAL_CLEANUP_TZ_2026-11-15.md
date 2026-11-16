@@ -631,3 +631,29 @@ workflow для последующего документационного comm
 Эти три пункта требуют живого окружения и/или ручного подтверждения владельца.
 Локальная машина, `.env`, SQLite, production updater branch и `main` не
 затрагивались.
+
+
+### Дополнительная уборка mixed tests и live diagnostics — 16 ноября 2026
+
+- В focused workflow адресно добавлены `ShownHistoryTests`,
+  `RelevanceRegressionTests` и `EngineInstrumentationTests` из
+  `test_discovery_acceptance.py`. Они дают 14 дополнительных проверок
+  текущих контрактов без production-изменений.
+- CI run
+  [#43865572436](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43865572436)
+  на commit `8c28b0f442bd4e0ef5061fdf659269a53df81d81` — PASS:
+  focused **658 passed, 1 deselected, 598 subtests**; broad configured
+  **2,295 passed, 2 deselected, 1,259 subtests**; compile, smoke syntax,
+  lock consistency и `pip check` — PASS.
+- Проверены оставшиеся mixed modules: старые
+  `services.conversation` merge suites и Agent/router tests не возвращаются
+  в Option C CI; актуальные классы остаются адресно выбраны. Подробности
+  зафиксированы в `docs/LEGACY_TEST_AUDIT_2026-11-15.md`.
+- Удалён tracked backup `tests/eval_b5_runner.py.bak_b6`; `.gitignore`
+  теперь игнорирует `reports/` и `*.bak_*`.
+- Live diagnostic entrypoints получили явную маркировку LIVE / API-COSTING и
+  пояснение по ожидаемому числу API requests/возможным Gemini usage.
+  Скрипты не запускались; live API costs не расходовались.
+- Остаются live Telegram acceptance, 70 реальных карточек с независимой
+  gold-разметкой и production latency/API-call measurement. Нельзя
+  подменять их synthetic fixtures или mock timings.

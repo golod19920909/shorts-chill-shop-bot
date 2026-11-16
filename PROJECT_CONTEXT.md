@@ -4,69 +4,53 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 
 ## Current maintenance state (2026-11-16)
 
-- Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not merge
-  to `main` or move the production updater branch without separate approval.
-- P0 code review confirms retrieval stopping counts both safe and
-  semantic-review-eligible candidates; bounded pages, grounded route order and
-  prefetch cancellation remain intact. Gemini continuation is limited to
-  validated partial selections; a valid empty selection does not trigger a
-  second request. Hard filters remain deterministic and unknown evidence stays
-  quarantined.
-- SQLite schema is now versioned through atomic migrations 001-003. Migration
-  tests use temporary databases and cover legacy upgrades, idempotence,
-  rollback, foreign-key enforcement and delete semantics. No local or
-  production database was accessed or modified during repository work.
-- The Python 3.14 dependency graph is pinned in `requirements.lock`; CI installs
-  from that lock and runs `pip check`. Gemini usage now records interpretation,
-  first selection, continuation and no-results reply as separate operations.
-  Admin usage reports expose observed p50/p95 duration per operation/model;
-  search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Latest verified CI run: `43842771485`, commit `9cbf90f155abd934f673300a4c9a36f8e4d689b8` — PASS. Focused suite: **638 passed, 1 deselected, 593 subtests**; broad configured offline suite: **2295 passed, 2 deselected, 1259 subtests**. Production compile, live-smoke syntax, dependency lock consistency and `pip check` passed. One upstream Google GenAI SDK deprecation warning remains.
-- Follow-up regression tests cover mixed safe/review retrieval pools,
-  hard-reject exclusion from the retrieval target, empty/partial/full selector
-  outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
-  validation, identical primary/reserve prompt+schema, and selector-capture
-  opt-in/privacy. Snapshots redact URLs, emails, phone numbers, Telegram IDs
-  and credential-like values before writing.
-- `.env.example` was statically reconciled with settings and selector-capture
-  runtime variables. CI compiles the actual `bot/` package and `main.py`, and
-  runs startup, database-migration and price-tracker tests in the focused
-  offline job.
-- Price tracking remains sequential and globally API-bounded; its first
-  scheduled check is delayed 30 seconds. Redundant per-method SQLite foreign
-  key PRAGMAs were removed; the connection factory remains the single source
-  of enforcement.
-- Live smoke/probe scripts now clearly identify their network/API-costing
-  behavior and are not run in CI. A real 70-card AliExpress golden set with
-  manual labels is still pending a controlled live test; no claim about
-  gaming-laptop model quality is made without that evidence.
-- The broad suite is filtered by explicit legacy exclusions. See
-  `docs/LEGACY_TEST_AUDIT_2026-11-15.md`; do not describe it as an
-  unfiltered full-suite run. An isolated diagnostic workflow
-  `.github/workflows/legacy-test-audit.yml` is manual-only to avoid repeated
-  matrix runs on every repository commit.
-- Still requires ordinary Telegram acceptance tests for the manual scenarios
-  in the cleanup brief. No user-prepared JSON is required. The real AliExpress
-  golden-set step remains evidence-gated and must not be replaced by synthetic
-  data or guessed model-quality conclusions.
-- Latest verified code/workflow commit: `9cbf90f155abd934f673300a4c9a36f8e4d689b8`.
-  The branch is not merged into `main` or the production updater branch.
-- Targeted test audit added current contracts to focused CI: result-limit
-  summaries, singular grounded recommendation IDs, Option C handler delegation,
-  category menu wiring, and isolated feed-history/cursor scenarios. Test-only
-  fixture/expectation corrections did not alter product/search runtime behavior.
-- Follow-up fixture corrections now give `test_session_isolation.py` a
-  deterministic Option C turn interpreter and a strict photo-card assertion;
-  the two previously unselected new-search/stale-card tests are now selected
-  individually in focused CI. They were added after CI run `43842771485`, so
-  their result awaits the next run.
-- `test_latency_and_failures.py` remains excluded from broad CI because it
-  contains legacy router tests. Its current `EngineInstrumentationTests` class
-  is now selected individually in focused CI, with a fake SearchService that
-  accepts the current retrieval keyword contract. This selection also awaits
-  the next CI run. Do not restore the removed router.
-- No local `.env`, SQLite file, PC environment, backup or user data was read,
-  changed or uploaded during this repository-only work.
+- Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not
+  merge to `main` or move the production updater branch without separate
+  approval.
+- P0 retrieval stopping counts both safe and semantic-review-eligible
+  candidates; hard rejects stay outside the selector window. Bounded pages,
+  grounded route order and prefetch cancellation remain intact.
+- Gemini continuation distinguishes valid empty/partial/full outcomes,
+  limits partial continuation to unselected IDs under the shared deadline,
+  and keeps unknown IDs/evidence violations out of accepted results.
+- SQLite schema migrations 001-003 are atomic and tested on temporary DBs for
+  legacy upgrade, idempotence, rollback, foreign keys and delete semantics.
+  No local or production database was opened or modified.
+- Python 3.14 dependencies are pinned in `requirements.lock`; CI checks lock
+  consistency, `pip check`, production compile and manual smoke syntax.
+  Gemini operation telemetry separates interpretation, selection,
+  continuation and no-results reply, with observed p50/p95.
+- Latest verified test-bearing commit:
+  `8c28b0f442bd4e0ef5061fdf659269a53df81d81`, CI run
+  [#43865572436](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43865572436)
+  — PASS. Focused offline suite: **658 passed, 1 deselected, 598 subtests**;
+  configured broad offline suite: **2,295 passed, 2 deselected, 1,259 subtests**.
+  Production compile, manual smoke syntax, dependency lock consistency and
+  `pip check` passed. One upstream Google GenAI SDK deprecation warning remains.
+- Focused CI now selects reviewed classes from mixed modules rather than
+  excluding every useful test with the whole file: discovery favorites/text,
+  category-country, menu wiring, shown-history, relevance and engine
+  instrumentation; Option C session isolation; Gemini telemetry; and
+  reviewed AIService contracts. See `docs/LEGACY_TEST_AUDIT_2026-11-15.md`
+  for exact class-level boundaries.
+- The broad suite remains intentionally filtered with explicit module and
+  test exclusions. It is **not** an unfiltered full-suite run. Historical
+  Agent/chat-router/temporary-runner tests remain preserved but excluded;
+  do not restore removed entrypoints or add blanket xfails/skips.
+- Live diagnostics are explicitly marked API-costing and are not run in CI.
+  `reports/` and editor backup patterns are ignored; the obsolete tracked
+  `tests/eval_b5_runner.py.bak_b6` backup was removed.
+- A real 70-card AliExpress selector golden set with independent manual labels
+  remains pending. The opt-in capture hook and blind replay validator are
+  ready, but no qualifying reviewed snapshots exist. Do not make claims about
+  gaming-laptop model quality or compare selector models without this evidence.
+- Ordinary Telegram acceptance is still pending: new search, clarification,
+  budget refinement, alternatives, product switch, accessory mismatch and
+  honest no-results. These cannot be proven by offline mocks alone; no JSON
+  preparation is required from the owner.
+- The branch is not merged into `main` or the production updater branch.
+  No local `.env`, SQLite file, PC environment, backups or user data were
+  accessed, changed or uploaded.
 
 
 ## What this is
