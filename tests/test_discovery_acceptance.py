@@ -75,6 +75,7 @@ def make_product(
     product_url: str = LINK,
     affiliate_url: str | None = AFFILIATE,
     image_url: str | None = None,
+    orders_count: int | None = None,
 ) -> Product:
     return Product(
         marketplace=Marketplace.ALIEXPRESS,
@@ -84,6 +85,7 @@ def make_product(
         affiliate_url=affiliate_url,
         image_url=image_url,
         price=10.0,
+        orders_count=orders_count,
         currency="USD",
     )
 
@@ -797,6 +799,7 @@ class MenuWiringTests(unittest.TestCase):
             "200",
             "Наушники беспроводные TWS Pro премиум",
             image_url="https://ae01.alicdn.com/kf/200.jpg",
+            orders_count=500,
         )
         service = _RecordingDiscoveryService(new_product)
         context = self._context(service)
