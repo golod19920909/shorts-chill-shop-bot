@@ -221,6 +221,53 @@ def _stage_counts(report: dict, final_count: int) -> dict:
     return counts
 
 
+def _retrieval_summary(route_calls: list[dict], durations_ms: list[float]) -> dict:
+    pages = sorted({
+        int(call["page_no"])
+        for call in route_calls
+        if isinstance(call.get("page_no"), int) and call["page_no"] > 0
+    })
+    return {
+        "provider_route_calls": len(route_calls),
+        "pages_requested": pages,
+        "unique_pages_requested": len(pages),
+        "retrieval_calls": len(durations_ms),
+        "retrieval_wall_ms": round(sum(durations_ms), 1),
+    }
+
+
+def _instrument_retrieval(search_service):
+    """Time the real SearchService/provider boundaries without changing results."""
+    route_calls: list[dict] = []
+    retrieval_durations_ms: list[float] = []
+
+    for index, provider in enumerate(getattr(search_service, "providers", ())):
+        original_search = provider.search_products
+        marketplace = getattr(provider, "marketplace", None)
+        label = str(getattr(marketplace, "value", marketplace) or type(provider).__name__)
+
+        async def timed_provider_search(request, _original=original_search, _label=label, _index=index):
+            route_calls.append({
+                "provider": f"{_label}:{_index}",
+                "page_no": int(getattr(request, "page_no", 1) or 1),
+            })
+            return await _original(request)
+
+        provider.search_products = timed_provider_search
+
+    original_find_products = search_service.find_products
+
+    async def timed_retrieval(*args, **kwargs):
+        started = time.perf_counter()
+        try:
+            return await original_find_products(*args, **kwargs)
+        finally:
+            retrieval_durations_ms.append((time.perf_counter() - started) * 1000)
+
+    search_service.find_products = timed_retrieval
+    return route_calls, retrieval_durations_ms
+
+
 def _sample_products(products) -> str:
     lines = []
     for product in products[:5]:
@@ -275,6 +322,7 @@ async def main() -> int:
     engine.bind_search_service(search_service)
     engine.bind_ai_service(ai_service)
     assistant = ProductAssistant(ai_service=ai_service, search_service=search_service)
+    provider_route_calls, retrieval_durations_ms = _instrument_retrieval(search_service)
     failures: list[str] = []
     warnings: list[str] = []
     search_rows: list[dict] = []
@@ -287,6 +335,8 @@ async def main() -> int:
                 state = ConversationEngineState(user_key=user_key)
                 print(f"\n=== {label} (run {repetition}/{args.repeat}): {query} ===")
                 api_before = _api_snapshot(search_service)
+                route_start = len(provider_route_calls)
+                retrieval_start = len(retrieval_durations_ms)
                 search_started = time.perf_counter()
                 with turn_scope(f"live-smoke-search-{repetition}-{label}") as search_usage:
                     try:
@@ -313,6 +363,10 @@ async def main() -> int:
                         continue
                 wall_ms = (time.perf_counter() - search_started) * 1000
                 api_delta = _api_delta(api_before, _api_snapshot(search_service))
+                retrieval_delta = _retrieval_summary(
+                    provider_route_calls[route_start:],
+                    retrieval_durations_ms[retrieval_start:],
+                )
                 gemini_delta = _gemini_summary(search_usage)
                 stages = _stage_counts(decision.report, len(decision.products))
                 search_rows.append({
@@ -320,6 +374,7 @@ async def main() -> int:
                     "repetition": repetition,
                     "wall_ms": wall_ms,
                     "api": api_delta,
+                    "retrieval": retrieval_delta,
                     "gemini": gemini_delta,
                     "stages": stages,
                 })
@@ -338,6 +393,9 @@ async def main() -> int:
                     f"api_latency_p50/p95="
                     f"{api_delta['api_latency']['p50_ms']}/"
                     f"{api_delta['api_latency']['p95_ms']} "
+                    f"retrieval_ms={retrieval_delta['retrieval_wall_ms']:.1f} "
+                    f"routes={retrieval_delta['provider_route_calls']} "
+                    f"pages={retrieval_delta['pages_requested']} "
                     f"gemini_attempts={gemini_delta['attempts']}"
                 )
                 print(
@@ -431,6 +489,11 @@ async def main() -> int:
     ]
     api_attempts = sum(row["api"]["http_attempts"] for row in search_rows)
     api_requests = sum(row["api"]["logical_requests"] for row in search_rows)
+    retrieval_wall_values = [row["retrieval"]["retrieval_wall_ms"] for row in search_rows]
+    provider_route_counts = [row["retrieval"]["provider_route_calls"] for row in search_rows]
+    unique_page_counts = [row["retrieval"]["unique_pages_requested"] for row in search_rows]
+    api_request_counts = [row["api"]["logical_requests"] for row in search_rows]
+    api_attempt_counts = [row["api"]["http_attempts"] for row in search_rows]
     operation_durations: dict[str, list[float]] = defaultdict(list)
     operation_tokens: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for row in search_rows:
@@ -441,7 +504,18 @@ async def main() -> int:
 
     print("\n=== LIVE PERFORMANCE SUMMARY ===")
     print(f"Search wall time p50/p95: {_series_summary(wall_values)}")
+    print(f"SearchService retrieval wall time p50/p95: {_series_summary(retrieval_wall_values)}")
     print(f"Affiliate API call latency p50/p95: {_series_summary(api_latency_values)}")
+    print(
+        "Per-search API requests p50/p95: "
+        f"{_series_summary(api_request_counts)}; HTTP attempts p50/p95: "
+        f"{_series_summary(api_attempt_counts)}"
+    )
+    print(
+        "Per-search provider routes p50/p95: "
+        f"{_series_summary(provider_route_counts)}; unique pages p50/p95: "
+        f"{_series_summary(unique_page_counts)}"
+    )
     print(f"Affiliate API logical requests={api_requests}; HTTP attempts including retries={api_attempts}")
     for operation, durations in sorted(operation_durations.items()):
         print(
