@@ -166,22 +166,20 @@ on commit `9cbf90f` passed:
 
 ### Remaining diagnostic failures / boundaries
 
-- Two tests in `test_session_isolation.py` remain outside focused CI:
+- Follow-up after run `43842771485`: `test_session_isolation.py` was
+  corrected without changing production code. Its handler fixture now uses a
+  deterministic Option C turn interpreter, and `card()` accepts only a real
+  delivered photo-card caption (it no longer falls back to arbitrary bot text).
+  The two previously unselected tests
   `test_a_new_search_never_inherits_the_previous_query` and
-  `test_a_stale_card_browses_its_own_session_only`. The helper `card()`
-  falls back to the last arbitrary bot text when no photo card exists, so its
-  assertion that a product card was shown is not reliable. The subsequent
-  `outcome_cache` KeyError shows no cached browsing session was created in
-  that fixture. These tests need a deterministic Option C engine/provider
-  fixture that yields a real `RESULTS` decision; do not patch production
-  session handling based on the current fixture alone.
-- `test_latency_and_failures.py` is mixed: its two
-  `RouterAIEscalationCapTests` import the removed `services.chat_router`;
-  three current-engine instrumentation tests use a `RecordingSearchService`
-  fake whose `find_products` signature does not accept the current retrieval
-  keywords, and one expects an old INFO log contract. The current engine
-  instrumentation subset in `test_discovery_acceptance.py` passes in focused
-  CI. Do not restore the old router.
+  `test_a_stale_card_browses_its_own_session_only` have now been added to the
+  focused workflow. Their results are pending a CI run on the updated branch.
+- Follow-up for `test_latency_and_failures.py`: the fake SearchService now
+  accepts the current retrieval keyword contract, and the engine fixture uses a
+  deterministic Option C turn interpreter. The current
+  `EngineInstrumentationTests` class is now selected individually in focused
+  CI. The two `RouterAIEscalationCapTests` still depend on removed
+  `services.chat_router` and remain outside CI; do not restore the old router.
 - The rest of `test_search_intent.py` and `test_ai_service.py` are mixed
   modules. Only the reviewed Option C wiring guard and grounded
   product-question class were promoted to focused CI; no entire file was
@@ -189,6 +187,16 @@ on commit `9cbf90f` passed:
 - The historical Agent/tool-loop, old chat-router and stage acceptance
   harness modules remain excluded pending their own contract-by-contract
   migration. This diagnostic did not run every excluded module.
+
+
+### Verification boundary after the follow-up fixture changes
+
+The latest successful run recorded above (`43842771485`, commit `9cbf90f`)
+predates the two additional session-isolation selections and the
+`EngineInstrumentationTests` selection. The updated workflow is configured to
+run them on the next branch push. Do not mark these new selections as passed
+until that run completes successfully. The broad suite continues to exclude
+the mixed modules as a whole; the targeted classes are separate focused tests.
 
 No user-facing «Умный поиск» or «✨ Находки» production behavior was changed in
 these follow-ups. No local `.env`, SQLite file, backups, user PC or production
