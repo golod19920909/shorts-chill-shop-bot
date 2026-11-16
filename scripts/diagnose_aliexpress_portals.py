@@ -1,4 +1,8 @@
-"""Read-only smoke test for selected AliExpress Portals Affiliate API methods.
+"""LIVE / API-COSTING: read-only AliExpress Portals Affiliate API smoke test.
+
+The default run performs one campaign request plus four bounded order-status
+requests; the optional campaign-product probe adds another request. It consumes
+Affiliate API quota and is never run by CI. No database writes are performed.
 
 Run from the repository root:
     python -m scripts.diagnose_aliexpress_portals
