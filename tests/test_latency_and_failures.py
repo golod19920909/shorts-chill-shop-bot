@@ -126,13 +126,24 @@ class RecordingSearchService(SearchService):
         self.provider = provider
         self.calls: list[SearchRequest] = []
 
-    async def find_products(self, request, *, exclude=None, broaden=True,
-                            feed_selection=False):
+    async def find_products(self, request, **kwargs):
         self.calls.append(request.model_copy(deep=True))
-        return await super().find_products(
-            request, exclude=exclude, broaden=broaden,
-            feed_selection=feed_selection,
-        )
+        return await super().find_products(request, **kwargs)
+
+
+class StubTurnAI:
+    """Deterministic turn interpreter; no external Gemini request is made."""
+
+    async def decide_conversation_turn(self, text: str, *, context=None) -> dict:
+        return {
+            "action": "new_search",
+            "confidence": 0.99,
+            "product_type": "наушники",
+            "marketplace_terms": [],
+            "question": None,
+            "response": None,
+            "slot_updates": [],
+        }
 
 
 class FakeApplication:
@@ -175,6 +186,7 @@ class EngineInstrumentationTests(unittest.TestCase):
         self.service = RecordingSearchService(self.provider)
         self.engine = conv_engine.ConversationSearchEngine()
         self.engine.bind_search_service(self.service)
+        self.engine.bind_ai_service(StubTurnAI())
 
     def context(self) -> FakeContext:
         return FakeContext(
