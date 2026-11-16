@@ -63,6 +63,7 @@ jobs:
           tests/test_ai_service.py::FindingsSelectorTests
           tests/test_ai_service.py::ConversationSelectionEvidenceTests
           tests/test_ai_service.py::GroundedProductQuestionTests
+          tests/test_search_intent.py::WiringGuardTests
           tests/test_ai_service.py::SubcategorySelectorReserveTests
           tests/test_ai_service.py::CandidatePayloadTests
           tests/test_gemini_telemetry.py::ExtractUsageTests
@@ -73,6 +74,7 @@ jobs:
           tests/test_discovery_acceptance.py::FavoritesScreenTests
           tests/test_discovery_acceptance.py::ScreenTextTests
           tests/test_discovery_acceptance.py::CategoryCountryPropagationTests
+          tests/test_discovery_acceptance.py::MenuWiringTests
           tests/test_query_intent.py
           tests/test_ai_operations.py
           tests/test_intent_circuit_recovery.py
