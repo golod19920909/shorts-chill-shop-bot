@@ -379,7 +379,7 @@ class SessionIsolationTests(unittest.TestCase):
 
         self.assertIn("наушники", first_card)
         self.assertIn("Плазморезка", second_card)
-        self.assertNotIn("ремешок", second_card)
+        self.assertNotIn("наушники", second_card)
         # Every phrase the second search asked was grounded in ITS own query.
         second_queries = self.provider.queries[first_queries:]
         self.assertTrue(second_queries)
@@ -396,7 +396,7 @@ class SessionIsolationTests(unittest.TestCase):
 
     def test_a_stale_card_browses_its_own_session_only(self) -> None:
         context = self.context()
-        self.search(context, "ремешок часов")
+        self.search(context, "наушники")
         old_session = next(iter(self.sessions(context)))
 
         self.search(context, "плазморезка")
