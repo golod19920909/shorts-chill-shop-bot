@@ -282,8 +282,9 @@ class AliExpressClient:
         self.last_empty_at: str | None = None
         # Searches, detail lookups and the background price tracker share
         # one application key. Keep a small global concurrency ceiling: two
-        # in-flight calls materially shorten multi-route thematic retrieval,
-        # while still preventing an unbounded burst from independent bot tasks.
+        # in-flight calls materially shorten multi-route retrieval without an
+        # unbounded burst. PriceTracker.check_all is sequential, so a background
+        # cycle can occupy at most one permit and leaves one for foreground work.
         # The API's explicit short-ban response is handled by _call_unlocked.
         self._call_semaphore = asyncio.Semaphore(2)
         # Exact simultaneous reads are shared across handlers/users. This is
