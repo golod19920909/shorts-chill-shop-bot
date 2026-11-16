@@ -23,7 +23,7 @@ database/backups/
 
 # Local evaluation artifacts may contain real prompts and product pools.
 selector_captures/
-reports/selector-captures/
+reports/
 eval-gemini-*-blind.json
 eval-gemini-*-private-map.json
 eval-selector-blind-results.json
@@ -31,3 +31,4 @@ eval-selector-blind-map.json
 
 # Editor/experiment backup files
 *.bak
+*.bak_*
