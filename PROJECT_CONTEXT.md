@@ -649,3 +649,12 @@ The dated implementation notes and prior live-test findings have been preserved 
   and `pip check` passed. One upstream Google GenAI SDK deprecation warning.
 - No deployment was performed. No server, local PC, `.env`, SQLite database,
   `main`, or production updater branch was touched.
+
+- Дополнительно исправлен комментарий в `requirements-dev.txt`: он ошибочно
+  утверждал, что весь тестовый набор можно запускать через стандартный
+  `unittest` без pytest. Текущие тесты используют pytest fixtures и
+  monkeypatch; файл теперь описывает реальную установку dev-зависимостей.
+  Commit: `5d3383aa5838d58822fef7ceada74f67e1011f5c`.
+- CI для README deployment update был запущен (run `43931387907`) и на момент
+  этой записи выполнялся; более поздние commits README context / requirements
+  также требуют проверки CI на актуальном HEAD.
