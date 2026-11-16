@@ -47,13 +47,18 @@ Guidance for AI agents and maintainers working in this repository.
 ## Test commands
 
 ```powershell
-.venv\\Scripts\\python.exe -m pytest tests -q
-.venv\\Scripts\\python.exe -m pytest tests/test_convsearch_engine.py -q
+.venv\\Scripts\\python.exe -m pytest -q tests/test_database.py
+.venv\\Scripts\\python.exe -m pytest -q tests/test_price_tracker.py
+.venv\\Scripts\\python.exe -m pytest -q tests/test_bot_startup.py
+.venv\\Scripts\\python.exe -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py
+.venv\\Scripts\\python.exe -m pytest -q tests/test_search_service.py
 ```
 
-The repository currently documents stale legacy test modules excluded from
-the conversational-regression workflow. Do not describe a filtered run as an
-unfiltered full-suite pass.
+The authoritative focused and broad configured offline suites are defined in
+`.github/workflows/conversational-regression.yml`. The broad suite has explicit
+legacy exclusions documented in `docs/LEGACY_TEST_AUDIT_2026-11-15.md`; never
+describe it as an unfiltered full-suite run. Install the verified dependency
+graph with `pip install -r requirements.lock`.
 
 ## Where to look first
 

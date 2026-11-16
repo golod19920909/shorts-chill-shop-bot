@@ -76,3 +76,34 @@ The broad-suite log showed that `BuyCallbackTests.test_products_without_affiliat
 В рамках проверки контракта continuation также исправлено устаревшее ожидание повторного Gemini-запроса после валидного пустого ответа: теперь тест требует один вызов и явный semantic no-match. Это соответствует уже существующей реализации и разделу 4.2 cleanup-ТЗ.
 
 Добавлены офлайн-регрессии для смешанного safe/review retrieval pool, повторных/неизвестных ID, malformed selector response и opt-in selector capture. Сам capture дополнительно очищает URL, email, телефон, Telegram ID и credential-like значения. Эти новые тесты ещё не подтверждены повторным CI-запуском; последняя зафиксированная успешная статистика выше относится к предыдущему состоянию ветки.
+
+
+## Superseding authorization — 2026-11-16
+
+After the earlier narrow test-only authorization recorded above, the owner
+explicitly approved execution of the full repository-cleanup technical
+specification. That later approval supersedes the earlier statement that
+algorithm changes were not authorized.
+
+The approved P0 implementation now:
+- uses the safe plus semantic-review-eligible pool for retrieval continuation,
+  while keeping hard rejects outside the selector window;
+- preserves bounded pages, selector windows, route order and prefetch
+  cancellation;
+- prevents a second Gemini pass after a valid empty response and limits valid
+  partial continuation to unselected candidate IDs under the shared deadline;
+- emits distinct continuation telemetry and structured counts/duration;
+- distinguishes explicit incompatibility from missing feature evidence;
+- keeps unknown mandatory-feature evidence quarantined and never treats a
+  missing description phrase as proof of incompatibility.
+
+The additional P0/P1 regression tests were confirmed by the configured CI run
+on commit `6e481c2`: focused 598 passed, broad configured offline suite 2295
+passed, with the documented deselections and one third-party deprecation
+warning. The broad suite remains filtered; this is not an unfiltered run of
+every historical test module.
+
+The owner-side Telegram acceptance scenarios and the real 70-card AliExpress
+gold-set with manual labels remain pending. No local .env, SQLite database,
+backup, user PC or production data was accessed or modified.
+

@@ -180,6 +180,8 @@ python main.py
 | `FEED_MAX_PAGES_PER_OPEN` | нет | `2` | «✨ Находки»: максимум страниц AliExpress (`page_no`, `page_size=50`), запрашиваемых за одно новое открытие ленты (1..10) |
 | `ALIEXPRESS_APP_KEY` | нет | — | ключ AliExpress Open Platform |
 | `ALIEXPRESS_APP_SECRET` | нет | — | секрет AliExpress Open Platform |
+| `SHORTS_CHILL_SELECTOR_CAPTURE` | нет | `0` | opt-in запись локальных очищенных selector snapshots для контролируемого quality review; по умолчанию выключено |
+| `SHORTS_CHILL_SELECTOR_CAPTURE_DIR` | нет | `selector_captures` | локальная папка snapshots; игнорируется Git и не должна отправляться в репозиторий |
 | `SEARCH_MAX_PAGES` | нет | `5` | максимальное число страниц текстового поиска (1..10); новые страницы запрашиваются только пока не заполнено окно пригодных кандидатов или не исчерпан временной бюджет |
 | `PHOTO_SEARCH_PAGES` | нет | `2` | максимум страниц на одну гипотезу поиска по фото (1..5) |
 | `PHOTO_SEARCH_HYPOTHESES` | нет | `4` | максимум grounded-гипотез для одного поиска по фото (1..6) |

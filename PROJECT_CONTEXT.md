@@ -21,11 +21,10 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   first selection, continuation and no-results reply as separate operations.
   Admin usage reports expose observed p50/p95 duration per operation/model;
   search/provider diagnostics expose bounded p50/p95 samples without query text.
-- Last verified CI run BEFORE the latest cleanup follow-ups: focused
-  538 passed, 1 deselected, 584 subtests; broad configured offline suite
-  2292 passed, 2 deselected, 1259 subtests. One third-party google-genai
-  DeprecationWarning remains; it is not a project failure. The newer tests and
-  edits listed below have not yet received a confirmed CI rerun.
+- Latest verified CI run (commit `6e481c2`): focused 598 passed,
+  1 deselected, 591 subtests; broad configured offline suite 2295 passed,
+  2 deselected, 1259 subtests. One third-party google-genai DeprecationWarning
+  remains; it is not a project failure.
 - Follow-up regression tests cover mixed safe/review retrieval pools,
   hard-reject exclusion from the retrieval target, empty/partial/full selector
   outcomes, duplicate/unknown continuation IDs, malformed responses, evidence
@@ -50,6 +49,9 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   in the cleanup brief. No user-prepared JSON is required. The real AliExpress
   golden-set step remains evidence-gated and must not be replaced by synthetic
   data or guessed model-quality conclusions.
+- Current verified branch commit before this documentation update:
+  `6e481c22d74c1955231a282e2b3ca2f8190cdb00`. The branch is not merged into
+  `main` or the production updater branch.
 - No local `.env`, SQLite file, PC environment, backup or user data was read,
   changed or uploaded during this repository-only work.
 
