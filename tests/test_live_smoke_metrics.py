@@ -124,3 +124,35 @@ def test_stage_counts_only_exposes_compact_candidate_metrics():
     assert counts["review_eligible"] == 60
     assert counts["final_cards_count"] == 18
     assert "private_debug_blob" not in counts
+
+
+
+def test_retrieval_instrumentation_counts_routes_pages_and_wall_time():
+    import asyncio
+
+    from smoke_conversational_search import _instrument_retrieval
+
+    class Provider:
+        marketplace = "aliexpress"
+
+        async def search_products(self, request):
+            return ["real-shaped-result"]
+
+    class SearchService:
+        def __init__(self):
+            self.providers = [Provider()]
+
+        async def find_products(self, request):
+            rows = await self.providers[0].search_products(request)
+            return {"request": request, "rows": rows}
+
+    service = SearchService()
+    route_calls, durations = _instrument_retrieval(service)
+    request = type("Request", (), {"page_no": 2})()
+    result = asyncio.run(service.find_products(request))
+
+    assert result["request"] is request
+    assert result["rows"] == ["real-shaped-result"]
+    assert route_calls == [{"provider": "aliexpress:0", "page_no": 2}]
+    assert len(durations) == 1
+    assert durations[0] >= 0

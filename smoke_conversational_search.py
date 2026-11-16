@@ -355,6 +355,10 @@ async def main() -> int:
                             "repetition": repetition,
                             "wall_ms": wall_ms,
                             "api": api_delta,
+                            "retrieval": _retrieval_summary(
+                                provider_route_calls[route_start:],
+                                retrieval_durations_ms[retrieval_start:],
+                            ),
                             "gemini": _gemini_summary(search_usage),
                             "stages": {"reason": f"engine_exception:{type(exc).__name__}"},
                         })
