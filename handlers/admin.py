@@ -159,7 +159,10 @@ async def _send_gemini_usage_report(
             f"• {common.escape(str(row['operation']))}: "
             f"{number(row['attempts'])} выз.; "
             f"p50/p95 {number(row.get('duration_p50_ms'))}/"
-            f"{number(row.get('duration_p95_ms'))} мс"
+            f"{number(row.get('duration_p95_ms'))} мс; "
+            f"input/total tokens {number(row.get('prompt_tokens'))}/"
+            f"{number(row.get('total_tokens'))}; "
+            f"${float(row.get('estimated_cost_usd') or 0.0):.8f}"
         )
     if not usage.get("operations"):
         lines.append("• Пока нет данных")

@@ -14,6 +14,11 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   tests use temporary databases and cover legacy upgrades, idempotence,
   rollback, foreign-key enforcement and delete semantics. No local or
   production database was accessed or modified during repository work.
+- The Python 3.14 dependency graph is pinned in `requirements.lock`; CI installs
+  from that lock and runs `pip check`. Gemini usage now records interpretation,
+  first selection, continuation and no-results reply as separate operations.
+  Admin usage reports expose observed p50/p95 duration per operation/model;
+  search/provider diagnostics expose bounded p50/p95 samples without query text.
 - Last verified CI run before documentation updates: focused 538 passed,
   1 deselected, 584 subtests; broad configured offline suite 2292 passed,
   2 deselected, 1259 subtests. One third-party google-genai DeprecationWarning
