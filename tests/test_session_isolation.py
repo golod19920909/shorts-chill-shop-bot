@@ -425,8 +425,8 @@ class SessionIsolationTests(unittest.TestCase):
         run(search_handlers.browse_callback(FakeUpdate(query=query), context))
 
         self.assertEqual(len(query.edits), 1)
-        self.assertIn("наушники", query.edits[-1])
-        self.assertNotIn("Плазморезка", query.edits[-1])
+        self.assertIn("наушники", query.edits[-1].casefold())
+        self.assertNotIn("плазморезка", query.edits[-1].casefold())
         # The newer session kept its own position and its own products.
         self.assertEqual(
             [p.product_id for p in self.sessions(context)[new_session].products],
