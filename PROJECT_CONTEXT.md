@@ -22,20 +22,18 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   continuation and no-results reply, with observed p50/p95.
 - The primary conversational regression workflow is hardened with
   `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
-  and `persist-credentials: false`. Current branch-head CI on `f4c151a`
-  confirms the primary workflow and deterministic settings tests.
+  and `persist-credentials: false`.
 - Latest verified branch-head CI:
-  [#43867834966](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43867834966)
-  on `85261f9f4b166684a2c4acfdd71320c6e33df1a4` — PASS. Focused offline suite:
-  **667 passed, 1 deselected, 598 subtests**; configured broad offline suite:
-  **2,304 passed, 2 deselected, 1,259 subtests**. Production compile, manual
-  smoke syntax, dependency lock consistency and `pip check` passed. One
+  [#43910671976](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43910671976)
+  on `322b31a75bbe42cea74bdf05b97abac66d7331f2` — PASS. Focused offline suite:
+  **689 passed, 1 deselected, 604 subtests**; configured broad offline suite:
+  **2,308 passed, 2 deselected, 1,259 subtests**. Dependency lock consistency,
+  `pip check`, production compile and live-smoke syntax compile passed. One
   upstream Google GenAI SDK deprecation warning remains.
-- Configuration tests now explicitly clear admin IDs, analytics dashboard and
-  price-tracking environment variables and cover their safe defaults, parsing,
-  dashboard port bounds and the disabled tracking interval. These tests were
-  added to focused CI; the new workflow/test commits still require a fresh
-  successful run before being treated as verified.
+- Configuration tests explicitly clear admin IDs, analytics dashboard and
+  price-tracking environment variables and cover safe defaults, parsing,
+  dashboard port bounds and disabled tracking interval; they are included in
+  the passing focused suite.
 - Focused CI now selects reviewed classes from mixed modules rather than
   excluding every useful test with the whole file: discovery favorites/text,
   category-country, menu wiring, shown-history, relevance and engine
@@ -609,3 +607,15 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - 16 Nov diagnostic workflow precision: `.github/workflows/legacy-test-audit.yml` now selects `WiringGuardTests` instead of the mixed legacy `test_search_intent.py` module, selects `ConversationSelectionEvidenceTests` for selector capture opt-in/privacy coverage, and selects only `EngineInstrumentationTests` from `test_latency_and_failures.py` (the other class depends on the retired chat router). Commit `2945aac842dd622e576f058a34db58dce8baa83f`. The manual-only workflow has not yet been dispatched; no test result is claimed for this change.
+
+
+- Final branch-head refresh — 16 Nov 2026: branch HEAD is
+  `322b31a75bbe42cea74bdf05b97abac66d7331f2`. CI run
+  [#43910671976](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43910671976)
+  was inspected at job-log level and confirms the focused and configured broad
+  counts above. The latest change only corrected the manual diagnostic workflow
+  target selection and documented it. The workflow
+  `.github/workflows/legacy-test-audit.yml` is still
+  `workflow_dispatch` only and has not been manually dispatched; its isolated
+  matrix tests therefore remain unverified. Do not infer their success from
+  the primary CI run.
