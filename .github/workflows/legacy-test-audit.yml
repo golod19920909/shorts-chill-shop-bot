@@ -1,0 +1,51 @@
+name: Legacy test audit (diagnostic only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - chore/repository-cleanup-2026-11-15
+
+jobs:
+  isolated-tests:
+    name: "${{ matrix.name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Result limits and follow-ups
+            target: tests/test_result_limit_and_followup.py
+          - name: Search intent
+            target: tests/test_search_intent.py
+          - name: Session isolation
+            target: tests/test_session_isolation.py
+          - name: Findings history
+            target: tests/test_discovery_acceptance.py::ShownHistoryTests
+          - name: Findings menu wiring
+            target: tests/test_discovery_acceptance.py::MenuWiringTests
+          - name: Discovery engine instrumentation
+            target: tests/test_discovery_acceptance.py::EngineInstrumentationTests
+          - name: Discovery relevance regression
+            target: tests/test_discovery_acceptance.py::RelevanceRegressionTests
+          - name: AI service local parsing and output validation
+            target: tests/test_ai_service.py::LocalFallbackParserTests tests/test_ai_service.py::AIOutputValidationTests
+          - name: AI service product question grounding
+            target: tests/test_ai_service.py::ProductQuestionContextCoverageTests tests/test_ai_service.py::GroundedProductQuestionTests
+          - name: AI service thematic payload and comparison
+            target: tests/test_ai_service.py::ThematicCandidatePayloadTests tests/test_ai_service.py::GroundedProductComparisonTests
+          - name: Latency and failure instrumentation
+            target: tests/test_latency_and_failures.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install locked dependencies
+        run: python -m pip install -r requirements.lock
+      - name: Verify dependency graph
+        run: python -m pip check
+      - name: Run isolated diagnostic tests
+        run: python -m pytest -q ${{ matrix.target }}
