@@ -16,8 +16,8 @@ jobs:
         include:
           - name: Result limits and follow-ups
             target: tests/test_result_limit_and_followup.py
-          - name: Search intent
-            target: tests/test_search_intent.py
+          - name: Search intent wiring guard
+            target: tests/test_search_intent.py::WiringGuardTests
           - name: Session isolation
             target: tests/test_session_isolation.py
           - name: Findings history
@@ -34,8 +34,10 @@ jobs:
             target: tests/test_ai_service.py::ProductQuestionContextCoverageTests tests/test_ai_service.py::GroundedProductQuestionTests
           - name: AI service thematic payload and comparison
             target: tests/test_ai_service.py::ThematicCandidatePayloadTests tests/test_ai_service.py::GroundedProductComparisonTests
+          - name: Selector snapshot privacy and opt-in
+            target: tests/test_ai_service.py::ConversationSelectionEvidenceTests
           - name: Latency and failure instrumentation
-            target: tests/test_latency_and_failures.py
+            target: tests/test_latency_and_failures.py::EngineInstrumentationTests
     steps:
       - uses: actions/checkout@v7
         with:
