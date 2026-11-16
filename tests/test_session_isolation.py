@@ -264,8 +264,7 @@ class SessionIsolationTests(unittest.TestCase):
             caption = kwargs.get("caption")
             if caption:
                 return caption
-        self.assertTrue(context.bot.texts, "a product card must be on screen")
-        return context.bot.texts[-1]
+        self.fail("expected a delivered photo product card, not a text reply")
 
     def screen(self, context: FakeContext) -> str:
         """Everything this user can read right now (texts + card captions)."""
