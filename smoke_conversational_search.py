@@ -99,6 +99,17 @@ def _series_summary(values: list[float]) -> dict[str, float | int | None]:
     }
 
 
+def _count_summary(values: list[int]) -> dict[str, float | int | None]:
+    if not values:
+        return {"samples": 0, "avg": None, "p50": None, "p95": None}
+    return {
+        "samples": len(values),
+        "avg": round(statistics.fmean(values), 1),
+        "p50": _percentile(values, 0.50),
+        "p95": _percentile(values, 0.95),
+    }
+
+
 def _api_snapshot(search_service) -> dict[str, dict]:
     """Read only the safe counters from provider clients; never request data."""
     snapshot = {}
@@ -525,13 +536,13 @@ async def main() -> int:
     print(f"Affiliate API call latency p50/p95: {_series_summary(api_latency_values)}")
     print(
         "Per-search API requests p50/p95: "
-        f"{_series_summary(api_request_counts)}; HTTP attempts p50/p95: "
-        f"{_series_summary(api_attempt_counts)}"
+        f"{_count_summary(api_request_counts)}; HTTP attempts p50/p95: "
+        f"{_count_summary(api_attempt_counts)}"
     )
     print(
         "Per-search provider routes p50/p95: "
-        f"{_series_summary(provider_route_counts)}; unique pages p50/p95: "
-        f"{_series_summary(unique_page_counts)}"
+        f"{_count_summary(provider_route_counts)}; unique pages p50/p95: "
+        f"{_count_summary(unique_page_counts)}"
     )
     print(f"Affiliate API logical requests={api_requests}; HTTP attempts including retries={api_attempts}")
     for operation, durations in sorted(operation_durations.items()):

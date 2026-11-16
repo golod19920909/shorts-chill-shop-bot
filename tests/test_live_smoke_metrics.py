@@ -156,3 +156,15 @@ def test_retrieval_instrumentation_counts_routes_pages_and_wall_time():
     assert route_calls == [{"provider": "aliexpress:0", "page_no": 2}]
     assert len(durations) == 1
     assert durations[0] >= 0
+
+
+
+def test_count_summary_uses_count_units_not_milliseconds():
+    from smoke_conversational_search import _count_summary
+
+    assert _count_summary([]) == {
+        "samples": 0, "avg": None, "p50": None, "p95": None
+    }
+    assert _count_summary([1, 2, 3, 4]) == {
+        "samples": 4, "avg": 2.5, "p50": 2.0, "p95": 4.0
+    }
