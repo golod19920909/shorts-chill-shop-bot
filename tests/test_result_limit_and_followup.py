@@ -155,18 +155,18 @@ class FollowUpTests(unittest.TestCase):
     def test_follow_up_matches_delivered_count(self) -> None:
         request = SearchRequest(original_query="q")
         two = SearchOutcome(request=request, products=[make_product("a"), make_product("b")])
-        text = search_handlers._agent_follow_up_text(two)
+        text = search_handlers._result_summary_text(two)
         self.assertIn("2", text)
         self.assertNotIn(make_product("a").title, text)
         one = SearchOutcome(request=request, products=[make_product("a")])
-        self.assertIn("один", search_handlers._agent_follow_up_text(one))
-        self.assertIsNone(search_handlers._agent_follow_up_text(
+        self.assertIn("один", search_handlers._result_summary_text(one))
+        self.assertIsNone(search_handlers._result_summary_text(
             SearchOutcome(request=request)))
 
     def test_follow_up_names_the_real_delivered_count(self) -> None:
         request = SearchRequest(original_query="q")
         five = SearchOutcome(request=request, products=[make_product(str(i)) for i in range(5)])
-        text = search_handlers._agent_follow_up_text(five)
+        text = search_handlers._result_summary_text(five)
         self.assertIn("Нашёл 5 вариантов", text)
         self.assertIn("листайте карточки кнопкой «➡️»", text)
         self.assertIn("Могу сравнить их или поискать подешевле.", text)
