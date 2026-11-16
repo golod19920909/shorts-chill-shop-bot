@@ -724,7 +724,7 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
                 service = self._service('{"selections":[]}')
                 result = asyncio.run(service.select_conversation_candidates(
                     [product],
-                    query="cordless screwdriver https://example.com/?token=query-secret",
+                    query="cordless screwdriver contact user@example.com +1 555-123-4567 telegram_id=123456789 api_key=private-api-secret https://example.com/?token=query-secret",
                 ))
 
             self.assertEqual(result, [])
@@ -738,6 +738,10 @@ class ConversationSelectionEvidenceTests(unittest.TestCase):
             self.assertNotIn("private-secret", snapshot_text)
             self.assertNotIn("private-affiliate", snapshot_text)
             self.assertNotIn("query-secret", snapshot_text)
+            self.assertNotIn("user@example.com", snapshot_text)
+            self.assertNotIn("555-123-4567", snapshot_text)
+            self.assertNotIn("123456789", snapshot_text)
+            self.assertNotIn("private-api-secret", snapshot_text)
             self.assertEqual(snapshot["source"]["provider"], "AliExpress Affiliate API")
             self.assertEqual(snapshot["candidates"][0]["id"], "drill-1")
 
