@@ -619,3 +619,12 @@ The dated implementation notes and prior live-test findings have been preserved 
   `workflow_dispatch` only and has not been manually dispatched; its isolated
   matrix tests therefore remain unverified. Do not infer their success from
   the primary CI run.
+
+
+- README maintenance follow-up — 16 Nov 2026: commit
+  `7481f98212ca0859b763c176e7160032e746ff2f` updates the repository tree to
+  include the current `services/convsearch`, scripts, deploy assets, docs,
+  workflows and lockfile. It also replaces the stale blanket
+  `unittest discover` recommendation with the same targeted offline pytest
+  checks already documented above. No runtime code or user-facing flow changed.
+  CI for this README-only commit is pending at the time of this note.
