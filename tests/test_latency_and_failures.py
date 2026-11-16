@@ -203,7 +203,7 @@ class EngineInstrumentationTests(unittest.TestCase):
         state = ConversationEngineState(user_key="lat")
         with self.assertLogs("services.convsearch.engine", level="INFO") as logs:
             run(self.engine.handle_message("lat", "наушники", state=state))
-        line = next(e for e in logs.output if "convsearch" in e)
+        line = next(e for e in logs.output if "convsearch action=" in e)
         self.assertIn("action=", line)
         self.assertIn("reason=", line)
         self.assertNotIn("наушники", line)
