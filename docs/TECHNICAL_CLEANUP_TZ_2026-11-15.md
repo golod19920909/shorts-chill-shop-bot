@@ -760,3 +760,13 @@ API/Telegram вызовов в CI не было.
 - Workflow получил минимальные `contents: read` permissions; checkout использует `persist-credentials: false`.
 - Сохранён `workflow_dispatch`: изолированные диагностические тесты не запускаются на каждом push и не влияют на обязательный offline CI.
 - Commit: `b3065f894ed3f86c7263466c286ea85225d4fe5f`. Workflow ещё не запускался вручную после обновления; изменение только инфраструктурное.
+
+
+### Уточнение состава ручного diagnostic workflow — 16 ноября 2026
+
+- В `.github/workflows/legacy-test-audit.yml` смешанный модуль `tests/test_search_intent.py` заменён на актуальный `WiringGuardTests`.
+- Добавлен отдельный target `ConversationSelectionEvidenceTests`, включающий opt-in и privacy regression tests selector snapshots.
+- Полный `tests/test_latency_and_failures.py` заменён на `EngineInstrumentationTests`: второй класс модуля зависит от удалённого `services.chat_router` и не относится к активному Option C контракту.
+- Изменение ограничено диагностическим CI workflow; production-код, retrieval, Gemini selection и пользовательские потоки не менялись.
+- Commit workflow: `2945aac842dd622e576f058a34db58dce8baa83f`; документация: `63587b3fa4c01b85d13f0b0492b7aff03b0a01bc`.
+- Workflow остаётся `workflow_dispatch` only и после изменения ещё не запускался. Результаты его тестов не заявляются до фактического ручного запуска.
