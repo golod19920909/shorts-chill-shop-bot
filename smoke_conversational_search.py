@@ -37,7 +37,7 @@ import math
 import statistics
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from bot import build_search_service
 from config.settings import load_settings
@@ -500,6 +500,11 @@ async def main() -> int:
     api_attempt_counts = [row["api"]["http_attempts"] for row in search_rows]
     operation_durations: dict[str, list[float]] = defaultdict(list)
     operation_tokens: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    operation_costs: dict[str, float] = defaultdict(float)
+    operation_cost_known_attempts: dict[str, int] = defaultdict(int)
+    reason_counts = Counter(
+        row["stages"].get("reason") or "unknown" for row in search_rows
+    )
     for row in search_rows:
         for operation, metrics in row["gemini"]["by_operation"].items():
             operation_durations[operation].append(metrics["duration_ms"])
@@ -524,8 +529,11 @@ async def main() -> int:
     for operation, durations in sorted(operation_durations.items()):
         print(
             f"Gemini {operation}: duration p50/p95={_series_summary(durations)}; "
-            f"tokens_total={dict(operation_tokens[operation])}"
+            f"tokens_total={dict(operation_tokens[operation])}; "
+            f"known_cost_usd_total={operation_costs[operation]:.10f}; "
+            f"cost_known_attempts={operation_cost_known_attempts[operation]}"
         )
+    print(f"No-result / decision reasons: {dict(reason_counts)}")
     if followup_rows:
         print(
             "Follow-up/comparison wall time p50/p95: "
