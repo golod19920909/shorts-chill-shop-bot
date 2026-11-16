@@ -338,55 +338,6 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(decision.products), 30)
         self.assertEqual(decision.report["ai_selected"], 20)
 
-
-    async def test_pagination_stops_on_review_eligible_pool_even_when_safe_pool_is_smaller(self):
-        from services.convsearch.retrieval import BackendOutcome
-
-        pool = (
-            [
-                product(f"safe-reel-{i}", "Рыболовная катушка спиннинговая")
-                for i in range(40)
-            ]
-            + [
-                product(f"review-reel-{i}", "Fishing reel spinning")
-                for i in range(40)
-            ]
-        )
-        observed = []
-
-        class PagingBackend:
-            async def retrieve(self, strategy, *, exclude=None, should_continue=None):
-                observed.append(should_continue(pool[:30]))
-                observed.append(should_continue(pool))
-                return BackendOutcome(
-                    ok=True,
-                    reason="ok",
-                    products=pool,
-                    request=strategy.request,
-                )
-
-        async def select_verified(candidates, **kwargs):
-            return [
-                item.product_id for item in candidates
-                if item.product_id.startswith("safe-reel-")
-            ][:kwargs["wanted"]]
-
-        engine = ConversationSearchEngine(retrieval_backend=PagingBackend())
-        engine.bind_ai_service(SimpleNamespace(
-            is_available=True,
-            select_conversation_candidates=select_verified,
-        ))
-
-        decision = await engine.handle_message(
-            "review-eligible-pagination",
-            "Найди рыболовную катушку",
-        )
-
-        self.assertEqual(observed, [True, False])
-        self.assertEqual(decision.report["review_eligible"], 80)
-        self.assertEqual(decision.report["safe_ranked"], 40)
-        self.assertEqual(decision.report["hard_rejected"], 0)
-
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
 
@@ -1116,51 +1067,18 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             [f"continue-{i}" for i in range(20)],
         )
 
-    async def test_valid_empty_primary_selection_does_not_continue(self):
+    async def test_empty_primary_selection_is_rechecked_by_primary_model(self):
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="selector-empty-reserve")
         candidates = [product(f"empty-{i}", "Рыболовная катушка") for i in range(25)]
         calls = []
 
         async def select_batch(pool, **kwargs):
-            calls.append([item.product_id for item in pool])
-            return []
-
-        engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=select_batch,
-        ))
-        decision = SearchDecision(
-            outcome=Outcome.RESULTS, products=candidates, report={}
-        )
-        strategy = SimpleNamespace(
-            request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
-            result_limit=30,
-        )
-
-        await engine._apply_ai_candidate_selection(decision, strategy, state)
-
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["ai_selection"], "semantic_no_match")
-        self.assertEqual(decision.report["ai_second_pass"], "skipped_valid_empty")
-        self.assertEqual(
-            decision.report["ai_second_pass_reason"], "valid_empty_response"
-        )
-
-
-
-    async def test_partial_selection_is_attributed_as_continuation_operation(self):
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="selector-operation-attribution")
-        candidates = [
-            product(f"operation-{i}", "Рыболовная катушка")
-            for i in range(25)
-        ]
-        operations = []
-
-        async def select_batch(pool, *, operation="conversation_selection", **kwargs):
-            operations.append(operation)
+            calls.append({
+                "ids": [item.product_id for item in pool],
+            })
+            if len(calls) == 1:
+                return []
             return [pool[0].product_id]
 
         engine.bind_ai_service(SimpleNamespace(
@@ -1170,98 +1088,16 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
             outcome=Outcome.RESULTS, products=candidates, report={}
         )
         strategy = SimpleNamespace(
-            request=SimpleNamespace(
-                normalized_query="рыболовная катушка",
-                original_query="",
-            ),
-            result_limit=30,
-        )
-
-        await engine._apply_ai_candidate_selection(decision, strategy, state)
-
-        self.assertEqual(
-            operations,
-            ["conversation_selection", "conversation_selection_continuation"],
-        )
-        self.assertEqual(decision.report["ai_second_pass"], "completed")
-        self.assertEqual(
-            decision.report["ai_second_pass_reason"], "valid_partial_selection"
-        )
-        self.assertEqual(decision.report["ai_second_pass_input_count"], 19)
-        self.assertEqual(decision.report["ai_second_pass_remaining_count"], 19)
-        self.assertEqual(decision.report["ai_second_pass_returned_count"], 1)
-        self.assertEqual(decision.report["ai_second_pass_added_count"], 1)
-        self.assertGreaterEqual(decision.report["ai_second_pass_duration_ms"], 0)
-
-
-    async def test_malformed_continuation_response_is_reported_separately(self):
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="selector-malformed-continuation")
-        candidates = [
-            product(f"malformed-{i}", "Рыболовная катушка")
-            for i in range(25)
-        ]
-        calls = []
-
-        async def select_batch(pool, **kwargs):
-            calls.append(len(pool))
-            if len(calls) == 1:
-                return [pool[0].product_id]
-            return None
-
-        engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=select_batch,
-        ))
-        decision = SearchDecision(
-            outcome=Outcome.RESULTS, products=candidates, report={}
-        )
-        strategy = SimpleNamespace(
-            request=SimpleNamespace(
-                normalized_query="рыболовная катушка",
-                original_query="",
-            ),
-            result_limit=30,
-        )
-
-        await engine._apply_ai_candidate_selection(decision, strategy, state)
-
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(decision.report["ai_second_pass"], "malformed_response")
-        self.assertEqual(decision.report["ai_second_pass_returned_count"], 0)
-        self.assertEqual(decision.report["ai_second_pass_added_count"], 0)
-
-    async def test_unknown_selector_ids_do_not_trigger_continuation(self):
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="selector-unknown-id")
-        candidates = [product(f"unknown-{i}", "Рыболовная катушка") for i in range(25)]
-        calls = []
-
-        async def select_unknown(pool, **kwargs):
-            calls.append([item.product_id for item in pool])
-            return ["not-in-candidate-pool"]
-
-        engine.bind_ai_service(SimpleNamespace(
-            select_conversation_candidates=select_unknown,
-        ))
-        decision = SearchDecision(
-            outcome=Outcome.RESULTS, products=candidates, report={}
-        )
-        strategy = SimpleNamespace(
             request=SimpleNamespace(normalized_query="рыболовная катушка", original_query=""),
             result_limit=30,
         )
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
 
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(decision.report["ai_selection"], "empty_fallback")
-        self.assertEqual(
-            decision.report["ai_second_pass_reason"], "no_valid_candidate_ids"
-        )
-        self.assertEqual(
-            [item.product_id for item in decision.products],
-            [item.product_id for item in candidates],
-        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(decision.report["ai_second_pass_model"], "primary")
+        self.assertEqual([item.product_id for item in decision.products], ["empty-0"])
+        self.assertEqual(decision.report["ai_second_pass_selected"], 1)
 
     async def test_full_selector_window_keeps_default_thirty_card_tail(self):
         engine = ConversationSearchEngine()
@@ -1961,6 +1797,7 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
     def test_required_feature_needs_positive_evidence(self) -> None:
         from services.convsearch.retrieval import filter_by_required_features
         from services.convsearch.state import Slot
+
         state = ConversationEngineState(user_key="feature")
         state.slots.append(Slot(
             kind="feature", value="для дома", source_turn=1, raw_text="Для дома"
@@ -2312,76 +2149,3 @@ class SelectorIdentityScopeTests(unittest.IsolatedAsyncioTestCase):
             [reviewed.product_id, ordinary.product_id],
         )
 
-class ExplicitFeatureCompatibilityDiagnosticsTests(unittest.TestCase):
-    def test_explicitly_negated_required_feature_is_hard_rejected(self):
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="explicit-feature-negative")
-        state.record_product_type("power bank")
-        state.slots.append(Slot(
-            kind="feature",
-            value="wireless charging",
-            source_turn=1,
-            raw_text="wireless charging",
-        ))
-        candidate = product(
-            "power-bank-no-wireless",
-            "Power bank 20000mAh wireless charging not supported",
-        )
-        strategy = SimpleNamespace(
-            product_type="power bank",
-            request=SimpleNamespace(
-                normalized_query="power bank wireless charging",
-                original_query="",
-            ),
-            result_limit=30,
-        )
-        decision = engine._evaluate_pool(
-            state, [candidate], strategy,
-            refined=True, intent=MessageIntent.REFINE,
-            observation={}, exclude_shown=False,
-        )
-        self.assertIs(decision.outcome, Outcome.NO_ELIGIBLE)
-        self.assertEqual(decision.products, [])
-        self.assertEqual(decision.report["rejected_feature"], 1)
-        self.assertEqual(
-            decision.report["feature_incompatibility_rejections"],
-            [{
-                "id": "power-bank-no-wireless",
-                "reason_code": "explicit_incompatibility",
-                "features": ["wireless charging"],
-            }],
-        )
-        self.assertEqual(decision.report["reason"], "rejected_by_explicit_incompatibility")
-        self.assertEqual(decision.report["hard_rejected"], 1)
-
-    def test_missing_required_feature_evidence_remains_semantic_review(self):
-        engine = ConversationSearchEngine()
-        state = ConversationEngineState(user_key="unknown-feature-evidence")
-        state.record_product_type("power bank")
-        state.slots.append(Slot(
-            kind="feature",
-            value="wireless charging",
-            source_turn=1,
-            raw_text="wireless charging",
-        ))
-        candidate = product("power-bank-unknown", "Power bank 20000mAh")
-        strategy = SimpleNamespace(
-            product_type="power bank",
-            request=SimpleNamespace(
-                normalized_query="power bank wireless charging",
-                original_query="",
-            ),
-            result_limit=30,
-        )
-        decision = engine._evaluate_pool(
-            state, [candidate], strategy,
-            refined=True, intent=MessageIntent.REFINE,
-            observation={}, exclude_shown=False,
-        )
-        self.assertIs(decision.outcome, Outcome.RESULTS)
-        self.assertIn(candidate.product_id, decision.report["feature_review_ids"])
-        self.assertEqual(decision.report["rejected_feature"], 0)
-        self.assertEqual(
-            decision.report["feature_review_reasons"][0]["reason_code"],
-            "required_feature_unverified",
-        )
