@@ -381,7 +381,7 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(observed, [True, False])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
-        self.assertEqual(decision.report["review_eligible"], 70)
+        self.assertEqual(decision.report["review_eligible"], 80)
         self.assertEqual(decision.report["safe_ranked"], 40)
         self.assertEqual(decision.report["hard_rejected"], 0)
         self.assertEqual(len(selector.await_args.args[0]), 70)
@@ -431,8 +431,8 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(observed, [True, False])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
         self.assertEqual(decision.report["hard_rejected"], 40)
-        self.assertEqual(decision.report["review_eligible"], 70)
-        self.assertEqual(decision.report["safe_ranked"], 70)
+        self.assertEqual(decision.report["review_eligible"], 80)
+        self.assertEqual(decision.report["safe_ranked"], 80)
         self.assertEqual(len(selector.await_args.args[0]), 70)
 
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
