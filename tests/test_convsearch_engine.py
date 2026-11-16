@@ -381,10 +381,10 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(observed, [True, False])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
-        self.assertEqual(decision.report["review_eligible"], 80)
+        self.assertEqual(decision.report["review_eligible"], 70)
         self.assertEqual(decision.report["safe_ranked"], 40)
         self.assertEqual(decision.report["hard_rejected"], 0)
-        self.assertEqual(len(selector.await_args.args[0]), 80)
+        self.assertEqual(len(selector.await_args.args[0]), 70)
 
     async def test_pagination_does_not_count_hard_type_rejects_as_eligible(self):
         from services.convsearch.retrieval import BackendOutcome
@@ -431,9 +431,9 @@ class BroadRetrievalTargetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(observed, [True, False])
         self.assertEqual(decision.outcome, Outcome.RESULTS)
         self.assertEqual(decision.report["hard_rejected"], 40)
-        self.assertEqual(decision.report["review_eligible"], 80)
-        self.assertEqual(decision.report["safe_ranked"], 80)
-        self.assertEqual(len(selector.await_args.args[0]), 80)
+        self.assertEqual(decision.report["review_eligible"], 70)
+        self.assertEqual(decision.report["safe_ranked"], 70)
+        self.assertEqual(len(selector.await_args.args[0]), 70)
 
     async def test_unavailable_ai_keeps_retrieval_target_at_requested_display_count(self):
         from services.convsearch.retrieval import BackendOutcome
@@ -697,7 +697,6 @@ class EngineScenarioTests(unittest.TestCase):
                     user_key=f"subordinate-feature-{index}"
                 )
                 state.record_product_type("шуруповёрт")
-
                 self.assertIsNone(_explicit_requested_product_type(message))
                 self.assertIsNone(_product_type_of(message))
                 observation = state.observe(message)
@@ -1206,7 +1205,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0]["wanted"], AI_CONVERSATION_SELECTION_LIMIT)
         self.assertEqual(calls[1]["wanted"], AI_CONVERSATION_SELECTION_LIMIT - 2)
-        self.assertEqual(len(calls[1]["ids"]), 23)
+        self.assertEqual(len(calls[1]["ids"]), 18)
         self.assertNotIn("candidate-0", calls[1]["ids"])
         self.assertNotIn("candidate-1", calls[1]["ids"])
         self.assertEqual(
@@ -2328,4 +2327,3 @@ class SelectorIdentityScopeTests(unittest.IsolatedAsyncioTestCase):
             [item.product_id for item in decision.products],
             [reviewed.product_id, ordinary.product_id],
         )
-
