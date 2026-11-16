@@ -603,3 +603,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 
 
 - The manual-only legacy diagnostic workflow was also hardened: checkout/setup-python upgraded to `@v7`, token restricted to `contents: read`, and checkout credentials are not persisted. It remains `workflow_dispatch` only so diagnostic suites do not run on every push. Commit `b3065f8`; the workflow itself has not yet been manually dispatched after this update.
+
+
+- Final CI verification after primary and diagnostic workflow hardening: branch HEAD `3793d4bedd0cafe297124a25dfbe491967250e1c`, run [#43892353377](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43892353377) — SUCCESS. Focused **689 passed, 1 deselected, 604 subtests**; configured broad **2,308 passed, 2 deselected, 1,259 subtests**. Dependency lock, `pip check`, production compile and live-smoke syntax checks passed. One upstream Google GenAI SDK deprecation warning remains. This does not manually execute `.github/workflows/legacy-test-audit.yml`; that diagnostic workflow remains manual-only.
