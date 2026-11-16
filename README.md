@@ -76,68 +76,27 @@ Telegram handler renders real product cards and affiliate URLs
 
 ```
 shorts-chill-shop-bot/
-├── .env                     # локальные секреты (не коммитится)
-├── .env.example             # шаблон конфигурации
-├── .gitignore
-├── requirements.txt         # рантайм-зависимости
-├── requirements-dev.txt     # опционально: pytest
-├── README.md
-├── main.py                  # только запуск процесса
-│
-├── bot/
-│   └── __init__.py          # фабрика Application, регистрация хендлеров, DI
-│
-├── config/
-│   └── settings.py          # загрузка .env, MarketplaceCredentials, Settings
-│
-├── models/                  # Pydantic-модели (независимы от Telegram и API)
-│   ├── product.py           # Product, Marketplace, Availability
-│   └── search_request.py    # SearchRequest, SortPreference
-│
-├── database/
-│   ├── models.py            # DDL-константы (users, history, favorites, ...)
-│   └── database.py          # асинхронный слой доступа (aiosqlite)
-│
-├── handlers/                # Telegram-хендлеры
-│   ├── common.py            # DI, кэш сессий, экранирование
-│   ├── start.py             # /start, /help, главное меню
-│   ├── search.py            # поиск, one-card навигация, кнопки карточек
-│   ├── discovery.py         # «✨ Находки» (G24-фид), категории, поиск по фото (Gemini vision)
-│   ├── hot_discounts.py     # экран «Горячие скидки» (4 раздела)
-│   ├── region.py            # экран «Валюта» (пункт необязательный)
-│   ├── favorites.py         # /favorites
-│   └── settings.py          # /tracking, /stats, экран настроек
-│
-├── keyboards/
-│   ├── main.py              # главное инлайн-меню (10 секций + канал)
-│   ├── products.py          # клавиатуры товаров и списков
-│   ├── hot_discounts.py     # клавиатура «Горячих скидок»
-│   └── admin.py             # клавиатура /admin
-│
-├── curation/
-│   ├── pipeline.py          # стадии: качество, boredom, дедупы, разнообразие
-│   └── integration.py       # CurationGate: стык пайплайна с SQLite
-│
+├── .env.example
+├── requirements.txt / requirements-dev.txt / requirements.lock
+├── main.py, manage_sales.py
+├── bot/                       # Application factory, DI, handler registration
+├── config/                    # Settings, catalog, promo and hot-discount config
+├── models/                    # Pydantic product and search-request models
+├── database/                  # SQLite access, schema and numbered migrations
+├── handlers/                  # Telegram commands and user-facing flows
+├── keyboards/                 # Main menu, product, admin and section keyboards
+├── curation/                  # Feed curation pipeline and integration
 ├── services/
-│   ├── ai_service.py        # Gemini (парсинг + vision) + локальный парсер
-│   ├── search_service.py    # оркестрация поиска
-│   ├── comparison_service.py# программная фильтрация/сортировка
-│   ├── feed_curation.py     # хелперы фидов (near-dup, разнообразие, штраф)
-│   ├── product_normalizer.py# нормализация значений: невидимые символы/BOM, пробелы, числа
-│   ├── product_identity.py  # ключи дедупликации товаров
-│   ├── relevance.py         # релевантность выдачи (пер-заголовочная)
-│   ├── price_tracker.py     # планировщик проверки цен (JobQueue)
-│   ├── analytics.py         # словарь событий и запись в analytics_events
-│   └── marketplaces/
-│       ├── base.py            # MarketplaceProvider (ABC)
-│       ├── aliexpress.py      # AliExpress Affiliate API (поиск, детали, фид)
-│       └── aliexpress_client.py # TOP-протокол: подпись, шлюз, разбор ответов
-│
-├── utils/
-│   ├── logging.py           # логирование с маскированием секретов
-│   └── formatting.py        # форматирование карточек
-│
-└── tests/                   # unittest, без сети и без реальных ключей
+│   ├── convsearch/            # Authoritative Option C conversation engine
+│   ├── marketplaces/          # AliExpress Affiliate API provider and TOP client
+│   └── ...                    # AI, search, ranking, tracking and analytics
+├── scripts/                   # Maintenance, deployment and diagnostics
+├── deploy/                    # systemd service and SQLite backup timer
+├── utils/                     # Logging, formatting and shared helpers
+├── assets/                    # Static project assets
+├── tests/                     # Offline tests and explicitly opt-in diagnostics
+├── docs/                      # Architecture, guardrails, audits and maintenance notes
+└── .github/workflows/         # Focused regression CI and manual legacy audit
 ```
 
 ## Установка и запуск (Windows)
@@ -297,7 +256,7 @@ ALIEXPRESS_APP_SECRET=ваш_секрет
 **3. Проверить подключение:**
 
 ```powershell
-python -m unittest discover -s tests -t . -v   # офлайн-тесты с mock-транспортом
+python -m pytest -q tests/test_database.py tests/test_bot_startup.py
 python main.py                                 # бот сообщит о настроенных источниках
 ```
 
