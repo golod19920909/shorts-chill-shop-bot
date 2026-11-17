@@ -27,7 +27,8 @@ They remain active. Before editing catalog subcategories, repeat-search behavior
   «Показать ещё» remains a separate final-card action and also excludes
   products already returned by refreshes in the same session scope.
 - Offline tests must cover accessory/spare-part rejection, legitimate product
-  sets, finalizer revalidation, and final-card-only button visibility.
+  sets, finalizer revalidation, and the shared refresh button on every card;
+  thematic continuation controls remain final-card-only.
 
 - The bounded real-provider acceptance runner is
   `scripts/validate_catalog_subcategories.py`. Use it only for explicit

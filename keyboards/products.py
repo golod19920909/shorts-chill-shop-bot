@@ -7,6 +7,7 @@ offers:
     ❤️ В избранное | 🔗 Поделиться
     🔔 Следить за ценой | 🔕 Не отслеживать (once tracking is active)
     ◀️ Назад | ➡️ Следующий
+    🔄 Обновить подборку
 
 ``🛒 Купить`` exists only when the marketplace really returned an
 affiliate link for this product: this project never sends the user to a
@@ -282,9 +283,8 @@ def browse_card_keyboard(
             ]
         )
 
-    # Curated catalog shelves expose a fresh provider search only after the
-    # user reaches the final card. Other browsing flows keep their existing
-    # keyboard and never receive this category-only action.
+    # Thematic continuation / legacy category-new-search actions remain
+    # final-card-only. The shared refresh action above is available on every card.
     if new_search_callback and index == count - 1:
         rows.append(
             [
