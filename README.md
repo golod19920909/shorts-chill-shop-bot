@@ -502,7 +502,7 @@ commit, восстанавливает runtime-зависимости и про�
   намеренно исключает отдельные legacy и смешанные модули; это не полный
   unfiltered run. Изолированный диагностический workflow для них:
   `.github/workflows/legacy-test-audit.yml`.
-  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352).
+  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014369963).
 
 ## Что намеренно НЕ реализовано
 

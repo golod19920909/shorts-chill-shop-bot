@@ -24,8 +24,8 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
   and `persist-credentials: false`.
 - Latest verified branch-head CI (17 Nov 2026):
-  [#44014178352](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352)
-  on `9291b5e733fa694557a2c2b6bfe769f8f3aea8d0` — PASS. Focused offline suite:
+  [#44014369963](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014369963)
+  on `e28a608ee6f62fefb3bd5267b9b7002fe54ef29d` — PASS. Focused offline suite:
   **690 passed, 1 deselected, 604 subtests**; configured broad offline suite:
   **2,309 passed, 2 deselected, 1,259 subtests**. Dependency lock consistency,
   `pip check`, production compile and live-smoke syntax compile passed. One

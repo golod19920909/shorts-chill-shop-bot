@@ -814,8 +814,9 @@ API/Telegram вызовов в CI не было.
   с активными переменными. Runtime конфигурация не менялась.
 - Commit test: `fa5017c9f561c842fda041f051ecdd8b9686e180`.
 - Commit env template: `9291b5e733fa694557a2c2b6bfe769f8f3aea8d0`.
-- CI run [#44014178352](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352)
-  на commit `9291b5e` — SUCCESS:
+- Final documentation commits: `422a8c77`, `1d64a29e`, `e28a608e`; all are documentation-only.
+- CI run [#44014369963](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014369963)
+  на commit `e28a608` — SUCCESS:
   focused **690 passed, 1 deselected, 604 subtests**;
   configured broad **2,309 passed, 2 deselected, 1,259 subtests**;
   dependency lock consistency, `pip check`, production compile и
