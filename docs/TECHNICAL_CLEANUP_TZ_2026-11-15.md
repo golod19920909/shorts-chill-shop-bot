@@ -770,3 +770,22 @@ API/Telegram вызовов в CI не было.
 - Изменение ограничено диагностическим CI workflow; production-код, retrieval, Gemini selection и пользовательские потоки не менялись.
 - Commit workflow: `2945aac842dd622e576f058a34db58dce8baa83f`; документация: `63587b3fa4c01b85d13f0b0492b7aff03b0a01bc`.
 - Workflow остаётся `workflow_dispatch` only и после изменения ещё не запускался. Результаты его тестов не заявляются до фактического ручного запуска.
+
+### Документационная сверка после продолжения работ — 17 ноября 2026
+
+- Исправлена устаревшая верхняя сводка в `PROJECT_CONTEXT.md`: теперь она
+  прямо фиксирует, что P0.1/P0.2 retrieval-stopping и Gemini-continuation
+  изменения возвращены к baseline и не являются текущей реализацией.
+- Исправлено противоречие в `docs/LEGACY_TEST_AUDIT_2026-11-15.md`: прежняя
+  формулировка ошибочно трактовала общее согласие на уборку репозитория как
+  разрешение менять защищённые алгоритмы «Умного поиска». Указано, что
+  конкретные изменения были отменены коммитами `0d8e3ced` и `73aba910`
+  и требуют отдельного явного согласия.
+- Проверен CI run `43931472972` на HEAD
+  `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2`: SUCCESS, focused **689 passed,
+  1 deselected, 604 subtests**; configured broad **2,308 passed,
+  2 deselected, 1,259 subtests**; lock consistency, `pip check`, compile и
+  live-smoke syntax compile PASS.
+- Последующие документационные исправления `8784af9` и `ef8bdbd` ещё не
+  проверены отдельным CI на новом HEAD. Пользовательские Telegram-проверки и
+  реальный 70-card golden set остаются невыполненными.
