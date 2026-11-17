@@ -213,8 +213,8 @@ async def refresh_results_callback(
         return
 
     busy.add(scope)
-    await query.answer("Обновляю подборку…")
     try:
+        await query.answer("Обновляю подборку…")
         user_id = await common.register_user(update, context)
         telegram_id = update.effective_user.id if update.effective_user else None
         chat_id = update.effective_chat.id if update.effective_chat else None
