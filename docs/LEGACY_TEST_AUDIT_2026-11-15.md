@@ -70,49 +70,28 @@ algorithm changes. The engine and tests were restored to baseline
 `ConstraintAndFusionRegressionTests.test_partial_mandatory_feature_stays_hidden_if_gemini_times_out`.
 This historical observation is not the current authorization state.
 
-## Interim narrow authorization (16 November 2026; later superseded)
+## Interim narrow authorization and subsequent scope correction — 16 November 2026
 
 At an intermediate stage, the owner permitted only the test expectation change
-from `unverified_required_features` to `rejected_by_type_gate`. At that point
-the algorithm was intentionally left unchanged. A valid-empty continuation
-expectation was also aligned with the existing implementation. The narrow
-permission was subsequently superseded by explicit approval of the complete
-repository-cleanup specification, recorded below.
+from `unverified_required_features` to `rejected_by_type_gate`. A valid-empty
+continuation expectation was also aligned with the then-existing implementation.
+A later general approval to proceed with the repository-cleanup specification
+did **not** remove the explicit boundary in section 2.8 of
+`docs/TECHNICAL_CLEANUP_TZ_2026-11-15.md`: user-facing behavior of «Умный поиск»
+and «Находки» must not change without separate approval of the concrete change.
+
+An earlier draft of this audit incorrectly described that general cleanup
+approval as authorization for the P0 retrieval-stopping and Gemini-continuation
+algorithm changes. That interpretation was corrected after review: those
+algorithm changes and their regression tests were reverted to baseline
+`3822fc95bed11070ba8f46c02ce4cdf69cc58af5` (revert commits
+`0d8e3ced` and `73aba910`). They are not part of the current implementation
+and must not be reintroduced without separate explicit approval.
 
 The opt-in selector capture regression tests additionally verify redaction of
 URLs, email addresses, phone numbers, Telegram IDs and credential-like values.
-The later configured CI run confirmed these tests; see the superseding
-authorization section.
-
-
-## Superseding authorization — 2026-11-16
-
-After the earlier narrow test-only authorization recorded above, the owner
-explicitly approved execution of the full repository-cleanup technical
-specification. That later approval supersedes the earlier statement that
-algorithm changes were not authorized.
-
-The approved P0 implementation now:
-- uses the safe plus semantic-review-eligible pool for retrieval continuation,
-  while keeping hard rejects outside the selector window;
-- preserves bounded pages, selector windows, route order and prefetch
-  cancellation;
-- prevents a second Gemini pass after a valid empty response and limits valid
-  partial continuation to unselected candidate IDs under the shared deadline;
-- emits distinct continuation telemetry and structured counts/duration;
-- distinguishes explicit incompatibility from missing feature evidence;
-- keeps unknown mandatory-feature evidence quarantined and never treats a
-  missing description phrase as proof of incompatibility.
-
-The additional P0/P1 regression tests were confirmed by the configured CI run
-on commit `6e481c2`: focused 598 passed, broad configured offline suite 2295
-passed, with the documented deselections and one third-party deprecation
-warning. The broad suite remains filtered; this is not an unfiltered run of
-every historical test module.
-
-The owner-side Telegram acceptance scenarios and the real 70-card AliExpress
-gold-set with manual labels remain pending. No local .env, SQLite database,
-backup, user PC or production data was accessed or modified.
+These diagnostic-only tests do not authorize changes to the protected search
+algorithm or Gemini prompt.
 
 
 ## Targeted diagnostic execution — 2026-11-16
