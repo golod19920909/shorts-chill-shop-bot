@@ -677,3 +677,10 @@ The dated implementation notes and prior live-test findings have been preserved 
   `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2`; documentation-only commits
   `8784af9` and `ef8bdbd` are newer and their CI is pending. Do not claim
   their CI result until the new run completes.
+
+- README Gemini reserve-model description was checked against
+  `services/ai_service.py::_generate`. It incorrectly claimed reserve was
+  skipped for account-wide quota/rate limits; implementation makes one reserve
+  attempt for classified quota/rate-limit errors, then stops if reserve also
+  fails. README now describes this accurately. Commit:
+  `6e768b12317a4a47e50ed3d16034b53fce3cffb5`.
