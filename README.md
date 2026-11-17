@@ -496,13 +496,13 @@ commit, восстанавливает runtime-зависимости и про�
 * Офлайн-проверки запускаются в GitHub Actions. Последняя проверенная
   точка 16.11.2026: production compile, syntax check live smoke scripts,
   dependency lock consistency и `pip check` проходят; focused suite —
-  **689 passed, 1 deselected (604 subtests)**; configured broad suite —
-  **2,308 passed, 2 deselected (1,259 subtests)**. Осталось одно
+  **690 passed, 1 deselected (604 subtests)**; configured broad suite —
+  **2,309 passed, 2 deselected (1,259 subtests)**. Осталось одно
   предупреждение upstream Google GenAI SDK о deprecation. Broad suite
   намеренно исключает отдельные legacy и смешанные модули; это не полный
   unfiltered run. Изолированный диагностический workflow для них:
   `.github/workflows/legacy-test-audit.yml`.
-  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43927807717).
+  [Последний успешный CI run](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352).
 
 ## Что намеренно НЕ реализовано
 
