@@ -2,7 +2,7 @@
 
 Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 
-## Current maintenance state (2026-11-16)
+## Current maintenance state (2026-11-17)
 
 - Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not
   merge to `main` or move the production updater branch without separate
@@ -24,16 +24,21 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
   and `persist-credentials: false`.
 - Latest verified branch-head CI (17 Nov 2026):
-  [#43931472972](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43931472972)
-  on `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2` — PASS. Focused offline suite:
-  **689 passed, 1 deselected, 604 subtests**; configured broad offline suite:
-  **2,308 passed, 2 deselected, 1,259 subtests**. Dependency lock consistency,
+  [#44014178352](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352)
+  on `9291b5e733fa694557a2c2b6bfe769f8f3aea8d0` — PASS. Focused offline suite:
+  **690 passed, 1 deselected, 604 subtests**; configured broad offline suite:
+  **2,309 passed, 2 deselected, 1,259 subtests**. Dependency lock consistency,
   `pip check`, production compile and live-smoke syntax compile passed. One
-  upstream Google GenAI SDK deprecation warning remains.
+  upstream Google GenAI SDK deprecation warning remains. The latest test-only
+  addition covers concurrent SQLite writes through independent connections.
 - Configuration tests explicitly clear admin IDs, analytics dashboard and
   price-tracking environment variables and cover safe defaults, parsing,
   dashboard port bounds and disabled tracking interval; they are included in
   the passing focused suite.
+- `.env.example` now describes Gemini as the AI feature provider (not only
+  natural-language parsing), documents the dashboard's HTTPS-only public
+  exposure rule in one place, and has no duplicate dashboard block. This is
+  documentation/template cleanup; runtime settings are unchanged.
 - Focused CI now selects reviewed classes from mixed modules rather than
   excluding every useful test with the whole file: discovery favorites/text,
   category-country, menu wiring, shown-history, relevance and engine
