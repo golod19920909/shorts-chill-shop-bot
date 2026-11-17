@@ -74,9 +74,21 @@ async def _refresh_findings(
     )
     merged: SearchOutcome | None = None
     collected = []
+    pages_to_fetch = _feed_page_numbers(start_page, max_pages)
+    page_index = 0
+    pages_asked = 0
     reached_end = False
+    restarted_from_first_page = False
+    recovery_page_requested = False
 
-    for page in _feed_page_numbers(start_page, max_pages):
+    while (
+        page_index < len(pages_to_fetch)
+        and pages_asked < max_pages
+        and len(collected) < candidate_target
+    ):
+        page = pages_to_fetch[page_index]
+        if restarted_from_first_page and page == 1:
+            recovery_page_requested = True
         page_exclude = set(exclude)
         page_exclude.update(identity_pair(product) for product in collected)
         page_outcome = await search_service.find_feed_page(
@@ -86,17 +98,38 @@ async def _refresh_findings(
             exclude=page_exclude,
             limit=FEED_CANDIDATE_PAGE_SIZE,
         )
+        pages_asked += 1
         if merged is None:
             merged = page_outcome
         else:
             _merge_feed_outcome(merged, page_outcome)
         collected.extend(page_outcome.products)
 
+        if not page_outcome.products_before_filtering:
+            # Match the regular Findings opener: a stale distant cursor is
+            # retried from page 1 within the same bounded API-call budget.
+            if (
+                page_index == 0
+                and page > 1
+                and not collected
+                and not restarted_from_first_page
+            ):
+                restarted_from_first_page = True
+                remaining = max_pages - pages_asked
+                pages_to_fetch[page_index + 1 :] = (
+                    _feed_page_numbers(1, remaining) if remaining else []
+                )
+                page_index += 1
+                continue
+            if page == 1 and not collected:
+                reached_end = True
+                break
+            page_index += 1
+            continue
+
         if len(collected) >= candidate_target:
             break
-        if page == 1 and not page_outcome.products_before_filtering and not collected:
-            reached_end = True
-            break
+        page_index += 1
 
     if merged is None:
         merged = SearchOutcome(
@@ -107,8 +140,8 @@ async def _refresh_findings(
     next_page = _next_feed_page(
         start_page,
         reached_end=reached_end,
-        restarted_from_first_page=False,
-        recovery_page_requested=False,
+        restarted_from_first_page=restarted_from_first_page,
+        recovery_page_requested=recovery_page_requested,
     )
     context.user_data[FEED_PAGE_KEY] = next_page
     await _remember_feed_page(context, user_id, next_page)
@@ -273,7 +306,10 @@ async def refresh_results_callback(
         from services.convsearch.state import ConversationEngineState
 
         conversation_state = context.user_data.get("_convsearch_state")
-        if not isinstance(conversation_state, ConversationEngineState):
+        if (
+            not isinstance(conversation_state, ConversationEngineState)
+            or conversation_state.is_expired()
+        ):
             conversation_state = None
 
         new_session_id = await send_search_results(

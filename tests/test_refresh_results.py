@@ -307,6 +307,55 @@ class ProductCardRefreshTests(unittest.TestCase):
         self.assertIn("Товар 11", query.edits[0][0])
         self.assertEqual(context.user_data["feed_page"], 3)
 
+    def test_findings_refresh_recovers_a_stale_cursor_within_the_page_budget(self):
+        old = make_product(20)
+        fresh = make_product(21)
+        request = SearchRequest(
+            original_query="находки AliExpress",
+            mode=SearchMode.FEED,
+            page_no=100,
+        )
+        initial = SearchOutcome(
+            request=request,
+            products=[old],
+            searched_marketplaces=["AliExpress"],
+        )
+        stale_page = SearchOutcome(
+            request=request,
+            products=[],
+            products_before_filtering=0,
+            searched_marketplaces=["AliExpress"],
+        )
+        recovered_page = SearchOutcome(
+            request=request.model_copy(update={"page_no": 1}),
+            products=[fresh],
+            products_before_filtering=1,
+            searched_marketplaces=["AliExpress"],
+        )
+        service = QueueFeedService([stale_page, recovered_page])
+        context = FakeContext(search_service=service)
+        context.user_data["feed_page"] = 100
+        session_id = run(
+            send_search_results(
+                context,
+                47,
+                initial,
+                pre_curated=True,
+                track_shown=True,
+                follow_up=False,
+            )
+        )
+
+        query = FakeQuery(f"{CB_PREFIX_REFRESH}:{session_id}")
+        run(refresh_results_callback(FakeUpdate(query), context))
+
+        self.assertEqual([call["page"] for call in service.calls], [100, 1])
+        self.assertTrue(
+            all(identity_pair(old) in call["exclude"] for call in service.calls)
+        )
+        self.assertIn("Товар 21", query.edits[0][0])
+        self.assertEqual(context.user_data["feed_page"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
