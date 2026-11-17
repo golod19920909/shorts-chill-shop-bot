@@ -7,12 +7,12 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 - Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not
   merge to `main` or move the production updater branch without separate
   approval.
-- P0 retrieval stopping counts both safe and semantic-review-eligible
-  candidates; hard rejects stay outside the selector window. Bounded pages,
-  grounded route order and prefetch cancellation remain intact.
-- Gemini continuation distinguishes valid empty/partial/full outcomes,
-  limits partial continuation to unselected IDs under the shared deadline,
-  and keeps unknown IDs/evidence violations out of accepted results.
+- **Protected Smart Search algorithm remains at baseline**
+  `3822fc95bed11070ba8f46c02ce4cdf69cc58af5` for retrieval stopping,
+  candidate-pool semantics, route order, ranking and Gemini continuation.
+  Earlier P0.1/P0.2 algorithm changes were reverted; do not reintroduce them
+  without separate explicit approval. The opt-in selector snapshot privacy
+  fix is diagnostic-only and does not change the Gemini prompt or search flow.
 - SQLite schema migrations 001-003 are atomic and tested on temporary DBs for
   legacy upgrade, idempotence, rollback, foreign keys and delete semantics.
   No local or production database was opened or modified.
@@ -23,9 +23,9 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 - The primary conversational regression workflow is hardened with
   `actions/checkout@v7`, `actions/setup-python@v7`, read-only `contents: read`,
   and `persist-credentials: false`.
-- Latest verified branch-head CI:
-  [#43910671976](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43910671976)
-  on `322b31a75bbe42cea74bdf05b97abac66d7331f2` — PASS. Focused offline suite:
+- Latest verified branch-head CI (17 Nov 2026):
+  [#43931472972](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/43931472972)
+  on `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2` — PASS. Focused offline suite:
   **689 passed, 1 deselected, 604 subtests**; configured broad offline suite:
   **2,308 passed, 2 deselected, 1,259 subtests**. Dependency lock consistency,
   `pip check`, production compile and live-smoke syntax compile passed. One
@@ -658,3 +658,11 @@ The dated implementation notes and prior live-test findings have been preserved 
 - CI для README deployment update был запущен (run `43931387907`) и на момент
   этой записи выполнялся; более поздние commits README context / requirements
   также требуют проверки CI на актуальном HEAD.
+
+- 17 Nov follow-up: README Linux deployment/backup instructions and
+  `requirements-dev.txt` pytest guidance were corrected. Commits:
+  `b9865b2f5c4dffb333e040b6270ad73a54198149`,
+  `5d3383aa5838d58822fef7ceada74f67e1011f5c`; context follow-ups:
+  `58b8eca702ac686d7934941e4279cb3d451d9b59`,
+  `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2`. CI run
+  `43931472972` passed on the latest branch HEAD.
