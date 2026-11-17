@@ -128,6 +128,13 @@ async def _show_more_thematic_products(
             await common.seen_products(context, user_id, flow=_theme_history_flow(subcategory.code))
         )
         excluded.update(identity_pair(product) for product in previous.products)
+        from handlers.refresh import get_refresh_seen
+        excluded.update(
+            get_refresh_seen(
+                context,
+                common.get_outcome_meta(context, session_id).get("refresh_scope"),
+            )
+        )
         max_price = THEME_MAX_PRICE_BY_CODE.get(subcategory.code)
         outcome = await common.get_search_service(context).find_by_subcategory(
             subcategory,
@@ -187,6 +194,7 @@ async def _show_more_thematic_products(
             curation_mode=MODE_CATEGORY,
             home_callback=CB_CATALOG_HOME,
             strict_navigation=True,
+            refresh_scope=common.get_outcome_meta(context, session_id).get("refresh_scope"),
         )
     except Exception:
         logger.exception("Thematic collection refresh failed: %s", subcategory.code)

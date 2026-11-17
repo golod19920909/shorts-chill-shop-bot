@@ -41,6 +41,7 @@ from keyboards.products import (
     CB_PREFIX_BUY,
     CB_PREFIX_CATEGORY_NEW_SEARCH,
     CB_PREFIX_FAVORITE,
+    CB_PREFIX_REFRESH,
     CB_PREFIX_TRACK,
     LABEL_NEW_SEARCH,
     browse_card_keyboard,
@@ -1371,6 +1372,9 @@ async def send_search_results(
     curation_history: bool = True,
     minimum_products: int = 0,
     strict_navigation: bool = False,
+    refresh_scope: str | None = None,
+    refresh_broaden: bool = True,
+    refresh_pre_curated: bool | None = None,
 ) -> str | None:
     """Open a result set ON the first product card.
 
@@ -1527,7 +1531,20 @@ async def send_search_results(
         record_views=record_views,
         home_callback=home_callback,
     )
-    common.get_outcome_meta(context, session_id)["strict_navigation"] = strict_navigation
+    meta = common.get_outcome_meta(context, session_id)
+    meta["strict_navigation"] = strict_navigation
+    meta["refresh_scope"] = refresh_scope or session_id
+    meta["refresh_options"] = {
+        "track_shown": track_shown,
+        "curation_mode": curation_mode,
+        "pre_curated": pre_curated if refresh_pre_curated is None else refresh_pre_curated,
+        "curation_history": curation_history,
+        "record_views": record_views,
+        "home_callback": home_callback,
+        "minimum_products": minimum_products,
+        "strict_navigation": strict_navigation,
+        "refresh_broaden": refresh_broaden,
+    }
     _log_unapplied_constraints(outcome)
     # One INFO block per opened screen: the exact ordered list Telegram is
     # about to render (rank, title, price/currency, product id) - after the
@@ -1606,14 +1623,12 @@ def _browse_keyboard(
         product,
         back_callback=back_callback,
         tracking=tracked,
+        refresh_callback=f"{CB_PREFIX_REFRESH}:{session_id}",
         new_search_callback=(
             f"{CB_THEME_PREFIX}:more:{session_id}"
             if outcome.request.subcategory_code
             and outcome.request.subcategory_code.startswith("theme_")
-            else (
-                f"{CB_PREFIX_CATEGORY_NEW_SEARCH}:{session_id}"
-                if outcome.request.subcategory_code else None
-            )
+            else None
         ),
         new_search_label=(
             "Показать ещё" if meta.get("home_callback") else LABEL_NEW_SEARCH

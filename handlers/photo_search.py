@@ -197,6 +197,7 @@ async def photo_message_handler(
             header=f"{PHOTO} <b>Поиск по фото:</b> {query}",
             user_id=user_id,
             back_callback="menu:photo",
+            refresh_broaden=False,
         )
         return
 

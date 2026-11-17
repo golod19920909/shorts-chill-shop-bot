@@ -16,10 +16,16 @@ They remain active. Before editing catalog subcategories, repeat-search behavior
 - Reuse the category-general validator in
   `services/convsearch/type_validation.py`; keep category-specific product
   types and exclusions in catalog configuration.
-- The `🔄 Новый поиск` callback is only for a category subcategory shelf and
-  appears on its final card. It must retain the same subcategory, exclude
-  prior batches and persistent shown history, prevent concurrent/replayed
-  callbacks, and never mutate favorites or price tracking.
+- Every product-card browsing session exposes «🔄 Обновить подборку» on
+  every card. It re-runs the same validated request (or the Findings-specific
+  bounded feed path), excludes the current and prior refreshed batches plus
+  the persistent shown history for that flow, and preserves section context.
+  Refreshes must be serialized and stale/replayed callbacks rejected; they
+  never mutate favorites or price tracking.
+- The legacy `pcnew` callback remains supported for old category cards, but
+  new category cards use the shared refresh action instead. Thematic
+  «Показать ещё» remains a separate final-card action and also excludes
+  products already returned by refreshes in the same session scope.
 - Offline tests must cover accessory/spare-part rejection, legitimate product
   sets, finalizer revalidation, and final-card-only button visibility.
 

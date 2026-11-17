@@ -43,6 +43,11 @@ Guidance for AI agents and maintainers working in this repository.
    reroute, or alter the behavior of the main-menu «Умный поиск» and
    «✨ Находки» flows as a side effect of repository cleanup or work on other
    features. A change to either requires the user's separate explicit approval.
+10. **Product-card refresh is a narrow approved UI action.** The explicit
+    «🔄 Обновить подборку» callback may re-run the same validated request with
+    current/prior refreshed batches excluded. It must not alter Smart Search
+    or Findings retrieval, relevance, selector, ranking, or curation logic;
+    Findings keeps its dedicated bounded feed path.
 
 ## Test commands
 

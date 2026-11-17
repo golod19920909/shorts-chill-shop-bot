@@ -1591,5 +1591,6 @@ async def _legacy_photo_message(
         wrap_up_keyboard=back_to_menu_keyboard(),
         user_id=user_id,
         telegram_id=telegram_id,
+        refresh_broaden=False,
     )
 

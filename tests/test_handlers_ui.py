@@ -53,6 +53,7 @@ from keyboards.products import (
     CARD_ACTION_LABELS,
     CARD_NAV_LABELS,
     LABEL_BUY,
+    LABEL_REFRESH,
     ai_menu_keyboard,
     browse_card_keyboard,
     favorites_list_keyboard,
@@ -513,6 +514,7 @@ class SendSearchResultsTests(unittest.TestCase):
         for label in CARD_NAV_LABELS:
             self.assertIn(label, labels)
         self.assertNotIn("🔍 Сравнить", labels)
+        self.assertIn(LABEL_REFRESH, labels)
         callbacks = callbacks_of(card_rows)
         self.assertTrue(any(cb.startswith("pfav:") for cb in callbacks))
         self.assertTrue(any(cb.startswith("ptrack:") for cb in callbacks))

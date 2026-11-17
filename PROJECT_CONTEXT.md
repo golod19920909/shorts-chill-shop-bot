@@ -689,3 +689,11 @@ The dated implementation notes and prior live-test findings have been preserved 
   attempt for classified quota/rate-limit errors, then stops if reserve also
   fails. README now describes this accurately. Commit:
   `6e768b12317a4a47e50ed3d16034b53fce3cffb5`.
+
+
+## Product-card refresh action — 17 Nov 2026
+
+- User explicitly authorized adding «🔄 Обновить подборку» to every product-card browsing screen, including protected «Умный поиск» and «✨ Находки» flows. This is a narrow UI/action addition only; their retrieval, relevance, ranking, selector, and curation algorithms remain unchanged.
+- The shared card keyboard carries a short pref:<session_id> callback on every card. The refresh handler reuses the cached validated SearchRequest, preserves section metadata, and excludes persistent shown history plus the current and prior refreshed batches. It serializes refreshes and rejects stale/replayed callbacks.
+- «✨ Находки» uses its own bounded feed-page refresh and existing feed cursor/history; it does not switch to keyword search. Photo refresh repeats the grounded query without adding broad query variants. Thematic «Показать ещё» remains a distinct action and shares the refresh exclusion scope.
+- The change is made only on chore/repository-cleanup-2026-11-15; local PC, .env, SQLite, main, updater branch, and production deployment are untouched. Awaiting offline CI and user live Telegram acceptance.

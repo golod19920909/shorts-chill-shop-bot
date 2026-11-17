@@ -39,6 +39,7 @@ from handlers import (
     region,
     sales,
     search,
+    refresh,
     start,
 )
 from handlers import settings as settings_handlers
@@ -62,6 +63,7 @@ from keyboards.main import (
 )
 from keyboards.products import (
     CB_PREFIX_CATEGORY_NEW_SEARCH,
+    CB_PREFIX_REFRESH,
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
     CB_PREFIX_BUY,
@@ -371,6 +373,12 @@ def _register_handlers(application: Application) -> None:
     )
     application.add_handler(
         CallbackQueryHandler(search.browse_callback, pattern=f"^{CB_PREFIX_NAV}:")
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            refresh.refresh_results_callback,
+            pattern=f"^{CB_PREFIX_REFRESH}:",
+        )
     )
     # The 🤖 AI menu of a product card (§7): the menu itself and its five
     # actions - both work on the product the card shows, never on a new one.

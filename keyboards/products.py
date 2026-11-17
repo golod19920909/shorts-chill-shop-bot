@@ -59,6 +59,7 @@ CB_PREFIX_CARD_UNTRACK = "ptun"
 #: cached result set. The target index is absolute, so a button that was
 #: left over from an earlier card can never move the user to a wrong item.
 CB_PREFIX_NAV = "pnav"
+CB_PREFIX_REFRESH = "pref"
 
 LABEL_BUY = "\U0001F6D2 Купить"
 LABEL_FAVORITE = "\u2764\uFE0F В избранное"
@@ -71,6 +72,7 @@ LABEL_CARD_BACK = "\u25C0\uFE0F Назад"
 LABEL_CARD_NEXT = "\u27A1\uFE0F Следующий"
 LABEL_CARD_RESTART = "\U0001F501 Сначала"
 LABEL_NEW_SEARCH = "🔄 Новый поиск"
+LABEL_REFRESH = "🔄 Обновить подборку"
 CB_PREFIX_CATEGORY_NEW_SEARCH = "pcnew"
 
 #: The 🤖 AI button exists ONLY on a product card (never in the main menu):
@@ -158,6 +160,7 @@ def browse_card_keyboard(
     tracking: bool = False,
     new_search_callback: str | None = None,
     new_search_label: str = LABEL_NEW_SEARCH,
+    refresh_callback: str | None = None,
     home_callback: str | None = None,
 ) -> InlineKeyboardMarkup:
     """One-card browsing keyboard: actions + prev/next navigation.
@@ -268,6 +271,16 @@ def browse_card_keyboard(
             )
         )
     rows.append(nav)
+
+    if refresh_callback:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    LABEL_REFRESH,
+                    callback_data=refresh_callback,
+                )
+            ]
+        )
 
     # Curated catalog shelves expose a fresh provider search only after the
     # user reaches the final card. Other browsing flows keep their existing
