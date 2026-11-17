@@ -666,3 +666,14 @@ The dated implementation notes and prior live-test findings have been preserved 
   `58b8eca702ac686d7934941e4279cb3d451d9b59`,
   `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2`. CI run
   `43931472972` passed on the latest branch HEAD.
+
+- 17 Nov documentation consistency correction: `docs/LEGACY_TEST_AUDIT_2026-11-15.md`
+  previously overstated the effect of general cleanup approval and implied
+  protected P0 retrieval/continuation algorithm changes were currently
+  authorized. The audit now explicitly records that those changes were
+  reverted to baseline and require separate concrete approval. Commit:
+  `ef8bdbd96f282899ac66ea1586c39f49e61aefa4`.
+- CI run `43931472972` passed on prior HEAD
+  `ce058b3bd8f3a7ac973c06ae433f59f9cea2abd2`; documentation-only commits
+  `8784af9` and `ef8bdbd` are newer and their CI is pending. Do not claim
+  their CI result until the new run completes.
