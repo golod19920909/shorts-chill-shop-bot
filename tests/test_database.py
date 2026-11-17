@@ -375,6 +375,35 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user["username"], "vasya_new")
 
+    def test_concurrent_writes_from_independent_connections_are_preserved(self) -> None:
+        """SQLite serializes concurrent writers without losing committed rows."""
+
+        self.run_async(self.db.initialize())
+
+        async def write_users() -> list[int]:
+            return await asyncio.gather(
+                *(
+                    self.db.get_or_create_user(
+                        telegram_id=8000 + index,
+                        username=f"parallel-{index}",
+                    )
+                    for index in range(6)
+                )
+            )
+
+        user_ids = self.run_async(write_users())
+        self.assertEqual(len(set(user_ids)), 6)
+
+        async def count_users() -> int:
+            async with self.db._connect() as conn:
+                cursor = await conn.execute(
+                    "SELECT COUNT(*) FROM users WHERE telegram_id BETWEEN 8000 AND 8005"
+                )
+                row = await cursor.fetchone()
+                return int(row[0])
+
+        self.assertEqual(self.run_async(count_users()), 6)
+
 
     def test_the_shown_history_keeps_one_scope_per_flow(self) -> None:
         """A search row and a rotation row are different pieces of state."""
