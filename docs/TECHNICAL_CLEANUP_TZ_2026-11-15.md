@@ -796,3 +796,37 @@ API/Telegram вызовов в CI не было.
   может завершиться отказом, после чего цепочка прекращается. Исправлена
   только документация, поведение модели не менялось. Commit
   `6e768b12317a4a47e50ed3d16034b53fce3cffb5`.
+
+### Дополнительная проверка SQLite, env template и финального CI — 17 ноября 2026
+
+- В `tests/test_database.py` добавлен offline regression test конкурентной
+  записи через шесть независимых SQLite connections. Проверяется, что все
+  шесть транзакций завершаются и все строки сохранены. Production database
+  code не менялся.
+- Проверены существующие тесты атомарности миграций: неуспешная миграция
+  откатывает schema changes и запись версии; миграции 001–003 проверяются
+  на legacy upgrade и повторный запуск; foreign keys и ON DELETE semantics
+  покрыты отдельными тестами.
+- В `.env.example` исправлено вводящее в заблуждение название секции Gemini
+  (Gemini используется не только для понимания текста, но и в других AI
+  функциях); дублирующий блок dashboard удалён, правило не выставлять HTTP
+  Basic Auth в открытый интернет без HTTPS reverse proxy оставлено рядом
+  с активными переменными. Runtime конфигурация не менялась.
+- Commit test: `fa5017c9f561c842fda041f051ecdd8b9686e180`.
+- Commit env template: `9291b5e733fa694557a2c2b6bfe769f8f3aea8d0`.
+- CI run [#44014178352](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44014178352)
+  на commit `9291b5e` — SUCCESS:
+  focused **690 passed, 1 deselected, 604 subtests**;
+  configured broad **2,309 passed, 2 deselected, 1,259 subtests**;
+  dependency lock consistency, `pip check`, production compile и
+  live-smoke syntax compile — PASS. Осталось одно upstream предупреждение
+  Google GenAI SDK о deprecated `_UnionGenericAlias`.
+- Broad suite остаётся configured/filtered, а не unfiltered. Изолированный
+  workflow `.github/workflows/legacy-test-audit.yml` остаётся manual-only;
+  его полная матрица после последней настройки не запускалась, и её
+  результаты не заявляются.
+- Пользовательские Telegram acceptance tests и контролируемый 70-card
+  selector golden set остаются следующей ручной фазой. Live API calls,
+  Telegram polling и Gemini quota не использовались в этой части.
+- Локальный ПК, локальный/production `.env`, SQLite, backups, `main` и
+  production updater branch не затрагивались.
