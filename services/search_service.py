@@ -35,7 +35,6 @@ from curation.pipeline import DeduplicationFilter
 from models.product import Product
 from models.search_request import SearchMode, SearchRequest, SortPreference
 from services.ai_service import AIService, SUBCATEGORY_SELECTION_MAX
-from services.subcategory_ranking import rank_subcategory_products
 from services.subcategory_quality import (
     filter_subcategory_relevant,
     subcategory_match_reason,
@@ -1669,10 +1668,6 @@ class SearchService:
 
         exact = deduplicate_products(quality_kept)
         near = feed_curation.drop_near_duplicates(exact)
-        # Re-rank only the already-approved catalog candidates. BM25 strengthens
-        # principal-type title evidence; real marketplace offer data is the
-        # secondary signal. The type/family caps below remain authoritative.
-        near = rank_subcategory_products(near, subcategory)
         family_gate = DeduplicationFilter(threshold=0.35)
         # Thematic shelves prefer a shorter honest result to repeated types
         # or deferred same-family variants. Other catalog shelves are unchanged.
