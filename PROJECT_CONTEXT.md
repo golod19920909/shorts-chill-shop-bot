@@ -698,3 +698,10 @@ The dated implementation notes and prior live-test findings have been preserved 
 - «✨ Находки» uses its own bounded feed-page refresh and existing feed cursor/history; it does not switch to keyword search. Photo refresh repeats the grounded query without adding broad query variants. Thematic «Показать ещё» remains a distinct action and shares the refresh exclusion scope.
 - Offline CI passed on code commit `3659f1eba071a283c846fab9bfb10ee8f3c13721` (run `44078414018`): focused 690 passed / 1 deselected / 604 subtests; broad 2313 passed / 2 deselected / 1259 subtests. The only warning is the existing upstream google-genai Python 3.17 deprecation notice.
 - The change is limited to `chore/repository-cleanup-2026-11-15`; local PC, `.env`, SQLite, `main`, updater branch, and production deployment are untouched. Remaining acceptance is live Telegram testing by the user.
+
+
+## Product-card image delivery fix — 18 Nov 2026
+
+- The shared initial-card sender in `handlers/common.py` first asks Telegram to fetch the original AliExpress image URL. If that fails, it now makes one bounded HTTPS download from the AliExpress image CDN (same-family redirects only, image content-type required, 8 MiB cap, 6-second timeout) and uploads the bytes to Telegram. Plain-text fallback remains only when no image URL exists or both delivery paths fail.
+- Added offline regression coverage for the remote-URL failure / byte-upload fallback and for rejecting non-AliExpress image hosts. No AliExpress, Gemini, or Telegram live calls are part of these tests.
+- Scope is card image transport only: no product retrieval, ranking, curation, Smart Search, Findings, or thematic-selection behavior changed. Local PC, `.env`, SQLite, `main`, updater branch, and production deployment remain untouched.

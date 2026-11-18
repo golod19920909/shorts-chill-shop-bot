@@ -10,9 +10,12 @@ from __future__ import annotations
 import html
 import logging
 import secrets
+from io import BytesIO
 from typing import Any
+from urllib.parse import urlsplit
 
-from telegram import InlineKeyboardMarkup, Update
+import httpx
+from telegram import InlineKeyboardMarkup, InputFile, Update
 from telegram.ext import ContextTypes
 
 from database.database import Database
@@ -495,6 +498,81 @@ async def is_product_tracked(
     return any(row.get("product_id") == product_id for row in rows)
 
 
+_MAX_PRODUCT_IMAGE_BYTES = 8 * 1024 * 1024
+_PRODUCT_IMAGE_TIMEOUT_SECONDS = 6.0
+_ALIEXPRESS_IMAGE_HOSTS = ("alicdn.com", "aliexpress-media.com")
+
+
+def _is_aliexpress_image_url(url: str) -> bool:
+    """Accept only HTTPS image URLs hosted on AliExpress' documented CDNs."""
+
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+    except ValueError:
+        return False
+    return (
+        parsed.scheme.lower() == "https"
+        and bool(host)
+        and any(host == suffix or host.endswith(f".{suffix}") for suffix in _ALIEXPRESS_IMAGE_HOSTS)
+    )
+
+
+async def _download_product_image(url: str) -> bytes:
+    """Download one bounded AliExpress CDN image for Telegram file upload.
+
+    Telegram sometimes cannot fetch a marketplace image URL itself (CDN
+    redirects/hotlink handling). This fallback downloads only HTTPS URLs from
+    AliExpress image CDNs, follows only same-family CDN redirects, validates
+    the response type, and caps memory use before handing bytes to Telegram.
+    """
+
+    if not _is_aliexpress_image_url(url):
+        raise ValueError("Product image URL is not an allowed AliExpress CDN URL")
+
+    timeout = httpx.Timeout(_PRODUCT_IMAGE_TIMEOUT_SECONDS)
+    async with httpx.AsyncClient(
+        timeout=timeout, follow_redirects=True, max_redirects=5
+    ) as client:
+        async with client.stream(
+            "GET",
+            url,
+            headers={
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                "User-Agent": "Mozilla/5.0 (compatible; ShortsChillBot/1.0)",
+            },
+        ) as response:
+            for hop in (*response.history, response):
+                if not _is_aliexpress_image_url(str(hop.url)):
+                    raise ValueError("Product image redirected outside the AliExpress CDN")
+
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            if not content_type.startswith("image/"):
+                raise ValueError("AliExpress image endpoint returned a non-image response")
+
+            content_length = response.headers.get("content-length")
+            if content_length:
+                try:
+                    if int(content_length) > _MAX_PRODUCT_IMAGE_BYTES:
+                        raise ValueError("Product image exceeds the upload size limit")
+                except ValueError as exc:
+                    if "upload size limit" in str(exc):
+                        raise
+                    # A malformed Content-Length is ignored; streamed bytes
+                    # remain subject to the hard cap below.
+
+            image = bytearray()
+            async for chunk in response.aiter_bytes():
+                image.extend(chunk)
+                if len(image) > _MAX_PRODUCT_IMAGE_BYTES:
+                    raise ValueError("Product image exceeds the upload size limit")
+
+    if not image:
+        raise ValueError("AliExpress returned an empty product image")
+    return bytes(image)
+
+
 async def send_product_card(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
@@ -504,13 +582,12 @@ async def send_product_card(
     caption_prefix: str | None = None,
     raw_caption: str | None = None,
 ) -> None:
-    """Send one product card, as a photo when the marketplace gave an image.
+    """Send a product card with its real marketplace image when available.
 
-    No image is generated or guessed: without a real ``image_url`` the
-    card is sent as plain text. ``caption_prefix`` (the browsing session
-    headline, e.g. ``🔥 Популярное · 1/20``) is prepended when given.
-    ``raw_caption`` (used by the card-replacement path) carries a fully
-    rendered text and takes precedence over both.
+    Telegram first receives the original CDN URL (the fast path). If Telegram
+    cannot fetch it, the bot makes one bounded download from an AliExpress
+    image CDN and uploads the bytes. The card falls back to text only when both
+    image-delivery paths fail or the marketplace supplied no image URL.
     """
 
     if raw_caption is not None:
@@ -519,21 +596,40 @@ async def send_product_card(
         text = product_card_text(product, index=index, caption_prefix=caption_prefix)
 
     if product.image_url:
+        caption = truncate_for_caption(text)
         try:
             await context.bot.send_photo(
                 chat_id,
                 photo=product.image_url,
-                caption=truncate_for_caption(text),
+                caption=caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup,
             )
             return
         except Exception:
-            # A broken/hotlink-protected image must not hide the product.
             logger.warning(
-                "Could not send photo for %s/%s; falling back to text",
+                "Direct Telegram image fetch failed for %s/%s; trying bounded CDN upload",
                 product.marketplace,
                 product.product_id,
+                exc_info=True,
+            )
+
+        try:
+            image_bytes = await _download_product_image(product.image_url)
+            await context.bot.send_photo(
+                chat_id,
+                photo=InputFile(BytesIO(image_bytes), filename="product-image.jpg"),
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+            return
+        except Exception:
+            logger.warning(
+                "Could not deliver product image for %s/%s; falling back to text",
+                product.marketplace,
+                product.product_id,
+                exc_info=True,
             )
 
     await context.bot.send_message(
