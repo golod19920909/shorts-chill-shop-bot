@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import re
 
-from services.text_tokens import TOKEN_RE
+# Tokens are unicode letter runs so Cyrillic survives (the reference's
+# ``[a-z0-9]+`` would silently drop every Russian query word).
+TOKEN_RE = re.compile(r"[^\W\d_][^\W_]*|\d+", re.UNICODE)
 
 # Conversational filler. Reference STOPWORDS concept, rebuilt for RU/EN.
 STOPWORDS: frozenset[str] = frozenset(
