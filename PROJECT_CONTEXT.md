@@ -712,3 +712,27 @@ The dated implementation notes and prior live-test findings have been preserved 
 - «✨ Находки» uses its own bounded feed-page refresh and existing feed cursor/history; it does not switch to keyword search. Photo refresh repeats the grounded query without adding broad query variants. Thematic «Показать ещё» remains a distinct action and shares the refresh exclusion scope.
 - Offline CI passed on code commit `3659f1eba071a283c846fab9bfb10ee8f3c13721` (run `44078414018`): focused 690 passed / 1 deselected / 604 subtests; broad 2313 passed / 2 deselected / 1259 subtests. The only warning is the existing upstream google-genai Python 3.17 deprecation notice.
 - The change is limited to `chore/repository-cleanup-2026-11-15`; local PC, `.env`, SQLite, `main`, updater branch, and production deployment are untouched. Remaining acceptance is live Telegram testing by the user.
+
+
+## Thematic balanced candidate selection — 18 November 2026
+
+- User approved a targeted improvement to thematic collection candidate
+  formation after live testing showed repeated product types and a 17/20 result.
+- Work is isolated in `feat/thematic-balanced-selection`, based on
+  `feat/thematic-smart-search-delivery`. No PR/merge, main, production,
+  local PC, `.env`, SQLite, «Умный поиск» or «✨ Находки» changes.
+- Thematic retrieval now scans up to 2x the normal candidate-pool cap before
+  reducing the Gemini input to the ordinary 80-candidate window. Early-stop
+  coverage is 75% of configured canonical types (minimum four when available),
+  within the existing route plan and one additional marketplace page.
+- The Gemini input is balanced round-robin across validated canonical types,
+  preserving ranked order inside each type. Thematic-only prompt instructions
+  explicitly request up to 40 approved IDs (20 primary + 20 reserve) and
+  prioritize type coverage in the primary 20.
+- All candidates still pass the existing deterministic relevance and
+  principal-product gates. Gemini may return only supplied IDs; reserve items
+  are revalidated by the finalizer. The visible cap remains 20 and the selector
+  remains one call with the existing timeout. Ordinary catalog behavior is
+  unchanged.
+- Added an offline test for round-robin balancing. Tests have not been run;
+  the user runs local tests. Live AliExpress/Gemini acceptance remains pending.
