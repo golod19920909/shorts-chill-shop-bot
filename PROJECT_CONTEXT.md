@@ -735,3 +735,11 @@ The dated implementation notes and prior live-test findings have been preserved 
   when star rating is absent, commercial offer ranking and deterministic
   output. This change requires CI verification and live Telegram acceptance;
   no improvement claim is made before the owner checks actual shelf results.
+
+
+- Import-cycle correction for catalog ranking: the shared Unicode `TOKEN_RE`
+  now lives in `services/text_tokens.py`, a low-level module outside the eager
+  `services.convsearch` package. Both conversational search and the catalog
+  reranker import this primitive directly, avoiding package initialization
+  and the `search_service` circular import. Tokenization pattern and behavior
+  are unchanged; this is an import-graph fix only.
