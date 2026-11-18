@@ -1730,9 +1730,17 @@ async def _send_product_cards(
                         parse_mode="HTML",
                         reply_markup=reply_markup,
                     )
+            elif products[0].image_url:
+                # Telegram cannot convert a text menu message into a photo.
+                # Send the real product card first (including the bounded CDN
+                # upload fallback), then remove the old menu message. This
+                # keeps the user's current screen if delivery itself fails.
+                await _replace_browsed_card(
+                    origin_query, context, products[0], 0, caption, reply_markup,
+                    send_first=True,
+                )
             else:
-                # Text messages cannot be converted to photo media with editMessageMedia.
-                # Keep the same message and render the complete product card as text.
+                # Without a marketplace image, retain the existing text message.
                 await origin_query.edit_message_text(
                     caption, parse_mode="HTML", reply_markup=reply_markup
                 )
