@@ -85,6 +85,20 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
   runs offline with fakes only; it does not consume provider quota.
 
 
+## Thematic result delivery (2026-11-18)
+
+- Thematic collection search continues to use its bounded, category-specific
+  AliExpress route plan, one selector call, principal-product validation and
+  deterministic subtype/family finalizer. Do not replace or duplicate that
+  candidate pipeline as part of card delivery.
+- Once `find_by_subcategory` returns its finalized products, thematic initial
+  results and «Показать ещё» pass them to the same `send_search_results`
+  renderer as Smart Search with `pre_curated=True`. This avoids a second
+  generic curation pass after the thematic finalizer. Shared card navigation,
+  image handling, history and refresh behavior remain in the common renderer.
+- Implementation branch: `feat/thematic-smart-search-delivery`, based on
+  `rollback/nov17-stable`. Not merged to `main` or production.
+
 ## What this is
 
 A Telegram shopping-assistant bot (Russian UI): AliExpress Affiliate API
