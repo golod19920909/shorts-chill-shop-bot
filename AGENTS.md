@@ -48,6 +48,8 @@ Guidance for AI agents and maintainers working in this repository.
     current/prior refreshed batches excluded. It must not alter Smart Search
     or Findings retrieval, relevance, selector, ranking, or curation logic;
     Findings keeps its dedicated bounded feed path.
+11. **Thematic card delivery reuses the Smart Search renderer.** `find_by_subcategory` owns thematic candidate selection and finalization; pass its finished result to `send_search_results(pre_curated=True)` so no second generic curation pass changes the selected list. Keep the shared browse/edit/photo delivery path unchanged.
+
 
 ## Test commands
 
