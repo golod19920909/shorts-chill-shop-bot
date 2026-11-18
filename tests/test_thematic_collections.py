@@ -164,6 +164,16 @@ class ThematicCollectionConfigTests(unittest.TestCase):
         self.assertEqual(source.count("minimum_products=1"), 2)
         self.assertGreaterEqual(source.count("if not outcome.products:"), 2)
 
+    def test_thematic_delivery_reuses_the_smart_search_card_pipeline_without_recuration(self) -> None:
+        source = inspect.getsource(thematic_handlers)
+        # find_by_subcategory already performs retrieval, candidate selection,
+        # identity validation and final subtype/family curation. The shared
+        # send_search_results function must therefore receive that finished
+        # list as pre-curated, just like Smart Search, rather than applying a
+        # second generic curation pass before caching and rendering cards.
+        self.assertEqual(source.count("pre_curated=True"), 2)
+        self.assertEqual(source.count("send_search_results("), 2)
+
     def test_thematic_collections_use_lightbulb_branding_consistently(self) -> None:
         from keyboards.main import LABEL_THEMATIC_COLLECTIONS
 
