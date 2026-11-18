@@ -17,6 +17,7 @@ on:
     branches:
       - main
       - feat/conversational-product-relevance
+      - chore/repository-cleanup-2026-11-15
 
 permissions:
   contents: read
