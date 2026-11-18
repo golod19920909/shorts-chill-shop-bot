@@ -1730,18 +1730,9 @@ async def _send_product_cards(
                         parse_mode="HTML",
                         reply_markup=reply_markup,
                     )
-            elif strict_navigation and products[0].image_url:
-                # Telegram cannot convert a text menu message into a photo.
-                # Send the real product card first (including the bounded CDN
-                # upload fallback), then remove the old menu message. This
-                # keeps the user's current screen if delivery itself fails.
-                replacement_attempted = True
-                await _replace_browsed_card(
-                    origin_query, context, products[0], 0, caption, reply_markup,
-                    send_first=True,
-                )
             else:
-                # For non-catalog flows or products without images, keep the existing text message.
+                # Text messages cannot be converted to photo media with editMessageMedia.
+                # Keep the same message and render the complete product card as text.
                 await origin_query.edit_message_text(
                     caption, parse_mode="HTML", reply_markup=reply_markup
                 )
@@ -1749,17 +1740,14 @@ async def _send_product_cards(
         if origin_query is not None and not replacement_attempted:
             if strict_navigation and "message is not modified" in str(exc).lower():
                 return True
-            if strict_navigation:
-                logger.warning(
-                    "Catalog/theme initial media edit failed; retrying via safe card delivery",
-                    exc_info=True,
+            if strict_navigation and not telegram_edit_is_unsupported(exc):
+                logger.exception(
+                    "Catalog/theme card edit failed; active message left intact"
                 )
+                return False
             try:
-                # Catalog/thematic edits can fail because Telegram cannot
-                # fetch a CDN URL or because the edit request times out.
-                # Reuse the shared direct-send / bounded-upload fallback and
-                # keep the current message until replacement delivery succeeds.
-                replacement_attempted = True
+                # A Telegram edit/API rejection is the only reason to replace
+                # the active message. The replacement helper sends first.
                 await _replace_browsed_card(
                     origin_query, context, products[0], 0, caption, reply_markup,
                     send_first=True,
@@ -1859,21 +1847,9 @@ async def _edit_browsed_card(
         except Exception as exc:
             if catalog_navigation and "message is not modified" in str(exc).lower():
                 return
-            if catalog_navigation:
-                # A media-edit timeout or BadRequest does not mean the CDN
-                # image is unusable. Re-enter the shared delivery path, which
-                # retries direct delivery and then performs a bounded,
-                # content-type-validated CDN download before text fallback.
-                logger.warning(
-                    "Catalog/theme media edit failed; retrying via safe card delivery",
-                    exc_info=True,
-                )
-                await _replace_browsed_card(
-                    query, context, product, index, caption, reply_markup,
-                    send_first=True,
-                )
-                await _record_browsed_conversation_product(
-                    context, session_id, product.product_id
+            if catalog_navigation and not telegram_edit_is_unsupported(exc):
+                logger.exception(
+                    "Catalog/theme media edit failed; active message left intact"
                 )
                 return
             logger.warning(
@@ -1884,7 +1860,7 @@ async def _edit_browsed_card(
             )
             await _replace_browsed_card(
                 query, context, product, index, caption, reply_markup,
-                send_first=False,
+                send_first=catalog_navigation,
             )
             await _record_browsed_conversation_product(
                 context, session_id, product.product_id
