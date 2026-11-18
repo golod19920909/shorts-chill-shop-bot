@@ -725,8 +725,10 @@ The dated implementation notes and prior live-test findings have been preserved 
   after identity validation and duplicate removal. Existing product-type
   balancing, family limits, selector approval boundaries, route budgets,
   Gemini call count/timeouts and result limits remain authoritative.
-- No changes to «Умный поиск», «✨ Находки», ordinary search, photo search,
-  retrieval routes, AliExpress API calls, Gemini prompts/models, or user data.
+- No changes to «Умный поиск», «✨ Находки», ordinary search or photo search.
+  Thematic/catalog retrieval routes, candidate pools, Gemini prompts/models,
+  selector approval and diversity caps are unchanged; only the final order of
+  already-approved catalog shelf candidates is reranked. No user data changes.
 - The algorithm adds only local CPU work over the already-retrieved candidate
   pool; no additional network or model requests are made.
 - Offline regression coverage: BM25 title match, positive-feedback fallback
