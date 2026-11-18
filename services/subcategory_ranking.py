@@ -21,8 +21,7 @@ from services.subcategory_quality import subcategory_product_type
 _TOKEN_RE = re.compile(r"[a-z0-9]+|[а-яё]+", re.IGNORECASE)
 _BM25_K1 = 1.5
 _BM25_B = 0.75
-_TEXT_WEIGHT = 0.70
-_OFFER_WEIGHT = 0.30
+_RRF_K = 60
 
 
 def _tokens(text: str | None) -> list[str]:
@@ -102,8 +101,8 @@ def rank_subcategory_products(
 ) -> list[Product]:
     """Rank validated shelf candidates by type-title BM25 (70%) and offer (30%).
 
-    Scores are normalized inside each principal product type so a long
-    multi-word alias cannot dominate another type merely by having more terms.
+    BM25 and the marketplace offer score are fused with standard Reciprocal
+    Rank Fusion (k=60), avoiding hand-tuned weights between unlike score scales.
     The global stable sort determines the first representative shown for each
     type; the existing finalizer still owns type/family caps and validation.
     """
@@ -129,15 +128,28 @@ def rank_subcategory_products(
             max((scores[index] for scores in raw_by_alias), default=0.0)
             for index in range(len(candidates))
         ]
-        maximum = max(raw_scores, default=0.0)
-        for product, raw_score in zip(candidates, raw_scores):
-            text_score = raw_score / maximum if maximum > 0.0 else 0.0
-            offer_score = _offer_score(product)
-            total = _TEXT_WEIGHT * text_score + _OFFER_WEIGHT * offer_score
+        text_order = sorted(
+            range(len(candidates)),
+            key=lambda index: (-raw_scores[index], candidates[index].product_id or ""),
+        )
+        text_rank = {index: rank for rank, index in enumerate(text_order, start=1)}
+        offer_scores = [_offer_score(product) for product in candidates]
+        offer_order = sorted(
+            range(len(candidates)),
+            key=lambda index: (-offer_scores[index], candidates[index].product_id or ""),
+        )
+        offer_rank = {index: rank for rank, index in enumerate(offer_order, start=1)}
+
+        for index, product in enumerate(candidates):
+            # Standard RRF: reciprocal ranks, not incomparable raw scores.
+            fused_score = (
+                1.0 / (_RRF_K + text_rank[index])
+                + 1.0 / (_RRF_K + offer_rank[index])
+            )
             scored.append((
-                total,
-                text_score,
-                offer_score,
+                fused_score,
+                offer_scores[index],
+                raw_scores[index],
                 product.product_id or "",
                 product,
             ))
