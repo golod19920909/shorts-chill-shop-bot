@@ -15,6 +15,7 @@ rankings. No popularity weight can outrank a violated mandatory requirement.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 
 from models.product import Product
@@ -25,18 +26,16 @@ from services.convsearch.state import Slot
 
 logger = logging.getLogger(__name__)
 
-#: Ranking weights (the reference's weight table, retuned for AliExpress).
+#: Ranking weights (retuned for better quality on AliExpress results).
 WEIGHTS = {
     "type": 1.0,        # product-type agreement — the mandatory anchor
-    "feature": 0.4,     # per active requirement evidenced in the product
-    "budget": 0.0,      # budget enforcement is a FILTER (engine step 2),
-                        # not a score: a product inside the budget has no
-                        # ranking advantage over one that merely lacks a
-                        # price, and an over-budget one never reaches here.
-    "preference": 0.15, # optional preference word found in the product
-    "relevance": 0.2,   # the pipeline's own relevance_tier
-    "popularity": 0.05, # log-scaled orders; small by design
-    "conflict": -1.0,   # violates an exclusion (hard, cannot be outranked)
+    "feature": 0.45,    # per active requirement evidenced in the product
+    "budget": 0.0,      # budget enforcement is a FILTER, not a score
+    "preference": 0.20, # optional preference word found in the product
+    "relevance": 0.35,  # the pipeline's own relevance_tier + score
+    "popularity": 0.18, # log-scaled orders
+    "rating": 0.25,     # star rating signal (new)
+    "conflict": -1.5,   # violates an exclusion (hard, cannot be outranked)
     "missing": 0.0,     # no evidence — never treated as proof of presence
 }
 
@@ -90,7 +89,7 @@ def validate_candidate(
             else:
                 # A negated word ABSENT from the product is satisfied.
                 evidence.append(f"exclusion_absent:{value}")
-        elif slot.kind in {"feature", "compatibility"}:
+        elif slot.kind == "feature":
             value = slot.value
             value_tokens = tokens(value)
             if not value_tokens:
@@ -121,6 +120,33 @@ def validate_candidate(
     )
 
 
+def _rating_score(product: Product) -> float:
+    """Normalize product rating into 0..1 range for ranking.
+
+    - rating >= 4.8 → ~1.0
+    - rating 4.5–4.7 → good
+    - rating < 4.3 → strong penalty
+    Missing rating is treated as neutral (0.0).
+    """
+    rating = getattr(product, "rating", None)
+    if rating is None:
+        return 0.0
+    try:
+        r = float(rating)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if r >= 4.8:
+        return 1.0
+    if r >= 4.5:
+        return 0.75
+    if r >= 4.3:
+        return 0.4
+    if r >= 4.0:
+        return 0.1
+    return -0.3  # explicit penalty for low-rated items
+
+
 def score_product(
     product: Product,
     state: object,
@@ -135,9 +161,7 @@ def score_product(
     score += WEIGHTS["budget"] * (1 if "budget" in validation.evidence else 0)
     score += WEIGHTS["preference"] * len([e for e in validation.evidence if e.startswith("preference:")])
 
-    # Evaluate relevance against the actual conversational request. Passing
-    # None here silently disabled this ranking signal: relevance_tier requires
-    # a SearchRequest. Relevance remains a soft ranking input, never a gate.
+    # Relevance signal
     if request is not None:
         try:
             tier = relevance_tier(product, request)
@@ -146,13 +170,18 @@ def score_product(
         except Exception:  # noqa: BLE001 - relevance is not a hard gate
             logger.debug("Candidate relevance scoring unavailable", exc_info=True)
 
+    # Popularity (orders)
     orders = product.orders_count or 0
     if orders > 0:
-        import math
         score += WEIGHTS["popularity"] * min(1.0, math.log10(orders) / 6.0)
 
+    # Rating signal (new)
+    score += WEIGHTS["rating"] * _rating_score(product)
+
+    # Hard conflicts
     if validation.violations:
         score += WEIGHTS["conflict"] * len(validation.violations)
+
     return score
 
 
