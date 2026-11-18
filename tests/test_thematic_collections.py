@@ -12,7 +12,9 @@ from config.thematic_collections import (
     THEMATIC_COLLECTIONS,
 )
 from database.models import FLOW_FEED, FLOW_SEARCH
+from models.product import Marketplace, Product
 from models.search_request import SearchRequest
+from services.search_service import SearchService
 from handlers import thematic_collections as thematic_handlers
 from keyboards.main import (
     CB_THEMATIC_COLLECTIONS,
@@ -173,6 +175,37 @@ class ThematicCollectionConfigTests(unittest.TestCase):
         # second generic curation pass before caching and rendering cards.
         self.assertEqual(source.count("pre_curated=True"), 2)
         self.assertEqual(source.count("send_search_results("), 2)
+
+    def test_thematic_candidate_window_round_robins_across_validated_types(self) -> None:
+        shelf = get_subcategory("theme_unusual_devices")
+        self.assertIsNotNone(shelf)
+        products = []
+        for prefix, title, count in (
+            ("jar", "Automatic jar opener electric kitchen tool", 8),
+            ("paste", "Automatic toothpaste dispenser wall mounted", 4),
+            ("brush", "Electric cleaning brush rotating scrubber", 4),
+        ):
+            for index in range(count):
+                product_id = f"{prefix}-{index}"
+                products.append(Product(
+                    marketplace=Marketplace.ALIEXPRESS,
+                    product_id=product_id,
+                    title=f"{title} model {index}",
+                    product_url=f"https://www.aliexpress.com/item/{product_id}.html",
+                ))
+
+        balanced = SearchService._balance_thematic_pool(
+            products, subcategory=shelf, limit=9
+        )
+        counts = {}
+        for product in balanced:
+            from services.subcategory_quality import subcategory_product_type
+
+            type_key = subcategory_product_type(product, shelf)
+            counts[type_key] = counts.get(type_key, 0) + 1
+
+        self.assertEqual(len(balanced), 9)
+        self.assertEqual(sorted(counts.values()), [3, 3, 3])
 
     def test_thematic_collections_use_lightbulb_branding_consistently(self) -> None:
         from keyboards.main import LABEL_THEMATIC_COLLECTIONS
