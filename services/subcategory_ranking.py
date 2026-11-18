@@ -83,6 +83,22 @@ def _aliases_for_type(subcategory: Subcategory, type_key: str) -> tuple[str, ...
     return (type_key,)
 
 
+def _competition_ranks(scores: Sequence[float]) -> dict[int, int]:
+    """Give equal feature scores equal ranks instead of inventing an ID order."""
+
+    order = sorted(range(len(scores)), key=lambda index: (-scores[index], index))
+    ranks: dict[int, int] = {}
+    previous_score: float | None = None
+    current_rank = 0
+    for position, index in enumerate(order, start=1):
+        score = scores[index]
+        if previous_score is None or score != previous_score:
+            current_rank = position
+            previous_score = score
+        ranks[index] = current_rank
+    return ranks
+
+
 def _offer_score(product: Product) -> float:
     """Normalize existing value_score and use AliExpress positive_rate honestly."""
 
@@ -127,17 +143,9 @@ def rank_subcategory_products(
             max((scores[index] for scores in raw_by_alias), default=0.0)
             for index in range(len(candidates))
         ]
-        text_order = sorted(
-            range(len(candidates)),
-            key=lambda index: (-raw_scores[index], candidates[index].product_id or ""),
-        )
-        text_rank = {index: rank for rank, index in enumerate(text_order, start=1)}
+        text_rank = _competition_ranks(raw_scores)
         offer_scores = [_offer_score(product) for product in candidates]
-        offer_order = sorted(
-            range(len(candidates)),
-            key=lambda index: (-offer_scores[index], candidates[index].product_id or ""),
-        )
-        offer_rank = {index: rank for rank, index in enumerate(offer_order, start=1)}
+        offer_rank = _competition_ranks(offer_scores)
 
         for index, product in enumerate(candidates):
             # Standard RRF: reciprocal ranks, not incomparable raw scores.
