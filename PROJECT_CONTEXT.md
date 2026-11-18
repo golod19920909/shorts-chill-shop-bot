@@ -706,3 +706,29 @@ The dated implementation notes and prior live-test findings have been preserved 
 - Added offline regression coverage for the remote-URL failure / byte-upload fallback and for rejecting non-AliExpress image hosts. No AliExpress, Gemini, or Telegram live calls are part of these tests.
 - GitHub Actions run [#44240730993](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44240730993) passed on commit `38ba7f16836e67b27961255275742baee9335232`: focused offline suite **690 passed, 1 deselected, 604 subtests**; configured broad offline suite **2,315 passed, 2 deselected, 1,259 subtests**; production compile and smoke-script syntax checks passed. One upstream Google GenAI SDK deprecation warning remains.
 - Scope is card image transport only: no product retrieval, ranking, curation, Smart Search, Findings, or thematic-selection behavior changed. Local PC, `.env`, SQLite, `main`, updater branch, and production deployment remain untouched. Live Telegram acceptance is still required to confirm the user's original symptom is gone in production.
+
+
+
+### Curated catalog ranking (18 Nov 2026)
+
+- Added a deterministic catalog-shelf reranker in
+  `services/subcategory_ranking.py`. It combines standard Okapi BM25 title
+  relevance against the already-validated principal product-type aliases with
+  marketplace offer ranking using standard Reciprocal Rank Fusion (RRF,
+  k=60). This avoids hand-tuned weights between unlike score scales.
+- The offer rank reuses the existing `value_score` fields (real discount,
+  star rating when actually supplied, orders and availability). When a 0-5
+  rating is absent, AliExpress `positive_rate` is used as its own 0-100
+  positive-feedback signal; it is never converted to stars.
+- The reranker runs only inside the curated catalog subcategory finalizer,
+  after identity validation and duplicate removal. Existing product-type
+  balancing, family limits, selector approval boundaries, route budgets,
+  Gemini call count/timeouts and result limits remain authoritative.
+- No changes to «Умный поиск», «✨ Находки», ordinary search, photo search,
+  retrieval routes, AliExpress API calls, Gemini prompts/models, or user data.
+- The algorithm adds only local CPU work over the already-retrieved candidate
+  pool; no additional network or model requests are made.
+- Offline regression coverage: BM25 title match, positive-feedback fallback
+  when star rating is absent, commercial offer ranking and deterministic
+  output. This change requires CI verification and live Telegram acceptance;
+  no improvement claim is made before the owner checks actual shelf results.
