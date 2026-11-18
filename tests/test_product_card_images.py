@@ -157,6 +157,7 @@ class ProductCardImageDeliveryTests(unittest.TestCase):
             keyboard,
             send_first=True,
         )
+
     def test_non_aliexpress_image_host_is_not_downloaded(self) -> None:
         context = _FakeContext()
         product = _product()
