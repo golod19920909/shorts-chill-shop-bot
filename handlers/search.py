@@ -1730,7 +1730,7 @@ async def _send_product_cards(
                         parse_mode="HTML",
                         reply_markup=reply_markup,
                     )
-            elif products[0].image_url:
+            elif strict_navigation and products[0].image_url:
                 # Telegram cannot convert a text menu message into a photo.
                 # Send the real product card first (including the bounded CDN
                 # upload fallback), then remove the old menu message. This
