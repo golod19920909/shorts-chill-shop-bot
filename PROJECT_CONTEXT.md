@@ -5,7 +5,7 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 ## Current maintenance state (2026-11-17)
 
 - Repository-only work branch for the current ranking task:
-  `feat/catalog-product-ranking`, based on
+  `fix/remove-catalog-product-ranking`, based on
   `chore/repository-cleanup-2026-11-15`; do not merge to `main` or move the
   production updater branch without separate approval.
 - **Protected Smart Search algorithm remains at baseline**
@@ -708,38 +708,9 @@ The dated implementation notes and prior live-test findings have been preserved 
 - GitHub Actions run [#44240730993](https://github.com/golod19920909/shorts-chill-shop-bot/actions/runs/44240730993) passed on commit `38ba7f16836e67b27961255275742baee9335232`: focused offline suite **690 passed, 1 deselected, 604 subtests**; configured broad offline suite **2,315 passed, 2 deselected, 1,259 subtests**; production compile and smoke-script syntax checks passed. One upstream Google GenAI SDK deprecation warning remains.
 - Scope is card image transport only: no product retrieval, ranking, curation, Smart Search, Findings, or thematic-selection behavior changed. Local PC, `.env`, SQLite, `main`, updater branch, and production deployment remain untouched. Live Telegram acceptance is still required to confirm the user's original symptom is gone in production.
 
+## Catalog ranking experiment removal — 18 Nov 2026
 
-
-### Curated catalog ranking (18 Nov 2026)
-
-- Added a deterministic catalog-shelf reranker in
-  `services/subcategory_ranking.py`. It combines standard Okapi BM25 title
-  relevance against the already-validated principal product-type aliases with
-  marketplace offer ranking using standard Reciprocal Rank Fusion (RRF,
-  k=60). This avoids hand-tuned weights between unlike score scales.
-- The offer rank reuses the existing `value_score` fields (real discount,
-  star rating when actually supplied, orders and availability). When a 0-5
-  rating is absent, AliExpress `positive_rate` is used as its own 0-100
-  positive-feedback signal; it is never converted to stars.
-- The reranker runs only inside the curated catalog subcategory finalizer,
-  after identity validation and duplicate removal. Existing product-type
-  balancing, family limits, selector approval boundaries, route budgets,
-  Gemini call count/timeouts and result limits remain authoritative.
-- No changes to «Умный поиск», «✨ Находки», ordinary search or photo search.
-  Thematic/catalog retrieval routes, candidate pools, Gemini prompts/models,
-  selector approval and diversity caps are unchanged; only the final order of
-  already-approved catalog shelf candidates is reranked. No user data changes.
-- The algorithm adds only local CPU work over the already-retrieved candidate
-  pool; no additional network or model requests are made.
-- Offline regression coverage: BM25 title match, positive-feedback fallback
-  when star rating is absent, commercial offer ranking and deterministic
-  output. This change requires CI verification and live Telegram acceptance;
-  no improvement claim is made before the owner checks actual shelf results.
-
-
-- Import-cycle correction for catalog ranking: the shared Unicode `TOKEN_RE`
-  now lives in `services/text_tokens.py`, a low-level module outside the eager
-  `services.convsearch` package. Both conversational search and the catalog
-  reranker import this primitive directly, avoiding package initialization
-  and the `search_service` circular import. Tokenization pattern and behavior
-  are unchanged; this is an import-graph fix only.
+- Removed the experimental BM25/RRF reranker from the curated catalog subcategory finalizer at the user's request after Telegram shelf testing showed no useful improvement.
+- The finalizer returns to its prior post-validation, deduplication and type/family curation order. Existing retrieval, Gemini selection, diversity limits and unrelated card-delivery work are retained.
+- Removed the ranking-only service, tests, shared tokenizer extraction and workflow branch entry. The conversational tokenizer keeps its original local Unicode regex; tokenization behavior is unchanged.
+- No changes to «Умный поиск» or «✨ Находки» algorithms, no additional API calls, no local PC or production deployment changes.
