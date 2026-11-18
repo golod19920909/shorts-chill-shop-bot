@@ -48,6 +48,11 @@ Guidance for AI agents and maintainers working in this repository.
     current/prior refreshed batches excluded. It must not alter Smart Search
     or Findings retrieval, relevance, selector, ranking, or curation logic;
     Findings keeps its dedicated bounded feed path.
+11. **Product-image delivery is transport-only.** Keep Telegram's direct CDN
+    URL send as the fast path; on failure, allow only bounded HTTPS downloads
+    from AliExpress image-CDN hosts, with same-family redirect validation,
+    image content-type validation, and strict timeout/size caps. Never invent
+    or rewrite marketplace image URLs, and never change product selection.
 
 ## Test commands
 
