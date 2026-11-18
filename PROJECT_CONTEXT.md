@@ -4,9 +4,10 @@ Fast orientation for any agent/human working in `c:\shorts-chill-shop-bot`.
 
 ## Current maintenance state (2026-11-17)
 
-- Repository-only work branch: `chore/repository-cleanup-2026-11-15`; do not
-  merge to `main` or move the production updater branch without separate
-  approval.
+- Repository-only work branch for the current ranking task:
+  `feat/catalog-product-ranking`, based on
+  `chore/repository-cleanup-2026-11-15`; do not merge to `main` or move the
+  production updater branch without separate approval.
 - **Protected Smart Search algorithm remains at baseline**
   `3822fc95bed11070ba8f46c02ce4cdf69cc58af5` for retrieval stopping,
   candidate-pool semantics, route order, ranking and Gemini continuation.
