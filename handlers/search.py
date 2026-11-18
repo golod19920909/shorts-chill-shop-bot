@@ -1740,7 +1740,7 @@ async def _send_product_cards(
                     send_first=True,
                 )
             else:
-                # Without a marketplace image, retain the existing text message.
+                # For non-catalog flows or products without images, keep the existing text message.
                 await origin_query.edit_message_text(
                     caption, parse_mode="HTML", reply_markup=reply_markup
                 )
