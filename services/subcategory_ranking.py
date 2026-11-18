@@ -16,7 +16,7 @@ from collections.abc import Sequence
 from config.subcategories import Subcategory
 from models.product import Product
 from services.comparison_service import value_score
-from services.convsearch.text import TOKEN_RE
+from services.text_tokens import TOKEN_RE
 from services.subcategory_quality import subcategory_product_type
 _BM25_K1 = 1.5
 _BM25_B = 0.75
