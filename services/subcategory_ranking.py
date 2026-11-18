@@ -1,0 +1,146 @@
+"""Lightweight BM25 + marketplace-signal ranking for curated catalog shelves.
+
+This is a deterministic, CPU-only reranker. It never retrieves products or
+calls an AI model. BM25 measures how strongly a listing title supports its
+validated principal product type; the existing marketplace value score then
+breaks semantic ties using only real offer data.
+"""
+
+from __future__ import annotations
+
+import math
+import re
+from collections import defaultdict
+from collections.abc import Sequence
+
+from config.subcategories import Subcategory
+from models.product import Product
+from services.comparison_service import value_score
+from services.subcategory_quality import subcategory_product_type
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+|[а-яё]+", re.IGNORECASE)
+_BM25_K1 = 1.5
+_BM25_B = 0.75
+_TEXT_WEIGHT = 0.70
+_OFFER_WEIGHT = 0.30
+
+
+def _tokens(text: str | None) -> list[str]:
+    return [
+        token.replace("ё", "е").casefold()
+        for token in _TOKEN_RE.findall(text or "")
+        if len(token) >= 2
+    ]
+
+
+def _principal_title(product: Product) -> str:
+    # Cross-sell fragments after common separators must not improve identity.
+    return re.split(r"[,;|]", product.title or "", maxsplit=1)[0]
+
+
+def _bm25(query: str, documents: Sequence[str]) -> list[float]:
+    """Return standard Okapi BM25 scores for one query over a small pool."""
+
+    query_terms = tuple(dict.fromkeys(_tokens(query)))
+    docs = [_tokens(document) for document in documents]
+    count = len(docs)
+    if not count or not query_terms:
+        return [0.0] * count
+
+    lengths = [len(document) for document in docs]
+    average_length = sum(lengths) / count or 1.0
+    document_frequency: dict[str, int] = defaultdict(int)
+    for document in docs:
+        for term in set(document):
+            document_frequency[term] += 1
+
+    scores: list[float] = []
+    for document, length in zip(docs, lengths):
+        frequencies: dict[str, int] = defaultdict(int)
+        for term in document:
+            frequencies[term] += 1
+        score = 0.0
+        for term in query_terms:
+            frequency = frequencies.get(term, 0)
+            if not frequency:
+                continue
+            df = document_frequency[term]
+            inverse_frequency = math.log(
+                1.0 + (count - df + 0.5) / (df + 0.5)
+            )
+            denominator = frequency + _BM25_K1 * (
+                1.0 - _BM25_B + _BM25_B * length / average_length
+            )
+            score += inverse_frequency * (
+                frequency * (_BM25_K1 + 1.0) / denominator
+            )
+        scores.append(score)
+    return scores
+
+
+def _aliases_for_type(subcategory: Subcategory, type_key: str) -> tuple[str, ...]:
+    for group in subcategory.product_type_groups:
+        if any(alias.casefold() == type_key for alias in group):
+            return tuple(group)
+    return (type_key,)
+
+
+def _offer_score(product: Product) -> float:
+    """Normalize existing value_score and use AliExpress positive_rate honestly."""
+
+    score = value_score(product)
+    # AliExpress evaluate_rate is positive-feedback share, not a star rating.
+    # Use it only when a real 0-5 rating is absent; never convert its units.
+    if product.rating is None and product.positive_rate is not None:
+        score += 30.0 * min(100.0, max(0.0, product.positive_rate)) / 100.0
+    return min(100.0, max(0.0, score)) / 100.0
+
+
+def rank_subcategory_products(
+    products: Sequence[Product],
+    subcategory: Subcategory,
+) -> list[Product]:
+    """Rank validated shelf candidates by type-title BM25 (70%) and offer (30%).
+
+    Scores are normalized inside each principal product type so a long
+    multi-word alias cannot dominate another type merely by having more terms.
+    The global stable sort determines the first representative shown for each
+    type; the existing finalizer still owns type/family caps and validation.
+    """
+
+    if len(products) < 2:
+        return list(products)
+
+    typed: list[tuple[Product, str]] = []
+    for product in products:
+        type_key = subcategory_product_type(product, subcategory) or "__unclassified__"
+        typed.append((product, type_key))
+
+    grouped: dict[str, list[Product]] = {}
+    for product, type_key in typed:
+        grouped.setdefault(type_key, []).append(product)
+
+    scored: list[tuple[float, float, float, str, Product]] = []
+    for type_key, candidates in grouped.items():
+        aliases = _aliases_for_type(subcategory, type_key)
+        titles = [_principal_title(product) for product in candidates]
+        raw_by_alias = [_bm25(alias, titles) for alias in aliases]
+        raw_scores = [
+            max((scores[index] for scores in raw_by_alias), default=0.0)
+            for index in range(len(candidates))
+        ]
+        maximum = max(raw_scores, default=0.0)
+        for product, raw_score in zip(candidates, raw_scores):
+            text_score = raw_score / maximum if maximum > 0.0 else 0.0
+            offer_score = _offer_score(product)
+            total = _TEXT_WEIGHT * text_score + _OFFER_WEIGHT * offer_score
+            scored.append((
+                total,
+                text_score,
+                offer_score,
+                product.product_id or "",
+                product,
+            ))
+
+    scored.sort(key=lambda item: (-item[0], -item[1], -item[2], item[3]))
+    return [item[4] for item in scored]
