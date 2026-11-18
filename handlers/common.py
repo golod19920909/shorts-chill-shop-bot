@@ -552,15 +552,12 @@ async def _download_product_image(url: str) -> bytes:
                 raise ValueError("AliExpress image endpoint returned a non-image response")
 
             content_length = response.headers.get("content-length")
-            if content_length:
-                try:
-                    if int(content_length) > _MAX_PRODUCT_IMAGE_BYTES:
-                        raise ValueError("Product image exceeds the upload size limit")
-                except ValueError as exc:
-                    if "upload size limit" in str(exc):
-                        raise
-                    # A malformed Content-Length is ignored; streamed bytes
-                    # remain subject to the hard cap below.
+            try:
+                declared_size = int(content_length) if content_length else None
+            except (TypeError, ValueError):
+                declared_size = None
+            if declared_size is not None and declared_size > _MAX_PRODUCT_IMAGE_BYTES:
+                raise ValueError("Product image exceeds the upload size limit")
 
             image = bytearray()
             async for chunk in response.aiter_bytes():

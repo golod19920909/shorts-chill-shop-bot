@@ -122,6 +122,3 @@ class ProductCardImageDeliveryTests(unittest.TestCase):
         self.assertEqual(context.bot.photos, [])
         self.assertEqual(len(context.bot.messages), 1)
 
-
-if __test__ if False else False:
-    pass
