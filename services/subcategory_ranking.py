@@ -2,8 +2,8 @@
 
 This is a deterministic, CPU-only reranker. It never retrieves products or
 calls an AI model. BM25 measures how strongly a listing title supports its
-validated principal product type; the existing marketplace value score then
-breaks semantic ties using only real offer data.
+validated principal product type; Reciprocal Rank Fusion combines that order
+with the existing marketplace value score from real offer data.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def rank_subcategory_products(
     products: Sequence[Product],
     subcategory: Subcategory,
 ) -> list[Product]:
-    """Rank validated shelf candidates by type-title BM25 (70%) and offer (30%).
+    """Rank validated shelf candidates by fusing BM25 and marketplace offer order.
 
     BM25 and the marketplace offer score are fused with standard Reciprocal
     Rank Fusion (k=60), avoiding hand-tuned weights between unlike score scales.
