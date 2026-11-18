@@ -54,13 +54,6 @@ Guidance for AI agents and maintainers working in this repository.
     image content-type validation, and strict timeout/size caps. Never invent
     or rewrite marketplace image URLs, and never change product selection.
 
-
-
-12. **Curated catalog ranking is isolated.** The BM25/RRF reranker in
-    `services/subcategory_ranking.py` is called only by the curated catalog
-    subcategory finalizer. Do not route Smart Search, Findings, ordinary
-    search, or photo search through it without separate explicit approval.
-
 ## Test commands
 
 ```powershell
@@ -85,7 +78,6 @@ graph with `pip install -r requirements.lock`.
 | Conversation state, intent, clarification | `services/convsearch/state.py`, `engine.py` |
 | Retrieval adapter and query strategy | `services/convsearch/retrieval.py` |
 | Candidate validation and ranking | `services/convsearch/ranking.py`, `type_validation.py` |
-| Curated catalog shelf ranking | `services/subcategory_ranking.py` |
 | Gemini interpretation and candidate selection | `services/ai_service.py` |
 | AliExpress API and provider | `services/marketplaces/aliexpress.py`, `aliexpress_client.py` |
 | Telegram integration and card delivery | `handlers/search.py` |
