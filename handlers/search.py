@@ -1748,14 +1748,16 @@ async def _send_product_cards(
         if origin_query is not None and not replacement_attempted:
             if strict_navigation and "message is not modified" in str(exc).lower():
                 return True
-            if strict_navigation and not telegram_edit_is_unsupported(exc):
-                logger.exception(
-                    "Catalog/theme card edit failed; active message left intact"
+            if strict_navigation:
+                logger.warning(
+                    "Catalog/theme initial media edit failed; retrying via safe card delivery",
+                    exc_info=True,
                 )
-                return False
             try:
-                # A Telegram edit/API rejection is the only reason to replace
-                # the active message. The replacement helper sends first.
+                # Catalog/thematic edits can fail because Telegram cannot
+                # fetch a CDN URL or because the edit request times out.
+                # Reuse the shared direct-send / bounded-upload fallback and
+                # keep the current message until replacement delivery succeeds.
                 await _replace_browsed_card(
                     origin_query, context, products[0], 0, caption, reply_markup,
                     send_first=True,
@@ -1855,9 +1857,21 @@ async def _edit_browsed_card(
         except Exception as exc:
             if catalog_navigation and "message is not modified" in str(exc).lower():
                 return
-            if catalog_navigation and not telegram_edit_is_unsupported(exc):
-                logger.exception(
-                    "Catalog/theme media edit failed; active message left intact"
+            if catalog_navigation:
+                # A media-edit timeout or BadRequest does not mean the CDN
+                # image is unusable. Re-enter the shared delivery path, which
+                # retries direct delivery and then performs a bounded,
+                # content-type-validated CDN download before text fallback.
+                logger.warning(
+                    "Catalog/theme media edit failed; retrying via safe card delivery",
+                    exc_info=True,
+                )
+                await _replace_browsed_card(
+                    query, context, product, index, caption, reply_markup,
+                    send_first=True,
+                )
+                await _record_browsed_conversation_product(
+                    context, session_id, product.product_id
                 )
                 return
             logger.warning(
@@ -1868,7 +1882,7 @@ async def _edit_browsed_card(
             )
             await _replace_browsed_card(
                 query, context, product, index, caption, reply_markup,
-                send_first=catalog_navigation,
+                send_first=False,
             )
             await _record_browsed_conversation_product(
                 context, session_id, product.product_id
