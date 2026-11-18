@@ -1735,6 +1735,7 @@ async def _send_product_cards(
                 # Send the real product card first (including the bounded CDN
                 # upload fallback), then remove the old menu message. This
                 # keeps the user's current screen if delivery itself fails.
+                replacement_attempted = True
                 await _replace_browsed_card(
                     origin_query, context, products[0], 0, caption, reply_markup,
                     send_first=True,
@@ -1758,6 +1759,7 @@ async def _send_product_cards(
                 # fetch a CDN URL or because the edit request times out.
                 # Reuse the shared direct-send / bounded-upload fallback and
                 # keep the current message until replacement delivery succeeds.
+                replacement_attempted = True
                 await _replace_browsed_card(
                     origin_query, context, products[0], 0, caption, reply_markup,
                     send_first=True,
