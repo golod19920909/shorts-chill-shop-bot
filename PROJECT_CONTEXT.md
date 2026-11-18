@@ -739,4 +739,6 @@ The dated implementation notes and prior live-test findings have been preserved 
 - The catalog/thematic handler previously returned immediately for these non-unsupported edit errors, so the shared `common.send_product_card` fallback was never reached.
 - Updated both the initial catalog-card edit failure path and subsequent catalog/thematic browse edits to use send-first replacement through the shared card sender. This reuses direct CDN delivery, bounded validated CDN byte upload, and text fallback; the previous message is deleted only after the replacement send succeeds.
 - Scope is Telegram card transport only. Product search, selection, ranking, curation, «Умный поиск» and «✨ Находки» remain unchanged.
+
+- The initial-send path now marks replacement as attempted before invoking it, preventing the outer exception handler from issuing the same potentially slow Telegram replacement a second time.
 - No tests were run, per the user's instruction. No merge, local PC update, server deployment, `.env`, or database changes were made.
