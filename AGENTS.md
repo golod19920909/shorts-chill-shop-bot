@@ -51,8 +51,11 @@ Guidance for AI agents and maintainers working in this repository.
 11. **Product-image delivery is transport-only.** Keep Telegram's direct CDN
     URL send as the fast path; on failure, allow only bounded HTTPS downloads
     from AliExpress image-CDN hosts, with same-family redirect validation,
-    image content-type validation, and strict timeout/size caps. Never invent
-    or rewrite marketplace image URLs, and never change product selection.
+    image content-type validation, and strict timeout/size caps.
+    When the first product has an image but the source menu message is text,
+    send the photo card before deleting/replacing that text message; Telegram
+    cannot convert text messages into photo media. Never invent or rewrite
+    marketplace image URLs, and never change product selection.
 
 ## Test commands
 
