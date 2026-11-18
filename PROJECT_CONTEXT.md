@@ -731,3 +731,12 @@ The dated implementation notes and prior live-test findings have been preserved 
 - Work is isolated on `fix/first-card-image-delivery`, based on
   `fix/remove-catalog-product-ranking`. No merge, local PC update, server
   deployment, `.env`, or database changes were made.
+
+
+## Catalog media edit fallback — 18 Nov 2026
+
+- Telegram live logs showed `TimedOut` and `BadRequest: Wrong type of the web page content` from in-place `edit_message_media` calls while browsing thematic cards.
+- The catalog/thematic handler previously returned immediately for these non-unsupported edit errors, so the shared `common.send_product_card` fallback was never reached.
+- Updated both the initial catalog-card edit failure path and subsequent catalog/thematic browse edits to use send-first replacement through the shared card sender. This reuses direct CDN delivery, bounded validated CDN byte upload, and text fallback; the previous message is deleted only after the replacement send succeeds.
+- Scope is Telegram card transport only. Product search, selection, ranking, curation, «Умный поиск» and «✨ Находки» remain unchanged.
+- No tests were run, per the user's instruction. No merge, local PC update, server deployment, `.env`, or database changes were made.
