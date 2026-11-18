@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import unittest
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from telegram import InputFile
 
-from handlers import common
+from handlers import common, search
 from models.product import Marketplace, Product
 
 
@@ -108,6 +109,54 @@ class ProductCardImageDeliveryTests(unittest.TestCase):
             "https://ae-pic-a1.aliexpress-media.com/kf/product.jpg",
         )
 
+    def test_initial_image_card_replaces_text_origin_with_photo_card(self) -> None:
+        context = SimpleNamespace()
+        query = SimpleNamespace(message=SimpleNamespace(photo=None))
+        product = _product()
+        outcome = SimpleNamespace(products=[product])
+        keyboard = object()
+
+        with (
+            patch("handlers.search.common.get_outcome_meta", return_value={}),
+            patch(
+                "handlers.search.common.is_product_tracked",
+                new=AsyncMock(return_value=False),
+            ),
+            patch("handlers.search._browse_keyboard", return_value=keyboard),
+            patch("handlers.search._card_caption", return_value="header"),
+            patch("handlers.search.common.product_card_text", return_value="caption"),
+            patch(
+                "handlers.search._replace_browsed_card",
+                new=AsyncMock(),
+            ) as replace_card,
+            patch("handlers.search.common.record_event", new=AsyncMock()),
+            patch("handlers.search.common.remember_shown", new=AsyncMock()),
+            patch("handlers.search.common.remember_views", new=AsyncMock()),
+            patch("handlers.search.common.session_flow", return_value="themes:test"),
+        ):
+            delivered = asyncio.run(
+                search._send_product_cards(
+                    context,
+                    123,
+                    outcome,
+                    "session-1",
+                    user_id=1,
+                    telegram_id=1,
+                    origin_query=query,
+                    strict_navigation=True,
+                )
+            )
+
+        self.assertTrue(delivered)
+        replace_card.assert_awaited_once_with(
+            query,
+            context,
+            product,
+            0,
+            "caption",
+            keyboard,
+            send_first=True,
+        )
     def test_non_aliexpress_image_host_is_not_downloaded(self) -> None:
         context = _FakeContext()
         product = _product()
