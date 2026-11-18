@@ -714,3 +714,20 @@ The dated implementation notes and prior live-test findings have been preserved 
 - The finalizer returns to its prior post-validation, deduplication and type/family curation order. Existing retrieval, Gemini selection, diversity limits and unrelated card-delivery work are retained.
 - Removed the ranking-only service, tests, shared tokenizer extraction and workflow branch entry. The conversational tokenizer keeps its original local Unicode regex; tokenization behavior is unchanged.
 - No changes to «Умный поиск» or «✨ Находки» algorithms, no additional API calls, no local PC or production deployment changes.
+
+## Initial thematic product-card image transition — 18 Nov 2026
+
+- Fixed the first-card rendering path when a thematic/catalog callback originates
+  from a text menu message. Telegram cannot convert an existing text message
+  into photo media, so the handler now sends the product card through the shared
+  image-delivery path (direct AliExpress CDN URL, then bounded CDN byte upload)
+  and deletes the old menu message only after the replacement send succeeds.
+- Products without an image URL retain the existing text-message edit path.
+- This is Telegram presentation/transport only. Product retrieval, selection,
+  ranking, curation, «Умный поиск» and «✨ Находки» behavior are unchanged.
+- Added an offline regression test for the text-origin/photo-card transition.
+  Per the user's instruction to stop running tests, no test command was run for
+  this change; the test is committed for the next normal verification cycle.
+- Work is isolated on `fix/first-card-image-delivery`, based on
+  `fix/remove-catalog-product-ranking`. No merge, local PC update, server
+  deployment, `.env`, or database changes were made.
