@@ -102,3 +102,26 @@ They remain active. Before editing catalog subcategories, repeat-search behavior
 - Do not weaken the principal-product gate, strict USD budget ceilings, Gemini approved-ID boundary, or type/family diversity to make retrieval appear faster.
 - Per-route thematic timing logs are observational and must not include credentials, signatures, user text, or product data.
 - Ordinary catalog routes, conversational RAW retrieval, «Умный поиск», «Находки», photo search, favorites and price tracking behavior must remain otherwise unchanged.
+
+
+## Thematic balanced candidate selection (2026-11-18)
+
+- Thematic shelves may scan up to 2x the ordinary 80-candidate pool cap, while
+  retaining the existing bounded route/page plan. The scan cap is only for
+  preserving eligible candidates before balancing; the Gemini input remains
+  capped at the ordinary pool target.
+- Early-stop coverage is at least 75% of configured canonical product-type
+  groups (minimum four where available), not the former one-third threshold.
+  If the threshold is not met, continue only within the already configured
+  thematic routes and one additional marketplace page.
+- Before the single Gemini call, create a deterministic round-robin candidate
+  window across validated canonical product types. Preserve ranking order
+  within each type. Unclassified candidates may fill only unused capacity.
+- For thematic shelves only, Gemini returns up to 40 approved IDs: first 20
+  primary candidates and up to 20 reserve candidates. It must spread the
+  primary 20 across represented types before taking additional items from a
+  type. Reserve candidates remain subject to the same final identity,
+  duplicate, near-duplicate, family and type checks.
+- Never fill a shelf with IDs Gemini did not approve. Keep the existing one-call
+  selector, timeout, approved-ID boundary and 20-card visible cap. Ordinary
+  catalog subcategories, «Умный поиск» and «✨ Находки» are unchanged.
