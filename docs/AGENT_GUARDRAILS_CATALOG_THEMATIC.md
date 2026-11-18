@@ -66,6 +66,20 @@ They remain active. Before editing catalog subcategories, repeat-search behavior
 
 
 
+## Thematic card delivery reuse (2026-11-18)
+
+- Thematic `find_by_subcategory` already owns retrieval, the single bounded
+  Gemini candidate-selection call, principal-product validation and the
+  deterministic subtype/family finalizer. Do not add a second selector or
+  second ranking/curation pass in the Telegram handler.
+- Both initial thematic results and «Показать ещё» must pass the finalized
+  `SearchOutcome` to `send_search_results(pre_curated=True)`, matching the
+  Smart Search delivery contract. The common renderer remains responsible for
+  card photos, one-message browsing/navigation, caching and history.
+- Keep the category-specific retrieval and diversity policy unchanged unless
+  separately approved; this delivery reuse must not modify Smart Search,
+  Findings, Gemini prompts, or provider retrieval.
+
 ## Thematic retrieval isolation (2026-11-13)
 
 - The six editorial thematic shelves may use up to twenty bounded product-type routes (one primary plus nineteen alternates) and at most one additional marketplace page. They stop deepening when the eligible pool target is reached. Ordinary catalog subcategories retain their three-route cap and existing page policy.
