@@ -12,7 +12,7 @@ on:
       - feat/catalog-quality-and-subcategories
       - fix/conversational-search-completion-20
       - chore/repository-cleanup-2026-11-15
-      - feat/catalog-product-ranking
+      - fix/remove-catalog-product-ranking
   pull_request:
     branches:
       - main
