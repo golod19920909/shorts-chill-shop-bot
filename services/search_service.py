@@ -821,6 +821,10 @@ class SearchService:
             and shelf_config.code.startswith("theme_")
             and shelf_config.product_type_groups
         )
+        # Thematic shelves inspect a wider eligible set before reducing it to
+        # the normal 80-candidate Gemini window. This prevents high-ranked
+        # products from one popular type from hiding lower-ranked, valid types.
+        thematic_scan_cap = pool_target * 2 if is_thematic_request else pool_target
         deep_subcategory = (
             broaden
             and request.mode is SearchMode.CATEGORY
@@ -868,7 +872,10 @@ class SearchService:
         routes_completed = 0
         routes_failed = 0
         thematic_required_types = (
-            min(6, max(3, (len(shelf_config.product_type_groups) + 2) // 3))
+            min(
+                len(shelf_config.product_type_groups),
+                max(4, (3 * len(shelf_config.product_type_groups) + 3) // 4),
+            )
             if is_thematic_request and shelf_config is not None
             else 0
         )
@@ -1196,7 +1203,7 @@ class SearchService:
                             request=request, unavailable_marketplaces=list(unavailable)
                         ),
                         exclude=exclude,
-                        cap=pool_target,
+                        cap=thematic_scan_cap,
                     )
                     if (
                         is_thematic_request
@@ -1480,6 +1487,34 @@ class SearchService:
             )
             return outcome
 
+        if is_thematic_request and shelf_config is not None and outcome.products:
+            # _collect keeps marketplace ranking, but its ordinary top-N cut
+            # can let a common product type crowd rarer valid types out. The
+            # thematic scan cap above preserves those candidates; now create a
+            # deterministic round-robin window for the one Gemini selection.
+            scanned_count = len(outcome.products)
+            outcome.products = self._balance_thematic_pool(
+                outcome.products,
+                subcategory=shelf_config,
+                limit=pool_target,
+            )
+            represented = len(represented_thematic_types(outcome.products))
+            type_counts: dict[str, int] = {}
+            for product in outcome.products:
+                type_key = subcategory_product_type(product, shelf_config)
+                if type_key:
+                    type_counts[type_key] = type_counts.get(type_key, 0) + 1
+            logger.info(
+                "Thematic candidate pool balanced: code=%s scanned=%d selected=%d "
+                "types=%d type_counts=%s",
+                shelf_config.code,
+                scanned_count,
+                len(outcome.products),
+                represented,
+                ",".join(f"{key}:{count}" for key, count in type_counts.items()),
+            )
+            outcome.comparisons = build_comparison(outcome.products)
+
         if broaden and feed_selection:
             subcategory_pool_size = len(outcome.products)
             await self.apply_feed_selection(outcome)
@@ -1626,6 +1661,53 @@ class SearchService:
             outcome.found_count,
             duration_ms,
         )
+
+    @staticmethod
+    def _balance_thematic_pool(
+        products: list[Product], *, subcategory: Subcategory, limit: int,
+    ) -> list[Product]:
+        """Keep ranked candidates while spreading the AI window by type.
+
+        Products have already passed relevance, constraints, deduplication and
+        ranking. Preserve each type's order and take one per represented type
+        per round. Unclassified candidates fill only unused capacity; no
+        identity or quality gate is relaxed.
+        """
+
+        limit = max(0, int(limit))
+        if len(products) <= limit:
+            return list(products)
+
+        by_type: dict[str, list[Product]] = {}
+        unclassified: list[Product] = []
+        for product in products:
+            type_key = subcategory_product_type(product, subcategory)
+            if type_key is None:
+                unclassified.append(product)
+            else:
+                by_type.setdefault(type_key, []).append(product)
+
+        selected: list[Product] = []
+        cursors = {type_key: 0 for type_key in by_type}
+        type_keys = list(by_type)  # insertion order follows the ranked pool
+        while len(selected) < limit:
+            added = False
+            for type_key in type_keys:
+                cursor = cursors[type_key]
+                candidates = by_type[type_key]
+                if cursor >= len(candidates):
+                    continue
+                selected.append(candidates[cursor])
+                cursors[type_key] += 1
+                added = True
+                if len(selected) >= limit:
+                    break
+            if not added:
+                break
+
+        if len(selected) < limit:
+            selected.extend(unclassified[: limit - len(selected)])
+        return selected
 
     @staticmethod
     def _finalize_subcategory_selection(
