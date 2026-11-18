@@ -30,13 +30,15 @@ Guidance for AI agents and maintainers working in this repository.
    selection defaults to 20; these are separate limits. Curated subcategory
    shelves are the bounded exception: one selector call may return up to 40
    approved IDs (20 primary + 20 reserve), while final presentation stays at 20.
-   Their deterministic finalizer uses the subcategory's configured product-type
-   aliases to balance represented types and refill from the already-filtered
-   pool. Explicit thematic shelves may stop short rather than exceed their
-   configured type/family diversity cap; ordinary catalog shelves retain
-   their existing refill policy. Additional provider pages remain bounded by
-   `max_search_pages`; never
-   bypass the positive title-identity gate or add per-product Gemini calls.
+   Thematic shelves scan at most twice the ordinary 80-candidate pool cap,
+   balance the Gemini input round-robin across validated canonical types, and
+   require at least 75% of configured types (minimum four where available)
+   before early stopping. Gemini's thematic primary 20 must be type-balanced;
+   its approved reserve may refill only after the same final identity, duplicate,
+   family and type checks. Never add unapproved IDs or extra Gemini calls.
+   Ordinary catalog shelves retain their existing selection/refill behavior.
+   Additional provider pages remain bounded by `max_search_pages`; never
+   bypass the positive title-identity gate.
 8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
 9. **Protect existing user-facing sections.** Do not change, move, rename,
