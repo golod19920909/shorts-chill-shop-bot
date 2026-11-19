@@ -727,13 +727,6 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     )
 
-    # The cursor contract (§12): next = last_attempted_page + 1, where
-    # "attempted" means the page the service really asked - success,
-    # emptiness or failure alike. Two consecutive presses therefore cannot
-    # replay the same pages, not even after «🔄 Начать заново».
-    context.user_data[FEED_PAGE_KEY] = last_attempted + 1
-    await _remember_feed_page(context, user_id, last_attempted + 1)
-
     await record_outcome_events(
         context,
         outcome,
@@ -743,6 +736,10 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
     if not collected:
+        # Empty pages are consumed because the API has already answered them;
+        # only a page containing cards waits for successful Telegram delivery.
+        context.user_data[FEED_PAGE_KEY] = last_attempted + 1
+        await _remember_feed_page(context, user_id, last_attempted + 1)
         # Did the MARKETPLACE actually answer? This separates a real
         # end-of-feed from a feed the API answered with nothing:
         # «показали всё» (with a history reset button) must never appear
@@ -776,14 +773,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    # Persist exactly what this user is shown RIGHT NOW - before the card
-    # reaches Telegram, so the next open (in this process or a restarted
-    # one) skips it by its canonical identity. This is the FEED's own
-    # scope: a search must not be emptied by what the feed displayed.
-    await common.remember_shown(context, user_id, collected[0], flow=FLOW_FEED)
-
     header = f"{FINDINGS} <b>Находки</b>"
-    await send_search_results(
+    session_id = await send_search_results(
         context,
         chat_id,
         outcome,
@@ -797,6 +788,12 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # second time; only the history recording of the normal path stays.
         pre_curated=True,
     )
+    if session_id is not None:
+        # A page containing products is consumed only after the first card
+        # was successfully delivered. On Telegram failure the next open
+        # retries the same page instead of skipping unseen products.
+        context.user_data[FEED_PAGE_KEY] = last_attempted + 1
+        await _remember_feed_page(context, user_id, last_attempted + 1)
 
 
 async def _feed_start_page(
