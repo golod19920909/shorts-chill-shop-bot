@@ -128,6 +128,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not await _guard(update, context, answer_callback=True):
         return
 
+    # Acknowledge before database writes or the optional live API test; a
+    # slow admin diagnostic must not leave Telegram's callback spinner open.
+    await query.answer()
+
     key = (query.data or "").partition(":")[2]
 
     period = context.user_data.get(ADMIN_PERIOD_KEY, analytics.DEFAULT_PERIOD)
@@ -173,7 +177,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data[ADMIN_SCREEN_KEY] = screen
     context.user_data[ADMIN_PAGE_KEY] = page
 
-    await query.answer()
     await _render_screen(update, context, screen, period, page)
 
 
