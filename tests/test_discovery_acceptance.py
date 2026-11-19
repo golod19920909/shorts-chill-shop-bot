@@ -342,7 +342,8 @@ class FavoritesScreenTests(unittest.TestCase):
 
         text, kwargs = query.edits[0]
         self.assertLessEqual(len(text), 4096)
-        self.assertIn("…и ещё", text)
+        self.assertIn("Страница 1/3", text)
+        self.assertNotIn("…и ещё", text)
         buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
         deletes = [b for b in buttons if (b.callback_data or "").startswith("fdel:")]
         self.assertEqual(len(deletes), favorites.MAX_LISTED_FAVORITES)
