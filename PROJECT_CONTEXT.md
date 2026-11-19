@@ -17,9 +17,10 @@ invents products, prices, links, or AI results.
   section, including «Умный поиск» and «Находки». No section is protected.
 - Confirmed fixes in the current work branch include price-notification
   delivery accounting, currency-baseline preservation, truthful scheduler
-  status, callback acknowledgement before slow admin diagnostics,
-  Product Assistant comparison logic, deterministic routing fallback, and
-  product-type switching in conversational search.
+  status (including skipping idle jobs when no provider is configured),
+  callback acknowledgement before slow admin diagnostics, Product Assistant
+  comparison logic, deterministic routing fallback, product-type switching,
+  and abbreviated-thousand budget parsing (for example, "2 тыс. грн").
 - Favorites and price-tracking screens now paginate instead of overflowing
   Telegram limits; stale positional favorite-delete callbacks are refused
   safely, and current identity-based callbacks remain supported.
@@ -27,11 +28,12 @@ invents products, prices, links, or AI results.
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
 - Latest GitHub Actions run on the current branch (head
-  eb419cffc086ea27aed3ee25fc4755786c1bdbf5):
-  focused offline suite: **302 passed, 20 subtests passed**;
-  full remaining repository suite: **2,182 passed, 686 subtests passed**,
-  with one pytest-asyncio deprecation warning. No test modules are excluded
-  from the broad run; obsolete files have been removed from the repository.
+  839e519dcd07b9c2115eddf27caaeac3e39f46ac):
+  focused offline suite: **317 passed, 45 subtests passed**;
+  full repository suite: **2,192 passed, 711 subtests passed**.
+  No test modules are excluded from the broad run; obsolete files have been
+  removed after active coverage was migrated. One upstream google-genai
+  deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
   runtime have not been exercised by this GitHub-only verification.
 
