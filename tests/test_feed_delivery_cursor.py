@@ -73,6 +73,30 @@ class FeedDeliveryCursorTests(unittest.IsolatedAsyncioTestCase):
 
         return context, remember_page, remember_shown
 
+    async def test_provider_failure_does_not_consume_the_page(self):
+        update, context = self.make_update_context()
+        context.bot = SimpleNamespace(send_message=AsyncMock())
+
+        class FailingSearchService:
+            async def find_feed_page(self, **kwargs):
+                raise RuntimeError("temporary provider failure")
+
+        with (
+            patch.object(common, "register_user", new=AsyncMock(return_value=1)),
+            patch.object(common, "get_user_region", new=AsyncMock(return_value={"country": "US", "currency": "USD"})),
+            patch.object(common, "feed_seen", new=AsyncMock(return_value=set())),
+            patch.object(common, "get_search_service", return_value=FailingSearchService()),
+            patch.object(discovery, "_feed_start_page", new=AsyncMock(return_value=5)),
+            patch.object(discovery, "_bounded_setting", return_value=1),
+            patch.object(discovery, "_remember_feed_page", new=AsyncMock()) as remember_page,
+            patch.object(common, "record_event", new=AsyncMock()),
+        ):
+            await discovery.show_feed(update, context)
+
+        self.assertNotIn(discovery.FEED_PAGE_KEY, context.user_data)
+        remember_page.assert_not_awaited()
+        context.bot.send_message.assert_awaited_once()
+
     async def test_failed_card_delivery_does_not_advance_feed_cursor(self):
         context, remember_page, remember_shown = await self._run_feed(None)
 
