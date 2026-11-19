@@ -214,8 +214,14 @@ _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
         "предел", "бюджет", "до", "от", "меньше", "больше", "не", "более",
         "долларов", "доллар", "доллара", "usd", "uah", "eur", "евро",
         "грн", "гривн", "гривна", "гривны", "гривен", "рублей", "руб",
+        # Every currency understood by _budget() is framing, including
+        # currencies the current AliExpress target-currency API cannot use.
+        # Those unsupported currencies must reach the explicit clarification
+        # path, not become accidental product features in a follow-up.
+        "byn", "белорусск", "бел", "kzt", "тенге", "uzs", "сум",
+        "pln", "злот", "zł", "gbp", "фунт", "rub",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
-        "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽",
+        "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽", "₸", "£",
         # Scale words belong to a money amount, never to a product type or feature.
         "тыс", "тысяч", "тысяча", "тысячи", "тысячу", "тысячам",
         "тысячами", "тысячах", "тысяче", "тысячей", "thousand", "thousands",
