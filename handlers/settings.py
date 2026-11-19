@@ -112,12 +112,12 @@ async def show_tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 "tracked_id": row["id"],
                 "title": row["title"],
                 "url": row["product_url"],
-                "price": row["last_checked_price"] or row["initial_price"],
+                "price": (row["last_checked_price"] if row["last_checked_price"] is not None else row["initial_price"]),
                 "currency": row["currency"],
             }
         )
         price = format_price(
-            row["last_checked_price"] or row["initial_price"], row["currency"]
+            row["last_checked_price"] if row["last_checked_price"] is not None else row["initial_price"], row["currency"]
         )
         lines.append(
             f"• {common.escape(row['title'] or 'Без названия')} — "
@@ -246,6 +246,11 @@ async def notifications_toggle_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """``notif:toggle`` - flip the stored preference and re-render."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
 
     user_id = await common.register_user(update, context)
     if user_id is None:
