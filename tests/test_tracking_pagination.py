@@ -80,6 +80,19 @@ class TrackingPaginationTests(unittest.TestCase):
         self.assertIn(f"{CB_TRACK_PAGE}:0", callbacks)
         self.assertIn(f"{CB_TRACK_PAGE}:2", callbacks)
 
+    def test_invalidated_currency_baseline_does_not_show_old_initial_price(self):
+        self.database.rows[0]["last_checked_price"] = None
+        self.database.rows[0]["currency"] = None
+        query = FakeQuery()
+        asyncio.run(settings.show_tracking(FakeUpdate(query), self.context, page=0))
+
+        text, kwargs = query.edits[-1]
+        self.assertIn("Товар 1", text)
+        self.assertNotIn("1.00", text)
+        buttons = [button for row in kwargs["reply_markup"].inline_keyboard for button in row]
+        self.assertTrue(any("—" in (button.text or "") for button in buttons))
+
+
     def test_last_page_has_no_next_button(self):
         query = FakeQuery()
         asyncio.run(settings.show_tracking(FakeUpdate(query), self.context, page=99))
