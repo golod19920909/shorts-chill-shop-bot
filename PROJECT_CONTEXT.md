@@ -16,18 +16,22 @@ invents products, prices, links, or AI results.
 - The owner authorized a complete audit and safe fixes across every bot
   section, including «Умный поиск» and «Находки». No section is protected.
 - Confirmed fixes in the current work branch include price-notification
-  delivery accounting, currency-baseline preservation, callback acknowledgement,
-  product-assistant comparison logic, deterministic routing fallback, and
-  product-type switching in the conversational search engine. Current routing,
-  telemetry, result-limit and discovery regressions are covered by active tests.
+  delivery accounting, currency-baseline preservation, truthful scheduler
+  status, callback acknowledgement before slow admin diagnostics,
+  Product Assistant comparison logic, deterministic routing fallback, and
+  product-type switching in conversational search.
+- Favorites and price-tracking screens now paginate instead of overflowing
+  Telegram limits; stale positional favorite-delete callbacks are refused
+  safely, and current identity-based callbacks remain supported.
 - Obsolete tests tied to deleted agent/chat-router code and missing temporary
   experiment runners were removed; active coverage was migrated into current
-  engine, telemetry and result-limit test modules.
-- Latest GitHub Actions run on the current branch:
-  focused offline suite: **296 passed, 20 subtests passed**;
-  full remaining repository suite: **2,173 passed, 686 subtests passed**,
-  with one pytest-asyncio deprecation warning. The obsolete legacy test files
-  were removed rather than excluded from this run.
+  engine, telemetry, result-limit, discovery and observability test modules.
+- Latest GitHub Actions run on the current branch (head
+  eb419cffc086ea27aed3ee25fc4755786c1bdbf5):
+  focused offline suite: **302 passed, 20 subtests passed**;
+  full remaining repository suite: **2,182 passed, 686 subtests passed**,
+  with one pytest-asyncio deprecation warning. No test modules are excluded
+  from the broad run; obsolete files have been removed from the repository.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
   runtime have not been exercised by this GitHub-only verification.
 
