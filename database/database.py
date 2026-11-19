@@ -676,8 +676,8 @@ class Database:
     ) -> None:
         """Start tracking a product's price (idempotent per user+product).
 
-        Repeated clicks update the existing row instead of replacing it,
-        so the row id stays stable for the future price-check scheduler.
+        Repeated clicks reactivate/update the existing row instead of
+        replacing it, so the row id stays stable for the scheduled checker.
         """
 
         async with self._connect() as conn:
@@ -713,9 +713,8 @@ class Database:
     ) -> list[dict[str, Any]]:
         """Fetch tracked products, optionally scoped to one user.
 
-        With ``user_id=None`` this returns all active tracked products
-        across all users - the shape a future price-check scheduler
-        would need.
+        With user_id=None this returns all active tracked products
+        across all users - the shape consumed by the scheduled price checker.
         """
 
         query = "SELECT * FROM tracked_products WHERE 1=1"
