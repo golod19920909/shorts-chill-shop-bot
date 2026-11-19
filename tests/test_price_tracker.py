@@ -255,6 +255,8 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(notifier.calls, [])
         self.assertEqual(db.history, [(1, 8.0, "USD")])
         self.assertEqual(db.observations, [(1, 8.0, "USD")])
+        self.assertEqual(tracker.changes_found, 1)
+        self.assertEqual(tracker.notify_skipped, 1)
 
     async def test_notification_uses_inline_buy_button(self):
         """Spec §59: raw URLs are gone; the buy URL travels separately."""
