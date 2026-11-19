@@ -185,11 +185,10 @@ class Database:
         the row's UNIQUE key (one product may be recorded once per flow), and
         SQLite cannot alter a table constraint. The table is therefore
         rebuilt once - rows written by an older build carry no scope, and
-        they are kept as ROTATION rows (:data:`~database.models.FLOW_POPULAR`):
-        that scope is the conservative one (it can only make the popular feed
-        skip a product, never hide a search result), and it starts the search
-        scope from a clean, honest slate instead of inheriting state written
-        for a different screen.
+        they are assigned to the current feed scope
+        (:data:`~database.models.FLOW_FEED`). This preserves the user's old
+        no-repeat history in «✨ Находки» while leaving the new search scope
+        clean instead of inheriting state written for a different screen.
         """
 
         cursor = await conn.execute("PRAGMA table_info(popular_shown);")
