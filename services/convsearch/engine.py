@@ -442,6 +442,39 @@ class ConversationSearchEngine:
             # other slots already recorded from the original request.
             state.record_product_type(model_type.strip())
 
+        budget_slot = state.active_by_kind("budget")
+        if budget_slot is not None:
+            budget_parts = str(budget_slot.value or "").split(maxsplit=1)
+            budget_currency = (
+                budget_parts[1].strip().upper() if len(budget_parts) > 1 else ""
+            )
+            if (
+                budget_currency
+                and budget_currency not in retrieval_mod.SUPPORTED_BUDGET_CURRENCIES
+            ):
+                supported = ", ".join(
+                    code for code in ("USD", "EUR", "UAH", "RUB", "GBP")
+                    if code in retrieval_mod.SUPPORTED_BUDGET_CURRENCIES
+                )
+                question = (
+                    f"AliExpress не возвращает цены в {budget_currency}. "
+                    "Без конвертации я не могу корректно проверить этот бюджет. "
+                    f"Укажите сумму в одной из поддерживаемых валют: {supported}."
+                )
+                state.last_outcome = Outcome.CLARIFY.value
+                state.last_question = question
+                return SearchDecision(
+                    outcome=Outcome.CLARIFY,
+                    question=question,
+                    refined=False,
+                    report={
+                        "intent": intent,
+                        "reason": "unsupported_budget_currency",
+                        "currency": budget_currency,
+                        "snapshot": state.snapshot(),
+                    },
+                )
+
         strategy = retrieval_mod.build_retrieval_strategy(
             state, text,
             currency=currency,
