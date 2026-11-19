@@ -200,6 +200,19 @@ class FakeContext:
         self.application = FakeApplication(bot_data)
 
 
+class RouterReturnsNoDecision:
+    """AI double: the Router attempt fails without a validated action."""
+
+    is_available = True
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def decide_conversation_turn(self, text, *, context=None):
+        self.calls += 1
+        return None
+
+
 class SessionIsolationTests(unittest.TestCase):
     """One user, one chat, one SQLite file - and separate sessions."""
 
@@ -275,6 +288,18 @@ class SessionIsolationTests(unittest.TestCase):
         )
 
     # -- A. the popular state does not leak into a search -----------------
+
+    def test_router_failure_does_not_retry_same_gemini_turn_in_engine(self) -> None:
+        context = self.context()
+        ai = RouterReturnsNoDecision()
+        context.application.bot_data["ai_service"] = ai
+
+        self.search(context, "шуруповерт")
+
+        # AssistantRouter has already attempted the turn interpretation.
+        # The engine must fall back deterministically, not call Gemini again.
+        self.assertEqual(ai.calls, 1)
+        self.assertIn("Шуруповерт", self.card(context))
 
     def test_a_search_after_an_exhausted_rotation_shows_its_own_product(self) -> None:
         context = self.context()
