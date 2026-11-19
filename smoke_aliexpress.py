@@ -1,8 +1,8 @@
 """Live smoke test against the real AliExpress Affiliate API.
 
-Run manually (costs one real API call, never runs from the test suite):
+Run manually on Windows (costs one real API call, never runs from the test suite):
 
-    .venv/Scripts/python.exe _smoke_aliexpress.py
+    .venv\Scripts\python.exe smoke_aliexpress.py
 
 Prints a one-line verdict: SMOKE OK / SMOKE FAILED with the error class.
 """
