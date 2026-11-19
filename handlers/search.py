@@ -699,10 +699,11 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             currency=region.get("currency"),
             state=conv_state,
             validated_ai_turn=validated_ai_turn,
-            # If the router could not produce a validated decision (missing
-            # key, timeout, quota or malformed response), let the engine run
-            # its deterministic fallback instead of silently skipping intent.
-            interpret_turn=(pending is not None or validated_ai_turn is None),
+            # The router has already attempted AI interpretation. If it
+            # failed, use the engine's deterministic ledger fallback instead
+            # of spending a second Gemini call on the same message. A pending
+            # clarification bypasses the router and gets one engine turn.
+            interpret_turn=(pending is not None),
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")
