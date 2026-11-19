@@ -67,6 +67,23 @@ def get_general_chat_state(context: ContextTypes.DEFAULT_TYPE) -> ChatConversati
     return state
 
 
+def _get_conversation_state_for_turn(
+    context: ContextTypes.DEFAULT_TYPE, user_key: str
+) -> ConversationEngineState:
+    """Return a live shopping ledger, replacing it when its idle TTL elapsed.
+
+    Do not touch the timestamp here: AssistantRouter may classify this
+    message as general chat, which must not keep an unrelated shopping
+    conversation alive.
+    """
+
+    state = context.user_data.get("_convsearch_state")
+    if not isinstance(state, ConversationEngineState) or state.is_expired():
+        state = ConversationEngineState(user_key=user_key)
+        context.user_data["_convsearch_state"] = state
+    return state
+
+
 logger = logging.getLogger(__name__)
 
 #: The conversational-search engine (adapted from
@@ -606,10 +623,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     telegram_id = update.effective_user.id if update.effective_user else None
     user_key = str(telegram_id or "anon")
-    conv_state = context.user_data.get("_convsearch_state")
-    if not isinstance(conv_state, ConversationEngineState):
-        conv_state = ConversationEngineState(user_key=user_key)
-    conv_state.touch()
+    conv_state = _get_conversation_state_for_turn(context, user_key)
 
     validated_ai_turn = None
     if pending is None and ai_service is not None:
@@ -657,6 +671,11 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             _turn_done("general-chat-unavailable")
             return
+
+    # General-chat turns above do not refresh the shopping ledger. A real
+    # shopping turn starts its idle window here; it is touched again after
+    # the engine finishes so a just-delivered clarification gets the full TTL.
+    conv_state.touch()
 
     # Read from the message the USER sent, before any routing rewrote it.
     original_count = extract_requested_result_count(original_text)
@@ -721,6 +740,10 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # question so the next user message can retry the same clarification.
     if pending is not None:
         consume_pending_clarify(context, decision.outcome)
+
+    # Start the idle TTL after the engine has completed this turn (not
+    # before a potentially slow provider request or Gemini interpretation).
+    conv_state.touch()
 
     # The engine ledger is committed before delivery, so a provider outage
     # does not erase the user's latest turn or the context for a retry.
