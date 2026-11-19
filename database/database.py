@@ -86,6 +86,9 @@ class Database:
         """
 
         async with aiosqlite.connect(self.db_path, uri=self.is_memory) as conn:
+            # SQLite disables foreign-key enforcement per connection. Enable
+            # it here so every database method observes the declared schema.
+            await conn.execute("PRAGMA foreign_keys = ON;")
             yield conn
 
     async def close(self) -> None:
@@ -118,7 +121,6 @@ class Database:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         async with self._connect() as conn:
 
-            await conn.execute("PRAGMA foreign_keys = ON;")
             for statement in ALL_TABLES:
                 await conn.execute(statement)
             await self._ensure_columns(conn)
@@ -261,29 +263,25 @@ class Database:
 
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
-            await conn.execute("PRAGMA foreign_keys = ON;")
+            # One atomic upsert avoids a SELECT-then-INSERT race when two
+            # updates for a previously unseen Telegram user arrive together.
+            await conn.execute(
+                "INSERT INTO users (telegram_id, username, first_name) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT (telegram_id) DO UPDATE SET "
+                "username = COALESCE(excluded.username, users.username), "
+                "first_name = COALESCE(excluded.first_name, users.first_name), "
+                "updated_at = datetime('now')",
+                (telegram_id, username, first_name),
+            )
             cursor = await conn.execute(
                 "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
             )
             row = await cursor.fetchone()
-
-            if row is not None:
-                await conn.execute(
-                    "UPDATE users SET username = COALESCE(?, username), "
-                    "first_name = COALESCE(?, first_name), "
-                    "updated_at = datetime('now') WHERE telegram_id = ?",
-                    (username, first_name, telegram_id),
-                )
-                await conn.commit()
-                return int(row["id"])
-
-            cursor = await conn.execute(
-                "INSERT INTO users (telegram_id, username, first_name) VALUES (?, ?, ?)",
-                (telegram_id, username, first_name),
-            )
             await conn.commit()
-            assert cursor.lastrowid is not None
-            return int(cursor.lastrowid)
+            if row is None:
+                raise RuntimeError("User upsert completed without a user row")
+            return int(row["id"])
 
     async def get_user(self, telegram_id: int) -> dict[str, Any] | None:
         """Fetch one user by Telegram id, or ``None`` if not registered."""
@@ -362,7 +360,6 @@ class Database:
         self, user_id: int, original_query: str, search_request_json: dict[str, Any]
     ) -> None:
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO search_history (user_id, original_query, search_request_json) "
                 "VALUES (?, ?, ?)",
@@ -394,7 +391,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO favorites "
                 "(user_id, marketplace, product_id, product_json) VALUES (?, ?, ?, ?) "
@@ -454,7 +450,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT OR IGNORE INTO popular_shown "
                 "(user_id, marketplace, product_id, flow) VALUES (?, ?, ?, ?)",
@@ -604,7 +599,6 @@ class Database:
         """Remember which feed page the next open continues from."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO popular_state (user_id, step, updated_at) "
                 "VALUES (?, ?, datetime('now')) "
@@ -640,7 +634,6 @@ class Database:
             return
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.executemany(
                 "INSERT OR IGNORE INTO user_view_history (user_id, product_id) "
                 "VALUES (?, ?)",
@@ -688,7 +681,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO tracked_products "
                 "(user_id, marketplace, product_id, title, product_url, initial_price, "
@@ -850,7 +842,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO price_history "
                 "(tracked_product_id, price, shipping_cost, currency) "
@@ -888,7 +879,6 @@ class Database:
         """Store/refresh a product snapshot the user asked to keep."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO saved_products "
                 "(user_id, marketplace, product_id, product_json, note) "
@@ -1257,7 +1247,6 @@ class Database:
         }
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO analytics_events "
                 "(user_id, telegram_id, event_type, marketplace, product_id, "
