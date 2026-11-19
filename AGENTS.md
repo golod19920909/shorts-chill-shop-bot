@@ -20,10 +20,14 @@ persistent user data, and verify every functional change with regression tests.
 
 ## Golden rules
 
-1. **Preserve Option C.** Gemini interprets each user turn in dialogue context
-   and returns a validated structured decision. The conversation engine owns
-   state and policy. Deterministic services own AliExpress retrieval, product
-   validation, hard constraints, ranking, and Telegram delivery.
+1. **Preserve Option C.** AssistantRouter gets one Gemini interpretation
+   attempt for a normal user turn and passes a validated structured decision
+   to the conversation engine. If that attempt fails or returns no valid
+   decision, use the deterministic state machine; do not retry the same turn
+   in the engine. A pending clarification bypasses the Router and may receive
+   one engine-level interpretation attempt. The engine owns state and policy;
+   deterministic services own retrieval, validation, hard constraints,
+   ranking, and Telegram delivery.
 2. **No legacy ShoppingAgent loop.** Do not restore the removed full Gemini
    tool loop or give old chat routing / post-hoc curation decision authority.
 3. **Systemic fixes only.** Do not add product-specific or phrase-specific
