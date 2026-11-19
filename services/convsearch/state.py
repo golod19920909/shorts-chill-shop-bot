@@ -6,10 +6,13 @@ productive-turn tracking), specialised for the bot's real question types:
 an AliExpress product request with product type, soft use-case context,
 required features, exclusions, budget+currency and optional preferences.
 
-One authoritative state per user lives in ``context.user_data`` (the bot's
-existing per-user, expiring in-memory store) — no second persistence system
-and no second state source: ``ConversationState`` (services.conversation)
-keeps owning the effective :class:`SearchRequest`; this ledger owns WHY.
+One authoritative shopping ledger per user lives in ``context.user_data``
+(the bot's existing per-user, expiring in-memory store) — no second
+persistence system and no second state source. This ledger owns the active
+turns, intent and slot provenance. The effective :class:`SearchRequest` for a
+turn is constructed by ``services.convsearch.retrieval``. The separate
+``services.conversation`` module serves the direct text-parser API and does
+not own Telegram conversation state.
 """
 
 from __future__ import annotations
