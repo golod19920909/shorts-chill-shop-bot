@@ -1900,7 +1900,7 @@ def _currency_request_state(text: str) -> dict | None:
             and word not in _NARROW_STOPWORDS
             and word not in _CURRENCY_REQUEST_VERBS
             and word not in _CURRENCY_ADJECTIVES
-            and word not in {"сумма", "сумме", "сумму", "суммой", "суммы"}
+            and word not in {"сумма", "сумме", "сумму", "суммой", "суммы", "сумм"}
             and not any(
                 word.startswith(verb[:5])
                 for verb in _CURRENCY_REQUEST_VERBS
