@@ -547,33 +547,25 @@ class WiringGuardTests(unittest.TestCase):
         with io.open(path, encoding="utf-8") as handle:
             return handle.read()
 
-    def test_search_handler_order_and_single_parse(self) -> None:
+    def test_search_handler_routes_once_then_reuses_validated_decision(self) -> None:
         source = self._source("handlers/search.py")
-        early_exit = source.find("if ai_service is None")
-        # parse_query and parse_query_intent are INDEPENDENT, so they are issued
-        # CONCURRENTLY (asyncio.gather) - the intent PARSE may precede the merge.
-        # The invariant the pipeline actually relies on is therefore anchored on
-        # APPLY, not parse: the parsed intent must be applied AFTER the merge,
-        # and retrieval must happen after that. ``parse_query_intent`` must
-        # still exist exactly once (single parse - the duplication guard).
-        intent_parse = source.find("parse_query_intent(text, ai_service)")
-        resolved = source.find("await resolve_request(")
-        applied = source.find("apply_intent(")
-        # The retrieval call itself (assigned, then returned - the exact
-        # return syntax must not couple this order guard to the code style).
-        searched = source.find("await search_service.find_products(")
-        self.assertGreater(intent_parse, -1)
-        self.assertGreater(applied, -1)
-        self.assertGreater(resolved, -1)
-        self.assertGreater(searched, -1)
-        # The ai_service-is-None branch (Path B) returns BEFORE _search's
-        # own intent call -> no path parses intent twice.
-        self.assertGreater(intent_parse, early_exit)
-        # Single parse: the concurrent block references parse_query_intent once.
-        self.assertEqual(source.count("parse_query_intent(text, ai_service)"), 1)
-        # Mandatory order: merge first, then intent APPLIED, then retrieval.
-        self.assertGreater(applied, resolved)
-        self.assertGreater(searched, applied)
+        router = source.find("AssistantRouter(ai_service).classify(")
+        engine = source.find("await engine.handle_message(")
+        self.assertGreater(router, -1)
+        self.assertGreater(engine, router)
+        self.assertEqual(source.count("AssistantRouter(ai_service).classify("), 1)
+        self.assertEqual(source.count("await engine.handle_message("), 1)
+        self.assertIn("validated_ai_turn=validated_ai_turn", source)
+        self.assertIn(
+            "interpret_turn=(pending is not None or validated_ai_turn is None)",
+            source,
+        )
+        # The old parse/merge path must not run in the Telegram handler:
+        # the router decision is validated once and the engine owns the
+        # deterministic fallback when the router is unavailable.
+        self.assertNotIn("parse_query_intent(", source)
+        self.assertNotIn("await resolve_request(", source)
+
 
     def test_find_products_from_text_uses_the_same_layer(self) -> None:
         source = self._source("services/search_service.py")
