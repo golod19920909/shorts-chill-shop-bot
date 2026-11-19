@@ -212,6 +212,30 @@ class BetterCandidatesTests(unittest.TestCase):
             {"orders", "positive"},
         )
 
+    def test_uncomparable_candidate_rating_cannot_dominate_ordering(self) -> None:
+        original = make_product(
+            "original", "Наушники", 25.0,
+            rating=None, positive_rate=95.0, orders_count=100,
+        )
+        candidate_with_uncomparable_rating = make_product(
+            "rating-only", "Наушники", 27.0,
+            rating=4.9, positive_rate=96.0, orders_count=100,
+        )
+        stronger_comparable_candidate = make_product(
+            "positive-rate", "Наушники", 28.0,
+            rating=None, positive_rate=97.0, orders_count=100,
+        )
+
+        result = better_candidates(
+            original,
+            [candidate_with_uncomparable_rating, stronger_comparable_candidate],
+        )
+
+        self.assertEqual(
+            [product.product_id for product in result],
+            ["positive-rate", "rating-only"],
+        )
+
     def test_missing_metrics_are_not_treated_as_improvements(self) -> None:
         original = make_product("original", "Наушники", 25.0, rating=4.5)
         candidate = make_product("candidate", "Наушники", 27.0, rating=None)
