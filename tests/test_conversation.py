@@ -1,26 +1,17 @@
-"""Multi-turn search refinement on top of the EXISTING search pipeline.
+"""Regression tests for deterministic merge helpers used by the direct parser API.
 
-The state lives in ``context.user_data`` (per user, in memory, expiring) and
-only holds the last effective ``SearchRequest`` - no new table, no migration
-and nothing sensitive. These tests cover the nine required scenarios, with the
-AI either absent, available or returning something unusable.
+Telegram shopping conversations use ConversationSearchEngine; these tests
+cover the separate AIService direct-parser merge and validation primitives.
 """
 
 from __future__ import annotations
 
 import asyncio
-import time
 import unittest
 
 from models.search_request import SearchMode, SearchRequest
 from services.ai_service import AIService
-from services.conversation import (
-    CONTEXT_TTL_SECONDS,
-    ConversationState,
-    deterministic_merge,
-    is_refinement,
-    resolve_request,
-)
+from services.conversation import deterministic_merge, is_refinement, resolve_request
 
 
 def run(coro):
@@ -34,27 +25,6 @@ def parse(text: str) -> SearchRequest:
 
 
 INITIAL_TEXT = "Нужны беспроводные наушники до $30"
-
-
-class ConversationStateTests(unittest.TestCase):
-    def test_a_fresh_state_is_not_expired(self) -> None:
-        state = ConversationState(request=parse(INITIAL_TEXT))
-
-        self.assertFalse(state.is_expired())
-
-    def test_state_expires_and_is_dropped(self) -> None:
-        state = ConversationState(request=parse(INITIAL_TEXT))
-        state.updated_at = time.monotonic() - CONTEXT_TTL_SECONDS - 1
-
-        self.assertTrue(state.is_expired())
-
-    def test_touch_extends_the_lifetime(self) -> None:
-        state = ConversationState(request=parse(INITIAL_TEXT))
-        state.updated_at = time.monotonic() - CONTEXT_TTL_SECONDS - 1
-
-        state.touch()
-
-        self.assertFalse(state.is_expired())
 
 
 class RefinementDetectionTests(unittest.TestCase):

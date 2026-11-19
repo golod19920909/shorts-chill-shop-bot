@@ -2,9 +2,10 @@
 """
 B5: search-pipeline evaluation runner (standalone, NOT part of the pytest suite).
 
-Runs the B5_DATASET through ``SearchService.find_products_from_text`` (the
-same production entry point the bot uses) and reports quality + performance
-for every case, without changing any search behaviour.
+Runs the B5_DATASET through the lower-level ``SearchService.find_products_from_text``
+entry point and reports direct-parser/retrieval quality + performance. This is
+NOT the Telegram production conversation path (which is AssistantRouter plus
+ConversationSearchEngine); use ``probe_b5_production.py`` to inspect routing.
 
 Execution modes (clearly distinguished per case):
   * live   - real AI (Gemini) + real provider (AliExpress) calls; only when

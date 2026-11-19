@@ -576,12 +576,29 @@ class AliExpressProvider(MarketplaceProvider):
         """Normalize a ``products`` payload into :class:`Product` objects."""
 
         products: list[Product] = []
+        malformed = 0
         for raw in self._raw_products(payload):
-            product = self._normalize(raw)
+            try:
+                product = self._normalize(raw)
+            except Exception as exc:  # noqa: BLE001 - isolate one malformed listing
+                # One provider row must never discard the other valid rows
+                # from the same page. Keep diagnostics free of raw product
+                # data and URLs; the exception class is enough to identify
+                # the normalization failure without leaking payload content.
+                malformed += 1
+                logger.warning(
+                    "Skipping malformed AliExpress product row (%s)",
+                    type(exc).__name__,
+                )
+                continue
             if product is not None:
                 products.append(product)
 
-        logger.debug("AliExpress returned %d usable products", len(products))
+        logger.debug(
+            "AliExpress normalized %d usable products; skipped %d malformed rows",
+            len(products),
+            malformed,
+        )
         return products
 
     @staticmethod

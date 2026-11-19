@@ -196,6 +196,37 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(product.affiliate_url, "https://s.click.example.com/l/abc")
         self.assertEqual(product.best_url, "https://s.click.example.com/l/abc")
 
+    def test_malformed_product_does_not_discard_valid_siblings(self) -> None:
+        # A single listing can violate Product constraints (for example a
+        # negative price). It must be skipped without losing valid products
+        # returned in the same API page.
+        instance = AliExpressProvider(EMPTY_CREDENTIALS)
+        products = instance.parse_products(
+            {
+                "products": {
+                    "product": [
+                        {
+                            "product_id": "bad-price",
+                            "product_title": "Malformed listing",
+                            "product_detail_url": "https://example.com/bad",
+                            "target_sale_price": "-1.00",
+                            "target_sale_price_currency": "USD",
+                        },
+                        {
+                            "product_id": "valid-item",
+                            "product_title": "Valid listing",
+                            "product_detail_url": "https://example.com/valid",
+                            "target_sale_price": "9.99",
+                            "target_sale_price_currency": "USD",
+                        },
+                    ]
+                }
+            }
+        )
+
+        self.assertEqual([product.product_id for product in products], ["valid-item"])
+        self.assertEqual(products[0].price, 9.99)
+
     def test_discovery_feeds_without_credentials_return_empty(self) -> None:
         # Same honest contract as search: no credentials -> no API call and
         # no made-up products.

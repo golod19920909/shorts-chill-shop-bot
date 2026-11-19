@@ -86,6 +86,9 @@ class Database:
         """
 
         async with aiosqlite.connect(self.db_path, uri=self.is_memory) as conn:
+            # SQLite disables foreign-key enforcement per connection. Enable
+            # it here so every database method observes the declared schema.
+            await conn.execute("PRAGMA foreign_keys = ON;")
             yield conn
 
     async def close(self) -> None:
@@ -118,7 +121,6 @@ class Database:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         async with self._connect() as conn:
 
-            await conn.execute("PRAGMA foreign_keys = ON;")
             for statement in ALL_TABLES:
                 await conn.execute(statement)
             await self._ensure_columns(conn)
@@ -146,9 +148,17 @@ class Database:
 
         if "updated_at" not in existing:
             logger.info("Migrating: adding users.updated_at column")
+            # SQLite rejects non-constant defaults in ALTER TABLE ADD
+            # COLUMN (including DEFAULT (datetime('now'))). Use a constant
+            # default for the schema upgrade, then backfill existing rows.
+            # get_or_create_user supplies the timestamp explicitly for new
+            # rows in databases upgraded through this path.
             await conn.execute(
-                "ALTER TABLE users ADD COLUMN updated_at TEXT "
-                "NOT NULL DEFAULT (datetime('now'));"
+                "ALTER TABLE users ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';"
+            )
+            await conn.execute(
+                "UPDATE users SET updated_at = datetime('now') "
+                "WHERE updated_at = '';"
             )
 
         # Country/currency are optional user preferences; a NULL value
@@ -183,11 +193,10 @@ class Database:
         the row's UNIQUE key (one product may be recorded once per flow), and
         SQLite cannot alter a table constraint. The table is therefore
         rebuilt once - rows written by an older build carry no scope, and
-        they are kept as ROTATION rows (:data:`~database.models.FLOW_POPULAR`):
-        that scope is the conservative one (it can only make the popular feed
-        skip a product, never hide a search result), and it starts the search
-        scope from a clean, honest slate instead of inheriting state written
-        for a different screen.
+        they are assigned to the current feed scope
+        (:data:`~database.models.FLOW_FEED`). This preserves the user's old
+        no-repeat history in «✨ Находки» while leaving the new search scope
+        clean instead of inheriting state written for a different screen.
         """
 
         cursor = await conn.execute("PRAGMA table_info(popular_shown);")
@@ -261,29 +270,25 @@ class Database:
 
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
-            await conn.execute("PRAGMA foreign_keys = ON;")
+            # One atomic upsert avoids a SELECT-then-INSERT race when two
+            # updates for a previously unseen Telegram user arrive together.
+            await conn.execute(
+                "INSERT INTO users (telegram_id, username, first_name, updated_at) "
+                "VALUES (?, ?, ?, datetime('now')) "
+                "ON CONFLICT (telegram_id) DO UPDATE SET "
+                "username = COALESCE(excluded.username, users.username), "
+                "first_name = COALESCE(excluded.first_name, users.first_name), "
+                "updated_at = datetime('now')",
+                (telegram_id, username, first_name),
+            )
             cursor = await conn.execute(
                 "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
             )
             row = await cursor.fetchone()
-
-            if row is not None:
-                await conn.execute(
-                    "UPDATE users SET username = COALESCE(?, username), "
-                    "first_name = COALESCE(?, first_name), "
-                    "updated_at = datetime('now') WHERE telegram_id = ?",
-                    (username, first_name, telegram_id),
-                )
-                await conn.commit()
-                return int(row["id"])
-
-            cursor = await conn.execute(
-                "INSERT INTO users (telegram_id, username, first_name) VALUES (?, ?, ?)",
-                (telegram_id, username, first_name),
-            )
             await conn.commit()
-            assert cursor.lastrowid is not None
-            return int(cursor.lastrowid)
+            if row is None:
+                raise RuntimeError("User upsert completed without a user row")
+            return int(row["id"])
 
     async def get_user(self, telegram_id: int) -> dict[str, Any] | None:
         """Fetch one user by Telegram id, or ``None`` if not registered."""
@@ -362,7 +367,6 @@ class Database:
         self, user_id: int, original_query: str, search_request_json: dict[str, Any]
     ) -> None:
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO search_history (user_id, original_query, search_request_json) "
                 "VALUES (?, ?, ?)",
@@ -394,7 +398,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO favorites "
                 "(user_id, marketplace, product_id, product_json) VALUES (?, ?, ?, ?) "
@@ -454,7 +457,6 @@ class Database:
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT OR IGNORE INTO popular_shown "
                 "(user_id, marketplace, product_id, flow) VALUES (?, ?, ?, ?)",
@@ -604,7 +606,6 @@ class Database:
         """Remember which feed page the next open continues from."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO popular_state (user_id, step, updated_at) "
                 "VALUES (?, ?, datetime('now')) "
@@ -640,7 +641,6 @@ class Database:
             return
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.executemany(
                 "INSERT OR IGNORE INTO user_view_history (user_id, product_id) "
                 "VALUES (?, ?)",
@@ -683,12 +683,11 @@ class Database:
     ) -> None:
         """Start tracking a product's price (idempotent per user+product).
 
-        Repeated clicks update the existing row instead of replacing it,
-        so the row id stays stable for the future price-check scheduler.
+        Repeated clicks reactivate/update the existing row instead of
+        replacing it, so the row id stays stable for the scheduled checker.
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO tracked_products "
                 "(user_id, marketplace, product_id, title, product_url, initial_price, "
@@ -699,9 +698,15 @@ class Database:
                 "product_url = excluded.product_url, "
                 "initial_price = COALESCE(tracked_products.initial_price, "
                 "excluded.initial_price), "
-                "last_checked_price = excluded.last_checked_price, "
-                "currency = COALESCE(excluded.currency, tracked_products.currency), "
-                "last_checked_at = datetime('now'), "
+                "last_checked_price = CASE "
+                "WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.last_checked_price "
+                "ELSE excluded.last_checked_price END, "
+                "currency = CASE WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.currency "
+                "ELSE COALESCE(excluded.currency, tracked_products.currency) END, "
+                "last_checked_at = CASE WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.last_checked_at ELSE datetime('now') END, "
                 "is_active = 1",
                 (
                     user_id,
@@ -721,9 +726,8 @@ class Database:
     ) -> list[dict[str, Any]]:
         """Fetch tracked products, optionally scoped to one user.
 
-        With ``user_id=None`` this returns all active tracked products
-        across all users - the shape a future price-check scheduler
-        would need.
+        With user_id=None this returns all active tracked products
+        across all users - the shape consumed by the scheduled price checker.
         """
 
         query = "SELECT * FROM tracked_products WHERE 1=1"
@@ -788,29 +792,19 @@ class Database:
             )
             await conn.commit()
 
-    async def update_tracked_price(
-        self, tracked_product_id: int, new_price: float | None
-    ) -> None:
-        async with self._connect() as conn:
-            await conn.execute(
-                "UPDATE tracked_products SET last_checked_price = ?, "
-                "last_checked_at = datetime('now') WHERE id = ?",
-                (new_price, tracked_product_id),
-            )
-            await conn.commit()
-
     async def invalidate_tracking_baselines(self, user_id: int) -> None:
         """Drop stored price baselines after a manual currency change.
 
         The old baseline lives in the previous currency and must never be
-        compared with prices in the new one: the first new observation
-        silently becomes the new baseline. History rows are untouched -
-        each one carries its own currency.
+        compared with prices in the new one. Clear both the amount and its
+        currency marker so an API response without currency metadata cannot
+        silently reuse the old unit. History rows are untouched - each one
+        carries its own currency.
         """
 
         async with self._connect() as conn:
             await conn.execute(
-                "UPDATE tracked_products SET last_checked_price = NULL "
+                "UPDATE tracked_products SET last_checked_price = NULL, currency = NULL "
                 "WHERE user_id = ?",
                 (user_id,),
             )
@@ -844,13 +838,11 @@ class Database:
     ) -> None:
         """Append one observed price for a tracked product.
 
-        This table is what a future price-drop notifier reads from; it
-        is written by hand (or by the future scheduler) rather than
-        derived, so history is never lost by an update.
+        The scheduled price tracker appends one row per recorded observation.
+        History is never overwritten by a later price update.
         """
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO price_history "
                 "(tracked_product_id, price, shipping_cost, currency) "
@@ -888,7 +880,6 @@ class Database:
         """Store/refresh a product snapshot the user asked to keep."""
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO saved_products "
                 "(user_id, marketplace, product_id, product_json, note) "
@@ -1257,7 +1248,6 @@ class Database:
         }
 
         async with self._connect() as conn:
-            await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 "INSERT INTO analytics_events "
                 "(user_id, telegram_id, event_type, marketplace, product_id, "

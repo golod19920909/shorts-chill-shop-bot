@@ -1,10 +1,7 @@
-# Optional developer dependencies.
-#
-# NOTE: the test suite is written with the standard library `unittest`
-# and runs without these packages:
-#     python -m unittest discover -s tests -v
-#
-# Install these only if you prefer running the suite with pytest.
+# Developer/test dependencies for the repository's pytest workflow.
+# The test cases use unittest-style classes where convenient, but the supported
+# full-suite command is:
+#     python -m pytest tests -q
 
 pytest>=8.0
 pytest-asyncio>=0.24

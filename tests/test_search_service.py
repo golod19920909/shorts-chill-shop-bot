@@ -124,6 +124,52 @@ class SearchServiceTestCase(unittest.TestCase):
         )
 
 
+class FeedSelectionControlTests(SearchServiceTestCase):
+    def test_goal_specific_caller_skips_generic_ai_feed_selection(self) -> None:
+        class SelectorSpy:
+            is_available = True
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            async def select_feed_candidates(self, products, *, wanted, query=None):
+                self.calls += 1
+                return [product.product_id for product in products[:wanted]]
+
+        provider = self.ali_express([
+            make_product(
+                Marketplace.ALIEXPRESS,
+                "headphones-1",
+                10.0,
+                title="Наушники беспроводные TWS",
+            ),
+            make_product(
+                Marketplace.ALIEXPRESS,
+                "headphones-2",
+                12.0,
+                title="Наушники беспроводные Bluetooth",
+            ),
+        ])
+        selector = SelectorSpy()
+        service = SearchService(
+            [provider], ai_service=selector, max_results=5, max_search_pages=1
+        )
+        request = SearchRequest(
+            original_query="наушники беспроводные",
+            normalized_query="наушники беспроводные",
+        )
+
+        outcome = self.run_async(
+            service.find_products(request, select_feed_candidates=False)
+        )
+
+        self.assertEqual(selector.calls, 0)
+        self.assertEqual(
+            {product.product_id for product in outcome.products},
+            {"headphones-1", "headphones-2"},
+        )
+
+
 class RawConversationalRetrievalTests(SearchServiceTestCase):
     def test_api_error_result_is_not_reported_as_a_valid_empty_answer(self) -> None:
         from services.marketplaces.aliexpress import AliExpressSearchResults

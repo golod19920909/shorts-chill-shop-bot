@@ -35,6 +35,9 @@ CLEAN_ENV = {
     # G24: the «✨ Находки» budgets are hard API ceilings too.
     "FEED_OPEN_SIZE": "",
     "FEED_MAX_PAGES_PER_OPEN": "",
+    # Admin access and scheduler cadence must not inherit a developer's .env.
+    "ADMIN_IDS": "",
+    "TRACKING_INTERVAL_MINUTES": "",
 }
 
 
@@ -258,6 +261,30 @@ class LoadSettingsTests(unittest.TestCase):
             settings = load_settings()
 
         self.assertFalse(hasattr(settings, "alibaba"))
+
+    def test_admin_ids_parse_lists_deduplicate_and_ignore_invalid_entries(self) -> None:
+        env = dict(CLEAN_ENV)
+        env["ADMIN_IDS"] = "123, 456;123;not-an-id"
+        with patch.dict(os.environ, env, clear=False):
+            settings = load_settings()
+
+        self.assertEqual(settings.admin_ids, (123, 456))
+
+    def test_tracking_interval_defaults_and_can_be_disabled(self) -> None:
+        with patch.dict(os.environ, CLEAN_ENV, clear=False):
+            self.assertEqual(load_settings().tracking_interval_minutes, 1440)
+
+        env = dict(CLEAN_ENV)
+        env["TRACKING_INTERVAL_MINUTES"] = "0"
+        with patch.dict(os.environ, env, clear=False):
+            self.assertEqual(load_settings().tracking_interval_minutes, 0)
+
+    def test_invalid_tracking_interval_uses_safe_default(self) -> None:
+        for raw in ("-1", "not-a-number"):
+            env = dict(CLEAN_ENV)
+            env["TRACKING_INTERVAL_MINUTES"] = raw
+            with self.subTest(raw=raw), patch.dict(os.environ, env, clear=False):
+                self.assertEqual(load_settings().tracking_interval_minutes, 1440)
 
     def test_unknown_log_level_falls_back_to_info(self) -> None:
         env = dict(CLEAN_ENV)

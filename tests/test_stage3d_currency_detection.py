@@ -140,11 +140,23 @@ class CurrencyCodeTests(unittest.TestCase):
         self.assertEqual(_detect_currency("80 uah"), "UAH")
         self.assertEqual(_detect_currency("80 грн"), "UAH")
         self.assertEqual(_detect_currency("80 gbp"), "GBP")
+        self.assertEqual(_detect_currency("80 byn"), "BYN")
+        self.assertEqual(_detect_currency("80 бел.руб"), "BYN")
+        self.assertEqual(_detect_currency("80 kzt"), "KZT")
+        self.assertEqual(_detect_currency("80 тенге"), "KZT")
+        self.assertEqual(_detect_currency("80 uzs"), "UZS")
+        self.assertEqual(_detect_currency("80 сумах"), "UZS")
+        self.assertEqual(_detect_currency("80 pln"), "PLN")
+        self.assertEqual(_detect_currency("80 злотых"), "PLN")
 
     def test_intent_parser_normalizes_currency_codes(self):
         for alias, expected in [
             ("usd", "USD"), ("eur", "EUR"), ("rub", "RUB"),
             ("cny", "CNY"), ("uah", "UAH"), ("gbp", "GBP"),
+            ("byn", "BYN"), ("бел.руб", "BYN"),
+            ("kzt", "KZT"), ("тенге", "KZT"),
+            ("uzs", "UZS"), ("сум", "UZS"),
+            ("pln", "PLN"), ("злотых", "PLN"),
         ]:
             self.assertEqual(normalize_currency(alias), expected, alias)
 
@@ -156,6 +168,14 @@ class CurrencyCodeTests(unittest.TestCase):
         req = resolve_request("наушники до 80 eur")
         self.assertEqual(req.currency, "EUR")
         self.assertEqual(req.max_price, 80.0)
+
+        for code, marker in [
+            ("BYN", "бел.руб"), ("KZT", "тенге"),
+            ("UZS", "сум"), ("PLN", "злотых"),
+        ]:
+            req = resolve_request(f"наушники до 80 {marker}")
+            self.assertEqual(req.currency, code, marker)
+            self.assertEqual(req.max_price, 80.0, marker)
 
 
 # ---------------------------------------------------------------------------

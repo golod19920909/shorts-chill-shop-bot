@@ -38,7 +38,14 @@ from handlers import ai_assistant, common
 from handlers.favorites import EMPTY_FAVORITES_TEXT
 from handlers.search import browse_callback
 from handlers.start import menu_callback, nav_back_callback, stale_callback
-from keyboards.main import CB_BACK, CB_FAVORITES, main_menu_keyboard
+from keyboards.main import (
+    CB_BACK,
+    CB_FAVORITES,
+    CB_FEED,
+    CB_HOT_DISCOUNTS,
+    CB_PROMO_CODES,
+    main_menu_keyboard,
+)
 from keyboards.products import (
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
@@ -252,6 +259,22 @@ class DispatchTestCase(unittest.TestCase):
         answers = self.bot.of("answer_callback_query")
         self.assertTrue(answers, "The press was not acknowledged by the bot")
         return answers
+
+
+class MenuCallbackAcknowledgementTests(DispatchTestCase):
+    def test_feed_menu_callback_is_acknowledged_once(self) -> None:
+        self.press(callback_update(self.bot, CB_FEED))
+        self.assertEqual(len(self.bot.of("answer_callback_query")), 1)
+
+    def test_hot_discounts_menu_callback_is_acknowledged_once(self) -> None:
+        self.press(callback_update(self.bot, CB_HOT_DISCOUNTS))
+        self.assertEqual(len(self.bot.of("answer_callback_query")), 1)
+        self.assertEqual(len(self.bot.of("edit_message_text")), 1)
+
+    def test_promo_menu_callback_is_acknowledged_once(self) -> None:
+        self.press(callback_update(self.bot, CB_PROMO_CODES))
+        self.assertEqual(len(self.bot.of("answer_callback_query")), 1)
+        self.assertEqual(len(self.bot.of("edit_message_text")), 1)
 
 
 class FavoritesDeliveryTests(DispatchTestCase):

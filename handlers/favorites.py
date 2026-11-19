@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 
 from handlers import common
 from keyboards.main import back_to_menu_keyboard
-from keyboards.products import CB_PREFIX_FAVORITE_REMOVE, favorites_list_keyboard
+from keyboards.products import CB_PREFIX_FAVORITE_REMOVE, CB_FAVORITE_PAGE, favorites_list_keyboard
 from models.product import Marketplace, Product
 from services import analytics
 from utils.formatting import format_marketplace_name, format_price
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 #: key in ``context.user_data`` caching the currently listed favorites
 FAVORITES_CACHE_KEY = "favorites_items"
+FAVORITES_PAGE_KEY = "favorites_page"
 
 EMPTY_FAVORITES_TEXT = (
     "⭐ <b>Избранное</b>\n\n"
@@ -33,9 +34,8 @@ STALE_FAVORITES_TEXT = (
     "Найдите товар заново и нажмите «⭐ В избранное» в карточке."
 )
 
-#: One screen lists at most this many favorites. The rest is reported as a
-#: count instead of being dropped silently, so the list always fits into
-#: Telegram's 4096-character message limit.
+#: One page lists at most this many favorites. Older items remain reachable
+#: through pagination, and every page stays below Telegram's message limits.
 MAX_LISTED_FAVORITES = 12
 
 #: Title length inside the list. Favorites store the marketplace's full
@@ -54,10 +54,15 @@ def _clip(text: str | None, limit: int = LIST_TITLE_LIMIT) -> str:
 
 
 async def favorites_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await show_favorites(update, context)
+    await show_favorites(update, context, page=0)
 
 
-async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_favorites(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    page: int | None = None,
+) -> None:
     """Render the favorites screen (from ``/favorites`` or the menu button)."""
 
     user_id = await common.register_user(update, context)
@@ -75,6 +80,8 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if not rows:
+        context.user_data.pop(FAVORITES_PAGE_KEY, None)
+        context.user_data.pop(FAVORITES_CACHE_KEY, None)
         await _reply(
             update,
             context,
@@ -86,9 +93,7 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     items: list[dict] = []
-    lines: list[str] = ["⭐ <b>Избранное</b>", ""]
     unreadable = 0
-    listed = 0
 
     for row in rows:
         try:
@@ -111,19 +116,12 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         index = len(items)
         items.append({"index": index, "product": product})
-        listed += 1
-        if index < MAX_LISTED_FAVORITES:
-            lines.append(
-                f"{index + 1}. {common.escape(_clip(product.title))}"
-            )
-            lines.append(
-                f"   {common.escape(format_marketplace_name(str(getattr(product.marketplace, 'value', product.marketplace))))} · "
-                f"{common.escape(format_price(product.price, product.currency))}"
-            )
 
     if not items:
         # Either nothing was ever saved, or every row is older than the
-        # current schema. Both are honest states with different wording.
+        # current schema. Drop stale pagination/cache state before rendering.
+        context.user_data.pop(FAVORITES_PAGE_KEY, None)
+        context.user_data.pop(FAVORITES_CACHE_KEY, None)
         await _reply(
             update,
             context,
@@ -134,21 +132,66 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    if listed > MAX_LISTED_FAVORITES:
+    total_pages = max(1, (len(items) + MAX_LISTED_FAVORITES - 1) // MAX_LISTED_FAVORITES)
+    if page is None:
+        page = context.user_data.get(FAVORITES_PAGE_KEY, 0)
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 0
+    page = min(max(0, page), total_pages - 1)
+    context.user_data[FAVORITES_PAGE_KEY] = page
+
+    start = page * MAX_LISTED_FAVORITES
+    visible_items = items[start : start + MAX_LISTED_FAVORITES]
+    lines: list[str] = ["⭐ <b>Избранное</b>", ""]
+    if total_pages > 1:
+        lines.append(f"Страница {page + 1}/{total_pages} · всего товаров: {len(items)}")
         lines.append("")
-        lines.append(f"…и ещё {listed - MAX_LISTED_FAVORITES}.")
+    for item in visible_items:
+        product = item["product"]
+        index = item["index"]
+        lines.append(f"{index + 1}. {common.escape(_clip(product.title))}")
+        lines.append(
+            f"   {common.escape(format_marketplace_name(str(getattr(product.marketplace, 'value', product.marketplace))))} · "
+            f"{common.escape(format_price(product.price, product.currency))}"
+        )
 
     context.user_data[FAVORITES_CACHE_KEY] = items
-    # Only the buttons of the listed items are rendered: an item beyond the
-    # limit has no row on screen, so a button for it would be an orphan.
     await _reply(
         update,
         context,
         "\n".join(lines),
         edit=query is not None,
         parse_mode="HTML",
-        reply_markup=favorites_list_keyboard(items[:MAX_LISTED_FAVORITES]),
+        reply_markup=favorites_list_keyboard(
+            visible_items, page=page, total_pages=total_pages
+        ),
     )
+
+
+async def favorite_page_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Move between bounded pages of the user's favorites list."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    parts = (query.data or "").split(":")
+    if len(parts) != 2 or parts[0] != CB_FAVORITE_PAGE:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    try:
+        page = int(parts[1])
+    except ValueError:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    if page < 0:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    await query.answer()
+    await show_favorites(update, context, page=page)
 
 
 async def favorite_remove_callback(
@@ -165,9 +208,9 @@ async def favorite_remove_callback(
     without one instead of guessing.
 
     ``fdel:<index>`` (the legacy positional format of earlier releases)
-    is still accepted so messages sent before the upgrade keep working;
-    it resolves against the current cache and refuses to act when the
-    position is out of range (the honest "stale screen" answer).
+    is refused safely: a shared cache index cannot prove which product was
+    shown on an old message, so using it could delete a different favorite.
+    The user is asked to reopen the list, which renders identity-based buttons.
     """
 
     query = update.callback_query
@@ -193,22 +236,20 @@ async def favorite_remove_callback(
             return
         product = _find_cached_item(items, marketplace, product_id)
     elif len(parts) == 2:
-        # Legacy positional callback from a message sent by an older
-        # release: resolve it against the current cache exactly as before.
+        # A legacy positional callback does not identify the product on the
+        # message itself. The shared cache may have been overwritten by a
+        # newer favorites screen, so resolving the old index could delete a
+        # DIFFERENT item. Refuse it safely; reopening favorites renders
+        # identity-based buttons that remain correct across stale screens.
         try:
-            index = int(parts[1])
+            int(parts[1])
         except ValueError:
             await query.answer("Некорректная кнопка.", show_alert=True)
             return
-        item = items[index] if 0 <= index < len(items) else None
-        if item is None:
-            await query.answer(
-                "Список устарел — откройте избранное заново.", show_alert=True
-            )
-            return
-        product = item["product"]
-        marketplace = str(getattr(product.marketplace, "value", product.marketplace))
-        product_id = product.product_id
+        await query.answer(
+            "Список устарел — откройте избранное заново.", show_alert=True
+        )
+        return
     else:
         await query.answer("Некорректная кнопка.", show_alert=True)
         return

@@ -1,5 +1,7 @@
 # PROJECT OVERVIEW — Telegram Shop Bot
 
+> Historical architecture snapshot. Its test counts and implementation details may be stale; use `PROJECT_CONTEXT.md` and the current source tree as the source of truth.
+
 > Документ описывает архитектуру, бизнес-логику и интеграции бота без изменений
 > в исходном коде. Составлен по фактическому состоянию репозитория
 > (`c:\shorts-chill-shop-bot`). Тестовый набор: 39 модулей, 864 теста — проходят.

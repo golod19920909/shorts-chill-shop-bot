@@ -1,8 +1,9 @@
-"""Photo search handler and pipeline.
+"""Compatibility photo-search path for integrations without structured vision.
 
-Processes user photo uploads by querying Gemini Vision for consumer keywords
-and executing AliExpress search with quality filtering, image deduplication,
-and smart fallback on broad categories.
+The registered production route uses the structured handler in discovery
+when the configured AIService exposes structured analysis. This module keeps
+the bounded one-phrase path for older integrations that only provide the
+legacy vision-query interface.
 """
 
 from __future__ import annotations
@@ -22,10 +23,7 @@ from models.search_request import SearchMode, SearchRequest
 from services import analytics
 from services.product_identity import deduplicate_products
 from services.search_service import SearchOutcome
-from services.vision_search import (
-    analyze_photo_with_vision,
-    parse_vision_response,
-)
+from services.vision_search import analyze_photo_with_vision
 from utils.emoji import PHOTO, WARNING
 
 logger = logging.getLogger(__name__)
@@ -137,6 +135,29 @@ async def photo_message_handler(
         )
         return
 
+    ai_service = common.get_ai_service(context)
+    if ai_service is None or not getattr(ai_service, "is_available", False):
+        logger.info("Photo search skipped: no AI service is configured")
+        await message.reply_text(PHOTO_NO_AI_TEXT, reply_markup=photo_retry_keyboard())
+        return
+
+    # The current AIService exposes structured image analysis. Use that as
+    # the primary production path: it builds several grounded hypotheses and
+    # sends them through the shared relevance gate. The old one-phrase path
+    # remains only for integrations that do not implement analyze_image.
+    if (
+        callable(getattr(ai_service, "analyze_image", None))
+        or getattr(ai_service, "_client", None) is None
+    ):
+        # The production AIService uses its structured analyzer. Older
+        # integrations without that method (and test doubles without a raw
+        # client) use the same structured handler's describe_image_query
+        # fallback, so every supported route still performs one vision step.
+        from handlers.discovery import structured_photo_message
+
+        await structured_photo_message(update, context, image_bytes=image_bytes)
+        return
+
     user_id = await common.register_user(update, context)
     region = await common.get_user_region(context, user_id)
 
@@ -148,58 +169,52 @@ async def photo_message_handler(
         metadata={"bytes": len(image_bytes)},
     )
 
-    ai_service = common.get_ai_service(context)
-    if ai_service is None or not getattr(ai_service, "is_available", False):
-        logger.info("Photo search skipped: no AI service is configured")
-        await message.reply_text(PHOTO_NO_AI_TEXT, reply_markup=photo_retry_keyboard())
+    vision_res = await analyze_photo_with_vision(image_bytes, ai_service)
+    if not vision_res:
+        # The older integration's short query was unusable. Fall back to the
+        # structured path once; it may still recover a grounded hypothesis.
+        from handlers.discovery import structured_photo_message
+
+        await structured_photo_message(update, context, image_bytes=image_bytes)
         return
 
-    # Try reform vision search prompt first
-    vision_res = await analyze_photo_with_vision(image_bytes, ai_service)
+    query = vision_res["query"]
+    fallback_category = vision_res.get("fallback_category")
     search_service = common.get_search_service(context)
     seen = await common.seen_products(context, user_id)
-
-    if vision_res and vision_res.get("query"):
-        query = vision_res["query"]
-        fallback_cat = vision_res.get("fallback_category")
-        products = await execute_photo_search(
-            query,
-            fallback_cat,
-            search_service,
-            currency=region.get("currency"),
-            exclude=seen,
-        )
-        if not products:
-            await message.reply_text(
-                IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
-            )
-            return
-
-        chat_id = update.effective_chat.id if update.effective_chat else None
-        if chat_id is None:
-            return
-
-        req = SearchRequest(
-            original_query=query,
-            normalized_query=query,
-            mode=SearchMode.SEARCH,
-            currency=region.get("currency"),
-        )
-        outcome = SearchOutcome(
-            request=req,
-            products=products,
-            searched_marketplaces=["AliExpress"],
-        )
-        await send_search_results(
-            context,
-            chat_id,
-            outcome,
-            header=f"{PHOTO} <b>Поиск по фото:</b> {query}",
-            user_id=user_id,
-            back_callback="menu:photo",
+    products = await execute_photo_search(
+        query,
+        fallback_category,
+        search_service,
+        currency=region.get("currency"),
+        exclude=seen,
+    )
+    if not products:
+        await message.reply_text(
+            IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
         )
         return
 
-    # Legacy fallback path for existing tests
-    from handlers.discovery import _legacy_photo_message
-    await _legacy_photo_message(update, context, image_bytes=image_bytes)
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    if chat_id is None:
+        return
+
+    req = SearchRequest(
+        original_query=query,
+        normalized_query=query,
+        mode=SearchMode.SEARCH,
+        currency=region.get("currency"),
+    )
+    outcome = SearchOutcome(
+        request=req,
+        products=products,
+        searched_marketplaces=["AliExpress"],
+    )
+    await send_search_results(
+        context,
+        chat_id,
+        outcome,
+        header=f"{PHOTO} <b>Поиск по фото:</b> {query}",
+        user_id=user_id,
+        back_callback="menu:photo",
+    )

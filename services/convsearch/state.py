@@ -6,10 +6,13 @@ productive-turn tracking), specialised for the bot's real question types:
 an AliExpress product request with product type, soft use-case context,
 required features, exclusions, budget+currency and optional preferences.
 
-One authoritative state per user lives in ``context.user_data`` (the bot's
-existing per-user, expiring in-memory store) — no second persistence system
-and no second state source: ``ConversationState`` (services.conversation)
-keeps owning the effective :class:`SearchRequest`; this ledger owns WHY.
+One authoritative shopping ledger per user lives in ``context.user_data``
+(the bot's existing per-user, expiring in-memory store) — no second
+persistence system and no second state source. This ledger owns the active
+turns, intent and slot provenance. The effective :class:`SearchRequest` for a
+turn is constructed by ``services.convsearch.retrieval``. The separate
+``services.conversation`` module serves the direct text-parser API and does
+not own Telegram conversation state.
 """
 
 from __future__ import annotations
@@ -18,12 +21,84 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from config.catalog import CATEGORIES
 from services.convsearch.text import constraint_spans, tokens
 
 #: How long an idle conversation stays alive for refinement (the bot's
 #: existing conversation TTL — mirrored here so the engine's ledger cannot
 #: outlive the request it explains).
 CONTEXT_TTL_SECONDS = 30 * 60
+
+_BARE_TYPE_SWITCH_PREPOSITIONS = frozenset(
+    {"для", "под", "на", "с", "со", "из", "без", "от", "к", "по", "for", "with"}
+)
+_BARE_TYPE_SWITCH_FEATURE_CLAUSES = frozenset(
+    {"чтобы", "чтоб", "был", "была", "были", "имеет", "может"}
+)
+
+
+def _is_bare_catalog_type_switch(message: str, current_type: str) -> bool:
+    """Recognize a new catalog product type typed without a search verb.
+
+    The current type must differ from the mentioned category keyword. A
+    keyword introduced as a compatibility/fitment target (e.g. "для
+    шуруповерта") is not a product switch. This is a deterministic fallback;
+    Gemini remains responsible for open-vocabulary product types.
+    """
+
+    raw_words = [
+        word.replace("ё", "е")
+        for word in re.findall(r"[a-zа-яё0-9]+", (message or "").casefold())
+    ]
+    current_words = tokens(current_type)
+    if not raw_words or not current_words:
+        return False
+
+    def matches(left: str, right: str) -> bool:
+        left = left.replace("ё", "е")
+        right = right.replace("ё", "е")
+        return left == right or (
+            len(left) >= 4 and len(right) >= 4 and left[:4] == right[:4]
+        )
+
+    for category in CATEGORIES:
+        for keyword in category.keywords:
+            keyword_words = tokens(keyword)
+            if not keyword_words:
+                continue
+            if all(
+                any(matches(word, current) for current in current_words)
+                for word in keyword_words
+            ):
+                continue
+            width = len(keyword_words)
+            for start in range(len(raw_words) - width + 1):
+                # A catalog word immediately after a preposition is a
+                # fitment/compatibility target, not a new product. A feature
+                # clause such as "и чтобы была быстрая зарядка" is likewise
+                # an attribute, while a conjunction before a new noun
+                # ("а шуруповерт") must remain eligible as a product switch.
+                if start and raw_words[start - 1] in _BARE_TYPE_SWITCH_PREPOSITIONS:
+                    continue
+                if any(
+                    word in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
+                    for word in raw_words[:start]
+                ):
+                    continue
+                if "есть" in raw_words[:start]:
+                    has_current_type_before_есть = any(
+                        matches(previous, current)
+                        for previous in raw_words[:raw_words.index("есть")]
+                        for current in current_words
+                    )
+                    if has_current_type_before_есть:
+                        continue
+                if all(
+                    matches(raw_words[start + offset], keyword_word)
+                    for offset, keyword_word in enumerate(keyword_words)
+                ):
+                    return True
+    return False
 
 
 @dataclass
@@ -142,8 +217,16 @@ _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
         "предел", "бюджет", "до", "от", "меньше", "больше", "не", "более",
         "долларов", "доллар", "доллара", "usd", "uah", "eur", "евро",
         "грн", "гривн", "гривна", "гривны", "гривен", "рублей", "руб",
+        # Every currency understood by _budget() is framing, including
+        # currencies the current AliExpress target-currency API cannot use.
+        # Those unsupported currencies must reach the explicit clarification
+        # path, not become accidental product features in a follow-up.
+        "byn", "белорусск", "бел", "kzt", "тенге", "uzs", "сум",
+        "pln", "злот", "злотый", "злотых", "злотые", "zł",
+        "gbp", "фунт", "фунта", "фунтов", "фунты", "стерлинг",
+        "стерлингов", "rub",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
-        "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽",
+        "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽", "₸", "£",
         # Scale words belong to a money amount, never to a product type or feature.
         "тыс", "тысяч", "тысяча", "тысячи", "тысячу", "тысячам",
         "тысячами", "тысячах", "тысяче", "тысячей", "thousand", "thousands",
@@ -187,15 +270,22 @@ _COMPARE_RE = re.compile(
 _BUDGET_RE = re.compile(
     r"(?:(?:до|under|up to|не более|меньше|less than|max|максимум)\s*)?"
     r"(\d+(?:[.,]\d+)?)\s*"
-    r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\s*"
+    r"(тыс(?:яч[а-я]*)?|тысяч(?:а|и|у|ам|ами|ах|е|ей)?|thousands?)?\.?\s*"
     r"(грн|грив[а-я]*|₴|uah|\$|usd|доллар[а-я]*|долар[а-я]*|"
-    r"евро|eur|€|руб[а-я]*|₽|rub| грн)",
+    r"евро|eur|€|byn|белорусск[а-я]*\s+руб[а-я]*|бел\.?\s*руб\.?|"
+    r"kzt|тенге|₸|uzs|сум(?!м)[а-я]*|pln|злот[а-я]*|zł|"
+    r"gbp|£|фунт[а-я]*(?:\s+стерлинг[а-я]*)?|руб(?:\.|ль|ля|лей|лю|лём|лем|лям|лями|лях)?(?![а-яё])|₽|rub| грн)",
     re.IGNORECASE,
 )
 _CURRENCY_BY_WORD = {
     "грн": "UAH", "грив": "UAH", "₴": "UAH", "uah": "UAH",
     "$": "USD", "usd": "USD", "доллар": "USD", "долар": "USD",
     "евро": "EUR", "eur": "EUR", "€": "EUR",
+    "byn": "BYN", "белорусск": "BYN", "бел.": "BYN",
+    "kzt": "KZT", "тенге": "KZT", "₸": "KZT",
+    "uzs": "UZS", "сум": "UZS",
+    "pln": "PLN", "злот": "PLN", "zł": "PLN",
+    "gbp": "GBP", "£": "GBP", "фунт": "GBP",
     "руб": "RUB", "₽": "RUB", "rub": "RUB",
 }
 
@@ -216,7 +306,8 @@ class ConversationEngineState:
     # -- lifecycle ---------------------------------------------------------
 
     def is_expired(self, *, now: float | None = None) -> bool:
-        return (now or time.monotonic()) - self.updated_at > CONTEXT_TTL_SECONDS
+        current = time.monotonic() if now is None else now
+        return current - self.updated_at > CONTEXT_TTL_SECONDS
 
     def touch(self) -> None:
         self.updated_at = time.monotonic()
@@ -403,7 +494,11 @@ class ConversationEngineState:
                 and not characteristic
                 and not negations
             )
-            if names_other_product:
+            bare_catalog_type_switch = bool(
+                type_slot
+                and _is_bare_catalog_type_switch(message, type_slot.value)
+            )
+            if names_other_product or bare_catalog_type_switch:
                 intent = MessageIntent.NEW_SEARCH
             elif negations or new_spans or _budget(message):
                 # A budget/currency statement («до 20 долларов») or a

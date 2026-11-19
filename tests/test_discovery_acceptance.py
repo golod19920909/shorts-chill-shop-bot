@@ -342,7 +342,8 @@ class FavoritesScreenTests(unittest.TestCase):
 
         text, kwargs = query.edits[0]
         self.assertLessEqual(len(text), 4096)
-        self.assertIn("…и ещё", text)
+        self.assertIn("Страница 1/3", text)
+        self.assertNotIn("…и ещё", text)
         buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
         deletes = [b for b in buttons if (b.callback_data or "").startswith("fdel:")]
         self.assertEqual(len(deletes), favorites.MAX_LISTED_FAVORITES)
@@ -527,8 +528,10 @@ class ShownHistoryTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self) -> None:
                 self.exclude = "unset"
 
-            async def find_products(self, request, *, exclude=None, broaden=True,
-                                    feed_selection=False):
+            async def find_products(
+                self, request, *, exclude=None, broaden=True,
+                raw=False, raw_broaden=False, **kwargs
+            ):
                 self.exclude = exclude
                 return SearchOutcome(request=request)
 
@@ -570,7 +573,10 @@ class EngineInstrumentationTests(unittest.TestCase):
         from services.convsearch.state import ConversationEngineState
 
         class RecordingService:
-            async def find_products(self, request, *, exclude=None, feed_selection=False):
+            async def find_products(
+                self, request, *, exclude=None, raw=False, raw_broaden=False,
+                **kwargs
+            ):
                 return SearchOutcome(request=request)
 
         engine = ConversationSearchEngine()

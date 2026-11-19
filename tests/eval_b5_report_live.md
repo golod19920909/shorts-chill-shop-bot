@@ -1,5 +1,8 @@
 # B5: Search-Pipeline Evaluation Report
 
+> Historical B5 dataset snapshot from 2026-10-21. It measures the then-current direct SearchService evaluation path, not the current Telegram AssistantRouter + ConversationSearchEngine path; do not treat these scores as current production quality.
+
+
 ## 1. Summary
 
 - Dataset version: `b5-v1`

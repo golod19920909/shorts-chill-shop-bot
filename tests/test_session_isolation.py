@@ -6,7 +6,7 @@ Three production reports are pinned down here:
    started or was searching normally - the rotation's exhausted state was
    decided by a history that ordinary searches also wrote to;
 2. a normal search answered with a product of a PREVIOUS search (the reported
-   «Плазморезка» -> «Защитный ремешок для умных часов»);
+   «Шуруповерт» -> «Беспроводные наушники»);
 3. an old card's buttons operated on the state of a newer, unrelated search.
 
 The fix is scope, not a new architecture:
@@ -200,13 +200,26 @@ class FakeContext:
         self.application = FakeApplication(bot_data)
 
 
+class RouterReturnsNoDecision:
+    """AI double: the Router attempt fails without a validated action."""
+
+    is_available = True
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def decide_conversation_turn(self, text, *, context=None):
+        self.calls += 1
+        return None
+
+
 class SessionIsolationTests(unittest.TestCase):
     """One user, one chat, one SQLite file - and separate sessions."""
 
-    STRAP = "Защитный ремешок для умных часов, силиконовый браслет"
-    STRAP_TWO = "Ремешок кожаный для часов 20 мм"
-    PLASMA = "Плазморезка CUT-50 плазменный резак 220В"
-    PLASMA_TWO = "Плазморезка инверторная 40А"
+    HEADPHONES = "Беспроводные наушники TWS Pro"
+    HEADPHONES_TWO = "Наушники Bluetooth накладные"
+    SCREWDRIVER = "Шуруповерт аккумуляторный 21V"
+    SCREWDRIVER_TWO = "Шуруповерт бесщеточный"
 
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -217,13 +230,13 @@ class SessionIsolationTests(unittest.TestCase):
         run(self.db.get_or_create_user(555, "tester", "Tester"))
         self.provider = CatalogStub(
             by_phrase={
-                "ремешок часов": [
-                    listing("strap", self.STRAP),
-                    listing("strap2", self.STRAP_TWO),
+                "наушники": [
+                    listing("a1", self.HEADPHONES),
+                    listing("a2", self.HEADPHONES_TWO),
                 ],
-                "плазморезка": [
-                    listing("plasma", self.PLASMA),
-                    listing("plasma2", self.PLASMA_TWO),
+                "шуруповерт": [
+                    listing("screwdriver", self.SCREWDRIVER),
+                    listing("screwdriver2", self.SCREWDRIVER_TWO),
                 ],
             },
             feed=[
@@ -276,6 +289,18 @@ class SessionIsolationTests(unittest.TestCase):
 
     # -- A. the popular state does not leak into a search -----------------
 
+    def test_router_failure_does_not_retry_same_gemini_turn_in_engine(self) -> None:
+        context = self.context()
+        ai = RouterReturnsNoDecision()
+        context.application.bot_data["ai_service"] = ai
+
+        self.search(context, "шуруповерт")
+
+        # AssistantRouter has already attempted the turn interpretation.
+        # The engine must fall back deterministically, not call Gemini again.
+        self.assertEqual(ai.calls, 1)
+        self.assertIn("Шуруповерт", self.card(context))
+
     def test_a_search_after_an_exhausted_rotation_shows_its_own_product(self) -> None:
         context = self.context()
         # The rotation is exhausted for this user: its whole pool was shown.
@@ -286,9 +311,9 @@ class SessionIsolationTests(unittest.TestCase):
         self.assertIn("повторно", query.edits[-1])
 
         # The user then searches something else and gets THAT product.
-        self.search(context, "плазморезка")
+        self.search(context, "шуруповерт")
 
-        self.assertIn("Плазморезка", self.card(context))
+        self.assertIn("Шуруповерт", self.card(context))
         screen = self.screen(context)
         self.assertNotIn("Популярное</b>", screen)
         self.assertNotIn("повторно бот не будет", screen)
@@ -310,19 +335,19 @@ class SessionIsolationTests(unittest.TestCase):
         """What the feed displayed must never hide a search result."""
 
         context = self.context()
-        # The rotation showed the plasma cutter earlier...
-        run(self.db.add_feed_shown(1, "aliexpress", "plasma"))
+        # The rotation showed the screwdriver earlier...
+        run(self.db.add_feed_shown(1, "aliexpress", "screwdriver"))
 
         # ...and a search for that product still finds it.
-        self.search(context, "плазморезка")
+        self.search(context, "шуруповерт")
 
-        self.assertIn("Плазморезка", self.card(context))
-        self.assertEqual(list(dict.fromkeys(self.provider.queries)), ["плазморезка"])
+        self.assertIn("Шуруповерт", self.card(context))
+        self.assertEqual(list(dict.fromkeys(self.provider.queries)), ["шуруповерт"])
 
     def test_the_explicit_restart_resets_only_the_rotation(self) -> None:
         context = self.context()
         self.open_popular(context)
-        self.search(context, "плазморезка")
+        self.search(context, "шуруповерт")
 
         run(
             discovery.feed_reset_callback(
@@ -340,11 +365,11 @@ class SessionIsolationTests(unittest.TestCase):
         # ...the search-like flows keep their own state - a search never
         # advances the rotation and the reset never wipes a search's novelty.
         self.assertIn(
-            ("aliexpress", "plasma"),
+            ("aliexpress", "screwdriver"),
             run(self.db.get_shown_products(1, flow=FLOW_SEARCH)),
         )
         self.assertNotIn(
-            ("aliexpress", "plasma"),
+            ("aliexpress", "screwdriver"),
             run(self.db.get_shown_products(1, flow=FLOW_FEED)),
         )
 
@@ -369,38 +394,38 @@ class SessionIsolationTests(unittest.TestCase):
     def test_a_new_search_never_inherits_the_previous_query(self) -> None:
         context = self.context()
 
-        self.search(context, "ремешок часов")
+        self.search(context, "наушники")
         first_card = self.card(context)
         first_session = next(iter(self.sessions(context)))
         first_queries = len(self.provider.queries)
 
-        self.search(context, "плазморезка")
+        self.search(context, "шуруповерт")
         second_card = self.card(context)
         sessions = self.sessions(context)
 
-        self.assertIn("ремешок", first_card)
-        self.assertIn("Плазморезка", second_card)
-        self.assertNotIn("ремешок", second_card)
+        self.assertIn("наушники", first_card)
+        self.assertIn("Шуруповерт", second_card)
+        self.assertNotIn("наушники", second_card)
         # Every phrase the second search asked was grounded in ITS own query.
         second_queries = self.provider.queries[first_queries:]
         self.assertTrue(second_queries)
         for phrase in second_queries:
             with self.subTest(phrase=phrase):
-                self.assertIn("плазморез", phrase)
+                self.assertIn("шуруповерт", phrase)
         # Both sessions are cached separately, each with its own products.
         self.assertEqual(len(sessions), 2)
         self.assertIn(first_session, sessions)
         self.assertEqual(
             [p.product_id for p in sessions[first_session].products],
-            ["strap", "strap2"],
+            ["a1", "a2"],
         )
 
     def test_a_stale_card_browses_its_own_session_only(self) -> None:
         context = self.context()
-        self.search(context, "ремешок часов")
+        self.search(context, "наушники")
         old_session = next(iter(self.sessions(context)))
 
-        self.search(context, "плазморезка")
+        self.search(context, "шуруповерт")
         sessions = self.sessions(context)
         new_session = [key for key in sessions if key != old_session][0]
         new_products = [p.product_id for p in sessions[new_session].products]
@@ -410,8 +435,8 @@ class SessionIsolationTests(unittest.TestCase):
         run(search_handlers.browse_callback(FakeUpdate(query=query), context))
 
         self.assertEqual(len(query.edits), 1)
-        self.assertIn("кожаный", query.edits[-1])
-        self.assertNotIn("Плазморезка", query.edits[-1])
+        self.assertIn("накладные", query.edits[-1])
+        self.assertNotIn("Шуруповерт", query.edits[-1])
         # The newer session kept its own position and its own products.
         self.assertEqual(
             [p.product_id for p in self.sessions(context)[new_session].products],

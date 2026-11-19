@@ -154,6 +154,32 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("http", text)
         self.assertEqual(changes[0].percent, -20.0)
 
+    async def test_failed_notification_is_not_counted_as_delivered_and_is_retried(self):
+        db = StubDatabase([make_row()])
+        calls = []
+
+        async def failing_notifier(chat_id, text, buy_url=None):
+            calls.append(chat_id)
+            raise RuntimeError("Telegram unavailable")
+
+        tracker = PriceTracker(
+            db, StubProvider({"1001": StubProduct(price=8.0)}), failing_notifier
+        )
+        changes = await tracker.check_all()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(tracker.notified, 0)
+        self.assertEqual(tracker.notify_skipped, 1)
+        # A failed send must not advance the baseline; otherwise the next
+        # scheduled cycle would see no change and the user would never know.
+        self.assertEqual(db.history, [])
+        self.assertEqual(db.observations, [])
+
+        await tracker.check_all()
+        self.assertEqual(calls, [555, 555])
+        self.assertEqual(tracker.notified, 0)
+        self.assertEqual(tracker.notify_skipped, 2)
+
     async def test_identical_repeat_does_not_spam(self):
         db = StubDatabase([make_row()])
         notifier = NotifierSpy()
@@ -195,6 +221,74 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0].tracked_product_id, 2)
         self.assertEqual(len(notifier.calls), 1)
+
+    async def test_missing_response_currency_uses_requested_supported_currency(self):
+        db = StubDatabase([
+            make_row(last_checked_price=None, currency="UAH", user_currency="EUR")
+        ])
+        tracker = PriceTracker(
+            db,
+            StubProvider({"1001": StubProduct(price=12.0, currency=None)}),
+            NotifierSpy(),
+        )
+
+        await tracker.check_all()
+
+        self.assertEqual(db.history, [(1, 12.0, "EUR")])
+        self.assertEqual(db.observations, [(1, 12.0, "EUR")])
+
+    async def test_missing_currency_after_preference_change_keeps_baseline_unknown(self):
+        db = StubDatabase([
+            make_row(last_checked_price=None, currency=None, user_currency="BYN")
+        ])
+        tracker = PriceTracker(
+            db,
+            StubProvider({"1001": StubProduct(price=12.0, currency=None)}),
+            NotifierSpy(),
+        )
+
+        await tracker.check_all()
+
+        self.assertEqual(db.history, [(1, 12.0, None)])
+        self.assertEqual(db.observations, [(1, 12.0, None)])
+
+
+    async def test_missing_response_currency_does_not_reuse_old_currency(self):
+        db = StubDatabase([
+            make_row(last_checked_price=10.0, currency="UAH", user_currency=None)
+        ])
+        notifier = NotifierSpy()
+        tracker = PriceTracker(
+            db,
+            StubProvider({"1001": StubProduct(price=12.0, currency=None)}),
+            notifier,
+        )
+
+        await tracker.check_all()
+
+        self.assertEqual(notifier.calls, [])
+        self.assertEqual(db.history, [(1, 12.0, None)])
+        self.assertEqual(db.observations, [(1, 12.0, None)])
+        self.assertEqual(tracker.mismatches, 1)
+
+    async def test_currency_code_comparison_is_case_insensitive(self):
+        db = StubDatabase([
+            make_row(last_checked_price=10.0, currency="usd", user_currency=None)
+        ])
+        notifier = NotifierSpy()
+        tracker = PriceTracker(
+            db,
+            StubProvider({"1001": StubProduct(price=12.0, currency="USD")}),
+            notifier,
+        )
+
+        changes = await tracker.check_all()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(len(notifier.calls), 1)
+        self.assertEqual(db.history, [(1, 12.0, "USD")])
+        self.assertEqual(db.observations, [(1, 12.0, "USD")])
+        self.assertEqual(tracker.mismatches, 0)
 
     async def test_currency_mismatch_never_notifies_and_rebases(self):
         """Spec regression: UAH baseline vs USD observation must be silent.
@@ -241,6 +335,8 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(notifier.calls, [])
         self.assertEqual(db.history, [(1, 8.0, "USD")])
         self.assertEqual(db.observations, [(1, 8.0, "USD")])
+        self.assertEqual(tracker.changes_found, 1)
+        self.assertEqual(tracker.notify_skipped, 1)
 
     async def test_notification_uses_inline_buy_button(self):
         """Spec §59: raw URLs are gone; the buy URL travels separately."""
@@ -347,6 +443,14 @@ class ScheduleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(schedule_price_tracking(self._app(NoJQ(), 0)))
 
+    def test_scheduler_registration_failure_does_not_abort_startup(self):
+        class BrokenJQ:
+            def run_repeating(self, *args, **kwargs):
+                raise RuntimeError("scheduler unavailable")
+
+        self.assertFalse(schedule_price_tracking(self._app(BrokenJQ(), 60)))
+
+
     def test_schedule_disabled_without_job_queue(self):
         app = SimpleNamespace(
             job_queue=None,
@@ -369,6 +473,30 @@ class ScheduleTests(unittest.IsolatedAsyncioTestCase):
     async def test_job_callback_without_tracker_is_noop(self):
         context = SimpleNamespace(application=SimpleNamespace(bot_data={}))
         await price_tracking_job(context)  # must not raise
+
+
+class TrackingStatusTests(unittest.TestCase):
+    def _context(self, *, scheduled):
+        from types import SimpleNamespace
+
+        from handlers.settings import tracking_status_line
+
+        context = SimpleNamespace(
+            application=SimpleNamespace(
+                bot_data={
+                    "price_tracker": object(),
+                    "settings": SimpleNamespace(tracking_interval_minutes=60),
+                    "price_tracking_scheduled": scheduled,
+                }
+            )
+        )
+        return tracking_status_line(context)
+
+    def test_status_is_manual_when_job_queue_failed_to_schedule(self):
+        self.assertNotIn("Автоматическая проверка цен включена", self._context(scheduled=False))
+
+    def test_status_is_automatic_only_after_scheduler_registration(self):
+        self.assertIn("Автоматическая проверка цен включена", self._context(scheduled=True))
 
 
 class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
@@ -430,6 +558,45 @@ class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await tracker.check_all(), [])
         self.assertEqual(len(notifier.calls), 2)
 
+    async def test_repeated_active_track_does_not_reset_observed_baseline(self):
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005004", "Товар",
+            "https://www.aliexpress.com/item/1005004.html", 10.0, "USD",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        tracked_id = rows[0]["id"]
+        await self.db.update_tracked_observation(tracked_id, 8.0, "USD")
+
+        # A stale card can still contain the old "follow" button. Pressing it
+        # again must not replace the active scheduler baseline with that card's
+        # older price or a different presentation currency.
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005004", "Товар",
+            "https://www.aliexpress.com/item/1005004.html", 10.0, "EUR",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        self.assertEqual(rows[0]["last_checked_price"], 8.0)
+        self.assertEqual(rows[0]["currency"], "USD")
+
+    async def test_reactivating_stopped_tracking_seeds_a_fresh_baseline(self):
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005005", "Товар",
+            "https://www.aliexpress.com/item/1005005.html", 10.0, "USD",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        tracked_id = rows[0]["id"]
+        await self.db.update_tracked_observation(tracked_id, 8.0, "USD")
+        await self.db.deactivate_tracked_product(tracked_id, self.user_id)
+
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005005", "Товар",
+            "https://www.aliexpress.com/item/1005005.html", 12.0, "EUR",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        self.assertEqual(rows[0]["id"], tracked_id)
+        self.assertEqual(rows[0]["last_checked_price"], 12.0)
+        self.assertEqual(rows[0]["currency"], "EUR")
+
     async def test_manual_currency_change_invalidates_baseline(self):
         """Spec §30: after a currency switch the old baseline is dropped."""
         await self.db.add_tracked_product(
@@ -440,10 +607,13 @@ class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["last_checked_price"], 10.0)
 
         await self.db.invalidate_tracking_baselines(self.user_id)
+        rows = await self.db.get_tracked_products(self.user_id)
+        self.assertIsNone(rows[0]["last_checked_price"])
+        self.assertIsNone(rows[0]["currency"])
 
         rows = await self.db.get_active_tracked_with_telegram()
         self.assertIsNone(rows[0]["last_checked_price"])
-        # initial_price keeps the original observation for display
+        # initial_price is preserved; the UI hides it until a new currency baseline exists.
         self.assertEqual(rows[0]["initial_price"], 10.0)
 
     async def test_join_carries_user_currency_and_notify_preference(self):

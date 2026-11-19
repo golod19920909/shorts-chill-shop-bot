@@ -12,12 +12,43 @@ from handlers.search import (
     get_pending_clarify,
     set_pending_clarify,
     _clear_stale_shown_session_for_new_search,
+    _get_conversation_state_for_turn,
 )
 from services.convsearch.contract import Outcome
-from services.convsearch.state import ConversationEngineState
+from services.convsearch.state import CONTEXT_TTL_SECONDS, ConversationEngineState
 
 
 class PendingClarificationLifecycleTests(unittest.TestCase):
+    def test_expired_shopping_ledger_is_replaced_before_routing(self):
+        old_state = ConversationEngineState(user_key="expired-shopping")
+        old_state.record_product_type("шуруповерт")
+        old_state.updated_at = time.monotonic() - CONTEXT_TTL_SECONDS - 1
+        context = SimpleNamespace(user_data={"_convsearch_state": old_state})
+
+        current = _get_conversation_state_for_turn(context, "expired-shopping")
+
+        self.assertIsNot(current, old_state)
+        self.assertEqual(current.active(), [])
+        self.assertIs(context.user_data["_convsearch_state"], current)
+
+    def test_expiry_check_accepts_zero_as_a_valid_clock_value(self):
+        state = ConversationEngineState(user_key="zero-clock")
+        state.updated_at = -CONTEXT_TTL_SECONDS - 1
+
+        self.assertTrue(state.is_expired(now=0))
+
+    def test_getting_shopping_state_does_not_refresh_idle_ttl(self):
+        state = ConversationEngineState(user_key="idle-shopping")
+        state.record_product_type("шуруповерт")
+        state.updated_at = time.monotonic() - 10
+        previous_updated_at = state.updated_at
+        context = SimpleNamespace(user_data={"_convsearch_state": state})
+
+        current = _get_conversation_state_for_turn(context, "idle-shopping")
+
+        self.assertIs(current, state)
+        self.assertEqual(current.updated_at, previous_updated_at)
+
     def test_new_product_search_invalidates_previous_shown_session_pointer(self):
         context = SimpleNamespace(user_data={"last_shown_session": "old-session"})
         decision = SimpleNamespace(report={"intent": "new_search"})

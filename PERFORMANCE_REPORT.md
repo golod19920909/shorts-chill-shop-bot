@@ -1,5 +1,7 @@
 # Performance Task Report — Reducing Product Search Latency (Shorts Chill Shop Bot)
 
+> Historical benchmark/report (2026-10-24). It references the then-current `chat_router` path; do not treat its architecture or timings as current. Use `PROJECT_CONTEXT.md` and fresh CI/runtime measurements for present behavior.
+
 Date: 2026-10-24
 Scope: focused, evidence-backed latency work on the product-search request path.
 Language: English (as requested).

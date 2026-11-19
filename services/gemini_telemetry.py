@@ -1,10 +1,10 @@
 """Measurement-only Gemini usage instrumentation (no behavior change).
 
-Every application-issued remote model attempt is recorded exactly once, at
-the lowest layer that issues it: :meth:`AIService._generate` and the agent
-loop's direct ``generate_content`` call. Aggregates per search/turn are
-context-scoped via :class:`contextvars.ContextVar`, so concurrent Telegram
-users and concurrent searches never mix accounting.
+Every application-issued remote model attempt is recorded exactly once
+inside :meth:`AIService._generate`, the single production boundary for
+Gemini requests. Aggregates per search/turn are context-scoped via
+:class:`contextvars.ContextVar`, so concurrent Telegram users and concurrent
+searches never mix accounting.
 
 Design rules:
 

@@ -373,26 +373,39 @@ def _better_score(product: Product) -> tuple[float, float, float] | None:
 
 
 def better_candidates(original: Product, candidates: list[Product]) -> list[Product]:
-    """Candidates that beat the original on at least one REAL signal."""
+    """Candidates that beat the original on at least one comparable real signal."""
 
     original_score = _better_score(original)
     if original_score is None:
         return []
 
-    better: list[Product] = []
+    ranked: list[tuple[tuple[float, float, float], Product]] = []
     for product in candidates:
         if product_identity(product) == product_identity(original):
             continue
         score = _better_score(product)
-        if score is None or score <= original_score:
+        if score is None:
             continue
-        better.append(product)
-    return sorted(
-        better,
-        key=lambda product: _better_score(product) or (0.0, 0.0, 0.0),
-        reverse=True,
+        # Compare and rank ONLY metrics present on both products. A rating
+        # reported only for the candidate cannot dominate a comparable
+        # positive-rate/order improvement when the original has no rating.
+        improvements = tuple(
+            max(0.0, candidate_value - original_value)
+            if candidate_value >= 0 and original_value >= 0
+            else 0.0
+            for candidate_value, original_value in zip(score, original_score)
+        )
+        if any(improvements):
+            ranked.append((improvements, product))
+    ranked.sort(
+        key=lambda item: (
+            -item[0][0],
+            -item[0][1],
+            -item[0][2],
+            item[1].product_id or "",
+        )
     )
-
+    return [product for _improvements, product in ranked]
 
 def similar_candidates(original: Product, candidates: list[Product]) -> list[Product]:
     """Candidates for the same product concept, most similar first.
@@ -667,7 +680,13 @@ class ProductAssistant:
             currency=product.currency,
         )
         try:
-            outcome = await self.search.find_products(request)
+            # This assistant owns the final goal-specific selection
+            # (cheaper / better / similar). Keep SearchService's broad
+            # retrieval and deterministic relevance pipeline, but skip its
+            # generic feed selector to avoid paying for two Gemini selections.
+            outcome = await self.search.find_products(
+                request, select_feed_candidates=False
+            )
         except Exception:  # noqa: BLE001 - a failed search must not kill the menu
             logger.exception("Candidate search failed for %r", intent)
             return []

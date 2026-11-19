@@ -12,10 +12,17 @@ from __future__ import annotations
 import logging
 import re
 
+from config.catalog import CURRENCIES
 from models.product import Product
+from services.marketplaces.aliexpress_client import DOCUMENTED_TARGET_CURRENCIES
 from services.convsearch.state import ConversationEngineState, Slot
 
 logger = logging.getLogger(__name__)
+
+# Explicit budget amounts can only be compared in a currency the user can
+# select AND the Affiliate API documents. The intersection is intentionally
+# smaller than either list: no conversion or guessed exchange rate is used.
+SUPPORTED_BUDGET_CURRENCIES = frozenset(CURRENCIES) & DOCUMENTED_TARGET_CURRENCIES
 
 
 def _canonical_id(product: Product) -> str:
@@ -225,28 +232,6 @@ def partition_required_feature_evidence(
         else:
             needs_review.append(product)
     return verified, needs_review
-
-
-def filter_by_required_features(
-    products: list[Product],
-    state: ConversationEngineState,
-) -> tuple[list[Product], list[Product]]:
-    """Keep only candidates with evidence for every active required feature.
-
-    Missing evidence is UNKNOWN, not a successful match. Soft preferences
-    live in separate preference slots and are deliberately not filtered here.
-    """
-
-    required = state.active_values("feature")
-    if not required:
-        return list(products), []
-    survivors, rejected = [], []
-    for product in products:
-        if all(_feature_is_evidenced(product, feature) for feature in required):
-            survivors.append(product)
-        else:
-            rejected.append(product)
-    return survivors, rejected
 
 
 # ---------------------------------------------------------------------------
@@ -514,12 +499,25 @@ def build_retrieval_strategy(
     if not phrase:
         return None
 
+    # An explicit currency in the user's budget is more specific than the
+    # saved display preference. Request that exact unit when the Affiliate
+    # API documents it; otherwise keep the selected preference and let the
+    # strict same-currency budget gate reject incomparable prices. Never
+    # convert or compare amounts from different currencies.
+    request_currency = currency
+    if budget is not None:
+        budget_parts = str(budget.value or "").split(maxsplit=1)
+        if len(budget_parts) > 1:
+            explicit_budget_currency = budget_parts[1].strip().upper()
+            if explicit_budget_currency in SUPPORTED_BUDGET_CURRENCIES:
+                request_currency = explicit_budget_currency
+
     request = SearchRequest(
         original_query=text or phrase,
         normalized_query=phrase,
         mode=SearchMode.SEARCH,
         result_limit=result_limit,
-        currency=currency,
+        currency=request_currency,
         required_features=[*list(state.active_values("feature")), *constraint_words],
         excluded_features=list(exclusions),
     )

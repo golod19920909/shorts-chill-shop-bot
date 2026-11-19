@@ -47,7 +47,6 @@ from services.product_logging import (
 )
 from services.query_intent import apply_intent, parse_query_intent
 from services.relevance import (
-    _mentions_only,
     confirms_numeric_spec,
     dominant_script,
     filter_relevant,
@@ -66,19 +65,16 @@ logger = logging.getLogger(__name__)
 #: Hard cap on how many products are kept in one outcome.
 DEFAULT_MAX_RESULTS = 30
 
-#: How many RAW marketplace listings one search gathers so the AI selector has
-#: something to actually choose from - picking the best 20 out of 20 is not a
-#: selection at all. The pool is filled from the documented result pages of the
-#: SAME grounded phrase (the provider's own page size is 50, the documented
-#: maximum), so 60-80 candidates normally cost two documented ``product.query``
-#: calls. Only a search WITH an AI selector raises its target to this number:
-#: without one the browse cap above stays the target, so the deterministic path
-#: keeps both its breadth and its API cost.
+#: Raw candidate target for searches that have an available AI selector.
+#: The non-raw SearchService path can fill this pool from deeper pages of the
+#: same grounded phrase; the conversational engine's raw path instead fuses a
+#: bounded set of grounded variants (one documented page per variant). Without
+#: an available selector the target remains the 30-card browse cap.
 RAW_POOL_TARGET = 80
 
-#: How many cards an AI selection keeps for the carousel - the "строго 20 лучших"
-#: rule of the feed. It applies to a real selection only; a deterministic list
-#: keeps ``DEFAULT_MAX_RESULTS``, because an AI outage must not shrink a feed.
+#: How many top-ranked candidates the AI selector may return. It applies to a
+#: real selection only; a deterministic fallback keeps ``DEFAULT_MAX_RESULTS``,
+#: because an AI outage must not shrink a product result set.
 AI_FEED_RESULTS = 20
 #: Hard wall-clock bound on ONE AI feed-selection request. The selector already
 #: degrades to the deterministic list on any failure (``apply_feed_selection``),
@@ -90,22 +86,6 @@ AI_FEED_RESULTS = 20
 #: immediately. ``asyncio.TimeoutError`` is an alias of ``TimeoutError`` on
 #: 3.11+ (the same convention ``services.ai_service`` documents).
 FEED_SELECTION_TIMEOUT_SECONDS = 8.0
-
-#: How many tier-0 (unverified-relevance) candidates may FILL the tail of
-#: the agent path's final list after every verified product has been kept
-#: (see ``_final_relevance_cut``). A bounded fill keeps a thin verified
-#: pool from looking empty without shipping the unverified deep-pool tail
-#: as if it were relevant.
-TIER0_FILL_LIMIT = 5
-
-#: How many MENTION-ONLY tier-1 candidates (a title that merely mentions the
-#: requested noun while leading with something else - an accessory, another
-#: device) may ship when NO genuinely related (head-noun) product exists in
-#: the pool (G25.2-F). A direct product request must not be answered with a
-#: full page of things that merely reference the noun - yet an EMPTY screen
-#: is manufactured dishonesty too (the G25.2-E live regression: 15 verified
-#: tier-1 candidates, 0 shipped), so a small bounded honest list ships.
-MENTION_ONLY_FILL_LIMIT = 5
 
 #: How many otherwise-cut candidates a CONFIRMED explicit numeric
 #: specification may rescue from a pool truncation (G25.2-C Stage 12 / R3).
@@ -382,128 +362,6 @@ def _cut_with_numeric_protection(
     return kept + placed
 
 
-def _final_relevance_cut(
-    products: list[Product],
-    limit: int,
-    request: SearchRequest,
-) -> list[Product]:
-    """Agent-path final selection: VERIFIED relevance over the deep pool.
-
-    When the AI feed selection is skipped (the agent tool path), the deep
-    pool is no longer handed to a model - and a plain top-``limit`` cut is
-    NOT a substitute for relevance selection: a broad marketplace answer
-    fills the tail of the pool with tier-0 listings the relevance gate
-    could not verify (cross-language titles without a romanized match,
-    rental stations, accessories), and a raw cut ships them to the user
-    next to the genuinely matching products.
-
-    The deterministic evidence ALREADY exists on every candidate
-    (:func:`relevance.relevance_tier`: 2 = the product-type gate verified
-    the head noun, 1 = word-level or verified cross-writing match, 0 = no
-    comparable evidence), so the final selection re-uses it at zero model
-    cost:
-
-    - every VERIFIED product (tier >= 1) keeps its ranked order, up to
-      ``limit`` - a verified match can never be displaced by an unverified
-      one;
-    - tier-0 candidates fill at most :data:`TIER0_FILL_LIMIT` trailing
-      slots, so a thin verified pool still opens on real products without
-      pretending the unverified tail is relevant;
-    - MENTION-ONLY tier-1 candidates (a title that merely mentions the
-      requested noun while leading with an unrelated product - an accessory
-      or another device, G25.2-F) NEVER headline the answer at full
-      breadth: when the pool holds ONLY such candidates, a BOUNDED honest
-      head (:data:`MENTION_ONLY_FILL_LIMIT`) ships instead of an empty
-      screen (the G25.2-E live regression: 15 verified tier-1 candidates
-      shipped 0). Beside related products they stay out of the selection
-      entirely (they are tier-1 evidence, not product identity).
-    - with NO verified product at all the previous deterministic cut
-      (``_cut_with_numeric_protection``) applies unchanged - an empty
-      screen is never manufactured, and a request the pipeline cannot
-      verify keeps its previous behaviour.
-
-    Nothing is invented: only products the deterministic pipeline already
-    ranked are kept, dropped or reordered by their own tier.
-    """
-
-    limit = max(0, int(limit))
-    if len(products) <= limit and not any(
-        _mentions_only(product, request) for product in products
-    ):
-        return list(products)
-    if request.mode is not SearchMode.SEARCH:
-        return _cut_with_numeric_protection(products, limit, request)
-
-    verified = [
-        product for product in products
-        if relevance_tier(product, request) >= 1
-    ]
-    if not verified:
-        # Nothing the pipeline could verify: the honest previous behaviour.
-        return _cut_with_numeric_protection(products, limit, request)
-
-    # G25.2-F (mention-only fallback): tier-1 evidence is NOT one kind of
-    # thing. A title whose HEAD noun is the requested product ("exact"
-    # downgraded by a subtype/feature guard) is a RELATED product; a title
-    # that merely MENTIONS the noun somewhere in the middle (classify
-    # "mentioned" AND a leading noun unrelated to the request) is an
-    # accessory or another device - fine as FILLER behind verified products,
-    # never the headline of an answer to a DIRECT product request.
-    related = [
-        product for product in verified
-        if not _mentions_only(product, request)
-    ]
-    mention_only = [
-        product for product in verified if _mentions_only(product, request)
-    ]
-    if not related and not mention_only:
-        # Tier-1 verified pool vanished (nothing matched) - the honest
-        # previous behaviour.
-        return _cut_with_numeric_protection(products, limit, request)
-    if not related:
-        # ONLY mention-only candidates survived: a direct product request is
-        # NOT answered by things that merely reference the noun at full
-        # breadth, but an EMPTY screen is manufactured dishonesty too - the
-        # G25.2-E live regression (2026-10-25, «Мощный повербанк»: 15
-        # verified tier-1 candidates, 0 shipped). Ship a BOUNDED, ranked
-        # head of the mention-only list instead: the user still sees real
-        # marketplace candidates (ranked below every genuine product by the
-        # tier order), the empty-results/clarification flow stays available
-        # whenever even these are gone. The existing ``limit`` is respected:
-        # a smaller cap never grows the selection.
-        selected = mention_only[: min(MENTION_ONLY_FILL_LIMIT, limit)]
-    else:
-        selected = related[:limit]
-        if len(selected) < limit:
-            chosen_ids = {id(product) for product in selected}
-            filler = [
-                product for product in products
-                if id(product) not in chosen_ids
-                and relevance_tier(product, request) < 1
-            ][:TIER0_FILL_LIMIT]
-            selected.extend(filler)
-    # Truthful per-category counts of what is ACTUALLY in ``selected`` (the
-    # available-pool arithmetic of the old "verified + unverified fill"
-    # line reported capacity limits and negative fills once the
-    # mention-only branch existed - G25.2-E log defect).
-    selected_related = sum(1 for p in selected if not _mentions_only(p, request))
-    selected_mention = sum(1 for p in selected if _mentions_only(p, request))
-    selected_tier0 = len(selected) - selected_related - selected_mention
-    logger.info(
-        "Final relevance cut for %r: selected related=%d mention-only=%d "
-        "tier0-fill=%d (available: related=%d mention-only=%d, pool %d -> %d)",
-        request.original_query,
-        selected_related,
-        selected_mention,
-        selected_tier0,
-        len(related),
-        len(mention_only),
-        len(products),
-        len(selected),
-    )
-    return selected
-
-
 class SearchService:
     """Coordinates AI parsing and marketplace providers."""
 
@@ -590,9 +448,9 @@ class SearchService:
         *,
         exclude: set[tuple[str, str]] | None = None,
         broaden: bool = True,
-        feed_selection: bool = True,
         raw: bool = False,
         raw_broaden: bool = False,
+        select_feed_candidates: bool = True,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -610,13 +468,6 @@ class SearchService:
         then judged by the SAME relevance gate - broader retrieval never
         buys weaker relevance, and a variant never contains a word the
         user did not write.
-
-        ``feed_selection=False`` skips ONLY the final AI feed selection
-        (the deterministic cut ships instead - exactly the list an AI
-        timeout or failure would have produced). Retrieval breadth, depth
-        and every relevance/ranking stage are untouched; the agent path
-        uses it because the agent turn already spends its own Gemini calls
-        and re-curates the result afterwards.
 
         Flows that build their own breadth pass ``broaden=False`` (photo
         search runs its own grounded image hypotheses), and a request in
@@ -644,6 +495,13 @@ class SearchService:
         low-rated listings) and returns at most ``AI_FEED_RESULTS`` best cards -
         the list the carousel then walks. Without a selector, a failed request or
         an unusable answer the deterministic list survives, cut to the browse cap.
+
+        A caller that owns a more specific final selection (for example,
+        ProductAssistant's cheaper/better/similar selection) can set
+        ``select_feed_candidates=False``. Broad retrieval, relevance filtering
+        and deterministic ranking still run; only this generic AI feed-selection
+        call is skipped, so the caller can make one goal-specific AI selection
+        over the full deterministic candidate pool.
         """
 
         applicable = self.applicable_providers(request)
@@ -940,24 +798,14 @@ class SearchService:
             )
             return outcome
 
-        if broaden and feed_selection:
+        if broaden and select_feed_candidates:
             await self.apply_feed_selection(outcome)
         elif broaden:
-            # The agent tool path: the AI selection is skipped (the agent turn
-            # already spends its own Gemini calls), but the deterministic cut
-            # is NOT a substitute for relevance selection. The FINAL
-            # relevance selection runs here, on the finished deep pool, with
-            # the SAME deterministic tier evidence the ranking used - zero
-            # extra model calls: verified products first, a bounded
-            # unverified fill behind them.
-            logger.info(
-                "AI feed selection skipped (agent path); final relevance "
-                "cut for %r (pool %d)",
-                request.original_query,
-                len(outcome.products),
-            )
-            outcome.products = _final_relevance_cut(
-                outcome.products, self.max_results, request
+            # A caller with its own final selector keeps the deep, grounded pool
+            # and deterministic cut; it must not pay for a generic feed-selection
+            # call that would be immediately followed by another AI selection.
+            outcome.products = _cut_with_numeric_protection(
+                outcome.products, self.max_results, outcome.request
             )
         else:
             # A flow that owns its own breadth composes its pool from SEVERAL of

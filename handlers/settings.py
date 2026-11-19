@@ -21,12 +21,15 @@ from keyboards.main import (
     notifications_keyboard,
     settings_keyboard,
 )
-from keyboards.products import CB_PREFIX_TRACK_STOP, tracked_list_keyboard
+from keyboards.products import CB_PREFIX_TRACK_STOP, CB_TRACK_PAGE, tracked_list_keyboard
 from services import analytics
 from utils.emoji import INFO, SETTINGS
 from utils.formatting import format_price
 
 logger = logging.getLogger(__name__)
+
+TRACKING_PAGE_SIZE = 10
+TRACKING_PAGE_KEY = "tracking_page"
 
 EMPTY_TRACKING_TEXT = (
     "📉 <b>Отслеживание цен</b>\n\n"
@@ -41,8 +44,9 @@ TRACKING_HEADER = (
 
 TRACKING_STATUS_AUTO = "🟢 Автоматическая проверка цен включена: {cadence}."
 TRACKING_STATUS_MANUAL = (
-    "🟡 Автоматическая проверка цен сейчас отключена (интервал 0 или "
-    "нет настроенного провайдера): цены сохраняются вручную."
+    "🟡 Автоматические проверки и уведомления о цене сейчас недоступны "
+    "(не настроен провайдер, очередь задач или интервал). "
+    "Отслеживаемые товары остаются в списке."
 )
 
 
@@ -69,16 +73,22 @@ def tracking_status_line(context: ContextTypes.DEFAULT_TYPE) -> str:
     interval = int(
         getattr(bot_data.get("settings"), "tracking_interval_minutes", 1440) or 0
     )
-    if tracker is not None and interval > 0:
+    scheduled = bot_data.get("price_tracking_scheduled") is True
+    if tracker is not None and interval > 0 and scheduled:
         return TRACKING_STATUS_AUTO.format(cadence=_cadence_phrase(interval))
     return TRACKING_STATUS_MANUAL
 
 
 async def tracking_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await show_tracking(update, context)
+    await show_tracking(update, context, page=0)
 
 
-async def show_tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_tracking(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    page: int | None = None,
+) -> None:
     """Render the list of price-tracked products."""
 
     user_id = await common.register_user(update, context)
@@ -103,22 +113,48 @@ async def show_tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
+    total_pages = max(1, (len(rows) + TRACKING_PAGE_SIZE - 1) // TRACKING_PAGE_SIZE)
+    if page is None:
+        page = context.user_data.get(TRACKING_PAGE_KEY, 0)
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 0
+    page = min(max(0, page), total_pages - 1)
+    context.user_data[TRACKING_PAGE_KEY] = page
+
+    start = page * TRACKING_PAGE_SIZE
+    visible_rows = rows[start : start + TRACKING_PAGE_SIZE]
     items: list[dict] = []
     lines: list[str] = [TRACKING_HEADER.format(status=tracking_status_line(context))]
+    if total_pages > 1:
+        lines.append(f"Страница {page + 1}/{total_pages} · всего товаров: {len(rows)}")
+        lines.append("")
 
-    for row in rows:
+    for row in visible_rows:
+        # A currency change clears the old baseline. Never display its
+        # initial_price as if it belonged to the newly selected currency.
+        displayed_price = (
+            row["last_checked_price"]
+            if row["last_checked_price"] is not None
+            else (
+                row["initial_price"]
+                if row["currency"] is not None
+                else None
+            )
+        )
         items.append(
             {
                 "tracked_id": row["id"],
                 "title": row["title"],
                 "url": row["product_url"],
-                "price": row["last_checked_price"] or row["initial_price"],
+                "price": displayed_price,
                 "currency": row["currency"],
             }
         )
-        price = format_price(
-            row["last_checked_price"] or row["initial_price"], row["currency"]
-        )
+        price = format_price(displayed_price, row["currency"])
+        if not row["currency"]:
+            price += " (валюта не определена)"
         lines.append(
             f"• {common.escape(row['title'] or 'Без названия')} — "
             f"{common.escape(price)} "
@@ -130,8 +166,34 @@ async def show_tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         context,
         "\n".join(lines),
         parse_mode="HTML",
-        reply_markup=tracked_list_keyboard(items),
+        reply_markup=tracked_list_keyboard(
+            items, page=page, total_pages=total_pages
+        ),
     )
+
+
+async def tracking_page_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Move between bounded pages of the user's tracked-product list."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    parts = (query.data or "").split(":")
+    if len(parts) != 2 or parts[0] != CB_TRACK_PAGE:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    try:
+        page = int(parts[1])
+    except ValueError:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    if page < 0:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    await query.answer()
+    await show_tracking(update, context, page=page)
 
 
 async def track_stop_callback(
@@ -246,6 +308,11 @@ async def notifications_toggle_callback(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """``notif:toggle`` - flip the stored preference and re-render."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
 
     user_id = await common.register_user(update, context)
     if user_id is None:

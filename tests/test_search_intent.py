@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""G25.2-B Stage 2: structured intent -> production search input tests.
+"""Offline tests for the direct SearchService text-parser compatibility API.
 
 No live AliExpress / Gemini here: retrieval runs through ``StubProvider``,
 parsing through ``AIService(api_key=None)`` (the local fallback parser) or
-explicit mocks. Every pipeline test mirrors the exact production order of
-``handlers.search._search`` (Step 5):
+explicit mocks. Telegram shopping conversations use AssistantRouter plus
+ConversationSearchEngine; these tests cover only the separate direct parser
+entry point:
 
     parse_query -> resolve_request -> parse_query_intent -> apply_intent
 """
@@ -74,7 +75,7 @@ class StubProvider(MarketplaceProvider):
 
 
 def resolve_and_apply(text, previous=None, ai=None):
-    """The exact Stage 2 pipeline order of ``handlers.search._search``."""
+    """Exercise the direct parser API, including its deterministic merge fallback."""
 
     if ai is None:
         ai = AIService(api_key=None)
@@ -83,6 +84,11 @@ def resolve_and_apply(text, previous=None, ai=None):
     intent, meta = run(parse_query_intent(text, ai))
     effective = apply_intent(effective, intent, refined=refined)
     return effective, refined, meta
+
+
+# Keep the clearer name used by tests in this module; older test modules
+# import resolve_and_apply as a shared direct-parser fixture.
+parse_and_apply = resolve_and_apply
 
 
 def tokens(request: SearchRequest) -> set[str]:
@@ -238,13 +244,13 @@ class ApplyIntentUnitTests(unittest.TestCase):
 
 
 class PipelineTransformationTests(unittest.TestCase):
-    """The 15 Stage 9 cases through the exact production pipeline order."""
+    """The 15 Stage 9 cases through the direct parser API pipeline."""
 
     def setUp(self) -> None:
         reset_ai_state()
 
     def test_01_do_3000_grn(self) -> None:
-        request, _, meta = resolve_and_apply("до 3000 грн")
+        request, _, meta = parse_and_apply("до 3000 грн")
         self.assertEqual(request.max_price, 3000.0)
         self.assertEqual(request.currency, "UAH")
         self.assertNotIn("грн", request.normalized_query)
@@ -252,7 +258,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertEqual(meta.source, "fallback")
 
     def test_02_power_bank_do_1500_grn(self) -> None:
-        request, _, _ = resolve_and_apply("power bank до 1500 грн")
+        request, _, _ = parse_and_apply("power bank до 1500 грн")
         self.assertIn("power", tokens(request))
         self.assertIn("bank", tokens(request))
         self.assertNotIn("грн", tokens(request))
@@ -261,13 +267,13 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertEqual(request.currency, "UAH")
 
     def test_03_zaryadka_dlya_iphone(self) -> None:
-        request, _, _ = resolve_and_apply("зарядка для iPhone")
+        request, _, _ = parse_and_apply("зарядка для iPhone")
         self.assertEqual(request.intent_product_type, "зарядка")
         self.assertIn("iphone", request.intent_compatibility)
         self.assertTrue({"зарядка", "iphone"} <= tokens(request))
 
     def test_04_zaryadka_dlya_iphone_15_pro(self) -> None:
-        request, _, _ = resolve_and_apply("зарядка для iPhone 15 Pro")
+        request, _, _ = parse_and_apply("зарядка для iPhone 15 Pro")
         self.assertEqual(request.intent_product_type, "зарядка")
         self.assertIn("iphone 15 pro", request.intent_compatibility)
         # Compatibility never becomes the product type.
@@ -275,7 +281,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"зарядка", "iphone", "15", "pro"} <= tokens(request))
 
     def test_05_akkumulyator_dlya_makita_18v(self) -> None:
-        request, _, _ = resolve_and_apply("аккумулятор для Makita 18V")
+        request, _, _ = parse_and_apply("аккумулятор для Makita 18V")
         self.assertEqual(request.intent_product_type, "аккумулятор")
         self.assertEqual(request.intent_brand, "Makita")
         self.assertIn("18 v", request.intent_required_attributes)
@@ -284,13 +290,13 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"аккумулятор", "makita"} <= tokens(request))
 
     def test_06_instrument_dlya_makita_18v(self) -> None:
-        request, _, _ = resolve_and_apply("инструмент для Makita 18V")
+        request, _, _ = parse_and_apply("инструмент для Makita 18V")
         self.assertEqual(request.intent_product_type, "инструмент")
         self.assertEqual(request.intent_brand, "Makita")
         self.assertTrue({"инструмент", "makita"} <= tokens(request))
 
     def test_07_dverniki_volkswagen_golf_7(self) -> None:
-        request, _, _ = resolve_and_apply("дворники Volkswagen Golf 7")
+        request, _, _ = parse_and_apply("дворники Volkswagen Golf 7")
         self.assertEqual(request.intent_product_type, "дворники")
         self.assertEqual(request.intent_brand, "Volkswagen")
         # No duplicated brand token in the retrieval phrase.
@@ -299,44 +305,44 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"дворники", "golf", "7"} <= tokens(request))
 
     def test_08_dlya_toyota_camry_70(self) -> None:
-        request, _, _ = resolve_and_apply("для Toyota Camry 70")
+        request, _, _ = parse_and_apply("для Toyota Camry 70")
         self.assertIsNone(request.intent_product_type)  # no invented type
         self.assertEqual(request.intent_compatibility, ["toyota camry 70"])
         # The search does not crash or become empty because pt is None.
         self.assertTrue(request.normalized_query)
 
     def test_09_kamera_dlya_mashiny(self) -> None:
-        request, _, _ = resolve_and_apply("камера для машины")
+        request, _, _ = parse_and_apply("камера для машины")
         self.assertEqual(request.intent_product_type, "камера")
         self.assertEqual(request.intent_compatibility, ["машины"])
         self.assertTrue({"камера", "машины"} <= tokens(request))
 
     def test_10_podarok_dlya_kota(self) -> None:
-        request, _, _ = resolve_and_apply("подарок для кота")
+        request, _, _ = parse_and_apply("подарок для кота")
         self.assertEqual(request.intent_product_type, "подарок")
         self.assertNotEqual(request.intent_product_type, "кот")
         self.assertEqual(request.intent_compatibility, ["кота"])
 
     def test_11_ssd_1tb(self) -> None:
-        request, _, _ = resolve_and_apply("SSD 1 ТБ")
+        request, _, _ = parse_and_apply("SSD 1 ТБ")
         self.assertEqual(request.intent_product_type, "ssd")
         self.assertIn("1 тб", request.intent_required_attributes)
         self.assertIn("ssd", tokens(request))
         self.assertIn("тб", tokens(request))
 
     def test_12_ssd_dlya_noutbuka(self) -> None:
-        request, _, _ = resolve_and_apply("SSD для ноутбука")
+        request, _, _ = parse_and_apply("SSD для ноутбука")
         self.assertEqual(request.intent_product_type, "ssd")
         self.assertEqual(request.intent_compatibility, ["ноутбука"])
         self.assertTrue({"ssd", "ноутбука"} <= tokens(request))
 
     def test_13_nabor_instrumentov(self) -> None:
-        request, _, _ = resolve_and_apply("набор инструментов")
+        request, _, _ = parse_and_apply("набор инструментов")
         self.assertEqual(request.intent_product_type, "набор инструментов")
         self.assertTrue({"набор", "инструментов"} <= tokens(request))
 
     def test_14_do_2000_grn_dlya_ps5(self) -> None:
-        request, _, _ = resolve_and_apply("до 2000 грн для PS5")
+        request, _, _ = parse_and_apply("до 2000 грн для PS5")
         self.assertEqual(request.max_price, 2000.0)
         self.assertEqual(request.currency, "UAH")
         self.assertIn("ps5", request.intent_compatibility)
@@ -345,7 +351,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue(request.normalized_query)  # no crash, real phrase
 
     def test_15_grn_alone(self) -> None:
-        request, _, meta = resolve_and_apply("грн")
+        request, _, meta = parse_and_apply("грн")
         self.assertNotIn("грн", request.normalized_query)
         self.assertEqual(request.normalized_query, "")  # no fake query
         self.assertIsNone(request.intent_product_type)
@@ -360,7 +366,7 @@ class ProviderContractTests(unittest.TestCase):
         reset_ai_state()
 
     def _primary_search(self, text, products, **kwargs):
-        request, _, _ = resolve_and_apply(text)
+        request, _, _ = parse_and_apply(text)
         stub = StubProvider(products)
         outcome = run(
             SearchService([stub]).find_products(request, **kwargs))
@@ -446,7 +452,7 @@ class ProviderContractTests(unittest.TestCase):
     def test_find_products_from_text_applies_the_same_intent_layer(
         self,
     ) -> None:
-        # Production Path B: the SAME parser + apply_intent, no duplicates.
+        # Direct parser API: the same parser + apply_intent, no duplicates.
         stub = StubProvider(
             [make_listing("4", "Power Bank 10000mAh", 12.0)])
         service = SearchService(
@@ -461,83 +467,6 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(received.currency, "UAH")
 
 
-class ConversationRegressionTests(unittest.TestCase):
-    """Existing resolve_request behaviour must stay untouched (Step 10)."""
-
-    def setUp(self) -> None:
-        reset_ai_state()
-
-    def _step(self, previous, text):
-        return resolve_and_apply(text, previous=previous)
-
-    def test_initial_search_then_modifier_follow_up(self) -> None:
-        first, refined, _ = self._step(
-            None, "наушники беспроводные до 3000 грн")
-        self.assertFalse(refined)
-        self.assertEqual(first.intent_product_type, "наушники беспроводные")
-        snapshot = first.model_dump()
-
-        # «а дешевле?» is a refinement under the EXISTING resolve rules.
-        second, refined, _ = self._step(first, "а дешевле?")
-        self.assertTrue(refined)
-        # The previous request object is never mutated in place.
-        self.assertEqual(first.model_dump(), snapshot)
-        # Phrase and product identity survive the modifier-only message.
-        self.assertEqual(second.normalized_query, "наушники беспроводные")
-        self.assertEqual(
-            second.intent_product_type, "наушники беспроводные")
-        self.assertEqual(second.original_query, "а дешевле?")
-
-    def test_numeric_budget_follow_up_applies_current_intent(self) -> None:
-        first, _, _ = self._step(
-            None, "наушники беспроводные до 3000 грн")
-        snapshot = first.model_dump()
-        # Stage 49 (D2): a budget-only follow-up («до 1500 грн») introduces no
-        # new PRODUCT word, so it is a REFINEMENT - the previous product and
-        # its other constraints are preserved and only the budget is replaced
-        # (was: the follow-up reset the search and lost the product, the exact
-        # defect D2 fixes). Budget replacement itself is unchanged.
-        second, refined, _ = self._step(first, "до 1500 грн")
-        self.assertTrue(refined)
-        self.assertEqual(first.model_dump(), snapshot)
-        self.assertEqual(second.max_price, 1500.0)
-        self.assertEqual(second.currency, "UAH")
-        self.assertNotIn("грн", second.normalized_query)
-        self.assertEqual(second.original_query, "до 1500 грн")
-        # The product concept survives the budget change.
-        self.assertIn("наушник", second.normalized_query)
-
-    def test_compatibility_follow_up_applies_to_current_message(
-        self,
-    ) -> None:
-        first, _, _ = self._step(None, "зарядка")
-        second, refined, _ = self._step(first, "для iPhone")
-        # Existing semantics: a NEW device word resets the conversation.
-        self.assertFalse(refined)
-        self.assertEqual(second.original_query, "для iPhone")
-        self.assertIsNone(second.intent_product_type)
-        self.assertEqual(second.intent_compatibility, ["iphone"])
-        self.assertTrue(tokens(second) & {"iphone"})
-
-    def test_compatibility_state_survives_a_refinement(self) -> None:
-        first, _, _ = self._step(None, "зарядка для iPhone")
-        self.assertEqual(first.intent_compatibility, ["iphone"])
-        second, refined, _ = self._step(first, "а дешевле?")
-        self.assertTrue(refined)
-        # Intent fields do not corrupt the previous request state.
-        self.assertEqual(second.intent_product_type, "зарядка")
-        self.assertEqual(second.intent_compatibility, ["iphone"])
-        self.assertEqual(second.normalized_query, "зарядка Apple iphone")
-        self.assertEqual(second.original_query, "а дешевле?")
-
-    def test_new_product_message_still_resets_like_before(self) -> None:
-        first, _, _ = self._step(None, "наушники")
-        second, refined, _ = self._step(first, "плазморезка")
-        self.assertFalse(refined)
-        self.assertEqual(second.intent_product_type, "плазморезка")
-        self.assertEqual(second.normalized_query, "плазморезка")
-
-
 class WiringGuardTests(unittest.TestCase):
     """Source-level guards: order, single-parse, no Stage 3 leakage."""
 
@@ -547,33 +476,25 @@ class WiringGuardTests(unittest.TestCase):
         with io.open(path, encoding="utf-8") as handle:
             return handle.read()
 
-    def test_search_handler_order_and_single_parse(self) -> None:
+    def test_search_handler_routes_once_then_reuses_validated_decision(self) -> None:
         source = self._source("handlers/search.py")
-        early_exit = source.find("if ai_service is None")
-        # parse_query and parse_query_intent are INDEPENDENT, so they are issued
-        # CONCURRENTLY (asyncio.gather) - the intent PARSE may precede the merge.
-        # The invariant the pipeline actually relies on is therefore anchored on
-        # APPLY, not parse: the parsed intent must be applied AFTER the merge,
-        # and retrieval must happen after that. ``parse_query_intent`` must
-        # still exist exactly once (single parse - the duplication guard).
-        intent_parse = source.find("parse_query_intent(text, ai_service)")
-        resolved = source.find("await resolve_request(")
-        applied = source.find("apply_intent(")
-        # The retrieval call itself (assigned, then returned - the exact
-        # return syntax must not couple this order guard to the code style).
-        searched = source.find("await search_service.find_products(")
-        self.assertGreater(intent_parse, -1)
-        self.assertGreater(applied, -1)
-        self.assertGreater(resolved, -1)
-        self.assertGreater(searched, -1)
-        # The ai_service-is-None branch (Path B) returns BEFORE _search's
-        # own intent call -> no path parses intent twice.
-        self.assertGreater(intent_parse, early_exit)
-        # Single parse: the concurrent block references parse_query_intent once.
-        self.assertEqual(source.count("parse_query_intent(text, ai_service)"), 1)
-        # Mandatory order: merge first, then intent APPLIED, then retrieval.
-        self.assertGreater(applied, resolved)
-        self.assertGreater(searched, applied)
+        router = source.find("AssistantRouter(ai_service).classify(")
+        engine = source.find("await engine.handle_message(")
+        self.assertGreater(router, -1)
+        self.assertGreater(engine, router)
+        self.assertEqual(source.count("AssistantRouter(ai_service).classify("), 1)
+        self.assertEqual(source.count("await engine.handle_message("), 1)
+        self.assertIn("validated_ai_turn=validated_ai_turn", source)
+        self.assertIn(
+            "interpret_turn=(pending is not None)",
+            source,
+        )
+        # The old parse/merge path must not run in the Telegram handler:
+        # the router decision is validated once and the engine owns the
+        # deterministic fallback when the router is unavailable.
+        self.assertNotIn("parse_query_intent(", source)
+        self.assertNotIn("await resolve_request(", source)
+
 
     def test_find_products_from_text_uses_the_same_layer(self) -> None:
         source = self._source("services/search_service.py")

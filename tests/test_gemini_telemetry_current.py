@@ -1,10 +1,4 @@
-"""Focused tests for the measurement-only Gemini instrumentation.
-
-Covers: usage_metadata extraction (complete/partial/missing), failure and
-timeout recording without behavior change, per-turn attempt counting via the
-context-scoped collector, concurrency isolation, agent-loop attempt counting
-without duplication, and that existing failure/return behavior is preserved.
-"""
+from __future__ import annotations
 
 import asyncio
 import types
@@ -49,6 +43,7 @@ def _ai_with(results):
     return ai, fake
 
 
+
 class ExtractUsageTests(unittest.TestCase):
     def test_complete_metadata(self):
         response = _response(
@@ -82,7 +77,6 @@ class ExtractUsageTests(unittest.TestCase):
         response = _response(prompt_token_count="12", candidates_token_count=1.5)
         self.assertIsNone(extract_usage(response))
 
-
 class TurnScopeTests(unittest.IsolatedAsyncioTestCase):
     def test_summary_counts_and_partial_flag(self):
         with turn_scope("t") as usage:
@@ -107,7 +101,6 @@ class TurnScopeTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertFalse(usage.tokens_partial)
         self.assertEqual(usage.totals().get("prompt_token_count"), 3)
-
 
 class _GenerateInstrumentationTests(unittest.IsolatedAsyncioTestCase):
     async def test_success_records_attempts(self):
@@ -182,7 +175,6 @@ class _GenerateInstrumentationTests(unittest.IsolatedAsyncioTestCase):
             response=_response(prompt_token_count=1),
         )
 
-
 class ConcurrencyTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_searches_isolated(self):
         ai, _ = _ai_with(
@@ -204,64 +196,6 @@ class ConcurrencyTests(unittest.IsolatedAsyncioTestCase):
         a, b = await asyncio.gather(search("a"), search("b"))
         self.assertEqual(sum(t["prompt_token_count"] for t in [x.tokens for x in a.attempts]), 11)
         self.assertEqual(sum(t["prompt_token_count"] for t in [x.tokens for x in b.attempts]), 300)
-
-
-class AgentLoopTests(unittest.IsolatedAsyncioTestCase):
-    def _run_loop(self, ai, results):
-        from services.agent_loop import run_agent_loop
-
-        async def run_tool(name, args, ctx, search_fn=None):
-            return types.SimpleNamespace(response={})
-
-        return run_agent_loop(
-            ai, "hello", types.SimpleNamespace(shown_products=[]),
-            max_rounds=1, search_fn=None, run_tool=run_tool,
-        )
-
-    async def test_agent_rounds_counted_once_per_round(self):
-        # Round 1: a tool call; round 2: final text. Two remote attempts.
-        ai, fake = _ai_with([])
-
-        call_part = types.SimpleNamespace(
-            function_call=types.SimpleNamespace(name="get_shown_products", args={}, id="1")
-        )
-        final = _response(text="done", prompt_token_count=5, total_token_count=7)
-        call = types.SimpleNamespace(
-            text=None,
-            candidates=[types.SimpleNamespace(content=types.SimpleNamespace(parts=[call_part]))],
-        )
-        final.candidates = []
-        ai._client = types.SimpleNamespace(
-            aio=types.SimpleNamespace(
-                models=types.SimpleNamespace(
-                    generate_content=AsyncMock(side_effect=[call, final])
-                )
-            )
-        )
-        with turn_scope("agent") as usage:
-            result = await self._run_loop(ai, None)
-        self.assertEqual(result["text"], "done")
-        self.assertEqual(len(usage.attempts), 2)  # two rounds, counted once each
-        self.assertTrue(all(a.operation == "agent_round" for a in usage.attempts))
-        self.assertEqual(usage.attempts[1].tokens.get("total_token_count"), 7)
-
-    async def test_agent_failure_recorded_with_timeout_outcome(self):
-        ai, _ = _ai_with([])
-
-        async def hang(**kwargs):
-            await asyncio.sleep(5)
-
-        ai._client = types.SimpleNamespace(
-            aio=types.SimpleNamespace(
-                models=types.SimpleNamespace(generate_content=hang)
-            )
-        )
-        ai.timeout_seconds = 0.05
-        with turn_scope("agent") as usage:
-            result = await self._run_loop(ai, None)
-        self.assertTrue(result["failed"])
-        self.assertEqual(len(usage.attempts), 1)
-        self.assertEqual(usage.attempts[0].outcome, "timeout")
 
 
 if __name__ == "__main__":

@@ -56,6 +56,8 @@ from keyboards.main import (
     REMOVED_CALLBACK_PATTERN,
 )
 from keyboards.products import (
+    CB_FAVORITE_PAGE,
+    CB_TRACK_PAGE,
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
     CB_PREFIX_CARD_UNTRACK,
@@ -263,7 +265,17 @@ def _register_handlers(application: Application) -> None:
     )
     application.add_handler(
         CallbackQueryHandler(
+            favorites.favorite_page_callback, pattern=rf"^{CB_FAVORITE_PAGE}:[0-9]+$"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
             settings_handlers.track_stop_callback, pattern=f"^{CB_PREFIX_TRACK_STOP}:"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            settings_handlers.tracking_page_callback, pattern=rf"^{CB_TRACK_PAGE}:[0-9]+$"
         )
     )
     application.add_handler(
@@ -347,11 +359,12 @@ def _register_handlers(application: Application) -> None:
     # one only sees what they refused (see handlers.start.stale_callback).
     application.add_handler(CallbackQueryHandler(start.stale_callback))
 
-    # A sent photo is a product search by image - answered honestly when no
-    # provider supports image search yet (see handlers.discovery).
+    # A sent photo enters the structured vision pipeline; grounded hypotheses
+    # are searched through the same AliExpress relevance and card-delivery path.
     application.add_handler(MessageHandler(filters.PHOTO, discovery.photo_message))
 
-    # Any plain text message is treated as a product search query.
+    # Plain text enters one route: general conversation or the shopping engine.
+    # The router and engine keep their histories and decision logic separate.
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, search.search_message)
     )
@@ -372,7 +385,15 @@ async def _post_init(application: Application) -> None:
         database, application.bot_data["search_service"], application.bot
     )
     application.bot_data["price_tracker"] = tracker
-    price_tracking.schedule_price_tracking(application)
+    if tracker is None:
+        logger.info(
+            "Automatic price tracking not scheduled: no configured marketplace provider"
+        )
+        application.bot_data["price_tracking_scheduled"] = False
+    else:
+        application.bot_data["price_tracking_scheduled"] = (
+            price_tracking.schedule_price_tracking(application)
+        )
 
     # Telegram shows /start (and the rest) in its menu button from now on.
     await publish_command_menu(application.bot)

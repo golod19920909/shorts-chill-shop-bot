@@ -799,10 +799,8 @@ class PowerBankFalsePositiveTests(unittest.TestCase):
         self.assertLess(tier, 2)
 
 
-class PowerBankFinalSelectionTests(unittest.TestCase):
-    """The final relevance cut over a realistic deep pool for «мощный
-    повербанк»: the false positives must not outrank the genuine product,
-    and the genuine one must lead the response."""
+class PowerBankFallbackSelectionTests(unittest.TestCase):
+    """The current no-AI search path keeps a genuine power bank ahead of junk."""
 
     def test_genuine_power_bank_outranks_false_positives(self) -> None:
         genuine = make_product(
@@ -833,7 +831,7 @@ class PowerBankFinalSelectionTests(unittest.TestCase):
             [_PoolProvider([genuine, *false_positives, *junk])], ai_service=None
         )
 
-        outcome = run(service.find_products(req, feed_selection=False))
+        outcome = run(service.find_products(req))
 
         self.assertTrue(outcome.products)
         self.assertEqual(
@@ -977,68 +975,3 @@ class MisspelledQueryClassificationTests(unittest.TestCase):
         return classify_product(product, self._request()), relevance_tier(
             product, self._request()
         )
-
-
-class MentionOnlyFallbackTests(unittest.TestCase):
-    """The final cut (G25.2-F): a mention-only tier-1 result must never be
-    the whole answer to a direct product request."""
-
-    def _req(self) -> SearchRequest:
-        return request("power bank", normalized_query="power bank")
-
-    def test_only_mention_only_candidates_ship_bounded(self) -> None:
-        """The 2026-10-25 «Мощный повербанк" regression: 15 verified tier-1
-        candidates, all mention-only, shipped 0. A single mention-only
-        candidate must still ship (bounded by MENTION_ONLY_FILL_LIMIT), an
-        empty screen is never manufactured."""
-        req = self._req()
-        products = [
-            make_product("Portable emergency radio AM/FM with power bank "
-                         "function", product_id="m0"),
-        ]
-        from services.search_service import (
-            MENTION_ONLY_FILL_LIMIT, _final_relevance_cut,
-        )
-
-        outcome = _final_relevance_cut(products, 30, req)
-        self.assertEqual(len(outcome), 1)
-        self.assertLessEqual(len(outcome), MENTION_ONLY_FILL_LIMIT)
-
-    def test_genuine_products_lead_and_mention_only_cannot_displace(self) -> None:
-        req = self._req()
-        genuine = [
-            make_product(f"Power bank 20000mAh model {i}", product_id=f"g{i}")
-            for i in range(2)
-        ]
-        mentions = [
-            make_product(f"Device model {i} with built-in power bank feature",
-                         product_id=f"m{i}")
-            for i in range(6)
-        ]
-        from services.search_service import _final_relevance_cut
-
-        outcome = _final_relevance_cut(mentions + genuine, 30, req)
-        ids = [p.product_id for p in outcome]
-        self.assertEqual([i for i in ids if i.startswith("g")], ["g0", "g1"])
-        # No mention-only product was shipped ahead of a genuine one: the
-        # bounded trailing slot is the ONLY way one enters the list.
-        if "m0" in ids:
-            self.assertLess(ids.index("m0"), len(ids))
-
-    def test_related_tier1_results_stay_unbounded(self) -> None:
-        """A query that asks for RELATED items («чехол для повербанка»)
-        legitimately earns head-noun tier-1 results - those keep the
-        unbounded verified behaviour."""
-        req = request(
-            "чехол для повербанка",
-            normalized_query="power bank case",
-            intent_product_type="чехол",
-            intent_compatibility=["повербанк"],
-        )
-        cases = [
-            make_product(f"Power bank case shockproof model {i}", product_id=f"c{i}")
-            for i in range(5)
-        ]
-        service = SearchService([_PoolProvider(cases)], ai_service=None)
-        outcome = run(service.find_products(req, feed_selection=False))
-        self.assertEqual(len(outcome.products), 5)

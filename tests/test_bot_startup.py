@@ -125,6 +125,9 @@ class OfflineStartupAndSearchTests(BotStartupTestCase):
 
             await _post_init(application)
 
+            self.assertIsNone(application.bot_data["price_tracker"])
+            self.assertFalse(application.bot_data["price_tracking_scheduled"])
+
             database: Database = application.bot_data["database"]
             self.assertTrue(Path(self.db_path).exists())
             tables = await database.list_tables()

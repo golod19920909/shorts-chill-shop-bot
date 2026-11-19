@@ -1,44 +1,23 @@
-"""Multi-turn search refinement on top of the EXISTING search pipeline.
+"""Deterministic merge primitives for the direct text-parser API.
 
-A follow-up message ("А с хорошим микрофоном?") must be able to refine the
-previous search instead of being searched from scratch. This module holds
-that state and the merge rules; it does NOT search anything - the handler
-still calls the same ``SearchService.find_products`` used by every other
-screen, so there is exactly one search architecture.
-
-State decision (documented on purpose): the context lives in
-``context.user_data`` - per user, in memory, expiring after
-:data:`CONTEXT_TTL_SECONDS`. That is sufficient here:
-
-* it only ever holds the last *request* (query words, filters, currency),
-  which is the same data the bot already keeps in memory for the shown
-  result session - no extra persistence layer is introduced;
-* ``search_history`` in SQLite stays what it is (analytics/history) and is
-  deliberately NOT read back as conversation state: a search performed on
-  another device or an hour ago must not silently change a new search;
-* a restarted bot simply starts a new conversation: nothing to migrate and
-  nothing sensitive stored on disk.
-
-The merge is deterministic by default and may be refined by AI when the
-model is available: the AI variant is validated (it may only reuse words
-the previous request or the follow-up already contained), and the
-deterministic merge stays the fallback when AI is unavailable or
-malformed - exactly like query parsing.
+Telegram shopping conversations use AssistantRouter plus ConversationSearchEngine
+and do not call this module. AIService retains these helpers for its separate
+direct SearchService parser path: feature extraction, deterministic merge and
+validation of an optional AI-assisted merge. No per-user conversation state is
+stored here.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-import time
-from dataclasses import dataclass, field
 
 from models.search_request import SearchMode, SearchRequest
 from services.query_intent import CURRENCY_ALIASES, KNOWN_BRANDS
+from services.count_followup import is_count_only_follow_up
 from services.relevance import STOPWORDS
 from services.text_matching import (
     clean_feature,
-    extract_requested_result_count,
     phrase_in_text,
 )
 
@@ -263,138 +242,6 @@ _REQUEST_SCAFFOLD_STEMS: tuple[str, ...] = (
 )
 
 _WORD_RE = re.compile(r"[^\W\d_]+", re.UNICODE)
-
-#: Words that frame a number but name neither a product nor a feature: request
-#: verbs, the option noun, connectors and currency words. A follow-up that
-#: leaves ONLY these around its number («покажи 3 варианта», «и ещё 4», «show
-#: three more») asks for a different NUMBER OF SHOWN OPTIONS - not for a
-#: different product. Used by :func:`is_count_only_follow_up`.
-_COUNT_ONLY_WORDS: frozenset[str] = frozenset(
-    {
-        "покажи", "покажите", "дай", "дайте", "найди", "найдите", "найти",
-        "подбери", "подберите", "выведи", "сделай", "сделайте",
-        "ещё", "еще", "и", "а", "мне",
-        "больше", "шт", "штук", "штуки", "штука", "пожалуйста",
-        "show", "give", "find", "more", "me", "please", "another",
-        "other", "again", "of", "them", "these", "those",
-        "вариант", "варианта", "вариантов", "варианты", "вариантом",
-        "опция", "опции", "опций", "опцию", "товар", "товара", "товаров",
-        "товары", "option", "options", "variant", "variants", "item", "items",
-    }
-)
-
-#: Numbers written in words that mark a follow-up as an OPTION COUNT (never a
-#: unit quantity). Digit forms are captured by the shared extractor; these
-#: words let «покажи ещё пару вариантов» behave like «покажи ещё 2 варианта».
-_COUNT_ONLY_NUMBER_WORDS: dict[str, int] = {
-    "два": 2, "две": 2, "три": 3, "четыре": 4, "пять": 5,
-    "шесть": 6, "семь": 7, "восемь": 8, "девять": 9, "десять": 10,
-}
-
-#: Nouns that turn a bare number into an OPTION COUNT («3 варианта»).
-_COUNT_NOUNS: frozenset[str] = frozenset(
-    {"вариант", "варианта", "вариантов", "варианты", "опция", "опции",
-     "опций", "опцию", "option", "options", "variant", "variants", "item",
-     "items"}
-)
-
-#: Verbs that make a following number a REQUEST for that many options.
-_COUNT_VERBS: frozenset[str] = frozenset(
-    {"покажи", "покажите", "дай", "дайте", "найди", "найдите", "подбери",
-     "подберите", "выведи", "show", "find", "give"}
-)
-
-def _has_count_context(words: list[str]) -> bool:
-    """Whether ``words`` frame a bare number as an OPTION COUNT."""
-
-    return any(word in _COUNT_NOUNS for word in words) or any(
-        word in _COUNT_VERBS for word in words
-    )
-
-def _is_count_framing_word(word: str) -> bool:
-    """Whether ``word`` only frames a requested result count."""
-
-    lowered = word.lower().replace("ё", "е")
-    if len(lowered) < 2:
-        return True
-    if lowered in _COUNT_ONLY_WORDS or lowered in _CURRENCY_WORDS:
-        return True
-    if lowered in _COUNT_ONLY_NUMBER_WORDS or lowered.startswith("пар"):
-        return True
-    return _is_modifier(lowered)
-
-def is_count_only_follow_up(text: str) -> int | None:
-    """The requested number of OPTIONS in a count-only message, or ``None``.
-
-    «Покажи 5», «Покажи три варианта», «Сделай 3 варианта», «и ещё 4»,
-    «покажи ещё пару вариантов» change only HOW MANY products are shown -
-    never WHICH product. Such a message must therefore be applied to the
-    CURRENT search (its product, filters, budget and currency all stay) and
-    must never be merged as a fresh retrieval phrase.
-
-    Conservative by construction: a message that carries ANY other content
-    word («покажи 3 беспроводные наушники», «покажи 5 наушников») answers
-    ``None`` and keeps the ordinary search/refinement behaviour - those
-    product words are checked with the SAME qualifier reading the refinement
-    gate uses. Category-independent: no product name is hardcoded.
-
-    Digit forms go through the project's single count extractor
-    (:func:`services.text_matching.extract_requested_result_count`); word
-    forms (три, четыре, «пару») are accepted here because that shared
-    extractor deliberately captures digits only.
-    """
-
-    if not text or not text.strip():
-        return None
-    words = [word.lower().replace("ё", "е") for word in _WORD_RE.findall(text)]
-    if not words:
-        return None
-    has_digit = any(char.isdigit() for char in text)
-    if (
-        not any(word in _COUNT_ONLY_NUMBER_WORDS for word in words)
-        and not any(word.startswith("пар") for word in words)
-        and not (has_digit and _has_count_context(words))
-    ):
-        return None
-    leftover = [
-        word
-        for word in words
-        if len(word) >= 3 and not _is_count_framing_word(word)
-    ]
-    if leftover:
-        return None
-    count = extract_requested_result_count(text)
-    if count is not None:
-        return count
-    # «покажи ЕЩЁ 5», «дай мне ещё 2»: a filler word between the verb and the
-    # number. Safe here because every other word already passed the guard
-    # above - this message names nothing but a count.
-    digits = re.search(r"\d+", text)
-    if digits is not None:
-        value = int(digits.group(0))
-        if value >= 1:
-            return min(value, 100)
-    # Word forms: «покажи ещё пару вариантов» / «покажи три варианта».
-    for word in words:
-        if word in _COUNT_ONLY_NUMBER_WORDS:
-            return _COUNT_ONLY_NUMBER_WORDS[word]
-        if word.startswith("пар"):
-            return 2
-    return None
-
-@dataclass
-class ConversationState:
-    """The last effective request of one user, with an expiry stamp."""
-
-    request: SearchRequest
-    updated_at: float = field(default_factory=time.monotonic)
-    welcomed: bool = False
-
-    def is_expired(self, *, now: float | None = None) -> bool:
-        return (now or time.monotonic()) - self.updated_at > CONTEXT_TTL_SECONDS
-
-    def touch(self) -> None:
-        self.updated_at = time.monotonic()
 
 def _terms(request: SearchRequest) -> list[str]:
     """Significant words of a request (its catalog query)."""

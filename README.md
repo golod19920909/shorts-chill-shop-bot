@@ -18,8 +18,9 @@ Telegram-бот, который понимает запросы на естес�
 
 | Задача | Кто выполняет |
 | --- | --- |
-| Понимание каждого сообщения в контексте диалога | Gemini через валидированный структурированный ответ; при сбое — детерминированный fallback |
-| Состояние диалога, ограничения и решение о следующем действии | Conversation Search Engine (`services/convsearch/`) |
+| Разделение обычного чата и shopping-запроса | AssistantRouter (`services/assistant/router.py`) через валидированный Gemini-ответ; при сбое — детерминированный fallback |
+| Состояние shopping-диалога, ограничения и решение о следующем действии | Conversation Search Engine (`services/convsearch/`); получает уже проверенное решение Router без повторной классификации |
+| Ответы на вопросы о конкретной карточке | Product Assistant; для сравнения получает другие товары только при явном сравнительном вопросе |
 | Получение реальных товаров, цен и партнёрских ссылок | Только AliExpress Affiliate API через существующий провайдер |
 | Проверка типа товара, обязательных признаков, исключений и бюджета | Детерминированный Python-код |
 | Семантический отбор | Gemini может выбирать только реальные ID из уже проверенного пула; ограничения остаются обязательными |
@@ -34,12 +35,18 @@ Gemini никогда не выдумывает товары, цены, рейт
 Telegram message
     │
     ▼
-ConversationSearchEngine
-    ├── Gemini interprets this turn using recent dialogue + active slot ledger
-    ├── validates the proposed action; deterministic fallback on failure
+AssistantRouter
+    ├── general_chat → AIService.answer_general (no AliExpress retrieval)
+    └── shopping → validated structured decision
+                     │
+                     ▼
+ConversationSearchEngine.handle_message(validated_ai_turn=...)
+    ├── consumes the Router decision without classifying the same message again
     ├── updates product type, use case, features, exclusions, budget, preferences
     ├── handles clarification / comparison / alternatives without blind re-search
-    ▼
+    └── pending clarification follow-ups may be interpreted once by the engine
+                     │
+                     ▼
 RetrievalBackend
     └── existing SearchService → AliExpress API (bounded grounded query routes)
     ▼
@@ -54,9 +61,11 @@ Telegram handler renders real product cards and affiliate URLs
 
 Ключевые архитектурные решения:
 
-* **Option C — гибридный консультант.** Gemini понимает ход диалога и предлагает
-  следующее действие в строгом формате. Conversation Search Engine проверяет
-  этот ответ и управляет единственным журналом состояния пользователя.
+* **Option C — гибридный консультант.** AssistantRouter получает и
+  валидирует структурированное решение Gemini для разделения обычного чата и
+  shopping-действий. Conversation Search Engine управляет единственным
+  журналом состояния и использует уже проверенное решение без повторной
+  классификации.
 * **Поиск остаётся детерминированным.** Существующий AliExpress provider и
   SearchService выполняют реальные запросы. Код проверяет тип товара,
   обязательные признаки, исключения и бюджет; Gemini не может отменить эти
@@ -119,7 +128,10 @@ shorts-chill-shop-bot/
 │   └── integration.py       # CurationGate: стык пайплайна с SQLite
 │
 ├── services/
-│   ├── ai_service.py        # Gemini (парсинг + vision) + локальный парсер
+│   ├── assistant/
+│   │   ├── router.py        # general chat vs shopping routing
+│   │   └── state.py         # bounded general-chat history
+│   ├── ai_service.py        # Gemini operations: routing, selection, vision, Q&A
 │   ├── search_service.py    # оркестрация поиска
 │   ├── comparison_service.py# программная фильтрация/сортировка
 │   ├── feed_curation.py     # хелперы фидов (near-dup, разнообразие, штраф)
@@ -158,8 +170,8 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 # отредактируйте .env: как минимум BOT_TOKEN
 
-# 4. Тесты
-python -m unittest discover -s tests -t . -v
+# 4. Полный локальный прогон всех актуальных тестов
+python -m pytest tests -q
 
 # 5. Запуск
 python main.py
@@ -210,30 +222,25 @@ AI-парсинг запросов: не настроен — используе
 
 ## Тестирование
 
-```powershell
-# всё сразу (стандартная библиотека, без сети и без реальных ключей)
-python -m unittest discover -s tests -t . -v
-
-# по модулям
-python -m unittest tests.test_settings -v
-python -m unittest tests.test_product_model tests.test_search_request -v
-python -m unittest tests.test_product_normalizer -v
-python -m unittest tests.test_database -v
-python -m unittest tests.test_marketplace_providers -v
-python -m unittest tests.test_promotions -v   # guard'ы удалённых фич
-python -m unittest tests.test_search_service tests.test_ai_service -v
-python -m unittest tests.test_bot_startup -v
-
-# офлайн-smoke всех потоков обнаружения (карточка сразу, без счётчиков и списков)
-python smoke_ux_flows.py     # печатает SMOKE OK / SMOKE FAILED
-```
-
-Альтернативно через pytest (не требуется):
+Основной тестовый раннер проекта — **pytest**. Тесты работают офлайн,
+используют заглушки/тестовые SQLite-базы и не обращаются к реальным Gemini,
+AliExpress или Telegram API.
 
 ```powershell
-pip install -r requirements-dev.txt
-pytest -q
+# полный набор
+python -m pytest tests -q
+
+# основные проверки разговорного поиска и доставки
+python -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py tests/test_search_service.py tests/test_search_delivery_integrity.py
+
+# отдельные проверки базы данных и цены
+python -m pytest -q tests/test_database.py tests/test_price_tracker.py
 ```
+
+CI выполняет focused regression suite, затем полный набор оставшихся тестов
+без исключения тестовых модулей. При изменении архитектуры полезные сценарии
+из устаревших тестов переносятся в тесты текущего production-пути; тесты
+удалённых реализаций не должны блокировать проверку актуального кода.
 
 Что покрыто: загрузка конфигурации, модель `Product`, модель `SearchRequest` и
 локальный парсер, нормализация значений маркетплейсов, инициализация БД и CRUD,

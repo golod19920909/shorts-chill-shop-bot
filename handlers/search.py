@@ -2,8 +2,10 @@
 
 The search flow is ONE screen:
 
-    user text -> AIService.parse_query -> SearchService.find_products
-    -> the FIRST product card (title, price, real marketplace fields)
+    user text -> AssistantRouter (validated intent)
+    -> ConversationSearchEngine (one state transition + retrieval strategy)
+    -> AliExpress API -> deterministic validation/ranking + optional AI selection
+    -> the FIRST product card (real marketplace fields)
     -> that very message is edited in place while the user browses
 
 There is deliberately no intermediate list screen: no "Найдено товаров",
@@ -37,7 +39,7 @@ from keyboards.products import (
 )
 from models.search_request import SearchMode, SearchRequest
 from services import analytics
-from services.conversation import ConversationState, is_count_only_follow_up
+from services.count_followup import is_count_only_follow_up
 from services.product_identity import identity_pair
 from services.text_matching import (
     extract_requested_result_count,
@@ -65,12 +67,30 @@ def get_general_chat_state(context: ContextTypes.DEFAULT_TYPE) -> ChatConversati
     return state
 
 
+def _get_conversation_state_for_turn(
+    context: ContextTypes.DEFAULT_TYPE, user_key: str
+) -> ConversationEngineState:
+    """Return a live shopping ledger, replacing it when its idle TTL elapsed.
+
+    Do not touch the timestamp here: AssistantRouter may classify this
+    message as general chat, which must not keep an unrelated shopping
+    conversation alive.
+    """
+
+    state = context.user_data.get("_convsearch_state")
+    if not isinstance(state, ConversationEngineState) or state.is_expired():
+        state = ConversationEngineState(user_key=user_key)
+        context.user_data["_convsearch_state"] = state
+    return state
+
+
 logger = logging.getLogger(__name__)
 
 #: The conversational-search engine (adapted from
 #: anything-conversational-search): the SOLE search decision-maker. One
-#: instance per process; per-user state lives inside it (keyed by Telegram
-#: user id, expiring like :data:`services.convsearch.state.CONTEXT_TTL_SECONDS`).
+#: instance per process. In Telegram production, the caller supplies the
+#: user's ledger from context.user_data; the engine's internal state map is
+#: only a fallback for direct callers that do not supply an explicit state.
 _CONV_ENGINE = ConversationSearchEngine()
 
 
@@ -81,7 +101,7 @@ def get_conversation_engine() -> ConversationSearchEngine:
 
 
 def reset_conversation_engine(user_key: str) -> None:
-    """Forget one user's conversational-search ledger (used by /new)."""
+    """Forget one direct caller's fallback ledger in the process-level engine."""
 
     _CONV_ENGINE.reset(user_key)
 
@@ -121,11 +141,6 @@ STALE_RESULTS_TEXT = (
     "😕 Предыдущие результаты уже недоступны. "
     "Выполните новый поиск, и я помогу сравнить товары."
 )
-
-#: `user_data` key holding the last effective :class:`SearchRequest`, so a
-#: follow-up message can refine it (see ``services.conversation``). It is
-#: per-user, in memory and expires on its own - no database change.
-CONVERSATION_KEY = "search_conversation"
 
 #: `user_data` key holding a PENDING clarifying question: the engine asked
 #: "what product, for what task?" and the next message is the user's ANSWER,
@@ -179,18 +194,6 @@ def is_discovery_query(text: str) -> bool:
         return False
     return any(marker in lowered for marker in _MOOD_MARKERS)
 
-def get_conversation(context: ContextTypes.DEFAULT_TYPE):
-    """The stored conversation context, or ``None`` when absent/expired."""
-
-    state = context.user_data.get(CONVERSATION_KEY)
-    if not isinstance(state, ConversationState):
-        return None
-    if state.is_expired():
-        context.user_data.pop(CONVERSATION_KEY, None)
-        logger.info("Conversation context expired and was dropped")
-        return None
-    return state
-
 def _last_shown_session(context: ContextTypes.DEFAULT_TYPE) -> str | None:
     """The session id of the result set currently on screen, if any.
 
@@ -226,7 +229,6 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     # and the pending clarification follow.
     context.user_data.pop("_convsearch_state", None)
     for key in (
-        CONVERSATION_KEY,
         PENDING_CLARIFY_KEY,
         "last_shown_session",
         GENERAL_CHAT_STATE_KEY,
@@ -621,10 +623,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     telegram_id = update.effective_user.id if update.effective_user else None
     user_key = str(telegram_id or "anon")
-    conv_state = context.user_data.get("_convsearch_state")
-    if not isinstance(conv_state, ConversationEngineState):
-        conv_state = ConversationEngineState(user_key=user_key)
-    conv_state.touch()
+    conv_state = _get_conversation_state_for_turn(context, user_key)
 
     validated_ai_turn = None
     if pending is None and ai_service is not None:
@@ -654,11 +653,14 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat_state.add("user", text)
             answer = await ai_service.answer_general(chat_state.as_prompt_history())
             if answer:
-                chat_state.add("assistant", answer)
-                context.user_data[GENERAL_CHAT_STATE_KEY] = chat_state
                 await message.reply_text(
                     answer[:3800], reply_markup=back_to_menu_keyboard()
                 )
+                # Persist the assistant turn only after Telegram confirms
+                # delivery; otherwise the next model call would see an answer
+                # the user never received.
+                chat_state.add("assistant", answer)
+                context.user_data[GENERAL_CHAT_STATE_KEY] = chat_state
                 _turn_done("general-chat")
                 return
 
@@ -669,6 +671,11 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             _turn_done("general-chat-unavailable")
             return
+
+    # General-chat turns above do not refresh the shopping ledger. A real
+    # shopping turn starts its idle window here; it is touched again after
+    # the engine finishes so a just-delivered clarification gets the full TTL.
+    conv_state.touch()
 
     # Read from the message the USER sent, before any routing rewrote it.
     original_count = extract_requested_result_count(original_text)
@@ -686,7 +693,12 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
     seen = await common.seen_products(context, user_id)
-    await message.reply_text(SEARCHING_TEXT)
+    try:
+        await message.reply_text(SEARCHING_TEXT)
+    except Exception:
+        # The progress indicator is optional; do not abort a valid search
+        # because this preliminary Telegram message could not be delivered.
+        logger.warning("Could not send the search progress indicator", exc_info=True)
 
     try:
         decision = await engine.handle_message(
@@ -697,6 +709,12 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             currency=region.get("currency"),
             state=conv_state,
             validated_ai_turn=validated_ai_turn,
+            # Every non-pending turn already passed through AssistantRouter.
+            # If it returned no valid decision (including a timeout), use the
+            # deterministic state machine; retrying the same Gemini operation
+            # inside the engine would double latency/cost without new context.
+            # A pending clarification bypasses the Router and gets one
+            # engine-level interpretation attempt.
             interpret_turn=(pending is not None),
         )
     except Exception:
@@ -725,14 +743,12 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if pending is not None:
         consume_pending_clarify(context, decision.outcome)
 
-    # D1 (state consistency): the request the engine built is committed
-    # BEFORE the outcome decides what ships, so a provider outage must not
-    # erase what the user just asked for — a later refinement (budget,
-    # feature, count) refines THIS request.
-    if decision.request is not None:
-        context.user_data[CONVERSATION_KEY] = ConversationState(
-            request=decision.request, welcomed=True
-        )
+    # Start the idle TTL after the engine has completed this turn (not
+    # before a potentially slow provider request or Gemini interpretation).
+    conv_state.touch()
+
+    # The engine ledger is committed before delivery, so a provider outage
+    # does not erase the user's latest turn or the context for a retry.
     context.user_data["_convsearch_state"] = conv_state
 
     await _deliver_decision(
@@ -1046,6 +1062,8 @@ async def send_search_results(
     Returns the session id, or ``None`` when nothing was shown.
     """
 
+    common.clear_pending_product_question(context)
+
     # THE CURATION GATE (step 3). Every feed of the bot passes here, so this is
     # the one place where the raw marketplace pool is turned into the list the
     # user will actually walk: the per-user view history is read, the pipeline
@@ -1117,7 +1135,7 @@ async def send_search_results(
         origin="telegram-sent",
         limit=AI_FEED_RESULTS,
     )
-    await _send_product_cards(
+    delivered = await _send_product_cards(
         context,
         chat_id,
         outcome,
@@ -1125,6 +1143,17 @@ async def send_search_results(
         user_id=user_id,
         telegram_id=telegram_id,
     )
+    if not delivered:
+        common.forget_outcome(context, session_id)
+        try:
+            await context.bot.send_message(
+                chat_id,
+                "Не удалось показать карточку товара. Попробуйте повторить поиск.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+        except Exception:
+            logger.exception("Could not report failed card delivery to chat %s", chat_id)
+        return None
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
     # invented here - only the count actually delivered above. A caller with
@@ -1133,9 +1162,19 @@ async def send_search_results(
     if follow_up:
         hint = _result_summary_text(outcome)
         if hint:
-            await context.bot.send_message(
-                chat_id, hint, reply_markup=back_to_menu_keyboard()
-            )
+            try:
+                await context.bot.send_message(
+                    chat_id, hint, reply_markup=back_to_menu_keyboard()
+                )
+            except Exception:
+                # The product card is already delivered and its session is
+                # valid. A failed optional summary must not turn that success
+                # into a handler error or prevent feed cursors from advancing.
+                logger.warning(
+                    "Could not send the optional result summary for session %s",
+                    session_id,
+                    exc_info=True,
+                )
     return session_id
 
 def _browse_keyboard(
@@ -1197,46 +1236,14 @@ async def _send_product_cards(
     *,
     user_id: int | None = None,
     telegram_id: int | None = None,
-) -> None:
-    """Send ONE card - the first product of the deduplicated result set.
-
-    Navigation happens by editing this single message: every product of
-    the result set is reachable through ◀️/➡️ without sending a new
-    message. The card carries no number and no counter - only the feed
-    context and the real, conditional fields of that product.
-    """
+) -> bool:
+    """Send the first card, then persist that the user actually saw it."""
 
     products = outcome.products
     if not products:
-        return
+        return False
     meta = common.get_outcome_meta(context, session_id)
     header = meta.get("header")
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        product=products[0],
-    )
-
-    # The per-user history is written for EVERY flow (search, category,
-    # popular, photo) - each flow into its OWN scope: the next open of this
-    # feed must skip the card the user is looking at right now, while a
-    # normal search is never emptied by the popular rotation's state.
-    await common.remember_shown(
-        context,
-        user_id,
-        products[0],
-        flow=common.session_flow(context, session_id),
-    )
-
-    # The SAME instant is the only honest moment to call a product "seen": the
-    # card is in front of the user right now. The novelty history of the
-    # curation layer is written next to the per-scope history above - it never
-    # replaces it, and a failed write degrades to the old behaviour.
-    await common.remember_views(context, user_id, [products[0]])
-
     tracked = await common.is_product_tracked(
         context, user_id, products[0].product_id
     )
@@ -1254,6 +1261,29 @@ async def _send_product_cards(
         )
     except Exception:
         logger.exception("Failed to send the browsing card of session %s", session_id)
+        return False
+
+    # A product becomes "shown" only after Telegram confirms that its card
+    # was sent. A failed send must not poison the user's exclusion history.
+    await common.record_event(
+        context,
+        analytics.EVENT_PRODUCT_SHOWN,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        product=products[0],
+    )
+    await common.remember_shown(
+        context,
+        user_id,
+        products[0],
+        flow=common.session_flow(context, session_id),
+    )
+    try:
+        await common.remember_views(context, user_id, [products[0]])
+    except Exception:
+        logger.warning("Failed to record product novelty view", exc_info=True)
+    return True
+
 
 async def _edit_browsed_card(
     query,
@@ -1264,30 +1294,8 @@ async def _edit_browsed_card(
     *,
     user_id: int | None = None,
     tracked: bool = False,
-) -> None:
-    """Rewrite the browsed card to another product of the same session.
-
-    Everything the user sees must belong to ONE product: the image, the
-    caption text and the keyboard (including the Buy URL). A photo
-    message therefore gets ``edit_message_media`` with an
-    :class:`~telegram.InputMediaPhoto` that carries the NEW product's
-    image URL, its caption and the fresh keyboard - editing only the
-    caption would leave the old photo on screen above Product B's text,
-    which is exactly the stale-image bug.
-
-    Telegram cannot turn a photo message into a text one (or back), so
-    when the new product's image presence differs from the current
-    message type, the card is replaced: the stale message is deleted and
-    a fresh card is sent as a single new message - the only Telegram
-    operation that fits. ``tracked`` reflects the user's price-tracking
-    state for the NEW product, so the 🔔/🔕 toggle stays honest in the
-    same card.
-
-    The caption is rebuilt by the very same renderer that sent the card
-    (``common.product_card_text``); buttons still carry only
-    ``(session_id, index)`` and no URL is ever constructed here - the
-    affiliate link comes from the cached ``Product`` at render time.
-    """
+) -> bool:
+    """Edit or replace the visible card; return whether delivery succeeded."""
 
     product = outcome.products[index]
     meta = common.get_outcome_meta(context, session_id)
@@ -1305,7 +1313,6 @@ async def _edit_browsed_card(
     has_image = bool(product.image_url)
 
     if has_image and is_photo:
-        # Replace image + caption + keyboard in ONE call.
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(
@@ -1315,26 +1322,21 @@ async def _edit_browsed_card(
                 ),
                 reply_markup=reply_markup,
             )
-            return
+            return True
         except Exception:
-            # The new image URL may be unfetchable by Telegram; fall
-            # back to a full card replacement instead of a stale screen.
             logger.warning(
                 "Media edit failed for %s/%s; replacing the card message",
                 product.marketplace,
                 product.product_id,
             )
-            await _replace_browsed_card(
+            return await _replace_browsed_card(
                 query, context, product, index, caption, reply_markup
             )
-            return
 
     if has_image != is_photo:
-        # Text <-> photo transition: Telegram has no edit for it.
-        await _replace_browsed_card(
+        return await _replace_browsed_card(
             query, context, product, index, caption, reply_markup
         )
-        return
 
     if is_photo:
         await query.edit_message_caption(
@@ -1346,6 +1348,8 @@ async def _edit_browsed_card(
         await query.edit_message_text(
             caption, parse_mode="HTML", reply_markup=reply_markup
         )
+    return True
+
 
 async def _replace_browsed_card(
     query,
@@ -1354,41 +1358,40 @@ async def _replace_browsed_card(
     index: int,
     caption: str,
     reply_markup,
-) -> None:
-    """Replace a card whose message type cannot be edited in place.
-
-    The old message is deleted and ONE fresh card is sent - the minimal
-    Telegram-supported operation when photo/text media must change.
-    """
+) -> bool:
+    """Send a replacement before deleting the old card; preserve it on failure."""
 
     message = getattr(query, "message", None)
     chat_id = getattr(message, "chat_id", None)
-    if chat_id is not None:
+    if chat_id is None:
+        return False
+
+    try:
+        await common.send_product_card(
+            context,
+            chat_id,
+            product,
+            None,
+            caption_prefix=None,
+            reply_markup=reply_markup,
+            raw_caption=caption,
+        )
+    except Exception:
+        logger.exception("Could not send the replacement browsing card")
+        return False
+
+    if message is not None:
         try:
             await context.bot.delete_message(
                 chat_id=chat_id, message_id=message.message_id
             )
-        except Exception:  # noqa: BLE001 - deletion is best-effort
+        except Exception:
             logger.warning("Could not delete the stale browsing card", exc_info=True)
-    await common.send_product_card(
-        context,
-        chat_id,
-        product,
-        None,
-        caption_prefix=None,
-        reply_markup=reply_markup,
-        raw_caption=caption,
-    )
+    return True
+
 
 async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """``pnav:<session_id>:<index>`` - move the ONE card to another product.
-
-    The whole visible result set stays cached under ``session_id``, so the
-    same Telegram message is edited in place - content AND keyboard - with
-    no new message sent while the user walks the feed. An expired session
-    (cache rotated, bot restarted) is answered with an honest notice
-    instead of inventing a list.
-    """
+    """Move the visible card and persist visibility only after a successful edit."""
 
     query = update.callback_query
     if query is None:
@@ -1411,58 +1414,26 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     product = products[index]
-
     user_id = await common.register_user(update, context)
-
-    # Feed sessions («✨ Находки») persist every card the user
-    # actually browses to, so a later open skips it too. Best effort:
-    # a failed history write must never break the card navigation.
     meta = common.get_outcome_meta(context, session_id)
     flow = common.session_flow(context, session_id)
-    if meta.get("track_shown") and user_id is not None:
-        # A FORWARD step of a feed session claims a NEW product and
-        # must respect the same persistent exclusion an open does: the
-        # list of an old card may have been shown meanwhile by a later
-        # open, and a cached session must never bypass the history.
-        # Steps back to already-visited positions stay untouched -
-        # that is navigation, not a feed step.
+    max_visited = int(meta.get("max_index") or 0)
+
+    if meta.get("track_shown") and user_id is not None and index > max_visited:
         target = await _feed_forward_target(
             context, user_id, meta, products, index
         )
         if target is None:
-            # Everything ahead was already shown: the honest end-of-
-            # feed screen with the existing explicit reset.
             await query.answer()
             await _edit_to_feed_exhausted(query, session_id)
             return
         index = target
         product = products[index]
 
-    # Whatever flow this session belongs to, the card the user is now
-    # looking at is a product they have been shown - the history is the
-    # single source every feed uses to avoid repeating itself. It is written
-    # into the scope of THIS session's flow, so a search card never advances
-    # the popular rotation and a rotation card never hides a search result.
-    await common.remember_shown(context, user_id, product, flow=flow)
-
-    # The browsed card is shown, so it joins the curation layer's novelty
-    # history too: the NEXT feed - in this process or after a restart - skips
-    # or defers it instead of repeating it as if it were new.
-    await common.remember_views(context, user_id, [product])
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=update.effective_user.id if update.effective_user else None,
-        product=product,
-    )
-
     tracked = await common.is_product_tracked(context, user_id, product.product_id)
-
     await query.answer()
     try:
-        await _edit_browsed_card(
+        delivered = await _edit_browsed_card(
             query,
             context,
             outcome,
@@ -1472,10 +1443,31 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             tracked=tracked,
         )
     except Exception:
-        # "Message is not modified" is harmless; anything else is logged.
-        logger.debug("Card edit skipped for session %s", session_id, exc_info=True)
+        logger.debug("Card edit failed for session %s", session_id, exc_info=True)
+        delivered = False
 
-    _ = product  # the product is resolved by the action buttons on demand
+    if not delivered:
+        return
+
+    common.clear_pending_product_question(context)
+    # Persist visibility only after Telegram successfully edited or replaced
+    # the card. A failed navigation must not hide the product from future feeds.
+    if meta.get("track_shown") and user_id is not None:
+        meta["max_index"] = max(int(meta.get("max_index") or 0), index)
+    if user_id is not None:
+        await common.remember_shown(context, user_id, product, flow=flow)
+        try:
+            await common.remember_views(context, user_id, [product])
+        except Exception:
+            logger.warning("Failed to record browsed product novelty view", exc_info=True)
+    await common.record_event(
+        context,
+        analytics.EVENT_PRODUCT_SHOWN,
+        user_id=user_id,
+        telegram_id=update.effective_user.id if update.effective_user else None,
+        product=product,
+    )
+
 
 async def _feed_forward_target(
     context: ContextTypes.DEFAULT_TYPE,
@@ -1512,7 +1504,6 @@ async def _feed_forward_target(
         target += 1
     if target >= len(products):
         return None
-    meta["max_index"] = target
     return target
 
 async def _edit_to_feed_exhausted(query, session_id: str) -> None:
@@ -1803,10 +1794,16 @@ _CURRENCY_ADJECTIVES: tuple[str, ...] = (
     "европейские", "европейский", "европейских", "европейская",
     "китайские", "китайский", "китайских", "китайская",
     "британские", "британский", "британских", "британская",
+    "белорусские", "белорусский", "белорусских", "белорусская",
+    "казахстанские", "казахстанский", "казахстанских", "казахстанская",
+    "узбекские", "узбекский", "узбекских", "узбекская",
+    "польские", "польский", "польских", "польская",
     "ukrainian", "russian", "american", "european", "chinese", "british",
+    "belarusian", "kazakh", "uzbek", "polish",
 )
 
-_CURRENCY_REQUEST_VERBS: tuple[str, ...] = (
+_CURRENCY_REQUEST_WORDS: tuple[str, ...] = (
+    "сумма", "сумме", "сумму", "суммы",
     "используй", "используйте", "использовать", "показывай", "показывайте",
     "показать", "переведи", "переводи", "смени", "сменить", "поменяй",
     "поменять", "хочу", "давай", "лучше", "цена", "цены", "цену", "цене",
@@ -1841,7 +1838,7 @@ def _currency_request_state(text: str) -> dict | None:
 
     Conservative by construction: every word must be currency vocabulary
     (a currency name spelled by PREFIX, so «долларах»/«гривнях» match), a
-    request verb, a number or a stopword. Any real product or feature word
+    request/control wording, a number or a stopword. Any real product or feature word
     means the message is NOT a pure currency restatement and answers ``None``.
     """
 
@@ -1868,6 +1865,11 @@ def _currency_request_state(text: str) -> dict | None:
     }
 
     def _is_currency_word(word: str) -> bool:
+        # Russian "сумма/сумме/сумму" is ordinary amount wording, not
+        # the Uzbek currency "сум". Keep the genuine currency inflections
+        # ("сумы", "сумов") eligible.
+        if word in {"сумма", "сумме", "сумму", "суммой", "суммы", "сумм"}:
+            return False
         return any(
             word.startswith(alias[:5]) and len(alias) >= 3
             for alias in word_aliases
@@ -1897,12 +1899,14 @@ def _currency_request_state(text: str) -> dict | None:
             word
             for word in normalize_text(raw)
             if len(word) >= 3
+            and not word.isdigit()
             and word not in _NARROW_STOPWORDS
-            and word not in _CURRENCY_REQUEST_VERBS
+            and word not in _CURRENCY_REQUEST_WORDS
             and word not in _CURRENCY_ADJECTIVES
+            and word not in {"сумма", "сумме", "сумму", "суммой", "суммы", "сумм"}
             and not any(
                 word.startswith(verb[:5])
-                for verb in _CURRENCY_REQUEST_VERBS
+                for verb in _CURRENCY_REQUEST_WORDS
                 if len(verb) >= 5
             )
         ]
@@ -1916,13 +1920,14 @@ def _currency_request_state(text: str) -> dict | None:
         word
         for word in normalize_text(raw)
         if len(word) >= 3
+        and not word.isdigit()
         and not _is_currency_word(word)
         and word not in _NARROW_STOPWORDS
-        and word not in _CURRENCY_REQUEST_VERBS
+        and word not in _CURRENCY_REQUEST_WORDS
         and word not in _CURRENCY_ADJECTIVES
         and not any(
             word.startswith(verb[:5])
-            for verb in _CURRENCY_REQUEST_VERBS
+            for verb in _CURRENCY_REQUEST_WORDS
             if len(verb) >= 5
         )
     ]
@@ -1936,17 +1941,10 @@ def _currency_request_state(text: str) -> dict | None:
             amount = float(number.group(0).replace(",", "."))
         except ValueError:
             amount = None
-    currency = matched if matched in {"USD", "EUR", "RUB", "UAH", "CNY", "GBP"} else None
+    from config.catalog import CURRENCIES
+
+    currency = matched if matched in CURRENCIES else None
     return {"currency": currency, "amount": amount}
-
-def _with_result_limit(
-    request: SearchRequest, count: int | None
-) -> SearchRequest:
-    """``request`` carrying the explicitly requested result count."""
-
-    if count is None or count == request.result_limit:
-        return request
-    return request.model_copy(update={"result_limit": count})
 
 def _redeliver_subset(
     outcome: SearchOutcome,
@@ -1983,10 +1981,10 @@ async def _answer_from_shown(
 
     * a COUNT change («покажи 5», «сделай три варианта», «ещё 2») - the
       current list is re-delivered cut to the requested number;
-    * a CURRENCY preference («используй гривны», «покажи в долларах») - the
-      cards are re-rendered from the SAME products with that currency as the
-      display preference, plus an honest one-line confirmation. The project
-      has no exchange rates, so a real conversion is never claimed.
+    * a CURRENCY preference («используй гривны», «покажи в долларах») -
+      the preference is persisted for future searches. Existing cards remain
+      unchanged because the project has no exchange rates and must not relabel
+      a marketplace price as another currency.
 
     Returns ``True`` when the message was fully handled. Every other message
     returns ``False`` and continues on the ordinary pipeline.
@@ -1999,7 +1997,6 @@ async def _answer_from_shown(
     if outcome is None or not outcome.products:
         return False
 
-    conversation = get_conversation(context)
     count = is_count_only_follow_up(text)
     if count is not None:
         # «Покажи 5» re-delivers products ALREADY retrieved - no provider
@@ -2020,23 +2017,32 @@ async def _answer_from_shown(
         )
         if shown:
             context.user_data["last_shown_session"] = shown
-        if conversation is not None:
-            # The conversation keeps the SAME product request; only the
-            # requested count moves, so the next follow-up still refines it.
-            conversation.request = _with_result_limit(conversation.request, count)
-            conversation.touch()
         delivered = len(narrowed.products)
-        await context.bot.send_message(
-            update.effective_message.chat_id,
-            _count_follow_up_text(delivered, count),
-            reply_markup=back_to_menu_keyboard(),
-        )
+        try:
+            await context.bot.send_message(
+                update.effective_message.chat_id,
+                _count_follow_up_text(delivered, count),
+                reply_markup=back_to_menu_keyboard(),
+            )
+        except Exception:
+            # The replacement card session is already delivered. This
+            # optional count summary must not turn a successful narrowing
+            # action into an error.
+            logger.warning(
+                "Could not send the optional count summary after narrowing",
+                exc_info=True,
+            )
         return True
 
     request = _currency_request_state(text)
     if request is not None:
+        # A currency-only message changes the user's preference. If it also
+        # carries a numeric budget, let the conversational engine process the
+        # whole turn so its same-currency hard-budget guard remains in force.
+        if request.get("amount") is not None:
+            return False
         return await _answer_currency_preference(
-            update, context, text, request, outcome, conversation
+            update, context, request.get("currency")
         )
     return False
 
@@ -2092,91 +2098,72 @@ def _count_follow_up_text(delivered: int, wanted: int) -> str:
 async def _answer_currency_preference(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    text: str,
-    request: dict,
-    outcome: SearchOutcome,
-    conversation,
+    currency: str | None,
 ) -> bool:
-    """Re-render the shown products under the requested currency preference.
+    """Persist a pure currency preference without relabelling cached prices.
 
-    The currency is a DISPLAY preference. The project holds no exchange rates,
-    so prices are never converted or relabelled: the card keeps the currency
-    and amount the marketplace actually returned, the existing price FILTER is
-    scoped to the requested currency, and the user reads exactly that.
+    Existing product cards are immutable marketplace observations: they are
+    never converted or relabelled without an exchange rate. The preference is
+    saved for future searches, where the AliExpress adapter forwards it only
+    if the API documents that target currency.
     """
 
-    from services.product_logging import log_final_pool
+    from config.catalog import CURRENCIES
 
     chat_id = update.effective_message.chat_id
-    currency = request.get("currency")
-    if currency is None:
-        # Unsupported spelling: the bot says what it can do instead of
-        # pretending the preference was applied.
+    if currency not in CURRENCIES:
+        supported = ", ".join(CURRENCIES)
         await context.bot.send_message(
             chat_id,
-            "Пока могу показывать цены в USD, EUR, RUB, UAH, CNY и GBP. "
-            "Скажите одну из этих валют, и я поправлю подборку.",
+            f"Пока можно выбрать валюту: {supported}. "
+            "Уже показанные цены не пересчитываются.",
             reply_markup=back_to_menu_keyboard(),
         )
         return True
 
-    base = conversation.request if conversation is not None else outcome.request
-    update_fields: dict = {"currency": currency}
-    amount = request.get("amount")
-    if amount is not None:
-        # An explicit amount in the same message («покажи в грн, вот 1000»)
-        # becomes the budget bound - a real constraint the user stated.
-        update_fields["max_price"] = amount
-    new_request = base.model_copy(update=update_fields)
-
-    if conversation is not None:
-        conversation.request = new_request
-        conversation.touch()
-
-    # The cards are re-rendered from the SAME products (no provider call):
-    # only the header/preference changes, never the real listing data.
-    resolved = outcome.request
-    if (
-        resolved.max_price is not None
-        and new_request.max_price is not None
-        and new_request.max_price < resolved.max_price
-    ):
-        # The user also named a smaller budget: apply it to the ALREADY shown
-        # real products, honestly, instead of fetching a new list.
-        kept = [
-            product
-            for product in outcome.products
-            if product.price is None or product.price <= new_request.max_price
-        ]
-        resolved = new_request
-        outcome = SearchOutcome(
-            request=new_request,
-            products=kept,
-            searched_marketplaces=list(outcome.searched_marketplaces),
-            failed_marketplaces=list(outcome.failed_marketplaces),
-            unavailable_marketplaces=list(outcome.unavailable_marketplaces),
-        )
-        conversation.request = new_request
-        log_final_pool(
-            logger, kept, context="currency re-render", origin="currency"
-        )
-
     user_id = await common.register_user(update, context)
-    telegram_id = update.effective_user.id if update.effective_user else None
-    shown = await send_search_results(
-        context,
-        chat_id,
-        outcome,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        pre_curated=True,
-    )
-    if shown:
-        context.user_data["last_shown_session"] = shown
+    if user_id is None:
+        await context.bot.send_message(
+            chat_id,
+            "Не удалось сохранить валюту. Попробуйте ещё раз.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+        return True
 
-    note = (
-        f"Ок, ориентируюсь на цены в {currency}. Цены указаны как есть в "
-        "карточках: курса и пересчёта у меня нет, поэтому суммы не меняю."
-    )
-    await context.bot.send_message(chat_id, note, reply_markup=back_to_menu_keyboard())
+    try:
+        database = common.get_database(context)
+        region = await common.get_user_region(context, user_id)
+        previous_currency = str(region.get("currency") or "").upper() or None
+        if previous_currency != currency:
+            # Never persist a new currency if the old price baseline could
+            # not be invalidated; the scheduler must not compare unlike units.
+            await database.invalidate_tracking_baselines(user_id)
+            await database.update_user_region(user_id, currency=currency)
+            await common.record_event(
+                context,
+                analytics.EVENT_CURRENCY_CHANGED,
+                user_id=user_id,
+                telegram_id=update.effective_user.id if update.effective_user else None,
+                metadata={"currency": currency, "source": "text_followup"},
+            )
+    except Exception:
+        logger.exception("Failed to save currency preference for user %s", user_id)
+        await context.bot.send_message(
+            chat_id,
+            "Не удалось сохранить валюту. Попробуйте ещё раз.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+        return True
+
+    try:
+        await context.bot.send_message(
+            chat_id,
+            f"Валюта предпочтения сохранена: {currency}. "
+            "Уже показанные карточки не пересчитываются. В новых поисках "
+            "AliExpress покажет эту валюту, если она поддерживается API; "
+            "иначе маркетплейс вернёт валюту по умолчанию.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+    except Exception:
+        logger.warning("Could not confirm the saved currency preference", exc_info=True)
     return True

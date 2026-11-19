@@ -34,6 +34,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from services.marketplaces.aliexpress_client import DOCUMENTED_TARGET_CURRENCIES
+
 logger = logging.getLogger(__name__)
 
 #: Minimum relative price move (percent of the old price) that triggers
@@ -43,7 +45,7 @@ DEFAULT_MIN_CHANGE_PERCENT = 1.0
 #: Name of the repeating PTB job.
 PRICE_TRACKING_JOB_NAME = "price_tracking"
 
-Notifier = Callable[[int, str], Awaitable[None]]
+Notifier = Callable[[int, str, str | None], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -181,6 +183,10 @@ class PriceTracker:
                 continue
             if change is None:
                 continue
+            # Count the detected price movement independently from whether
+            # the user allows notifications. Admin diagnostics distinguish
+            # real changes from messages that were intentionally skipped.
+            self.changes_found += 1
             # The user's notification preference is authoritative: the
             # observation is already recorded, only the message is skipped.
             if not int(row.get("notify_price_changes", 1) or 0):
@@ -190,12 +196,44 @@ class PriceTracker:
                     row.get("id"),
                 )
                 self.notify_skipped += 1
+                await self._persist_change_observation(change)
                 continue
             changes.append(change)
-            await self._notify(change)
-            self.notified += 1
-        self.changes_found += len(changes)
+            if await self._notify(change):
+                self.notified += 1
+                await self._persist_change_observation(change)
+            else:
+                # Keep the old baseline when Telegram delivery fails. The
+                # next scheduled cycle will detect the same change and retry
+                # instead of silently consuming an alert the user never got.
+                self.notify_skipped += 1
         return changes
+
+    async def _persist_change_observation(self, change: PriceChange) -> None:
+        """Commit a notified (or intentionally silent) price observation.
+
+        Meaningful changes with notifications enabled are persisted only
+        after successful delivery, so a transient Telegram failure leaves
+        the old baseline intact and is retried on the next scheduled run.
+        """
+
+        try:
+            await self._database.record_price_history(
+                change.tracked_product_id,
+                change.new_price,
+                currency=change.new_currency,
+            )
+            await self._database.update_tracked_observation(
+                change.tracked_product_id,
+                change.new_price,
+                change.new_currency,
+            )
+        except Exception:  # noqa: BLE001 - the next cycle can retry from old baseline
+            self.row_errors += 1
+            logger.exception(
+                "Failed to persist notified price change for row %s",
+                change.tracked_product_id,
+            )
 
     async def _check_one(self, row: dict[str, Any]) -> PriceChange | None:
         product_id = str(row.get("product_id") or "").strip()
@@ -226,9 +264,34 @@ class PriceTracker:
             return None
 
         tracked_id = int(row.get("id"))
-        new_currency = getattr(product, "currency", None) or row.get("currency")
+        returned_currency_raw = getattr(product, "currency", None)
+        returned_currency = (
+            str(returned_currency_raw).strip().upper()
+            if returned_currency_raw is not None
+            and str(returned_currency_raw).strip()
+            else None
+        )
+        requested_currency = (
+            preferred_currency.upper()
+            if preferred_currency
+            and preferred_currency.upper() in DOCUMENTED_TARGET_CURRENCIES
+            else None
+        )
+        # If the provider omits currency metadata, the documented target
+        # currency is still authoritative because the request explicitly
+        # asked for it. Unsupported target currencies cannot be applied.
+        # Never reuse the previous observation's currency as evidence
+        # for the current response. If the provider omits currency and no
+        # documented target was requested, the unit is unknown and the
+        # comparison below must rebase silently rather than invent certainty.
+        new_currency = returned_currency or requested_currency
         old_price = row.get("last_checked_price")
-        old_currency = row.get("currency")
+        old_currency_raw = row.get("currency")
+        old_currency = (
+            str(old_currency_raw).strip().upper()
+            if old_currency_raw is not None and str(old_currency_raw).strip()
+            else None
+        )
         if old_price is not None:
             try:
                 old_price = float(old_price)
@@ -284,13 +347,6 @@ class PriceTracker:
             # Identical answer: no history row, no notification.
             return None
 
-        await self._database.record_price_history(
-            tracked_id, new_price, currency=new_currency
-        )
-        await self._database.update_tracked_observation(
-            tracked_id, new_price, new_currency
-        )
-
         change = PriceChange(
             tracked_product_id=tracked_id,
             user_id=int(row.get("user_id") or 0),
@@ -306,7 +362,15 @@ class PriceTracker:
         )
         percent = change.percent
         if percent is None or abs(percent) < self._min_change_percent:
-            return None  # recorded, but below the documented threshold
+            # Below-threshold movement is recorded silently. Meaningful
+            # movements are committed by check_all only after notification.
+            await self._database.record_price_history(
+                tracked_id, new_price, currency=new_currency
+            )
+            await self._database.update_tracked_observation(
+                tracked_id, new_price, new_currency
+            )
+            return None
         return change
 
     async def _record_mismatch(self, row: dict[str, Any], *, reason: str) -> None:
@@ -322,26 +386,25 @@ class PriceTracker:
         except Exception:  # noqa: BLE001 - diagnostics never break a cycle
             logger.debug("Could not record currency_mismatch event", exc_info=True)
 
-    async def _notify(self, change: PriceChange) -> None:
+    async def _notify(self, change: PriceChange) -> bool:
         telegram_id = change.telegram_id
         if telegram_id is None:
             logger.warning(
                 "Price change for row %s has no telegram_id; skip notify",
                 change.tracked_product_id,
             )
-            return
+            return False
         try:
-            # Inline "🛒 Купить" button: affiliate URL preferred, plain
-            # product URL as truthful fallback, no raw link in the text.
             await self._notifier(
                 int(telegram_id), format_notification(change), change.buy_url
             )
+            return True
         except Exception:  # noqa: BLE001 - a failed notification is logged only
             logger.exception(
                 "Failed to deliver price notification for row %s",
                 change.tracked_product_id,
             )
-
+            return False
 
 def build_price_tracker(
     database: Any, search_service: Any, bot: Any
@@ -420,11 +483,19 @@ def schedule_price_tracking(
             "automatic price tracking is OFF"
         )
         return False
-    job_queue.run_repeating(
-        price_tracking_job,
-        interval=interval_minutes * 60,
-        first=first_delay_seconds,
-        name=PRICE_TRACKING_JOB_NAME,
-    )
+    try:
+        job_queue.run_repeating(
+            price_tracking_job,
+            interval=interval_minutes * 60,
+            first=first_delay_seconds,
+            name=PRICE_TRACKING_JOB_NAME,
+        )
+    except Exception:
+        # A scheduler registration failure must not abort bot startup. The
+        # settings screen will report manual tracking because this returns
+        # False and _post_init stores the actual registration result.
+        logger.exception("Failed to register automatic price tracking job")
+        return False
+
     logger.info("Automatic price tracking scheduled every %s min", interval_minutes)
     return True

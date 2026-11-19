@@ -9,7 +9,7 @@ constraints, ranks the eligible pool, and returns ONE ``SearchDecision`` for
 the Telegram layer to render.
 
 Legacy components the engine does NOT call: ``services.chat_router``,
-``services.conversation.resolve_request``, ``handlers.run_agent_turn`` /
+``handlers.run_agent_turn`` /
 ``ShoppingAgent`` (the legacy Gemini agent rounds), the AI feed selector,
 and any post-hoc curation that could re-filter or re-rank the engine's
 decision. Shared infrastructure that IS reused deliberately: the provider
@@ -442,6 +442,39 @@ class ConversationSearchEngine:
             # other slots already recorded from the original request.
             state.record_product_type(model_type.strip())
 
+        budget_slot = state.active_by_kind("budget")
+        if budget_slot is not None:
+            budget_parts = str(budget_slot.value or "").split(maxsplit=1)
+            budget_currency = (
+                budget_parts[1].strip().upper() if len(budget_parts) > 1 else ""
+            )
+            if (
+                budget_currency
+                and budget_currency not in retrieval_mod.SUPPORTED_BUDGET_CURRENCIES
+            ):
+                supported = ", ".join(
+                    code for code in ("USD", "EUR", "UAH", "RUB", "GBP")
+                    if code in retrieval_mod.SUPPORTED_BUDGET_CURRENCIES
+                )
+                question = (
+                    f"AliExpress не возвращает цены в {budget_currency}. "
+                    "Без конвертации я не могу корректно проверить этот бюджет. "
+                    f"Укажите сумму в одной из поддерживаемых валют: {supported}."
+                )
+                state.last_outcome = Outcome.CLARIFY.value
+                state.last_question = question
+                return SearchDecision(
+                    outcome=Outcome.CLARIFY,
+                    question=question,
+                    refined=False,
+                    report={
+                        "intent": intent,
+                        "reason": "unsupported_budget_currency",
+                        "currency": budget_currency,
+                        "snapshot": state.snapshot(),
+                    },
+                )
+
         strategy = retrieval_mod.build_retrieval_strategy(
             state, text,
             currency=currency,
@@ -487,7 +520,7 @@ class ConversationSearchEngine:
 
         decision = self._evaluate_pool(
             state, backend_outcome.products, strategy,
-            refined=refined, intent=intent, observation=observation,
+            refined=refined, intent=intent,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
         )
         decision = await self._apply_ai_candidate_selection(
@@ -685,7 +718,6 @@ class ConversationSearchEngine:
         *,
         refined: bool,
         intent,
-        observation: dict,
         exclude_shown: bool,
     ) -> SearchDecision:
         """Validate → filter → dedup → rank one provider pool.
@@ -818,45 +850,3 @@ class ConversationSearchEngine:
             request=strategy.request, report=report,
         )
 
-    # -- compatibility shim for the previous handler wiring -------------------
-
-    def shape_pool(
-        self,
-        state: ConversationEngineState,
-        products: list[Product],
-        product_type: str | None,
-        *,
-        exclude_shown: bool = False,
-    ) -> tuple[list[Product], dict]:
-        """Legacy signature kept ONLY until the handler migration lands.
-
-        Delegates to the same validation/ranking the real turn uses; no
-        legacy logic lives here.
-        """
-
-        eligible: list[Product] = []
-        rejected_type = 0
-        for product in products:
-            verdict = validate_product_type(product, product_type)
-            if verdict.qualifies and "type_identity_requires_semantic_review" not in verdict.reasons:
-                eligible.append(product)
-            else:
-                rejected_type += 1
-        eligible, rejected_features = retrieval_mod.filter_by_required_features(
-            eligible, state
-        )
-        eligible, rejected_ex = retrieval_mod.filter_by_exclusions(eligible, state)
-        eligible, rejected_budget = retrieval_mod.filter_by_budget(eligible, state)
-        if exclude_shown:
-            eligible = retrieval_mod.exclude_shown(eligible, state)
-        eligible = retrieval_mod._dedup_by_identity(eligible)
-        ranked, _v = ranking_mod.rank_candidates(eligible, state, product_type)
-        report = {
-            "raw": len(products),
-            "rejected_type": rejected_type,
-            "rejected_feature": len(rejected_features),
-            "rejected_exclusion": len(rejected_ex),
-            "rejected_budget": len(rejected_budget),
-            "reason": "ok" if ranked else ("rejected" if products else "no_candidates"),
-        }
-        return ranked, report

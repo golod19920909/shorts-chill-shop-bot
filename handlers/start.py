@@ -131,6 +131,7 @@ PHOTO_PROMPT = (
     "Пришлите фотографию товара."
 )
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    common.clear_pending_product_question(context)
     user_id = await common.register_user(update, context)
     telegram_id = update.effective_user.id if update.effective_user else None
     await common.record_event(
@@ -205,11 +206,10 @@ ONBOARDING_SCREENS: tuple[tuple[str, str], ...] = (
     (
         "Уточнение",
         f"{SEARCH} <b>2/7 Уточнение</b>\n\n"
-        "Опишите товар целиком в одном сообщении: бюджет («до 20 долларов»), "
-        "рейтинг («выше 4.5»), количество заказов и количество штук бот "
-        "разбирает из текста. Каждое сообщение — новый поиск: прежний "
-        "запрос не подставляется молча, так что результаты всегда "
-        "соответствуют тому, что вы написали.",
+        "После первого запроса можно уточнять подбор: менять бюджет, "
+        "добавлять характеристики, указывать цвет или исключать ненужные "
+        "варианты. Бот сохранит контекст текущего товара. Если вы назовёте "
+        "другой товар, начнётся отдельный поиск.",
     ),
     (
         "AI",
@@ -286,6 +286,7 @@ async def onboarding_callback(
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    common.clear_pending_product_question(context)
     if update.effective_message is None:
         return
     await update.effective_message.reply_text(
@@ -296,7 +297,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def dispatch_menu(
     data: str, update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> bool:
-    """Render the screen for one menu callback; ``False`` = unknown."""
+    """Render one menu screen and acknowledge its callback exactly once."""
+
+    common.clear_pending_product_question(context)
+
+    # These four renderers own their acknowledgement (the feed shows a
+    # progress hint; hot discounts and promo codes acknowledge themselves).
+    # All other menu branches are acknowledged here. Keeping the policy in
+    # one place prevents menu_callback/nav_back from answering before a child
+    # handler tries to answer the same Telegram callback a second time.
+    if data not in (CB_FEED, CB_POPULAR, CB_HOT_DISCOUNTS, CB_PROMO_CODES):
+        await _answer_once(update.callback_query)
 
     if data == CB_SEARCH:
         await _edit_to(update, SEARCH_PROMPT, back_to_menu_keyboard())
@@ -333,13 +344,13 @@ async def dispatch_menu(
     if data == CB_FAVORITES:
         from handlers.favorites import show_favorites
 
-        await show_favorites(update, context)
+        await show_favorites(update, context, page=0)
         return True
 
     if data == CB_TRACKING:
         from handlers.settings import show_tracking
 
-        await show_tracking(update, context)
+        await show_tracking(update, context, page=0)
         return True
 
     if data == CB_CURRENCY_SCREEN:
@@ -390,7 +401,6 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
     await dispatch_menu(query.data or "", update, context)
 
 
@@ -405,8 +415,6 @@ async def nav_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
-
     target = context.user_data.pop(NAV_BACK_KEY, CB_BACK)
     if target not in MAIN_MENU_CALLBACKS:
         target = CB_BACK
@@ -474,7 +482,6 @@ async def stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     data = query.data or ""
     if await dispatch_menu(data, update, context):
-        await _answer_once(query)
         return
 
     logger.info("Callback %r has no handler; showing the main menu", data)

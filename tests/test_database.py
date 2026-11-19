@@ -49,6 +49,39 @@ class DatabaseTests(unittest.TestCase):
             with self.subTest(table=expected):
                 self.assertIn(expected, tables)
 
+    def test_legacy_users_table_migrates_updated_at_without_losing_rows(self) -> None:
+        async def create_legacy_database() -> None:
+            async with aiosqlite.connect(self.db_path) as conn:
+                await conn.execute(
+                    "CREATE TABLE users ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "telegram_id INTEGER NOT NULL UNIQUE, "
+                    "username TEXT, first_name TEXT, "
+                    "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+                )
+                await conn.execute(
+                    "INSERT INTO users (telegram_id, username, first_name) "
+                    "VALUES (555, 'legacy-user', 'Legacy')"
+                )
+                await conn.commit()
+
+        self.run_async(create_legacy_database())
+        self.run_async(self.db.initialize())
+
+        legacy_user = self.run_async(self.db.get_user(555))
+        self.assertIsNotNone(legacy_user)
+        self.assertEqual(legacy_user["username"], "legacy-user")
+        self.assertTrue(legacy_user["updated_at"])
+        self.assertEqual(legacy_user["onboarded"], 0)
+        self.assertEqual(legacy_user["notify_price_changes"], 1)
+
+        # New rows created after the upgrade also receive a real timestamp,
+        # rather than the constant migration default.
+        self.run_async(self.db.get_or_create_user(777, "new-user", "New"))
+        new_user = self.run_async(self.db.get_user(777))
+        self.assertTrue(new_user["updated_at"])
+        self.assertNotEqual(new_user["updated_at"], "")
+
     def test_initialize_is_idempotent(self) -> None:
         self.run_async(self.db.initialize())
         self.run_async(self.db.initialize())
@@ -74,6 +107,34 @@ class DatabaseTests(unittest.TestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user["username"], "vasya_new")
 
+
+    def test_get_or_create_user_is_safe_under_concurrent_updates(self) -> None:
+        self.run_async(self.db.initialize())
+
+        async def create_same_user():
+            return await asyncio.gather(
+                *(
+                    self.db.get_or_create_user(
+                        telegram_id=777, username=f"user-{index}"
+                    )
+                    for index in range(12)
+                )
+            )
+
+        ids = self.run_async(create_same_user())
+        self.assertEqual(len(set(ids)), 1)
+        self.assertIsNotNone(self.run_async(self.db.get_user(777)))
+
+    def test_foreign_keys_are_enabled_on_every_connection(self) -> None:
+        self.run_async(self.db.initialize())
+
+        async def read_foreign_keys():
+            async with self.db._connect() as conn:
+                cursor = await conn.execute("PRAGMA foreign_keys;")
+                row = await cursor.fetchone()
+                return int(row[0])
+
+        self.assertEqual(self.run_async(read_foreign_keys()), 1)
 
     def test_the_shown_history_keeps_one_scope_per_flow(self) -> None:
         """A search row and a rotation row are different pieces of state."""
@@ -147,13 +208,12 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.run_async(self.db.get_feed_page(other)), 1)
 
     def test_a_legacy_shown_table_is_migrated_to_scopes(self) -> None:
-        """An older database keeps its rows, read as ROTATION rows.
+        """An older database keeps its rows in the current feed scope.
 
         The old table had no ``flow`` column and a narrower UNIQUE key, so it
-        is rebuilt once. Rows that carry no scope become rotation rows: that is
-        the conservative side (they can only make the feed skip a card) and it
-        gives the search scope a clean start instead of inheriting state that
-        was written for a different screen.
+        is rebuilt once. Its rows become feed history, preserving the user's
+        no-repeat state in «✨ Находки» while giving the new search scope a
+        clean start instead of inheriting state from a different screen.
         """
 
         self.run_async(self.db.initialize())

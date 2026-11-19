@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from handlers import ai_assistant
+from handlers import ai_assistant, common, start
 from keyboards.main import CB_BACK, main_menu_keyboard
 from keyboards.products import (
     AI_ACTIONS,
@@ -163,6 +163,7 @@ class RecordingAssistant:
         self.selection = selection
         self.advice = advice
         self.questions: list[str] = []
+        self.product_sets: list[list[str]] = []
 
     async def analyze(self, product):
         return self.advice
@@ -178,6 +179,7 @@ class RecordingAssistant:
 
     async def answer(self, question, products):
         self.questions.append(question)
+        self.product_sets.append([product.product_id for product in products])
         return self.advice
 
     async def candidate_products(self, product):
@@ -435,6 +437,45 @@ class PendingQuestionTests(unittest.TestCase):
         self.assertEqual(message.texts[0], "Самый дешёвый — 5.00 USD")
         self.assertEqual(assistant.questions, ["привет"])
 
+    def test_card_specific_question_uses_only_the_selected_product(self) -> None:
+        from services.product_assistant import ProductAdvice
+
+        assistant = RecordingAssistant(advice=ProductAdvice("Нет данных", False))
+        context, message = self._context(assistant)
+        context.user_data[common.OUTCOME_CACHE_KEY] = {"s1": make_outcome(count=4)}
+        context.user_data[ai_assistant.AI_QUESTION_KEY] = {
+            "session": "s1",
+            "index": 2,
+        }
+
+        run(
+            ai_assistant.consume_pending_question(
+                FakeUpdate(message=message), context
+            )
+        )
+
+        self.assertEqual(assistant.product_sets, [["p2"]])
+
+    def test_explicit_comparison_question_includes_other_session_products(self) -> None:
+        from services.product_assistant import ProductAdvice
+
+        assistant = RecordingAssistant(advice=ProductAdvice("Товар p2 дешевле", False))
+        context, message = self._context(assistant)
+        context.user_data[common.OUTCOME_CACHE_KEY] = {"s1": make_outcome(count=4)}
+        context.user_data[ai_assistant.AI_QUESTION_KEY] = {
+            "session": "s1",
+            "index": 2,
+        }
+        message.text = "Какой из этих вариантов дешевле?"
+
+        run(
+            ai_assistant.consume_pending_question(
+                FakeUpdate(message=message), context
+            )
+        )
+
+        self.assertEqual(assistant.product_sets, [["p2", "p0", "p1", "p3"]])
+
     def test_the_pending_state_is_cleared_after_use(self) -> None:
         from services.product_assistant import ProductAdvice
 
@@ -483,6 +524,26 @@ class PendingQuestionTests(unittest.TestCase):
 
         self.assertTrue(consumed)
         self.assertEqual(message.texts[0], ai_assistant.EXPIRED_TEXT)
+
+
+class PendingQuestionNavigationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_main_menu_navigation_cancels_pending_product_question(self):
+        query = FakeQuery(CB_BACK)
+        update = FakeUpdate(callback_query=query)
+        context = FakeContext({})
+        context.user_data[common.AI_QUESTION_KEY] = {
+            "session_id": "s1",
+            "index": 0,
+        }
+
+        from unittest.mock import AsyncMock, patch
+
+        with patch.object(start, "_show_main_menu", new=AsyncMock()):
+            handled = await start.dispatch_menu(CB_BACK, update, context)
+
+        self.assertTrue(handled)
+        self.assertNotIn(common.AI_QUESTION_KEY, context.user_data)
+        self.assertEqual(len(query.answers), 1)
 
 
 if __name__ == "__main__":

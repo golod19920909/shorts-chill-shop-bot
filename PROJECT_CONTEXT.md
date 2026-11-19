@@ -9,6 +9,72 @@ search, the «✨ Находки» feed, hot discounts, promo codes, photo searc
 favorites, price tracking. Core invariant: **honest data** — the bot never
 invents products, prices, links, or AI results.
 
+## Current maintenance status (2026-11-19)
+
+- Active work branch: `fix/audit-regressions-2026-11`, based on
+  `fix/product-ranking-quality`. Draft PR #18 is open and has not been merged.
+- The owner authorized a complete audit and safe fixes across every bot
+  section, including «Умный поиск» and «Находки». No section is protected.
+- Confirmed fixes in the current work branch include price-notification
+  delivery accounting, currency-baseline preservation, truthful scheduler
+  status (including skipping idle jobs when no provider is configured),
+  callback acknowledgement before slow admin diagnostics, Product Assistant
+  comparison logic, deterministic routing fallback, product-type switching,
+  and budget parsing that keeps supported and unsupported currency names as
+  budget framing rather than accidental product features. Unsupported target
+  currencies still go through the existing clarification path; the API
+  currency allowlist is unchanged.
+- Favorites and price-tracking screens paginate instead of overflowing
+  Telegram limits; stale positional favorite-delete callbacks are refused
+  safely, and current identity-based callbacks remain supported.
+- SQLite legacy-user migration now avoids a non-constant ALTER TABLE default
+  (which SQLite rejects), backfills existing timestamps, and explicitly sets
+  timestamps for new users in upgraded databases. Price tracking no longer
+  reuses a previous currency when the current provider response omits currency;
+  it silently rebases an unknown unit instead of sending a misleading alert.
+- Telegram shopping context now enforces its 30-minute idle TTL. Expired slot
+  ledgers are replaced before routing; ordinary general-chat turns no longer
+  refresh the shopping TTL, and the TTL starts after a shopping turn finishes.
+- Product-type validation now distinguishes a requested product whose name
+  contains a generic accessory-role word (for example, a tool kit or USB
+  adapter) from an accessory for another product. Trailing accessory nouns
+  (for example, "power bank case") are rejected, while explicit bundles
+  ("power bank with case") remain eligible.
+- The Telegram handler no longer retries the same Gemini turn interpretation
+  in the engine after AssistantRouter has already failed or returned no valid
+  decision; it falls back to the deterministic state machine. Pending
+  clarifications still receive one engine-level interpretation attempt.
+- Product Assistant "better" ranking now orders candidates only by metrics
+  comparable with the original product. A rating present only on a candidate
+  cannot dominate a positive-rate/order improvement when the original has no
+  rating.
+- ProductAssistant now skips SearchService's generic AI feed selection while
+  retaining broad retrieval, deterministic relevance gates and ranking; it
+  performs only its own goal-specific cheaper/better/similar selection. This
+  removes a duplicate Gemini curation call without shrinking the candidate
+  pool.
+- Removed the obsolete `shape_pool` compatibility shim, the duplicate
+  strict `filter_by_required_features` implementation, and an unused
+  `observation` argument from the production pool evaluator. Tests now call
+  the same evaluator used by real search turns and verify UNKNOWN features
+  through the current semantic-review path.
+- The conversational-state module documentation now matches the actual
+  ownership: the Telegram ledger is authoritative, retrieval builds each
+  SearchRequest, and the separate direct-parser merge helpers do not own
+  Telegram session state.
+- Obsolete tests tied to deleted agent/chat-router code and missing temporary
+  experiment runners were removed; active coverage was migrated into current
+  engine, telemetry, result-limit, discovery and observability test modules.
+- Latest completed GitHub Actions run on code head
+  d730bb7bc345aade0c4d6355eaecfa47fb62be9d:
+  focused offline suite: **326 passed, 56 subtests passed**;
+  full repository suite: **2,194 passed, 724 subtests passed**.
+  No test modules are excluded from the broad run. One upstream google-genai
+  deprecation warning remains.
+- Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
+  runtime have not been exercised by this GitHub-only verification.
+
+
 ## Stack
 
 - Python 3.14 venv at `.venv\Scripts\python.exe` (Windows, PowerShell)
@@ -21,8 +87,9 @@ invents products, prices, links, or AI results.
 ```
 handlers/    UI + scenarios (search.py = engine entry + product cards)
 services/    shared infrastructure (search_service = provider adapter,
-             ai_service = Gemini client, conversation = search_history helper,
-             product_assistant, price_tracker, ...)
+             ai_service = Gemini operations, assistant/router = chat-vs-search
+             routing, product_assistant, price_tracker, ...)
+services/assistant/  validated general-chat vs shopping router + bounded chat state
 services/convsearch/  THE conversational search engine (authoritative)
 services/marketplaces/  AliExpress provider + TOP-protocol client
 curation/    feed pipeline (5 stages) + CurationGate
@@ -37,7 +104,7 @@ tests/       offline unit tests (pytest)
 # run the bot
 .venv\Scripts\python.exe main.py
 
-# focused and broad filtered regression suites are defined in
+# focused and full unfiltered regression suites are defined in
 # .github/workflows/conversational-regression.yml
 .venv\Scripts\python.exe -m pytest tests -q
 ```
@@ -71,14 +138,16 @@ Telegram text (handlers/search.py::search_message)
 
 ### Intent classification (hybrid Option C)
 
-For every text turn, `ConversationSearchEngine` first asks Gemini to
-interpret the message against the last six user turns, active slot ledger,
-shown-result count and last outcome. The response is a validated JSON object
-with a closed action enum, confidence, optional core product type and (only
-for clarification) one question. Non-clarify actions below 0.65 confidence,
-malformed output, timeouts (bounded to 5 seconds), quota/auth errors and
-missing Gemini all fall back to the deterministic classifier. Gemini never
-returns product cards or bypasses any deterministic validation.
+For every free-text turn, `AssistantRouter` first asks Gemini to
+distinguish general chat from a shopping action and returns a validated
+structured decision. For a shopping turn, that same validated decision is
+passed into `ConversationSearchEngine.handle_message`; the engine must not
+classify the same message a second time. Pending clarification follow-ups
+that bypass the router may be interpreted by the engine once. If routing is
+unavailable, the established deterministic classifier remains the fallback.
+The decision uses a closed action enum, confidence, optional core product type
+and (only for clarification) one question. Gemini never returns product cards
+or bypasses deterministic validation.
 
 `observe()` remains the deterministic fallback and authoritative slot-ledger
 transition. It also accepts only the engine's validated action enum as an
@@ -136,7 +205,7 @@ omit the preference: AliExpress titles often lack reliable weight/specification
 metadata, so the bot must not claim it verified an unlisted attribute.
 
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
-| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
+| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication. The raw retrieval path avoids legacy search-service ranking/curation; the Telegram delivery layer may apply the separate `CurationGate` afterward depending on the flow. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
 | `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
 | `type_validation.py` | The hard product-type gate: principal-product vs accessory/incidental-mention, decided from the candidate's own title structure (head noun, «для …» role clauses, accessory head words, stem matching). Category-general; no per-product keyword patch. |
 | `text.py` | Tokenisation / constraint-span extraction (reference `text.py` contract, rebuilt for RU/EN mixed marketplace queries). |
@@ -152,11 +221,11 @@ metadata, so the bot must not claim it verified an unlisted attribute.
 - `shown_product_ids` (what this user already saw, for «покажи другие»);
 - `last_outcome` and `last_question` (the pending clarification state).
 
-`handlers/search.py` also keeps `CONVERSATION_KEY = ConversationState` with
-the last effective `SearchRequest`, so non-search features (product
-assistant, favorites-context) keep reading the same request the engine
-produced. There is no second conversational source of truth: the ledger owns
-WHY, the `ConversationState` request is the artifact the engine returned.
+There is no second SearchRequest-based conversation state. The engine
+ledger in `context.user_data["_convsearch_state"]` is authoritative.
+Count-only follow-ups live in `services/count_followup.py` and operate on
+the already-cached product pool; they do not create a second search state or
+call Gemini / AliExpress.
 
 Use-case follow-ups («для дома», «for workshop») are stored as
 soft `use_case` context and join the retrieval phrase / Gemini selection
@@ -290,7 +359,7 @@ industrial welding equipment).
 Result cap: the engine's own `RESULT_CARD_LIMIT = 30`; a user-stated count
 («покажи 5») is carried as `result_limit` and applied as a ceiling.
 
-### Legacy components REMOVED (2026-10-28)
+### Legacy components REMOVED (2026-11-19)
 
 These no longer exist in the active call graph:
 
@@ -303,12 +372,17 @@ These no longer exist in the active call graph:
 - `services/agent_service.py` (`ShoppingAgent`, tool declarations,
   `run_tool`) and `services/agent_loop.py` (the bounded Gemini
   function-calling loop) — deleted; nothing imports them.
-- The legacy text-search path through
-  `AIService.parse_query` → `query_intent` → `resolve_request` →
-  `filter_relevant` → `sort_products` → feed AI-selection: replaced by the
-  engine turn. `SearchService.find_products` still exists (feed / category /
-  photo / assistant use it) but text search no longer enters it except
-  through `RetrievalBackend` with `raw=True`.
+- The legacy SearchRequest merge resolver is not part of the Telegram
+  production path. `services/conversation.py` remains only for deterministic
+  merge/validation in the separate AIService direct-parser API; its old
+  per-user state holder was removed from the Telegram handler. The active
+  count-only cache helper was extracted into `services/count_followup.py`.
+- The Telegram text-search path is the AssistantRouter + ConversationSearchEngine.
+  `SearchService.find_products` remains shared provider infrastructure for
+  feed / category / photo / assistant retrieval and is called by the engine
+  through `RetrievalBackend` with `raw=True`. The separate
+  `find_products_from_text` API remains an offline/direct parser entry point,
+  not the Telegram conversation path.
 - `services/chat_router.py` intent/route layer — no longer imported by any
   handler; the clarify TTL now lives in `handlers/search.py`
   (`CLARIFY_TTL_SECONDS`).
@@ -316,9 +390,9 @@ These no longer exist in the active call graph:
 Deliberately RETAINED (shared infrastructure, not search decisions):
 `services/search_service.py` (provider adapter, feed, categories, photo,
 assistant retrieval), `services/relevance.py` (only `relevance_tier` is
-consumed, as ONE documented ranking input), `services/conversation.py`
-(`ConversationState` holder + the count-only helper used by the
-count/currency cache path), `services/text_matching.py`
+consumed, as ONE documented ranking input), `services/conversation.py` (direct-parser merge primitives only),
+`services/count_followup.py` (the narrow count-only cache shortcut),
+`services/text_matching.py`
 (`extract_requested_result_count`), `services/product_assistant.py`
 (answers COMPARE turns), `services/ai_service.py` (Gemini client for the
 assistant and feed selection), curation, favorites, price tracking,
@@ -330,18 +404,22 @@ analytics, admin.
   are NOT ported (different catalogue, no external model dependency) — the
   adaptation keeps its architecture (ledger, strategy, validation,
   deterministic ranking) and replaces its data layer.
-- Intent classification, constraint extraction and candidate evaluation are
-  deterministic closed-set grammars, NOT an LLM. Gemini is only asked (at
-  most) to phrase ONE clarifying question for a very short strategy-less
-  message. This keeps the turn fast, offline-safe and auditable; a fuller
-  LLM reasoner would need its own validation layer and quota budget.
-- Automated tests were NOT written or run for the 2026-10-28 migration
-  (explicit task constraint). Runtime behaviour below was verified with
-  OFFLINE source-level smoke runs against a FAKE retrieval backend (no
-  network); the real AliExpress path, Telegram rendering, COMPARE answers
-  over `ProductAssistant` and the pending-clarify round-trip still need
-  MANUAL verification by the owner.
+- Product-type validation, constraint safety and final candidate ranking are
+  deterministic and auditable. Gemini is used at bounded decision points:
+  AssistantRouter chat-vs-shopping classification, conversational-turn
+  interpretation when needed, clarification phrasing, and grounded product
+  assistance/selection. Every AI decision is validated before it can alter
+  retrieval or delivery; deterministic fallbacks remain available.
+- The initial 2026-10-28 migration had no automated tests. The current branch
+  now runs a focused offline regression suite followed by the full remaining
+  repository suite with no module exclusions. These tests use fake providers,
+  Telegram objects and temporary SQLite databases; they do not verify live
+  Gemini quota/latency, real AliExpress responses, or Telegram delivery.
+  Those integrations still require owner-side runtime smoke tests.
 - Currency remains a display/filter preference; no exchange rates exist.
+  Existing cards are never converted or relabelled. Currency changes reset
+  both the tracked-price baseline and its currency marker before saving the
+  new preference.
 
 ## Conventions
 
@@ -352,7 +430,16 @@ analytics, admin.
   in their original language.
 - Honest-data invariant: never fabricate products, prices, links or
   "AI results"; a provider error is never reported as an empty catalogue.
-- Callback data carries only `(session_id, index)`, never product data.
+- Product-card callbacks carry `(session_id, index)`, never product data.
+  Favorites and tracked-product actions use stable product/record identities.
+
+## Historical implementation log (archival)
+
+The dated entries below are retained for traceability. They may describe
+superseded branches, intermediate test counts, and implementation states.
+They are not the current task specification or current verification status.
+Use the current maintenance block and architecture above, together with the
+live source tree and the latest matching CI run, as the source of truth.
 
 ### Conversational ranking request context (2026-10-30)
 
@@ -467,7 +554,7 @@ suite and not live Gemini/AliExpress/Telegram tests.
 Telegram clarification round-trip against the real handler; reconcile the
 30-card browse cap with the separate 20-candidate AI selection rule; and
 resolve stale legacy test collection before claiming a full-suite pass.
-PR #4 remains a draft and must not be merged yet.
+Historical note for the 2026-10-30 state: PR #4 was a draft and was not to be merged at that time. See Current maintenance status at the top for the active branch and PR.
 
 **Use-case context is a separate SOFT slot.** The general span splitter
 intentionally drops one-word fragments, so the ledger's connector grammar
@@ -645,8 +732,9 @@ GitHub Actions run 41474647605 on commit `009c74e`, Python 3.14.9:
   **1,998 passed, 670 subtests passed, 1 warning in 23.03s**.
 
 This is a filtered broad regression pass, not an unfiltered full-suite pass.
-Live Gemini, AliExpress and Telegram behavior remain unverified. PR #4 remains
-a draft stacked on PR #3; `main` is unchanged.
+At the time of this historical run, live Gemini, AliExpress and Telegram
+behavior remained unverified; PR #4 was a draft stacked on PR #3. See Current
+maintenance status at the top for the active branch and PR.
 
 ### Targeted conversational slot operations (2026-11-02)
 
@@ -964,7 +1052,9 @@ production timings:
   available during this GitHub-only audit, so actual p50/p95 latency and the
   frequency of retries remain unverified.
 
-No runtime code or timeout policy was changed during this read-only audit.
+Historical note for this earlier read-only performance audit: no runtime code
+or timeout policy was changed at that stage. Subsequent maintenance changes
+are tracked in the Current maintenance status at the top of this file.
 Do not parallelize additional AliExpress phrase calls or reduce the grounded
 variant set solely from these theoretical bounds: that could increase API
 pressure or reduce recall/RRF quality. The next performance step should use

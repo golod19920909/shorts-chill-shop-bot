@@ -48,7 +48,9 @@ from utils.formatting import (
 CB_PREFIX_FAVORITE = "pfav"
 CB_PREFIX_TRACK = "ptrack"
 CB_PREFIX_FAVORITE_REMOVE = "fdel"
+CB_FAVORITE_PAGE = "favpage"
 CB_PREFIX_TRACK_STOP = "tstop"
+CB_TRACK_PAGE = "trackpage"
 
 #: ``ptun:<session_id>:<index>`` - stop tracking THIS product right from
 #: the card (the tracking screen keeps its own ``tstop:<id>`` flow).
@@ -275,7 +277,9 @@ def browse_card_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-def favorites_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
+def favorites_list_keyboard(
+    items: Sequence[dict], *, page: int = 0, total_pages: int = 1
+) -> InlineKeyboardMarkup:
     """Favorites screen: open, share or remove a saved product.
 
     ``items`` entries are ``{"index": int, "product": Product}`` as
@@ -344,36 +348,39 @@ def favorites_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
     # §UX: a screen must always be closable. Same single way home the empty
     # favorites state shows, so both states of the section end the dialog the
     # same way - and deleting products is never the only exit.
-    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
+    if total_pages > 1:
+        navigation: list[InlineKeyboardButton] = []
+        if page > 0:
+            navigation.append(
+                InlineKeyboardButton(
+                    "◀️ Назад", callback_data=f"{CB_FAVORITE_PAGE}:{page - 1}"
+                )
+            )
+        if page + 1 < total_pages:
+            navigation.append(
+                InlineKeyboardButton(
+                    "➡️ Далее", callback_data=f"{CB_FAVORITE_PAGE}:{page + 1}"
+                )
+            )
+        if navigation:
+            rows.append(navigation)
 
+    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
     return InlineKeyboardMarkup(rows)
 
 
-def tracked_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
-    """Price tracking screen: open the product or stop tracking it.
-
-    ``items`` entries are
-    ``{"tracked_id": int, "title": str, "url": str | None,
-    "price": float | None, "currency": str | None}`` - plain data read
-    from the ``tracked_products`` table.
-
-    Like the favorites list, the price-tracking screen always ends with
-    ``🏠 Главное меню``: a list a user can only leave by stopping a
-    tracked product would be a dead end.
-    """
+def tracked_list_keyboard(
+    items: Sequence[dict], *, page: int = 0, total_pages: int = 1
+) -> InlineKeyboardMarkup:
+    """Price tracking screen: open or stop tracking the visible products."""
 
     rows: list[list[InlineKeyboardButton]] = []
-    # Same shared long-URL budget as the favorites list (keyboards.limits):
-    # a tracked product whose open link no longer fits falls back to its
-    # inert callback twin instead of breaking the whole screen; ⛔ and home
-    # are callback buttons and are always rendered.
     budget = UrlBudget()
     for item in items:
         label = (
             f"{_short(item.get('title') or 'Товар', 24)} — "
             f"{format_price(item.get('price'), item.get('currency'))}"
         )
-
         openable = is_openable_url(item.get("url")) and budget.try_take(item.get("url"))
         row: list[InlineKeyboardButton] = [
             InlineKeyboardButton(label, url=item["url"])
@@ -386,6 +393,22 @@ def tracked_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
         ]
         rows.append(row)
 
-    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
+    if total_pages > 1:
+        navigation: list[InlineKeyboardButton] = []
+        if page > 0:
+            navigation.append(
+                InlineKeyboardButton(
+                    "◀️ Назад", callback_data=f"{CB_TRACK_PAGE}:{page - 1}"
+                )
+            )
+        if page + 1 < total_pages:
+            navigation.append(
+                InlineKeyboardButton(
+                    "➡️ Далее", callback_data=f"{CB_TRACK_PAGE}:{page + 1}"
+                )
+            )
+        if navigation:
+            rows.append(navigation)
 
+    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
     return InlineKeyboardMarkup(rows)

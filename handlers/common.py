@@ -33,6 +33,7 @@ OUTCOME_CACHE_KEY = "outcome_cache"
 #: key in ``context.user_data`` holding per-session screen details
 #: (``header``, ``wrap_up_keyboard``) used when paging through results
 OUTCOME_META_KEY = "outcome_meta"
+AI_QUESTION_KEY = "ai_pending_question"
 
 #: how many recent search sessions to keep per user in memory
 MAX_CACHED_SESSIONS = 5
@@ -175,6 +176,25 @@ def remember_outcome(
         meta.pop(oldest, None)
 
     return session_id
+
+
+def clear_pending_product_question(
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Cancel a typed question tied to a product card when its context changes."""
+
+    context.user_data.pop(AI_QUESTION_KEY, None)
+
+
+def forget_outcome(
+    context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> None:
+    """Remove an outcome that could not be delivered to Telegram."""
+
+    for key in (OUTCOME_CACHE_KEY, OUTCOME_META_KEY):
+        store = context.user_data.get(key)
+        if isinstance(store, dict):
+            store.pop(session_id, None)
 
 
 def get_outcome_meta(

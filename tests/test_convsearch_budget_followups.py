@@ -5,6 +5,7 @@ without calling Gemini, Telegram, or AliExpress.
 """
 from __future__ import annotations
 
+import asyncio
 import unittest
 
 from services.convsearch.engine import _product_type_of
@@ -13,6 +14,15 @@ from services.convsearch.state import ConversationEngineState, MessageIntent, _b
 
 
 class BudgetFollowUpTests(unittest.TestCase):
+    def test_russian_shirt_word_is_not_mistaken_for_rubles(self):
+        self.assertEqual(_budget("до 500 рубашек"), {})
+        self.assertEqual(_budget("до 500 рублей"), {"max": 500.0, "currency": "RUB"})
+
+
+    def test_uzbek_som_budget_is_recognized_without_matching_russian_sum_word(self):
+        self.assertEqual(_budget("до 100000 сум"), {"max": 100000.0, "currency": "UZS"})
+        self.assertEqual(_budget("покажи цены в сумме 500"), {})
+
     def test_thousands_budget_refines_current_product_and_keeps_type(self):
         state = ConversationEngineState(user_key="budget-follow-up")
         first = "Сварочный аппарат"
@@ -104,9 +114,38 @@ class BudgetFollowUpTests(unittest.TestCase):
         text = "До 2000 тысяч гривен"
         self.assertIsNone(_product_type_of(text))
 
+    def test_budget_parser_supports_every_catalog_currency(self):
+        cases = (
+            ("до 500 гривен", "UAH"),
+            ("до 30 долларов", "USD"),
+            ("до 25 евро", "EUR"),
+            ("до 2000 рублей", "RUB"),
+            ("до 150 белорусских рублей", "BYN"),
+            ("до 10000 тенге", "KZT"),
+            ("до 100000 сум", "UZS"),
+            ("до 500 злотых", "PLN"),
+            ("до 40 фунтов стерлингов", "GBP"),
+            ("до 500 zł", "PLN"),
+            ("до 40 £", "GBP"),
+        )
+        for message, expected_currency in cases:
+            with self.subTest(message=message):
+                parsed = _budget(message)
+                self.assertEqual(parsed.get("currency"), expected_currency)
+
     def test_budget_scale_is_not_applied_without_scale_word(self):
         self.assertEqual(_budget("до 2000 гривен")["max"], 2000.0)
         self.assertEqual(_budget("до 2 тысяч гривен")["max"], 2000.0)
+
+    def test_abbreviated_thousand_accepts_optional_period(self):
+        self.assertEqual(
+            _budget("до 2 тыс. грн"),
+            {"max": 2000.0, "currency": "UAH"},
+        )
+        self.assertEqual(
+            _budget("до 2 тыс рублей"),
+            {"max": 2000.0, "currency": "RUB"},
+        )
 
     def test_budget_correction_preserves_product_and_other_requirements(self):
         state = ConversationEngineState(user_key="budget-correction")
@@ -152,6 +191,74 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(strategy.request.max_price, 2000.0)
         self.assertEqual(state.active_values("preference"), ["легкий"])
         self.assertFalse(strategy.request.required_features)
+
+    def test_unsupported_currency_followups_remain_budget_framing(self):
+        for message in (
+            "до 500 белорусских рублей",
+            "до 10000 тенге",
+            "до 500 злотых",
+            "до 40 фунтов стерлингов",
+        ):
+            with self.subTest(message=message):
+                state = ConversationEngineState(user_key="unsupported-currency-followup")
+                first = "шуруповерт"
+                observation = state.observe(first)
+                state.record_slots(observation)
+                state.record_product_type(_product_type_of(first))
+
+                observation = state.observe(message)
+                self.assertEqual(observation["intent"], MessageIntent.REFINE)
+                state.record_slots(observation)
+
+                self.assertEqual(state.active_by_kind("type").value, "шуруповерт")
+                self.assertFalse(state.active_values("feature"))
+
+    def test_unsupported_budget_currency_asks_for_a_comparable_unit(self):
+        from services.convsearch.contract import Outcome
+        from services.convsearch.engine import ConversationSearchEngine
+
+        class NeverSearchBackend:
+            def bind(self, search_service):
+                self.search_service = search_service
+
+            async def retrieve(self, strategy, *, exclude=None):
+                raise AssertionError("provider search must not run for an incomparable budget")
+
+        async def scenario():
+            engine = ConversationSearchEngine(retrieval_backend=NeverSearchBackend())
+            state = ConversationEngineState(user_key="unsupported-budget-currency")
+            return await engine.handle_message(
+                "unsupported-budget-currency",
+                "шуруповерт до 500 злотых",
+                state=state,
+                interpret_turn=False,
+            )
+
+        decision = asyncio.run(scenario())
+
+        self.assertEqual(decision.outcome, Outcome.CLARIFY)
+        self.assertIn("PLN", decision.question)
+        self.assertIn("USD, EUR, UAH, RUB, GBP", decision.question)
+        self.assertEqual(decision.report["reason"], "unsupported_budget_currency")
+
+    def test_explicit_budget_currency_overrides_saved_currency(self):
+        state = ConversationEngineState(user_key="budget-currency-override")
+        first = "шуруповерт"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        follow_up = "до 500 гривен"
+        observation = state.observe(follow_up)
+        state.record_slots(observation)
+
+        # The user's saved preference is EUR, but the explicit budget is UAH.
+        # The provider must be asked for UAH so the hard budget gate compares
+        # like with like instead of silently rejecting every EUR-priced row.
+        strategy = build_retrieval_strategy(state, follow_up, currency="EUR")
+
+        self.assertEqual(strategy.request.currency, "UAH")
+        self.assertEqual(strategy.budget, ["500.0", "UAH"])
 
     def test_budget_amount_is_not_a_retrieval_feature(self):
         state = ConversationEngineState(user_key="budget-feature")
