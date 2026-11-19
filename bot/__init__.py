@@ -56,6 +56,7 @@ from keyboards.main import (
     REMOVED_CALLBACK_PATTERN,
 )
 from keyboards.products import (
+    CB_FAVORITE_PAGE,
     CB_TRACK_PAGE,
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
@@ -260,6 +261,11 @@ def _register_handlers(application: Application) -> None:
         CallbackQueryHandler(
             favorites.favorite_remove_callback,
             pattern=f"^{CB_PREFIX_FAVORITE_REMOVE}:",
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            favorites.favorite_page_callback, pattern=rf"^{CB_FAVORITE_PAGE}:[0-9]+$"
         )
     )
     application.add_handler(
