@@ -75,6 +75,34 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(user["username"], "vasya_new")
 
 
+    def test_get_or_create_user_is_safe_under_concurrent_updates(self) -> None:
+        self.run_async(self.db.initialize())
+
+        async def create_same_user():
+            return await asyncio.gather(
+                *(
+                    self.db.get_or_create_user(
+                        telegram_id=777, username=f"user-{index}"
+                    )
+                    for index in range(12)
+                )
+            )
+
+        ids = self.run_async(create_same_user())
+        self.assertEqual(len(set(ids)), 1)
+        self.assertIsNotNone(self.run_async(self.db.get_user(777)))
+
+    def test_foreign_keys_are_enabled_on_every_connection(self) -> None:
+        self.run_async(self.db.initialize())
+
+        async def read_foreign_keys():
+            async with self.db._connect() as conn:
+                cursor = await conn.execute("PRAGMA foreign_keys;")
+                row = await cursor.fetchone()
+                return int(row[0])
+
+        self.assertEqual(self.run_async(read_foreign_keys()), 1)
+
     def test_the_shown_history_keeps_one_scope_per_flow(self) -> None:
         """A search row and a rotation row are different pieces of state."""
 
