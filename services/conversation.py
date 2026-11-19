@@ -276,7 +276,9 @@ _COUNT_ONLY_WORDS: frozenset[str] = frozenset(
         "ещё", "еще", "и", "а", "мне",
         "больше", "шт", "штук", "штуки", "штука", "пожалуйста",
         "show", "give", "find", "more", "me", "please", "another",
-        "other", "again", "of", "them", "these", "those",
+        "other", "again", "of", "them", "these", "those", "new", "fresh",
+        "новый", "новая", "новое", "новые", "нового", "новую", "новых", "новыми",
+        "другой", "другая", "другое", "другие", "другого", "другую", "других", "другими",
         "вариант", "варианта", "вариантов", "варианты", "вариантом",
         "опция", "опции", "опций", "опцию", "товар", "товара", "товаров",
         "товары", "option", "options", "variant", "variants", "item", "items",
@@ -321,7 +323,9 @@ def _is_count_framing_word(word: str) -> bool:
         return True
     if lowered in _COUNT_ONLY_NUMBER_WORDS or lowered.startswith("пар"):
         return True
-    return _is_modifier(lowered)
+    # Do not treat arbitrary product modifiers as count framing: "3 cheap",
+    # "3 black" or "3 with a microphone" must reach the shopping engine.
+    return False
 
 def is_count_only_follow_up(text: str) -> int | None:
     """The requested number of OPTIONS in a count-only message, or ``None``.
