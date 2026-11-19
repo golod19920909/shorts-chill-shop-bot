@@ -800,7 +800,7 @@ class Database:
 
         async with self._connect() as conn:
             await conn.execute(
-                "UPDATE tracked_products SET last_checked_price = NULL "
+                "UPDATE tracked_products SET last_checked_price = NULL, currency = NULL "
                 "WHERE user_id = ?",
                 (user_id,),
             )
