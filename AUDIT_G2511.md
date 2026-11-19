@@ -1,5 +1,7 @@
 # G25.1 — Systemic Read-Only Audit of the AI Shopping Assistant
 
+> Historical snapshot (2026-10-14). It describes the architecture and evidence available on that date; current behavior and maintenance decisions are governed by `PROJECT_CONTEXT.md` and the live source tree.
+
 Audit date: 2026-10-14 · Working dir: `c:\shorts-chill-shop-bot` · No Git repository (verified).
 Method: offline code tracing + targeted offline execution of the REAL production
 services (`parse_query`, `parse_query_intent`, `apply_intent`, `resolve_request`,
