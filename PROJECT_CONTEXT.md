@@ -65,7 +65,7 @@ tests/       offline unit tests (pytest)
 # run the bot
 .venv\Scripts\python.exe main.py
 
-# focused and broad filtered regression suites are defined in
+# focused and full unfiltered regression suites are defined in
 # .github/workflows/conversational-regression.yml
 .venv\Scripts\python.exe -m pytest tests -q
 ```
@@ -182,11 +182,11 @@ metadata, so the bot must not claim it verified an unlisted attribute.
 - `shown_product_ids` (what this user already saw, for «покажи другие»);
 - `last_outcome` and `last_question` (the pending clarification state).
 
-`handlers/search.py` also keeps `CONVERSATION_KEY = ConversationState` with
-the last effective `SearchRequest`, so non-search features (product
-assistant, favorites-context) keep reading the same request the engine
-produced. There is no second conversational source of truth: the ledger owns
-WHY, the `ConversationState` request is the artifact the engine returned.
+There is no second SearchRequest-based conversation state. The engine
+ledger in `context.user_data["_convsearch_state"]` is authoritative.
+Count-only follow-ups live in `services/count_followup.py` and operate on
+the already-cached product pool; they do not create a second search state or
+call Gemini / AliExpress.
 
 Use-case follow-ups («для дома», «for workshop») are stored as
 soft `use_case` context and join the retrieval phrase / Gemini selection
@@ -320,7 +320,7 @@ industrial welding equipment).
 Result cap: the engine's own `RESULT_CARD_LIMIT = 30`; a user-stated count
 («покажи 5») is carried as `result_limit` and applied as a ceiling.
 
-### Legacy components REMOVED (2026-10-28)
+### Legacy components REMOVED (2026-11-19)
 
 These no longer exist in the active call graph:
 
@@ -333,12 +333,16 @@ These no longer exist in the active call graph:
 - `services/agent_service.py` (`ShoppingAgent`, tool declarations,
   `run_tool`) and `services/agent_loop.py` (the bounded Gemini
   function-calling loop) — deleted; nothing imports them.
-- The legacy text-search path through
-  `AIService.parse_query` → `query_intent` → `resolve_request` →
-  `filter_relevant` → `sort_products` → feed AI-selection: replaced by the
-  engine turn. `SearchService.find_products` still exists (feed / category /
-  photo / assistant use it) but text search no longer enters it except
-  through `RetrievalBackend` with `raw=True`.
+- The legacy conversational merge resolver (`services/conversation.py`)
+  and its resolver-only test module were removed after confirming there were
+  no production callsites. The active count-only cache helper was extracted
+  into `services/count_followup.py`.
+- The Telegram text-search path is the AssistantRouter + ConversationSearchEngine.
+  `SearchService.find_products` remains shared provider infrastructure for
+  feed / category / photo / assistant retrieval and is called by the engine
+  through `RetrievalBackend` with `raw=True`. The separate
+  `find_products_from_text` API remains an offline/direct parser entry point,
+  not the Telegram conversation path.
 - `services/chat_router.py` intent/route layer — no longer imported by any
   handler; the clarify TTL now lives in `handlers/search.py`
   (`CLARIFY_TTL_SECONDS`).
@@ -346,9 +350,8 @@ These no longer exist in the active call graph:
 Deliberately RETAINED (shared infrastructure, not search decisions):
 `services/search_service.py` (provider adapter, feed, categories, photo,
 assistant retrieval), `services/relevance.py` (only `relevance_tier` is
-consumed, as ONE documented ranking input), `services/conversation.py`
-(`ConversationState` holder + the count-only helper used by the
-count/currency cache path), `services/text_matching.py`
+consumed, as ONE documented ranking input), `services/count_followup.py`
+(the narrow count-only cache shortcut), `services/text_matching.py`
 (`extract_requested_result_count`), `services/product_assistant.py`
 (answers COMPARE turns), `services/ai_service.py` (Gemini client for the
 assistant and feed selection), curation, favorites, price tracking,
