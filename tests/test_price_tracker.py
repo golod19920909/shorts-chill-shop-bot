@@ -154,6 +154,20 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("http", text)
         self.assertEqual(changes[0].percent, -20.0)
 
+    async def test_failed_notification_is_not_counted_as_delivered(self):
+        db = StubDatabase([make_row()])
+        async def failing_notifier(chat_id, text, buy_url=None):
+            raise RuntimeError("Telegram unavailable")
+
+        tracker = PriceTracker(
+            db, StubProvider({"1001": StubProduct(price=8.0)}), failing_notifier
+        )
+        changes = await tracker.check_all()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(tracker.notified, 0)
+        self.assertEqual(tracker.notify_skipped, 1)
+
     async def test_identical_repeat_does_not_spam(self):
         db = StubDatabase([make_row()])
         notifier = NotifierSpy()
