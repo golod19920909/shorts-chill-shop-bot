@@ -514,12 +514,29 @@ def build_retrieval_strategy(
     if not phrase:
         return None
 
+    # An explicit currency in the user's budget is more specific than the
+    # saved display preference. Request that exact unit when the Affiliate
+    # API documents it; otherwise keep the selected preference and let the
+    # strict same-currency budget gate reject incomparable prices. Never
+    # convert or compare amounts from different currencies.
+    request_currency = currency
+    if budget is not None:
+        budget_parts = str(budget.value or "").split(maxsplit=1)
+        if len(budget_parts) > 1:
+            from services.marketplaces.aliexpress_client import (
+                DOCUMENTED_TARGET_CURRENCIES,
+            )
+
+            explicit_budget_currency = budget_parts[1].strip().upper()
+            if explicit_budget_currency in DOCUMENTED_TARGET_CURRENCIES:
+                request_currency = explicit_budget_currency
+
     request = SearchRequest(
         original_query=text or phrase,
         normalized_query=phrase,
         mode=SearchMode.SEARCH,
         result_limit=result_limit,
-        currency=currency,
+        currency=request_currency,
         required_features=[*list(state.active_values("feature")), *constraint_words],
         excluded_features=list(exclusions),
     )
