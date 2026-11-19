@@ -129,6 +129,16 @@ CURRENCY_ALIASES: dict[str, str] = {
     # GBP
     "gbp": "GBP", "£": "GBP",
     "pound": "GBP", "pounds": "GBP",
+    # BYN — Belarusian ruble
+    "byn": "BYN", "бел.руб": "BYN", "бел руб": "BYN",
+    "белорусский рубль": "BYN", "белорусских рублей": "BYN",
+    # KZT — Kazakhstani tenge
+    "kzt": "KZT", "тенге": "KZT", "₸": "KZT",
+    # UZS — Uzbekistani som
+    "uzs": "UZS", "сум": "UZS", "сўм": "UZS",
+    # PLN — Polish złoty
+    "pln": "PLN", "zł": "PLN", "злотый": "PLN",
+    "злотых": "PLN", "злотого": "PLN",
 }
 
 #: Words that may complete a spec token but are NOT grounded in the query
@@ -358,7 +368,7 @@ def normalize_currency(value: Any) -> str | None:
     if key in CURRENCY_ALIASES:
         return CURRENCY_ALIASES[key]
     up = s.strip().upper()
-    if up in ("UAH", "USD", "EUR", "RUB", "CNY", "GBP"):
+    if up in CURRENCY_ALIASES.values():
         return up
     # e.g. «грн.» or trailing punctuation
     stripped = key.rstrip(".")
@@ -968,8 +978,9 @@ Rules:
   "беспроводные"; "без шумоподавления" is a genuine exclusion ->
   ["шумоподавления"]. This is different from a single negation governing a
   comma-list, which stays all-exclusions.
-- budget: numbers only. currency: "UAH" for грн/₴, "USD" for $/доллары,
-  "EUR" for €/евро, "RUB" for руб. Never keep a currency word as text.
+- budget: numbers only. currency is the normalized ISO code for an explicit
+  currency marker (UAH, USD, EUR, RUB, CNY, GBP, BYN, KZT, UZS or PLN).
+  Never keep a currency word as text.
 - Never invent information absent from the query. If a negative statement is
   ambiguous and you cannot determine its meaning safely, leave BOTH
   required_attributes and excluded_product_types empty for it - do not guess.
