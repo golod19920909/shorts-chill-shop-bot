@@ -237,6 +237,22 @@ class PriceTrackerUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(db.history, [(1, 12.0, "EUR")])
         self.assertEqual(db.observations, [(1, 12.0, "EUR")])
 
+    async def test_missing_currency_after_preference_change_keeps_baseline_unknown(self):
+        db = StubDatabase([
+            make_row(last_checked_price=None, currency=None, user_currency="BYN")
+        ])
+        tracker = PriceTracker(
+            db,
+            StubProvider({"1001": StubProduct(price=12.0, currency=None)}),
+            NotifierSpy(),
+        )
+
+        await tracker.check_all()
+
+        self.assertEqual(db.history, [(1, 12.0, None)])
+        self.assertEqual(db.observations, [(1, 12.0, None)])
+
+
     async def test_currency_mismatch_never_notifies_and_rebases(self):
         """Spec regression: UAH baseline vs USD observation must be silent.
 
