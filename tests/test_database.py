@@ -175,13 +175,12 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(self.run_async(self.db.get_feed_page(other)), 1)
 
     def test_a_legacy_shown_table_is_migrated_to_scopes(self) -> None:
-        """An older database keeps its rows, read as ROTATION rows.
+        """An older database keeps its rows in the current feed scope.
 
         The old table had no ``flow`` column and a narrower UNIQUE key, so it
-        is rebuilt once. Rows that carry no scope become rotation rows: that is
-        the conservative side (they can only make the feed skip a card) and it
-        gives the search scope a clean start instead of inheriting state that
-        was written for a different screen.
+        is rebuilt once. Its rows become feed history, preserving the user's
+        no-repeat state in «✨ Находки» while giving the new search scope a
+        clean start instead of inheriting state from a different screen.
         """
 
         self.run_async(self.db.initialize())
