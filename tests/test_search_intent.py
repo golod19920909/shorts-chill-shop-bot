@@ -91,6 +91,10 @@ def resolve_and_apply(text, previous=None, ai=None):
 parse_and_apply = resolve_and_apply
 
 
+def tokens(request: SearchRequest) -> set[str]:
+    return set((request.normalized_query or "").casefold().split())
+
+
 class SearchRequestIntentFieldTests(unittest.TestCase):
     def test_intent_fields_have_safe_defaults(self) -> None:
         request = SearchRequest(original_query="x")
@@ -240,7 +244,7 @@ class ApplyIntentUnitTests(unittest.TestCase):
 
 
 class PipelineTransformationTests(unittest.TestCase):
-    """The 15 Stage 9 cases through the exact production pipeline order."""
+    """The 15 Stage 9 cases through the direct parser API pipeline."""
 
     def setUp(self) -> None:
         reset_ai_state()
