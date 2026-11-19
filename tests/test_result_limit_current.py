@@ -9,6 +9,7 @@ from config.settings import MarketplaceCredentials
 from handlers import search as search_handlers
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest
+from services.ai_service import AIService
 from services.marketplaces.base import MarketplaceProvider
 from services.search_service import DEFAULT_MAX_RESULTS, SearchService
 from services.text_matching import extract_requested_result_count, strip_option_count
@@ -72,6 +73,22 @@ class CountExtractionTests(unittest.TestCase):
         self.assertIsNone(extract_requested_result_count("беспроводные наушники"))
         self.assertIsNone(extract_requested_result_count("шуруповерт, несколько вариантов"))
         self.assertIsNone(extract_requested_result_count(""))
+
+
+class ResultLimitParseTests(unittest.TestCase):
+    def test_fallback_parse_attaches_result_limit(self):
+        request = asyncio.run(
+            AIService(api_key=None).parse_query("покажи 3 варианта шуруповерта")
+        )
+        self.assertEqual(request.result_limit, 3)
+        self.assertNotIn("3", request.normalized_query or "")
+        self.assertIn("шуруповерт", (request.normalized_query or "").lower())
+
+    def test_parse_without_count_keeps_default(self):
+        request = asyncio.run(
+            AIService(api_key=None).parse_query("беспроводные наушники")
+        )
+        self.assertIsNone(request.result_limit)
 
 
 class ResultLimitWiringTests(unittest.TestCase):
