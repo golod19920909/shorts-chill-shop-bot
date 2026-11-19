@@ -5,6 +5,7 @@ without calling Gemini, Telegram, or AliExpress.
 """
 from __future__ import annotations
 
+import asyncio
 import unittest
 
 from services.convsearch.engine import _product_type_of
@@ -171,6 +172,34 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(strategy.request.max_price, 2000.0)
         self.assertEqual(state.active_values("preference"), ["легкий"])
         self.assertFalse(strategy.request.required_features)
+
+    def test_unsupported_budget_currency_asks_for_a_comparable_unit(self):
+        from services.convsearch.contract import Outcome
+        from services.convsearch.engine import ConversationSearchEngine
+
+        class NeverSearchBackend:
+            def bind(self, search_service):
+                self.search_service = search_service
+
+            async def retrieve(self, strategy, *, exclude=None):
+                raise AssertionError("provider search must not run for an incomparable budget")
+
+        async def scenario():
+            engine = ConversationSearchEngine(retrieval_backend=NeverSearchBackend())
+            state = ConversationEngineState(user_key="unsupported-budget-currency")
+            return await engine.handle_message(
+                "unsupported-budget-currency",
+                "шуруповерт до 500 злотых",
+                state=state,
+                interpret_turn=False,
+            )
+
+        decision = asyncio.run(scenario())
+
+        self.assertEqual(decision.outcome, Outcome.CLARIFY)
+        self.assertIn("PLN", decision.question)
+        self.assertIn("USD, EUR, UAH, RUB, GBP", decision.question)
+        self.assertEqual(decision.report["reason"], "unsupported_budget_currency")
 
     def test_explicit_budget_currency_overrides_saved_currency(self):
         state = ConversationEngineState(user_key="budget-currency-override")
