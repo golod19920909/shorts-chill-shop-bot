@@ -502,7 +502,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         decision = engine._evaluate_pool(
             state, [candidate], strategy,
             refined=True, intent=MessageIntent.REFINE,
-            observation={}, exclude_shown=False,
+            exclude_shown=False,
         )
 
         await engine._apply_ai_candidate_selection(decision, strategy, state)
