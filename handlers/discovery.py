@@ -881,13 +881,13 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await photo_message_handler(update, context)
 
 
-async def _legacy_photo_message(
+async def structured_photo_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
     *,
     image_bytes: bytes | None = None,
 ) -> None:
-    """Legacy structured photo search pipeline kept for backwards compatibility."""
+    """Primary structured photo search pipeline for the registered photo handler."""
     message = update.effective_message
     if message is None or not message.photo:
         return
