@@ -782,9 +782,10 @@ class Database:
         """Drop stored price baselines after a manual currency change.
 
         The old baseline lives in the previous currency and must never be
-        compared with prices in the new one: the first new observation
-        silently becomes the new baseline. History rows are untouched -
-        each one carries its own currency.
+        compared with prices in the new one. Clear both the amount and its
+        currency marker so an API response without currency metadata cannot
+        silently reuse the old unit. History rows are untouched - each one
+        carries its own currency.
         """
 
         async with self._connect() as conn:
