@@ -192,6 +192,27 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(state.active_values("preference"), ["легкий"])
         self.assertFalse(strategy.request.required_features)
 
+    def test_unsupported_currency_followups_remain_budget_framing(self):
+        for message in (
+            "до 500 белорусских рублей",
+            "до 10000 тенге",
+            "до 500 злотых",
+            "до 40 фунтов стерлингов",
+        ):
+            with self.subTest(message=message):
+                state = ConversationEngineState(user_key="unsupported-currency-followup")
+                first = "шуруповерт"
+                observation = state.observe(first)
+                state.record_slots(observation)
+                state.record_product_type(_product_type_of(first))
+
+                observation = state.observe(message)
+                self.assertEqual(observation["intent"], MessageIntent.REFINE)
+                state.record_slots(observation)
+
+                self.assertEqual(state.active_by_kind("type").value, "шуруповерт")
+                self.assertFalse(state.active_values("feature"))
+
     def test_unsupported_budget_currency_asks_for_a_comparable_unit(self):
         from services.convsearch.contract import Outcome
         from services.convsearch.engine import ConversationSearchEngine
