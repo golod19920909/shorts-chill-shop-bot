@@ -69,7 +69,8 @@ def tracking_status_line(context: ContextTypes.DEFAULT_TYPE) -> str:
     interval = int(
         getattr(bot_data.get("settings"), "tracking_interval_minutes", 1440) or 0
     )
-    if tracker is not None and interval > 0:
+    scheduled = bot_data.get("price_tracking_scheduled") is True
+    if tracker is not None and interval > 0 and scheduled:
         return TRACKING_STATUS_AUTO.format(cadence=_cadence_phrase(interval))
     return TRACKING_STATUS_MANUAL
 
