@@ -113,7 +113,9 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
             callback_query=query,
             effective_user=SimpleNamespace(id=555),
         )
-        context = SimpleNamespace(user_data={})
+        context = SimpleNamespace(
+            user_data={common.AI_QUESTION_KEY: {"session_id": "s1", "index": 0}}
+        )
 
         with (
             patch.object(common, "get_cached_outcome", return_value=outcome),
@@ -133,6 +135,38 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
         views.assert_not_awaited()
         event.assert_not_awaited()
         self.assertEqual(meta["max_index"], 0)
+        self.assertIn(common.AI_QUESTION_KEY, context.user_data)
+
+    async def test_successful_browse_cancels_pending_product_question(self):
+        outcome = make_outcome()
+        meta = {"track_shown": False, "max_index": 0}
+        query = SimpleNamespace(
+            data="pnav:s1:1",
+            message=SimpleNamespace(chat_id=47, photo=[], message_id=10),
+            answer=AsyncMock(),
+        )
+        update = SimpleNamespace(
+            callback_query=query,
+            effective_user=SimpleNamespace(id=555),
+        )
+        context = SimpleNamespace(
+            user_data={common.AI_QUESTION_KEY: {"session_id": "s1", "index": 0}}
+        )
+
+        with (
+            patch.object(common, "get_cached_outcome", return_value=outcome),
+            patch.object(common, "register_user", new=AsyncMock(return_value=1)),
+            patch.object(common, "get_outcome_meta", return_value=meta),
+            patch.object(common, "session_flow", return_value="search"),
+            patch.object(common, "is_product_tracked", new=AsyncMock(return_value=False)),
+            patch.object(search, "_edit_browsed_card", new=AsyncMock(return_value=True)),
+            patch.object(common, "remember_shown", new=AsyncMock()),
+            patch.object(common, "remember_views", new=AsyncMock()),
+            patch.object(common, "record_event", new=AsyncMock()),
+        ):
+            await search.browse_callback(update, context)
+
+        self.assertNotIn(common.AI_QUESTION_KEY, context.user_data)
 
 
 if __name__ == "__main__":
