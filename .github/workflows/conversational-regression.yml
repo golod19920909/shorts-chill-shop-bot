@@ -5,6 +5,8 @@ on:
     branches:
       - fix/conversational-budget-state
       - fix/option-c-state-integrity
+      - fix/audit-regressions-2026-11
+      - fix/product-ranking-quality
   pull_request:
     branches:
       - main
