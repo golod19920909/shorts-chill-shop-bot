@@ -373,7 +373,7 @@ def _better_score(product: Product) -> tuple[float, float, float] | None:
 
 
 def better_candidates(original: Product, candidates: list[Product]) -> list[Product]:
-    """Candidates that beat the original on at least one REAL signal."""
+    """Candidates that beat the original on at least one comparable real signal."""
 
     original_score = _better_score(original)
     if original_score is None:
@@ -384,15 +384,23 @@ def better_candidates(original: Product, candidates: list[Product]) -> list[Prod
         if product_identity(product) == product_identity(original):
             continue
         score = _better_score(product)
-        if score is None or score <= original_score:
+        if score is None:
             continue
-        better.append(product)
+        # A candidate qualifies when at least one metric that exists for
+        # both products is strictly higher. Tuple comparison would make
+        # rating dominate orders and positive-rate regardless of their values.
+        comparable_improvements = [
+            candidate_value > original_value
+            for candidate_value, original_value in zip(score, original_score)
+            if candidate_value >= 0 and original_value >= 0
+        ]
+        if any(comparable_improvements):
+            better.append(product)
     return sorted(
         better,
         key=lambda product: _better_score(product) or (0.0, 0.0, 0.0),
         reverse=True,
     )
-
 
 def similar_candidates(original: Product, candidates: list[Product]) -> list[Product]:
     """Candidates for the same product concept, most similar first.
