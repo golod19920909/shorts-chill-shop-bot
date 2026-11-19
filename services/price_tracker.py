@@ -181,6 +181,10 @@ class PriceTracker:
                 continue
             if change is None:
                 continue
+            # Count the detected price movement independently from whether
+            # the user allows notifications. Admin diagnostics distinguish
+            # real changes from messages that were intentionally skipped.
+            self.changes_found += 1
             # The user's notification preference is authoritative: the
             # observation is already recorded, only the message is skipped.
             if not int(row.get("notify_price_changes", 1) or 0):
@@ -196,7 +200,6 @@ class PriceTracker:
                 self.notified += 1
             else:
                 self.notify_skipped += 1
-        self.changes_found += len(changes)
         return changes
 
     async def _check_one(self, row: dict[str, Any]) -> PriceChange | None:
