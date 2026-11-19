@@ -667,8 +667,8 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             {"uah-over", "usd-unknown", "price-unknown", "currency-unknown"},
         )
 
-    def test_required_feature_needs_positive_evidence(self) -> None:
-        from services.convsearch.retrieval import filter_by_required_features
+    def test_required_feature_evidence_separates_verified_and_unknown(self) -> None:
+        from services.convsearch.retrieval import partition_required_feature_evidence
         from services.convsearch.state import Slot
 
         state = ConversationEngineState(user_key="feature")
@@ -680,10 +680,10 @@ class ConstraintAndFusionRegressionTests(unittest.TestCase):
             self._product("industrial", "Сварочный аппарат промышленный"),
         ]
 
-        survivors, rejected = filter_by_required_features(products, state)
+        verified, needs_review = partition_required_feature_evidence(products, state)
 
-        self.assertEqual([p.product_id for p in survivors], ["home"])
-        self.assertEqual([p.product_id for p in rejected], ["industrial"])
+        self.assertEqual([p.product_id for p in verified], ["home"])
+        self.assertEqual([p.product_id for p in needs_review], ["industrial"])
 
     def test_route_merge_uses_reciprocal_rank_fusion(self) -> None:
         from services.convsearch.retrieval import merge_route_results
