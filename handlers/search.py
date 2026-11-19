@@ -656,11 +656,14 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             chat_state.add("user", text)
             answer = await ai_service.answer_general(chat_state.as_prompt_history())
             if answer:
-                chat_state.add("assistant", answer)
-                context.user_data[GENERAL_CHAT_STATE_KEY] = chat_state
                 await message.reply_text(
                     answer[:3800], reply_markup=back_to_menu_keyboard()
                 )
+                # Persist the assistant turn only after Telegram confirms
+                # delivery; otherwise the next model call would see an answer
+                # the user never received.
+                chat_state.add("assistant", answer)
+                context.user_data[GENERAL_CHAT_STATE_KEY] = chat_state
                 _turn_done("general-chat")
                 return
 
