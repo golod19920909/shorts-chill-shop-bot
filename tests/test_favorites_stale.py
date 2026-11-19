@@ -261,7 +261,7 @@ class StaleScreenDeletionTests(unittest.TestCase):
 
 
 class LegacyPositionalCallbackTests(unittest.TestCase):
-    """Messages sent by the previous release keep working."""
+    """Old positional callbacks are rejected because they cannot prove identity."""
 
     def setUp(self) -> None:
         self.first = make_product("101", "Первый товар")
