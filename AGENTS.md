@@ -50,9 +50,14 @@ persistent user data, and verify every functional change with regression tests.
    observation. Only trust the currency returned by the provider or a
    documented target currency actually requested. Unsupported target
    currencies must remain explicit and must not be silently converted.
-9. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
+9. **Avoid duplicate AI selection.** When a flow owns a goal-specific final
+   selector (for example, ProductAssistant's cheaper/better/similar choice),
+   keep SearchService's broad retrieval and deterministic relevance pipeline
+   but call it with `select_feed_candidates=False`. Do not run generic feed
+   curation and then immediately ask Gemini to select the same pool again.
+10. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
    selection defaults to 20; these are separate limits.
-10. **Protect secrets.** Keep credentials in the local `.env`; never commit it
+11. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
 
 ## Test commands
