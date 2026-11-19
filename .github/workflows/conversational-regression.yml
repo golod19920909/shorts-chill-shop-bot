@@ -28,6 +28,7 @@ jobs:
         run: >
           python -m pytest -q
           tests/test_ai_conversation_turn.py
+          tests/test_ai_assistant_questions.py
           tests/test_convsearch_observability.py
           tests/test_ai_service.py
           tests/test_search_intent.py
