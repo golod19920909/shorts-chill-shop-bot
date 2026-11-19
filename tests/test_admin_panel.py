@@ -166,7 +166,7 @@ class AdminCallbackAcknowledgementTests(AdminPanelTestCase):
     def test_api_diagnostic_callback_is_acknowledged_before_slow_work(self):
         context = self.make_context()
         events = []
-        query = FakeQuery(admin.CB_ADMIN_API_TEST_KEY)
+        query = FakeQuery(f"adm:{admin.CB_ADMIN_API_TEST_KEY}")
         original = admin._run_api_test
 
         async def delayed_api_test(_context):
