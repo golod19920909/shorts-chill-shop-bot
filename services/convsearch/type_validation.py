@@ -69,7 +69,7 @@ ACCESSORY_HEAD_WORDS: frozenset[str] = frozenset(
 #: Role prepositions that mark an accessory relationship ("X для Y" — X is
 #: an accessory FOR Y). The requested type appearing AFTER one of these is
 #: an incidental mention, not the product's own identity.
-_ROLE_PREPS: tuple[str, ...] = ("для", "for", "к", "to")
+_ROLE_PREPS: tuple[str, ...] = ("для", "for", "к", "to", "с", "со", "with")
 
 #: Common RU adjective endings; a token ending with one qualifies as an
 #: adjective (e.g. «рыболовная»), which in a title usually modifies the
@@ -194,6 +194,26 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     # a shared modifier. Keep the broader signal separately for ambiguous
     # candidates that need semantic review.
     head_ok = head is not None and _contains(own_tokens, head)
+    head_position = (
+        next(
+            (i for i, token in enumerate(own_tokens) if head is not None and stems_match(token, head)),
+            None,
+        )
+        if head is not None else None
+    )
+    # A trailing accessory noun also changes the listing's identity:
+    # "Power Bank Case" is a case for a power bank, not a power bank. Bundle
+    # connectors ("with case", "с чехлом") are split above and remain valid.
+    trailing_accessory_head = (
+        next(
+            (
+                token for token in own_tokens[head_position + 1:]
+                if token.startswith(tuple(ACCESSORY_HEAD_WORDS))
+            ),
+            None,
+        )
+        if head_position is not None else None
+    )
     # A head that appears ONLY after the role preposition (with nothing of
     # the type in the own identity) is an accessory reference:
     # «пружина для катушки» mentions «катушка» but is not one.
@@ -290,6 +310,9 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
     if head_after_role:
         qualifies = False
         reasons.append("type_only_in_role_clause")
+    if trailing_accessory_head is not None:
+        qualifies = False
+        reasons.append(f"trailing_accessory_head:{trailing_accessory_head}")
     if genitive_mention:
         qualifies = False
         reasons.append("type_mentioned_as_genitive_modifier")
