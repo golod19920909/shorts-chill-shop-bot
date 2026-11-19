@@ -48,6 +48,11 @@ invents products, prices, links, or AI results.
   comparable with the original product. A rating present only on a candidate
   cannot dominate a positive-rate/order improvement when the original has no
   rating.
+- ProductAssistant now skips SearchService's generic AI feed selection while
+  retaining broad retrieval, deterministic relevance gates and ranking; it
+  performs only its own goal-specific cheaper/better/similar selection. This
+  removes a duplicate Gemini curation call without shrinking the candidate
+  pool.
 - Removed the obsolete `shape_pool` compatibility shim, the duplicate
   strict `filter_by_required_features` implementation, and an unused
   `observation` argument from the production pool evaluator. Tests now call
@@ -61,9 +66,9 @@ invents products, prices, links, or AI results.
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
 - Latest completed GitHub Actions run on code head
-  0f54ba2ad76edc9df0013c2e64a60195a4832834:
-  focused offline suite: **325 passed, 56 subtests passed**;
-  full repository suite: **2,191 passed, 724 subtests passed**.
+  d730bb7bc345aade0c4d6355eaecfa47fb62be9d:
+  focused offline suite: **326 passed, 56 subtests passed**;
+  full repository suite: **2,194 passed, 724 subtests passed**.
   No test modules are excluded from the broad run. One upstream google-genai
   deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
