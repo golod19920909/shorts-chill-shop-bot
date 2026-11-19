@@ -22,10 +22,6 @@ from models.search_request import SearchMode, SearchRequest
 from services import analytics
 from services.product_identity import deduplicate_products
 from services.search_service import SearchOutcome
-from services.vision_search import (
-    analyze_photo_with_vision,
-    parse_vision_response,
-)
 from utils.emoji import PHOTO, WARNING
 
 logger = logging.getLogger(__name__)
@@ -137,6 +133,22 @@ async def photo_message_handler(
         )
         return
 
+    ai_service = common.get_ai_service(context)
+    if ai_service is None or not getattr(ai_service, "is_available", False):
+        logger.info("Photo search skipped: no AI service is configured")
+        await message.reply_text(PHOTO_NO_AI_TEXT, reply_markup=photo_retry_keyboard())
+        return
+
+    # The current AIService exposes structured image analysis. Use that as
+    # the primary production path: it builds several grounded hypotheses and
+    # sends them through the shared relevance gate. The old one-phrase path
+    # remains only for integrations that do not implement analyze_image.
+    if callable(getattr(ai_service, "analyze_image", None)):
+        from handlers.discovery import _legacy_photo_message
+
+        await _legacy_photo_message(update, context, image_bytes=image_bytes)
+        return
+
     user_id = await common.register_user(update, context)
     region = await common.get_user_region(context, user_id)
 
@@ -148,20 +160,24 @@ async def photo_message_handler(
         metadata={"bytes": len(image_bytes)},
     )
 
-    ai_service = common.get_ai_service(context)
-    if ai_service is None or not getattr(ai_service, "is_available", False):
-        logger.info("Photo search skipped: no AI service is configured")
-        await message.reply_text(PHOTO_NO_AI_TEXT, reply_markup=photo_retry_keyboard())
+    recognizer = getattr(ai_service, "describe_image_query", None)
+    try:
+        query = await recognizer(image_bytes) if callable(recognizer) else None
+    except Exception:
+        logger.exception("Photo query recognition failed")
+        query = None
+
+    if not query:
+        await message.reply_text(
+            IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
+        )
         return
 
-    # Try reform vision search prompt first
-    vision_res = await analyze_photo_with_vision(image_bytes, ai_service)
     search_service = common.get_search_service(context)
     seen = await common.seen_products(context, user_id)
+    fallback_cat = None
 
-    if vision_res and vision_res.get("query"):
-        query = vision_res["query"]
-        fallback_cat = vision_res.get("fallback_category")
+    if query:
         products = await execute_photo_search(
             query,
             fallback_cat,
