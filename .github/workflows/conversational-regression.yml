@@ -39,6 +39,7 @@ jobs:
           tests/test_convsearch_bare_type_switch.py
           tests/test_search_service.py
           tests/test_session_isolation.py
+          tests/test_tracking_pagination.py
           tests/test_result_limit_current.py
           tests/test_gemini_telemetry_current.py
           tests/test_discovery_acceptance.py
