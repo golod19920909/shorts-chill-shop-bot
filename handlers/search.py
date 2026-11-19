@@ -688,7 +688,12 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
     seen = await common.seen_products(context, user_id)
-    await message.reply_text(SEARCHING_TEXT)
+    try:
+        await message.reply_text(SEARCHING_TEXT)
+    except Exception:
+        # The progress indicator is optional; do not abort a valid search
+        # because this preliminary Telegram message could not be delivered.
+        logger.warning("Could not send the search progress indicator", exc_info=True)
 
     try:
         decision = await engine.handle_message(
@@ -2149,12 +2154,15 @@ async def _answer_currency_preference(
         )
         return True
 
-    await context.bot.send_message(
-        chat_id,
-        f"Валюта предпочтения сохранена: {currency}. "
-        "Уже показанные карточки не пересчитываются. В новых поисках "
-        "AliExpress покажет эту валюту, если она поддерживается API; "
-        "иначе маркетплейс вернёт валюту по умолчанию.",
-        reply_markup=back_to_menu_keyboard(),
-    )
+    try:
+        await context.bot.send_message(
+            chat_id,
+            f"Валюта предпочтения сохранена: {currency}. "
+            "Уже показанные карточки не пересчитываются. В новых поисках "
+            "AliExpress покажет эту валюту, если она поддерживается API; "
+            "иначе маркетплейс вернёт валюту по умолчанию.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+    except Exception:
+        logger.warning("Could not confirm the saved currency preference", exc_info=True)
     return True
