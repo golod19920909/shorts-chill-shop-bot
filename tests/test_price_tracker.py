@@ -537,7 +537,7 @@ class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         rows = await self.db.get_active_tracked_with_telegram()
         self.assertIsNone(rows[0]["last_checked_price"])
-        # initial_price keeps the original observation for display
+        # initial_price is preserved; the UI hides it until a new currency baseline exists.
         self.assertEqual(rows[0]["initial_price"], 10.0)
 
     async def test_join_carries_user_currency_and_notify_preference(self):
