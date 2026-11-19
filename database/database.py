@@ -148,9 +148,17 @@ class Database:
 
         if "updated_at" not in existing:
             logger.info("Migrating: adding users.updated_at column")
+            # SQLite rejects non-constant defaults in ALTER TABLE ADD
+            # COLUMN (including DEFAULT (datetime('now'))). Use a constant
+            # default for the schema upgrade, then backfill existing rows.
+            # get_or_create_user supplies the timestamp explicitly for new
+            # rows in databases upgraded through this path.
             await conn.execute(
-                "ALTER TABLE users ADD COLUMN updated_at TEXT "
-                "NOT NULL DEFAULT (datetime('now'));"
+                "ALTER TABLE users ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';"
+            )
+            await conn.execute(
+                "UPDATE users SET updated_at = datetime('now') "
+                "WHERE updated_at = '';"
             )
 
         # Country/currency are optional user preferences; a NULL value
@@ -265,8 +273,8 @@ class Database:
             # One atomic upsert avoids a SELECT-then-INSERT race when two
             # updates for a previously unseen Telegram user arrive together.
             await conn.execute(
-                "INSERT INTO users (telegram_id, username, first_name) "
-                "VALUES (?, ?, ?) "
+                "INSERT INTO users (telegram_id, username, first_name, updated_at) "
+                "VALUES (?, ?, ?, datetime('now')) "
                 "ON CONFLICT (telegram_id) DO UPDATE SET "
                 "username = COALESCE(excluded.username, users.username), "
                 "first_name = COALESCE(excluded.first_name, users.first_name), "
