@@ -7,7 +7,7 @@ explicit mocks. Telegram shopping conversations use AssistantRouter plus
 ConversationSearchEngine; these tests cover only the separate direct parser
 entry point:
 
-    parse_query -> parse_query_intent -> apply_intent
+    parse_query -> resolve_request -> parse_query_intent -> apply_intent
 """
 
 from __future__ import annotations
