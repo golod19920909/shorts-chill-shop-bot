@@ -83,7 +83,7 @@ def evaluate_pool(
         products,
         strategy,
         refined=False,
-        intent=MessageIntent.NEW_SEARCH.value,
+        intent=MessageIntent.NEW_SEARCH,
         observation={},
         exclude_shown=exclude_shown,
     )
