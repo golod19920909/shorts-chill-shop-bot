@@ -347,8 +347,8 @@ def _register_handlers(application: Application) -> None:
     # one only sees what they refused (see handlers.start.stale_callback).
     application.add_handler(CallbackQueryHandler(start.stale_callback))
 
-    # A sent photo is a product search by image - answered honestly when no
-    # provider supports image search yet (see handlers.discovery).
+    # A sent photo enters the structured vision pipeline; grounded hypotheses
+    # are searched through the same AliExpress relevance and card-delivery path.
     application.add_handler(MessageHandler(filters.PHOTO, discovery.photo_message))
 
     # Any plain text message is treated as a product search query.
