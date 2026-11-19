@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from handlers.search import _answer_currency_preference, _answer_from_shown
+from handlers.search import _answer_currency_preference, _answer_from_shown, _currency_request_state
 
 
 class FakeBot:
@@ -38,6 +38,26 @@ def make_update():
 
 
 class CurrencyFollowupPreferenceTests(unittest.IsolatedAsyncioTestCase):
+    def test_natural_currency_phrases_cover_all_nine_catalog_options(self):
+        cases = {
+            "покажи в гривнах": "UAH",
+            "покажи в долларах": "USD",
+            "покажи в евро": "EUR",
+            "покажи в рублях": "RUB",
+            "покажи в белорусских рублях": "BYN",
+            "покажи в тенге": "KZT",
+            "покажи в сумах": "UZS",
+            "покажи в злотых": "PLN",
+            "покажи в фунтах": "GBP",
+        }
+        for phrase, expected in cases.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    _currency_request_state(phrase),
+                    {"currency": expected, "amount": None},
+                )
+
+
     async def test_supported_currency_is_persisted_for_future_searches(self):
         database = FakeDatabase()
         context = SimpleNamespace(bot=FakeBot(), user_data={})
