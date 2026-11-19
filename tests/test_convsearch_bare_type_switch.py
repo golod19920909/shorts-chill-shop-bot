@@ -7,7 +7,7 @@ from services.convsearch.state import ConversationEngineState, MessageIntent
 
 class BareProductTypeSwitchTests(unittest.TestCase):
     def make_state(self) -> ConversationEngineState:
-        state = ConversationEngineState()
+        state = ConversationEngineState(user_key="bare-switch-test")
         state.observe("наушники")
         state.record_product_type("наушники")
         return state
