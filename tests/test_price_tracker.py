@@ -390,6 +390,14 @@ class ScheduleTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(schedule_price_tracking(self._app(NoJQ(), 0)))
 
+    def test_scheduler_registration_failure_does_not_abort_startup(self):
+        class BrokenJQ:
+            def run_repeating(self, *args, **kwargs):
+                raise RuntimeError("scheduler unavailable")
+
+        self.assertFalse(schedule_price_tracking(self._app(BrokenJQ(), 60)))
+
+
     def test_schedule_disabled_without_job_queue(self):
         app = SimpleNamespace(
             job_queue=None,
