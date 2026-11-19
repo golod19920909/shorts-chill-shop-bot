@@ -414,6 +414,30 @@ class ScheduleTests(unittest.IsolatedAsyncioTestCase):
         await price_tracking_job(context)  # must not raise
 
 
+class TrackingStatusTests(unittest.TestCase):
+    def _context(self, *, scheduled):
+        from types import SimpleNamespace
+
+        from handlers.settings import tracking_status_line
+
+        context = SimpleNamespace(
+            application=SimpleNamespace(
+                bot_data={
+                    "price_tracker": object(),
+                    "settings": SimpleNamespace(tracking_interval_minutes=60),
+                    "price_tracking_scheduled": scheduled,
+                }
+            )
+        )
+        return tracking_status_line(context)
+
+    def test_status_is_manual_when_job_queue_failed_to_schedule(self):
+        self.assertIn("отключена", self._context(scheduled=False))
+
+    def test_status_is_automatic_only_after_scheduler_registration(self):
+        self.assertIn("Автоматическая проверка цен включена", self._context(scheduled=True))
+
+
 class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
     """End-to-end over the real SQLite layer (no fake DB)."""
 
