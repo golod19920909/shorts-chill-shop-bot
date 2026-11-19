@@ -6,7 +6,7 @@ parsing through ``AIService(api_key=None)`` (the local fallback parser) or
 explicit mocks. Every pipeline test mirrors the exact production order of
 ``handlers.search._search`` (Step 5):
 
-    parse_query -> resolve_request -> parse_query_intent -> apply_intent
+    parse_query -> parse_query_intent -> apply_intent
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from config.settings import MarketplaceCredentials
 from models.product import Availability, Marketplace, Product
 from models.search_request import SearchRequest
 from services.ai_service import AIService
-from services.conversation import resolve_request
 from services.marketplaces.base import MarketplaceProvider
 from services.query_intent import (
     apply_intent,
@@ -73,16 +72,15 @@ class StubProvider(MarketplaceProvider):
         return None
 
 
-def resolve_and_apply(text, previous=None, ai=None):
-    """The exact Stage 2 pipeline order of ``handlers.search._search``."""
+def resolve_and_apply(text, ai=None):
+    """Exercise the direct parser path without the retired merge resolver."""
 
     if ai is None:
         ai = AIService(api_key=None)
     parsed = run(ai.parse_query(text))
-    effective, refined = run(resolve_request(previous, parsed, text, ai))
     intent, meta = run(parse_query_intent(text, ai))
-    effective = apply_intent(effective, intent, refined=refined)
-    return effective, refined, meta
+    effective = apply_intent(parsed, intent, refined=False)
+    return effective, False, meta
 
 
 def tokens(request: SearchRequest) -> set[str]:
@@ -461,83 +459,6 @@ class ProviderContractTests(unittest.TestCase):
         self.assertEqual(received.currency, "UAH")
 
 
-class ConversationRegressionTests(unittest.TestCase):
-    """Existing resolve_request behaviour must stay untouched (Step 10)."""
-
-    def setUp(self) -> None:
-        reset_ai_state()
-
-    def _step(self, previous, text):
-        return resolve_and_apply(text, previous=previous)
-
-    def test_initial_search_then_modifier_follow_up(self) -> None:
-        first, refined, _ = self._step(
-            None, "наушники беспроводные до 3000 грн")
-        self.assertFalse(refined)
-        self.assertEqual(first.intent_product_type, "наушники беспроводные")
-        snapshot = first.model_dump()
-
-        # «а дешевле?» is a refinement under the EXISTING resolve rules.
-        second, refined, _ = self._step(first, "а дешевле?")
-        self.assertTrue(refined)
-        # The previous request object is never mutated in place.
-        self.assertEqual(first.model_dump(), snapshot)
-        # Phrase and product identity survive the modifier-only message.
-        self.assertEqual(second.normalized_query, "наушники беспроводные")
-        self.assertEqual(
-            second.intent_product_type, "наушники беспроводные")
-        self.assertEqual(second.original_query, "а дешевле?")
-
-    def test_numeric_budget_follow_up_applies_current_intent(self) -> None:
-        first, _, _ = self._step(
-            None, "наушники беспроводные до 3000 грн")
-        snapshot = first.model_dump()
-        # Stage 49 (D2): a budget-only follow-up («до 1500 грн») introduces no
-        # new PRODUCT word, so it is a REFINEMENT - the previous product and
-        # its other constraints are preserved and only the budget is replaced
-        # (was: the follow-up reset the search and lost the product, the exact
-        # defect D2 fixes). Budget replacement itself is unchanged.
-        second, refined, _ = self._step(first, "до 1500 грн")
-        self.assertTrue(refined)
-        self.assertEqual(first.model_dump(), snapshot)
-        self.assertEqual(second.max_price, 1500.0)
-        self.assertEqual(second.currency, "UAH")
-        self.assertNotIn("грн", second.normalized_query)
-        self.assertEqual(second.original_query, "до 1500 грн")
-        # The product concept survives the budget change.
-        self.assertIn("наушник", second.normalized_query)
-
-    def test_compatibility_follow_up_applies_to_current_message(
-        self,
-    ) -> None:
-        first, _, _ = self._step(None, "зарядка")
-        second, refined, _ = self._step(first, "для iPhone")
-        # Existing semantics: a NEW device word resets the conversation.
-        self.assertFalse(refined)
-        self.assertEqual(second.original_query, "для iPhone")
-        self.assertIsNone(second.intent_product_type)
-        self.assertEqual(second.intent_compatibility, ["iphone"])
-        self.assertTrue(tokens(second) & {"iphone"})
-
-    def test_compatibility_state_survives_a_refinement(self) -> None:
-        first, _, _ = self._step(None, "зарядка для iPhone")
-        self.assertEqual(first.intent_compatibility, ["iphone"])
-        second, refined, _ = self._step(first, "а дешевле?")
-        self.assertTrue(refined)
-        # Intent fields do not corrupt the previous request state.
-        self.assertEqual(second.intent_product_type, "зарядка")
-        self.assertEqual(second.intent_compatibility, ["iphone"])
-        self.assertEqual(second.normalized_query, "зарядка Apple iphone")
-        self.assertEqual(second.original_query, "а дешевле?")
-
-    def test_new_product_message_still_resets_like_before(self) -> None:
-        first, _, _ = self._step(None, "наушники")
-        second, refined, _ = self._step(first, "плазморезка")
-        self.assertFalse(refined)
-        self.assertEqual(second.intent_product_type, "плазморезка")
-        self.assertEqual(second.normalized_query, "плазморезка")
-
-
 class WiringGuardTests(unittest.TestCase):
     """Source-level guards: order, single-parse, no Stage 3 leakage."""
 
@@ -557,7 +478,7 @@ class WiringGuardTests(unittest.TestCase):
         self.assertEqual(source.count("await engine.handle_message("), 1)
         self.assertIn("validated_ai_turn=validated_ai_turn", source)
         self.assertIn(
-            "interpret_turn=(pending is not None)",
+            "interpret_turn=(pending is not None or validated_ai_turn is None)",
             source,
         )
         # The old parse/merge path must not run in the Telegram handler:
