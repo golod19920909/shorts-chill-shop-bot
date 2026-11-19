@@ -2,8 +2,10 @@
 
 The search flow is ONE screen:
 
-    user text -> AIService.parse_query -> SearchService.find_products
-    -> the FIRST product card (title, price, real marketplace fields)
+    user text -> AssistantRouter (validated intent)
+    -> ConversationSearchEngine (one state transition + retrieval strategy)
+    -> AliExpress API -> deterministic validation/ranking + optional AI selection
+    -> the FIRST product card (real marketplace fields)
     -> that very message is edited in place while the user browses
 
 There is deliberately no intermediate list screen: no "Найдено товаров",
