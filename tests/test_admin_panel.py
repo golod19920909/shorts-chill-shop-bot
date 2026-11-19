@@ -162,6 +162,28 @@ class AdminAccessTests(AdminPanelTestCase):
         self.assertIn("🏷 Акции", labels)
 
 
+class AdminCallbackAcknowledgementTests(AdminPanelTestCase):
+    def test_api_diagnostic_callback_is_acknowledged_before_slow_work(self):
+        context = self.make_context()
+        events = []
+        query = FakeQuery(admin.CB_ADMIN_API_TEST_KEY)
+        original = admin._run_api_test
+
+        async def delayed_api_test(_context):
+            events.append("api")
+            self.assertEqual(query.answers, [(None, False)])
+            return "diagnostic complete"
+
+        admin._run_api_test = delayed_api_test
+        try:
+            run(admin.admin_callback(FakeUpdate(callback_query=query), context))
+        finally:
+            admin._run_api_test = original
+
+        self.assertEqual(events, ["api"])
+        self.assertEqual(query.answers, [(None, False)])
+
+
 class AdminScreenRenderTests(AdminPanelTestCase):
     """§71: every button opens a functional screen with real data."""
 
