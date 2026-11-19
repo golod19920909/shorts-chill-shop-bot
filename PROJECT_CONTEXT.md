@@ -363,18 +363,22 @@ analytics, admin.
   are NOT ported (different catalogue, no external model dependency) — the
   adaptation keeps its architecture (ledger, strategy, validation,
   deterministic ranking) and replaces its data layer.
-- Intent classification, constraint extraction and candidate evaluation are
-  deterministic closed-set grammars, NOT an LLM. Gemini is only asked (at
-  most) to phrase ONE clarifying question for a very short strategy-less
-  message. This keeps the turn fast, offline-safe and auditable; a fuller
-  LLM reasoner would need its own validation layer and quota budget.
-- Automated tests were NOT written or run for the 2026-10-28 migration
-  (explicit task constraint). Runtime behaviour below was verified with
-  OFFLINE source-level smoke runs against a FAKE retrieval backend (no
-  network); the real AliExpress path, Telegram rendering, COMPARE answers
-  over `ProductAssistant` and the pending-clarify round-trip still need
-  MANUAL verification by the owner.
+- Product-type validation, constraint safety and final candidate ranking are
+  deterministic and auditable. Gemini is used at bounded decision points:
+  AssistantRouter chat-vs-shopping classification, conversational-turn
+  interpretation when needed, clarification phrasing, and grounded product
+  assistance/selection. Every AI decision is validated before it can alter
+  retrieval or delivery; deterministic fallbacks remain available.
+- The initial 2026-10-28 migration had no automated tests. The current branch
+  now runs a focused offline regression suite followed by the full remaining
+  repository suite with no module exclusions. These tests use fake providers,
+  Telegram objects and temporary SQLite databases; they do not verify live
+  Gemini quota/latency, real AliExpress responses, or Telegram delivery.
+  Those integrations still require owner-side runtime smoke tests.
 - Currency remains a display/filter preference; no exchange rates exist.
+  Existing cards are never converted or relabelled. Currency changes reset
+  both the tracked-price baseline and its currency marker before saving the
+  new preference.
 
 ## Conventions
 
@@ -385,7 +389,8 @@ analytics, admin.
   in their original language.
 - Honest-data invariant: never fabricate products, prices, links or
   "AI results"; a provider error is never reported as an empty catalogue.
-- Callback data carries only `(session_id, index)`, never product data.
+- Product-card callbacks carry `(session_id, index)`, never product data.
+  Favorites and tracked-product actions use stable product/record identities.
 
 ### Conversational ranking request context (2026-10-30)
 
