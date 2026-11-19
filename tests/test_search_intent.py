@@ -557,7 +557,7 @@ class WiringGuardTests(unittest.TestCase):
         self.assertEqual(source.count("await engine.handle_message("), 1)
         self.assertIn("validated_ai_turn=validated_ai_turn", source)
         self.assertIn(
-            "interpret_turn=(pending is not None or validated_ai_turn is None)",
+            "interpret_turn=(pending is not None)",
             source,
         )
         # The old parse/merge path must not run in the Telegram handler:
