@@ -2015,8 +2015,13 @@ async def _answer_from_shown(
 
     request = _currency_request_state(text)
     if request is not None:
+        # A currency-only message changes the user's preference. If it also
+        # carries a numeric budget, let the conversational engine process the
+        # whole turn so its same-currency hard-budget guard remains in force.
+        if request.get("amount") is not None:
+            return False
         return await _answer_currency_preference(
-            update, context, text, request, outcome, conversation
+            update, context, request.get("currency")
         )
     return False
 
@@ -2072,91 +2077,74 @@ def _count_follow_up_text(delivered: int, wanted: int) -> str:
 async def _answer_currency_preference(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
-    text: str,
-    request: dict,
-    outcome: SearchOutcome,
-    conversation,
+    currency: str | None,
 ) -> bool:
-    """Re-render the shown products under the requested currency preference.
+    """Persist a pure currency preference without relabelling cached prices.
 
-    The currency is a DISPLAY preference. The project holds no exchange rates,
-    so prices are never converted or relabelled: the card keeps the currency
-    and amount the marketplace actually returned, the existing price FILTER is
-    scoped to the requested currency, and the user reads exactly that.
+    Existing product cards are immutable marketplace observations: they are
+    never converted or relabelled without an exchange rate. The preference is
+    saved for future searches, where the AliExpress adapter forwards it only
+    if the API documents that target currency.
     """
 
-    from services.product_logging import log_final_pool
+    from config.catalog import CURRENCIES
 
     chat_id = update.effective_message.chat_id
-    currency = request.get("currency")
-    if currency is None:
-        # Unsupported spelling: the bot says what it can do instead of
-        # pretending the preference was applied.
+    if currency not in CURRENCIES:
+        supported = ", ".join(CURRENCIES)
         await context.bot.send_message(
             chat_id,
-            "Пока могу показывать цены в USD, EUR, RUB, UAH, CNY и GBP. "
-            "Скажите одну из этих валют, и я поправлю подборку.",
+            f"Пока можно выбрать валюту: {supported}. "
+            "Уже показанные цены не пересчитываются.",
             reply_markup=back_to_menu_keyboard(),
         )
         return True
 
-    base = conversation.request if conversation is not None else outcome.request
-    update_fields: dict = {"currency": currency}
-    amount = request.get("amount")
-    if amount is not None:
-        # An explicit amount in the same message («покажи в грн, вот 1000»)
-        # becomes the budget bound - a real constraint the user stated.
-        update_fields["max_price"] = amount
-    new_request = base.model_copy(update=update_fields)
-
-    if conversation is not None:
-        conversation.request = new_request
-        conversation.touch()
-
-    # The cards are re-rendered from the SAME products (no provider call):
-    # only the header/preference changes, never the real listing data.
-    resolved = outcome.request
-    if (
-        resolved.max_price is not None
-        and new_request.max_price is not None
-        and new_request.max_price < resolved.max_price
-    ):
-        # The user also named a smaller budget: apply it to the ALREADY shown
-        # real products, honestly, instead of fetching a new list.
-        kept = [
-            product
-            for product in outcome.products
-            if product.price is None or product.price <= new_request.max_price
-        ]
-        resolved = new_request
-        outcome = SearchOutcome(
-            request=new_request,
-            products=kept,
-            searched_marketplaces=list(outcome.searched_marketplaces),
-            failed_marketplaces=list(outcome.failed_marketplaces),
-            unavailable_marketplaces=list(outcome.unavailable_marketplaces),
-        )
-        conversation.request = new_request
-        log_final_pool(
-            logger, kept, context="currency re-render", origin="currency"
-        )
-
     user_id = await common.register_user(update, context)
-    telegram_id = update.effective_user.id if update.effective_user else None
-    shown = await send_search_results(
-        context,
-        chat_id,
-        outcome,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        pre_curated=True,
-    )
-    if shown:
-        context.user_data["last_shown_session"] = shown
+    if user_id is None:
+        await context.bot.send_message(
+            chat_id,
+            "Не удалось сохранить валюту. Попробуйте ещё раз.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+        return True
 
-    note = (
-        f"Ок, ориентируюсь на цены в {currency}. Цены указаны как есть в "
-        "карточках: курса и пересчёта у меня нет, поэтому суммы не меняю."
+    database = common.get_database(context)
+    try:
+        region = await common.get_user_region(context, user_id)
+        previous_currency = str(region.get("currency") or "").upper() or None
+        if previous_currency != currency:
+            await database.update_user_region(user_id, currency=currency)
+            try:
+                await database.invalidate_tracking_baselines(user_id)
+            except Exception:
+                logger.exception(
+                    "Failed to invalidate tracking baselines after currency change "
+                    "for user %s",
+                    user_id,
+                )
+            await common.record_event(
+                context,
+                analytics.EVENT_CURRENCY_CHANGED,
+                user_id=user_id,
+                telegram_id=update.effective_user.id if update.effective_user else None,
+                metadata={"currency": currency, "source": "text_followup"},
+            )
+    except Exception:
+        logger.exception("Failed to save currency preference for user %s", user_id)
+        await context.bot.send_message(
+            chat_id,
+            "Не удалось сохранить валюту. Попробуйте ещё раз.",
+            reply_markup=back_to_menu_keyboard(),
+        )
+        return True
+
+    await context.bot.send_message(
+        chat_id,
+        f"Валюта предпочтения сохранена: {currency}. "
+        "Уже показанные карточки не пересчитываются. В новых поисках "
+        "AliExpress покажет эту валюту, если она поддерживается API; "
+        "иначе маркетплейс вернёт валюту по умолчанию.",
+        reply_markup=back_to_menu_keyboard(),
     )
-    await context.bot.send_message(chat_id, note, reply_markup=back_to_menu_keyboard())
     return True
