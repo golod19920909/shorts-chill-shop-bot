@@ -160,9 +160,10 @@ class AccessGateTests(unittest.TestCase):
 
         run(sales_handlers.sale_callback(FakeUpdate(query), context))
 
-        self.assertTrue(query.answers)
-        self.assertEqual(query.edits, [])
-        self.assertNotIn("админ", " ".join(query.answers).lower())
+        self.assertEqual(query.answers, [""])
+        self.assertEqual(len(query.edits), 1)
+        self.assertIn(DENIED_TEXT, query.edits[0][0])
+        self.assertNotIn("админ", query.edits[0][0].lower())
 
     def test_admin_opens_the_section_while_disabled(self) -> None:
         context = _context(FakeDatabase(), admin_ids=(555,))
@@ -198,8 +199,9 @@ class AccessGateTests(unittest.TestCase):
 
         run(sales_handlers.sale_callback(FakeUpdate(query), context))
 
-        self.assertTrue(query.answers)
-        self.assertEqual(query.edits, [])
+        self.assertEqual(query.answers, [""])
+        self.assertEqual(len(query.edits), 1)
+        self.assertIn(DENIED_TEXT, query.edits[0][0])
 
 class DestinationUrlTests(unittest.TestCase):
     """The affiliate destination: missing -> friendly, invalid -> rejected."""
