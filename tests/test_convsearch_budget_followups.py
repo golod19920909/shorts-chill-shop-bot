@@ -137,6 +137,16 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(_budget("до 2000 гривен")["max"], 2000.0)
         self.assertEqual(_budget("до 2 тысяч гривен")["max"], 2000.0)
 
+    def test_abbreviated_thousand_accepts_optional_period(self):
+        self.assertEqual(
+            _budget("до 2 тыс. грн"),
+            {"max": 2000.0, "currency": "UAH"},
+        )
+        self.assertEqual(
+            _budget("до 2 тыс рублей"),
+            {"max": 2000.0, "currency": "RUB"},
+        )
+
     def test_budget_correction_preserves_product_and_other_requirements(self):
         state = ConversationEngineState(user_key="budget-correction")
         first = "шуруповерт"
