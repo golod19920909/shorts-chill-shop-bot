@@ -48,6 +48,7 @@ from utils.formatting import (
 CB_PREFIX_FAVORITE = "pfav"
 CB_PREFIX_TRACK = "ptrack"
 CB_PREFIX_FAVORITE_REMOVE = "fdel"
+CB_FAVORITE_PAGE = "favpage"
 CB_PREFIX_TRACK_STOP = "tstop"
 CB_TRACK_PAGE = "trackpage"
 
@@ -276,7 +277,9 @@ def browse_card_keyboard(
     return InlineKeyboardMarkup(rows)
 
 
-def favorites_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
+def favorites_list_keyboard(
+    items: Sequence[dict], *, page: int = 0, total_pages: int = 1
+) -> InlineKeyboardMarkup:
     """Favorites screen: open, share or remove a saved product.
 
     ``items`` entries are ``{"index": int, "product": Product}`` as
@@ -345,8 +348,24 @@ def favorites_list_keyboard(items: Sequence[dict]) -> InlineKeyboardMarkup:
     # §UX: a screen must always be closable. Same single way home the empty
     # favorites state shows, so both states of the section end the dialog the
     # same way - and deleting products is never the only exit.
-    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
+    if total_pages > 1:
+        navigation: list[InlineKeyboardButton] = []
+        if page > 0:
+            navigation.append(
+                InlineKeyboardButton(
+                    "◀️ Назад", callback_data=f"{CB_FAVORITE_PAGE}:{page - 1}"
+                )
+            )
+        if page + 1 < total_pages:
+            navigation.append(
+                InlineKeyboardButton(
+                    "➡️ Далее", callback_data=f"{CB_FAVORITE_PAGE}:{page + 1}"
+                )
+            )
+        if navigation:
+            rows.append(navigation)
 
+    rows.append([InlineKeyboardButton(LABEL_HOME, callback_data=CB_BACK)])
     return InlineKeyboardMarkup(rows)
 
 
