@@ -46,7 +46,10 @@ class FeedDeliveryCursorTests(unittest.IsolatedAsyncioTestCase):
             effective_user=SimpleNamespace(id=555),
             effective_chat=SimpleNamespace(id=47),
         )
-        context = SimpleNamespace(user_data={}, bot_data={})
+        application = SimpleNamespace(bot_data={})
+        context = SimpleNamespace(
+            user_data={}, bot_data={}, application=application
+        )
         return update, context
 
     async def _run_feed(self, send_result):
