@@ -23,6 +23,7 @@ from models.search_request import SearchMode, SearchRequest
 from services.product_assistant import (
     MAX_RESULTS_SHOWN,
     ProductAssistant,
+    better_candidates,
     cheaper_candidates,
     deterministic_advice,
     intent_from_title,
@@ -191,6 +192,31 @@ class AnalyzeTests(unittest.TestCase):
         self.assertFalse(advice.used_ai)
         self.assertIn("Данные AliExpress", advice.text)
 
+
+class BetterCandidatesTests(unittest.TestCase):
+    def test_any_comparable_metric_can_qualify_a_better_candidate(self) -> None:
+        original = make_product(
+            "original", "Наушники", 25.0, rating=4.5, positive_rate=92.0, orders_count=1200
+        )
+        better_by_orders = make_product(
+            "orders", "Наушники", 28.0, rating=4.4, positive_rate=90.0, orders_count=10000
+        )
+        better_by_positive_rate = make_product(
+            "positive", "Наушники", 27.0, rating=4.3, positive_rate=98.0, orders_count=800
+        )
+
+        result = better_candidates(original, [better_by_orders, better_by_positive_rate])
+
+        self.assertEqual(
+            {product.product_id for product in result},
+            {"orders", "positive"},
+        )
+
+    def test_missing_metrics_are_not_treated_as_improvements(self) -> None:
+        original = make_product("original", "Наушники", 25.0, rating=4.5)
+        candidate = make_product("candidate", "Наушники", 27.0, rating=None)
+
+        self.assertEqual(better_candidates(original, [candidate]), [])
 
 class CheaperTests(unittest.TestCase):
     """«На ть дешевле» compares real observed prices, in one currency."""
