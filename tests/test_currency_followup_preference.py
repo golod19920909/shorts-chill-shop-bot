@@ -7,7 +7,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from handlers.search import _answer_currency_preference
+from handlers.search import _answer_currency_preference, _answer_from_shown
 
 
 class FakeBot:
@@ -79,6 +79,29 @@ class CurrencyFollowupPreferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(database.updated, [])
         self.assertEqual(database.invalidated, [])
         record_event.assert_not_awaited()
+
+    async def test_currency_plus_budget_reaches_engine_instead_of_fast_filter(self):
+        context = SimpleNamespace(user_data={})
+        outcome = SimpleNamespace(products=[object()])
+        update = make_update()
+        with (
+            patch("handlers.search._last_shown_session", return_value="session"),
+            patch("handlers.search.common.get_cached_outcome", return_value=outcome),
+            patch(
+                "handlers.search._currency_request_state",
+                return_value={"currency": "UAH", "amount": 1000.0},
+            ),
+            patch(
+                "handlers.search._answer_currency_preference",
+                new=AsyncMock(return_value=True),
+            ) as fast_handler,
+        ):
+            handled = await _answer_from_shown(
+                update, context, "покажи в гривнах до 1000"
+            )
+
+        self.assertFalse(handled)
+        fast_handler.assert_not_awaited()
 
     async def test_unavailable_currency_is_not_saved_or_claimed(self):
         context = SimpleNamespace(bot=FakeBot(), user_data={})
