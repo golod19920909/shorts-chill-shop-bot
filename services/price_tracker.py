@@ -332,10 +332,7 @@ class PriceTracker:
                 change.tracked_product_id,
             )
             return False
-            return False
         try:
-            # Inline "🛒 Купить" button: affiliate URL preferred, plain
-            # product URL as truthful fallback, no raw link in the text.
             await self._notifier(
                 int(telegram_id), format_notification(change), change.buy_url
             )
@@ -345,7 +342,7 @@ class PriceTracker:
                 "Failed to deliver price notification for row %s",
                 change.tracked_product_id,
             )
-
+            return False
 
 def build_price_tracker(
     database: Any, search_service: Any, bot: Any
