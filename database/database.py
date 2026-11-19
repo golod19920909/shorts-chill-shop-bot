@@ -836,9 +836,8 @@ class Database:
     ) -> None:
         """Append one observed price for a tracked product.
 
-        This table is what a future price-drop notifier reads from; it
-        is written by hand (or by the future scheduler) rather than
-        derived, so history is never lost by an update.
+        The scheduled price tracker appends one row per recorded observation.
+        History is never overwritten by a later price update.
         """
 
         async with self._connect() as conn:
