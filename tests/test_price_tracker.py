@@ -521,6 +521,45 @@ class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await tracker.check_all(), [])
         self.assertEqual(len(notifier.calls), 2)
 
+    async def test_repeated_active_track_does_not_reset_observed_baseline(self):
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005004", "Товар",
+            "https://www.aliexpress.com/item/1005004.html", 10.0, "USD",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        tracked_id = rows[0]["id"]
+        await self.db.update_tracked_observation(tracked_id, 8.0, "USD")
+
+        # A stale card can still contain the old "follow" button. Pressing it
+        # again must not replace the active scheduler baseline with that card's
+        # older price or a different presentation currency.
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005004", "Товар",
+            "https://www.aliexpress.com/item/1005004.html", 10.0, "EUR",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        self.assertEqual(rows[0]["last_checked_price"], 8.0)
+        self.assertEqual(rows[0]["currency"], "USD")
+
+    async def test_reactivating_stopped_tracking_seeds_a_fresh_baseline(self):
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005005", "Товар",
+            "https://www.aliexpress.com/item/1005005.html", 10.0, "USD",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        tracked_id = rows[0]["id"]
+        await self.db.update_tracked_observation(tracked_id, 8.0, "USD")
+        await self.db.deactivate_tracked_product(tracked_id, self.user_id)
+
+        await self.db.add_tracked_product(
+            self.user_id, "aliexpress", "1005005", "Товар",
+            "https://www.aliexpress.com/item/1005005.html", 12.0, "EUR",
+        )
+        rows = await self.db.get_active_tracked_with_telegram()
+        self.assertEqual(rows[0]["id"], tracked_id)
+        self.assertEqual(rows[0]["last_checked_price"], 12.0)
+        self.assertEqual(rows[0]["currency"], "EUR")
+
     async def test_manual_currency_change_invalidates_baseline(self):
         """Spec §30: after a currency switch the old baseline is dropped."""
         await self.db.add_tracked_product(
