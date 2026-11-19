@@ -75,6 +75,7 @@ class FeedDeliveryCursorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_provider_failure_does_not_consume_the_page(self):
         update, context = self.make_update_context()
+        context.user_data[discovery.FEED_PAGE_KEY] = 5
         context.bot = SimpleNamespace(send_message=AsyncMock())
 
         class FailingSearchService:
@@ -93,7 +94,7 @@ class FeedDeliveryCursorTests(unittest.IsolatedAsyncioTestCase):
         ):
             await discovery.show_feed(update, context)
 
-        self.assertNotIn(discovery.FEED_PAGE_KEY, context.user_data)
+        self.assertEqual(context.user_data[discovery.FEED_PAGE_KEY], 5)
         remember_page.assert_not_awaited()
         context.bot.send_message.assert_awaited_once()
 
