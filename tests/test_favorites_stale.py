@@ -280,15 +280,16 @@ class LegacyPositionalCallbackTests(unittest.TestCase):
         )
         return query
 
-    def test_valid_legacy_index_still_deletes(self) -> None:
+    def test_legacy_index_is_refused_even_when_cache_has_that_position(self) -> None:
         self.context.user_data[favorites.FAVORITES_CACHE_KEY] = [
             {"index": 0, "product": self.first},
             {"index": 1, "product": self.second},
         ]
 
-        self._press(f"{CB_PREFIX_FAVORITE_REMOVE}:1")
+        query = self._press(f"{CB_PREFIX_FAVORITE_REMOVE}:1")
 
-        self.assertEqual(self.database.removed, [("aliexpress", "202")])
+        self.assertEqual(self.database.removed, [])
+        self.assertTrue(any(text and "устарел" in text for text, _ in query.answers))
 
     def test_out_of_range_legacy_index_answers_stale_instead_of_deleting(self) -> None:
         self.context.user_data[favorites.FAVORITES_CACHE_KEY] = [
