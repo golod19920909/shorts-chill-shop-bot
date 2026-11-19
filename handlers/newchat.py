@@ -13,6 +13,7 @@ from __future__ import annotations
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from handlers import common
 from handlers.search import reset_conversation
 from keyboards.main import back_to_menu_keyboard
 
@@ -29,5 +30,6 @@ async def new_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if message is None:
         return
 
+    common.clear_pending_product_question(context)
     reset_conversation(context)
     await message.reply_text(RESET_TEXT, reply_markup=back_to_menu_keyboard())
