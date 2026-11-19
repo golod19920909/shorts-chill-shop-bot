@@ -41,7 +41,6 @@ jobs:
           tests/test_session_isolation.py
           tests/test_favorites_pagination.py
           tests/test_tracking_pagination.py
-          tests/test_tracking_pagination.py
           tests/test_result_limit_current.py
           tests/test_gemini_telemetry_current.py
           tests/test_discovery_acceptance.py
