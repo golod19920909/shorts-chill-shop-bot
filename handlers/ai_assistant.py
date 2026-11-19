@@ -18,6 +18,7 @@ User-facing promises kept here:
 from __future__ import annotations
 
 import logging
+import re
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
@@ -127,15 +128,31 @@ def _assistant(context: ContextTypes.DEFAULT_TYPE):
     return context.application.bot_data.get("product_assistant")
 
 
-def _products_for_question(
-    context: ContextTypes.DEFAULT_TYPE, session_id: str, index: int, product
-) -> list:
-    """The asked product plus the other candidates of the same session.
+_COMPARATIVE_QUESTION_RE = re.compile(
+    r"(?:сравн|из\s+(?:этих|них)|между\s+ними|эти\s+(?:товар|вариант|модел)|"
+    r"какой\s+(?:из\s+(?:этих|них)\s+)?(?:дешевле|лучше|хуже|выгоднее)|"
+    r"что\s+(?:дешевле|лучше|выгоднее)|which\s+of\s+these|compare|"
+    r"between\s+them|these\s+(?:options|products))",
+    re.IGNORECASE,
+)
 
-    Several questions ("какой из этих вариантов дешевле?") only make sense
-    over a set, so the rest of the shown session is included while it is
-    still cached. The asked product always comes first.
+
+def _products_for_question(
+    context: ContextTypes.DEFAULT_TYPE,
+    session_id: str,
+    index: int,
+    product,
+    question: str = "",
+) -> list:
+    """Use the selected card unless the wording explicitly asks to compare.
+
+    A question about "this product" must never be answered from another
+    card's specifications. Other candidates from the same cached session
+    are included only for an explicit comparison question.
     """
+
+    if not _COMPARATIVE_QUESTION_RE.search(question or ""):
+        return [product]
 
     products = [product]
     outcome = common.get_cached_outcome(context, session_id)
@@ -328,7 +345,8 @@ async def consume_pending_question(
         return False
 
     advice = await assistant.answer(
-        question, _products_for_question(context, session_id, index, product)
+        question,
+        _products_for_question(context, session_id, index, product, question),
     )
     await message.reply_text(
         advice.text,
