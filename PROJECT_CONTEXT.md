@@ -488,7 +488,7 @@ suite and not live Gemini/AliExpress/Telegram tests.
 Telegram clarification round-trip against the real handler; reconcile the
 30-card browse cap with the separate 20-candidate AI selection rule; and
 resolve stale legacy test collection before claiming a full-suite pass.
-PR #4 remains a draft and must not be merged yet.
+Historical note for the 2026-10-30 state: PR #4 was a draft and was not to be merged at that time. See Current maintenance status at the top for the active branch and PR.
 
 **Use-case context is a separate SOFT slot.** The general span splitter
 intentionally drops one-word fragments, so the ledger's connector grammar
@@ -666,8 +666,9 @@ GitHub Actions run 41474647605 on commit `009c74e`, Python 3.14.9:
   **1,998 passed, 670 subtests passed, 1 warning in 23.03s**.
 
 This is a filtered broad regression pass, not an unfiltered full-suite pass.
-Live Gemini, AliExpress and Telegram behavior remain unverified. PR #4 remains
-a draft stacked on PR #3; `main` is unchanged.
+At the time of this historical run, live Gemini, AliExpress and Telegram
+behavior remained unverified; PR #4 was a draft stacked on PR #3. See Current
+maintenance status at the top for the active branch and PR.
 
 ### Targeted conversational slot operations (2026-11-02)
 
@@ -985,7 +986,9 @@ production timings:
   available during this GitHub-only audit, so actual p50/p95 latency and the
   frequency of retries remain unverified.
 
-No runtime code or timeout policy was changed during this read-only audit.
+Historical note for this earlier read-only performance audit: no runtime code
+or timeout policy was changed at that stage. Subsequent maintenance changes
+are tracked in the Current maintenance status at the top of this file.
 Do not parallelize additional AliExpress phrase calls or reduce the grounded
 variant set solely from these theoretical bounds: that could increase API
 pressure or reduce recall/RRF quality. The next performance step should use
