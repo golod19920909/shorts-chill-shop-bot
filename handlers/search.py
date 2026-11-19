@@ -2144,8 +2144,8 @@ async def _answer_currency_preference(
         )
         return True
 
-    database = common.get_database(context)
     try:
+        database = common.get_database(context)
         region = await common.get_user_region(context, user_id)
         previous_currency = str(region.get("currency") or "").upper() or None
         if previous_currency != currency:
