@@ -468,11 +468,19 @@ def schedule_price_tracking(
             "automatic price tracking is OFF"
         )
         return False
-    job_queue.run_repeating(
-        price_tracking_job,
-        interval=interval_minutes * 60,
-        first=first_delay_seconds,
-        name=PRICE_TRACKING_JOB_NAME,
-    )
+    try:
+        job_queue.run_repeating(
+            price_tracking_job,
+            interval=interval_minutes * 60,
+            first=first_delay_seconds,
+            name=PRICE_TRACKING_JOB_NAME,
+        )
+    except Exception:
+        # A scheduler registration failure must not abort bot startup. The
+        # settings screen will report manual tracking because this returns
+        # False and _post_init stores the actual registration result.
+        logger.exception("Failed to register automatic price tracking job")
+        return False
+
     logger.info("Automatic price tracking scheduled every %s min", interval_minutes)
     return True
