@@ -709,11 +709,13 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             currency=region.get("currency"),
             state=conv_state,
             validated_ai_turn=validated_ai_turn,
-            # The Router has already attempted AI interpretation. If it
-            # returned no valid decision, the engine must use deterministic
-            # state logic rather than spend a second Gemini call. A pending
-            # clarification bypasses the Router and gets one engine attempt.
-            interpret_turn=(pending is not None or validated_ai_turn is None),
+            # Every non-pending turn already passed through AssistantRouter.
+            # If it returned no valid decision (including a timeout), use the
+            # deterministic state machine; retrying the same Gemini operation
+            # inside the engine would double latency/cost without new context.
+            # A pending clarification bypasses the Router and gets one
+            # engine-level interpretation attempt.
+            interpret_turn=(pending is not None),
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")
