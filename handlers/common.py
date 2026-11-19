@@ -177,6 +177,17 @@ def remember_outcome(
     return session_id
 
 
+def forget_outcome(
+    context: ContextTypes.DEFAULT_TYPE, session_id: str
+) -> None:
+    """Remove an outcome that could not be delivered to Telegram."""
+
+    for key in (OUTCOME_CACHE_KEY, OUTCOME_META_KEY):
+        store = context.user_data.get(key)
+        if isinstance(store, dict):
+            store.pop(session_id, None)
+
+
 def get_outcome_meta(
     context: ContextTypes.DEFAULT_TYPE, session_id: str
 ) -> dict[str, Any]:
