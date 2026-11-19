@@ -73,19 +73,21 @@ class StubProvider(MarketplaceProvider):
         return None
 
 
-def parse_and_apply(text, ai=None):
-    """Exercise the direct parser path without the retired merge resolver."""
+def resolve_and_apply(text, previous=None, ai=None):
+    """Exercise the direct parser API, including its deterministic merge fallback."""
 
     if ai is None:
         ai = AIService(api_key=None)
     parsed = run(ai.parse_query(text))
+    effective, refined = run(resolve_request(previous, parsed, text, ai))
     intent, meta = run(parse_query_intent(text, ai))
-    effective = apply_intent(parsed, intent, refined=False)
-    return effective, False, meta
+    effective = apply_intent(effective, intent, refined=refined)
+    return effective, refined, meta
 
 
-def tokens(request: SearchRequest) -> set[str]:
-    return set((request.normalized_query or "").casefold().split())
+# Keep the clearer name used by tests in this module; older test modules
+# import resolve_and_apply as a shared direct-parser fixture.
+parse_and_apply = resolve_and_apply
 
 
 class SearchRequestIntentFieldTests(unittest.TestCase):
