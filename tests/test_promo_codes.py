@@ -126,6 +126,7 @@ class FakeContext:
     def __init__(self, bot_data: dict | None = None) -> None:
         self.application = FakeApplication(bot_data)
         self.bot = FakeBot()
+        self.user_data: dict = {}
 
 
 
