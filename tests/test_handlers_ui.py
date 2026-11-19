@@ -662,7 +662,8 @@ class CurrencyHandlerTests(unittest.TestCase):
 
         run(region.currency_callback(FakeUpdate(callback_query=query), context))
 
-        self.assertIn("Не удалось сохранить.", query.answers[0])
+        self.assertIn("Не удалось изменить валюту.", query.answers[0])
+        self.assertIsNone(database.region["currency"])
         self.assertEqual(query.edits, [])
 
 
