@@ -47,8 +47,7 @@ class FakeQuery:
         self.edits: list[tuple[str, dict]] = []
 
     async def answer(self, text: str | None = None, show_alert: bool = False) -> None:
-        if text:
-            self.answers.append(text)
+        self.answers.append(text or "")
 
     async def edit_message_text(self, text: str, **kwargs) -> None:
         self.edits.append((text, kwargs))
@@ -162,7 +161,7 @@ class AccessGateTests(unittest.TestCase):
 
         self.assertEqual(query.answers, [""])
         self.assertEqual(len(query.edits), 1)
-        self.assertIn(DENIED_TEXT, query.edits[0][0])
+        self.assertIn(sales_handlers.DENIED_TEXT, query.edits[0][0])
         self.assertNotIn("админ", query.edits[0][0].lower())
 
     def test_admin_opens_the_section_while_disabled(self) -> None:
@@ -201,7 +200,7 @@ class AccessGateTests(unittest.TestCase):
 
         self.assertEqual(query.answers, [""])
         self.assertEqual(len(query.edits), 1)
-        self.assertIn(DENIED_TEXT, query.edits[0][0])
+        self.assertIn(sales_handlers.DENIED_TEXT, query.edits[0][0])
 
 class DestinationUrlTests(unittest.TestCase):
     """The affiliate destination: missing -> friendly, invalid -> rejected."""
