@@ -432,7 +432,7 @@ class TrackingStatusTests(unittest.TestCase):
         return tracking_status_line(context)
 
     def test_status_is_manual_when_job_queue_failed_to_schedule(self):
-        self.assertIn("отключена", self._context(scheduled=False))
+        self.assertIn("недоступна", self._context(scheduled=False))
 
     def test_status_is_automatic_only_after_scheduler_registration(self):
         self.assertIn("Автоматическая проверка цен включена", self._context(scheduled=True))
