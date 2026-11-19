@@ -33,6 +33,13 @@ class BareProductTypeSwitchTests(unittest.TestCase):
 
         self.assertEqual(observation["intent"], MessageIntent.NEW_SEARCH)
 
+    def test_new_product_after_ordinary_verb_still_switches(self):
+        state = self.make_state()
+
+        observation = state.observe("есть видеорегистратор")
+
+        self.assertEqual(observation["intent"], MessageIntent.NEW_SEARCH)
+
     def test_feature_clause_does_not_switch_to_an_attribute_category(self):
         state = self.make_state()
 
