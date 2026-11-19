@@ -72,6 +72,33 @@ HARD_MERGE_FIELDS = (
 
 logger = logging.getLogger(__name__)
 
+_FACT_WORD_RE = re.compile(r"[a-zа-яё]{3,}", re.IGNORECASE)
+_SAFE_AI_WORDS = frozenset(
+    {
+        "это", "этот", "эта", "эти", "его", "ее", "её", "они", "он", "она",
+        "товар", "товара", "товаре", "товару", "модель", "модели",
+        "карточка", "карточке", "данные", "данных", "данным",
+        "информация", "информации", "информацию", "указано", "указан",
+        "указана", "указаны", "передано", "передал", "передала",
+        "есть", "нет", "да", "не", "без", "может", "можно", "нельзя",
+        "в", "на", "с", "со", "и", "или", "для", "по", "из", "от", "до",
+        "при", "что", "как", "какой", "какая", "какие", "такой", "такая",
+        "такие", "только", "среди", "лучше", "дешевле", "хуже", "выгоднее",
+        "цена", "цену", "цене", "стоимость", "скидка", "скидки", "рейтинг",
+        "оценка", "оценки", "отзыв", "отзывов", "положительных",
+        "заказ", "заказов", "заказы", "доставка", "доставки", "продавец",
+        "продавца", "промокод", "код", "срок", "сроки", "характеристика",
+        "характеристики", "параметры", "свойства", "состав", "материал",
+        "цвет", "размер", "вес", "комплект", "комплектация", "поддержка",
+        "совместимость", "подробности", "маркетплейс", "маркетплейса",
+        "aliexpress", "the", "this", "that", "product", "model", "card",
+        "data", "listed", "provided", "marketplace", "price", "rating",
+        "orders", "reviews", "shipping", "seller", "delivery", "discount",
+        "available", "not", "yes", "with", "from", "for", "and", "which",
+        "these", "options", "according",
+    }
+)
+
 
 #: Default model per ROLE. ``DEFAULT_MODEL`` is the "smart" model (the
 #: reasoning-heavy one) and stays the first constructor argument, so every
@@ -1648,35 +1675,46 @@ class AIService:
     def _validated_sentences(
         self, text: str | None, facts: object
     ) -> str | None:
-        """Keep only the sentences whose numbers all exist in ``facts``.
+        """Keep only sentences lexically and numerically grounded in facts.
 
-        A language model writes prose, not a database row: one stray figure
-        (a rounded price, a guess at delivery time) must not discard an
-        otherwise correct answer. The gate therefore works per sentence -
-        the unsupported ones are dropped and the verified ones are kept. If
-        NOTHING survives, the caller still receives ``None`` and shows its
-        honest "no such data" message, so an invented answer can never slip
-        through by being surrounded by correct ones.
+        Numeric values must exist in the supplied data. Significant content
+        words must also occur in those facts (allowing a short shared stem
+        for Russian inflections). Unsupported categorical claims are dropped
+        just like invented numbers.
         """
 
         if not text or not text.strip():
             return None
 
-        allowed = numeric_tokens(json.dumps(facts, ensure_ascii=False, default=str))
+        facts_text = json.dumps(facts, ensure_ascii=False, default=str).lower()
+        allowed_numbers = numeric_tokens(facts_text)
+        fact_words = set(_FACT_WORD_RE.findall(facts_text))
+        fact_stems = {word[:4] for word in fact_words if len(word) >= 4}
         kept: list[str] = []
-        dropped: list[str] = []
+        dropped_numbers: set[str] = set()
+        dropped_words: set[str] = set()
         for sentence in _split_sentences(text):
             numbers = set(re.findall(r"\d+(?:[.,]\d+)?", sentence))
-            unknown = {n for n in numbers if n not in allowed}
-            if not unknown:
+            unknown_numbers = numbers - allowed_numbers
+            words = {word.lower() for word in _FACT_WORD_RE.findall(sentence)}
+            unknown_words = {
+                word
+                for word in words
+                if word not in _SAFE_AI_WORDS
+                and word not in fact_words
+                and (len(word) < 4 or word[:4] not in fact_stems)
+            }
+            if not unknown_numbers and not unknown_words:
                 kept.append(sentence.strip())
             else:
-                dropped.append(sentence.strip())
-        if dropped:
+                dropped_numbers.update(unknown_numbers)
+                dropped_words.update(unknown_words)
+        if dropped_numbers or dropped_words:
             logger.warning(
-                "AI answer mentioned numbers absent from the supplied data "
-                "(%s); the unsupported sentences are dropped",
-                ", ".join(sorted(unknown)[:5]),
+                "AI answer contained unsupported product claims; "
+                "dropped numbers=%s words=%s",
+                ", ".join(sorted(dropped_numbers)[:5]) or "-",
+                ", ".join(sorted(dropped_words)[:8]) or "-",
             )
         if kept:
             # Verified sentences survive a stray figure: one hallucinated
@@ -2277,29 +2315,17 @@ class AIService:
             return base
 
     def _validated_ai_text(self, text: object, facts: object) -> str | None:
-        """A sentence of AI text whose numbers all exist in ``facts``.
-
-        A hallucinated figure can never reach the user: a text mentioning
-        any number absent from the supplied product data is dropped. Pure
-        prose (no numbers at all) passes, because there is nothing to
-        verify it against beyond the model's wording.
-        """
+        """Accept only short product text grounded in the supplied facts."""
 
         if not isinstance(text, str) or not text.strip():
             return None
         cleaned = " ".join(text.split()).strip()
         if len(cleaned) > 400:
             return None
-        allowed = numeric_tokens(json.dumps(facts, ensure_ascii=False, default=str))
-        numbers = set(re.findall(r"\d+(?:[.,]\d+)?", cleaned))
-        if numbers and not numbers <= allowed:
-            logger.warning(
-                "AI text mentioned numbers absent from the supplied data "
-                "(%s); the text is dropped",
-                ", ".join(sorted(numbers - allowed)[:5]),
-            )
+        validated = self._validated_sentences(cleaned, facts)
+        if not validated:
             return None
-        return cleaned
+        return validated[:400]
 
     @staticmethod
     def _merge_is_safe(
