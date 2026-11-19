@@ -194,13 +194,44 @@ class PriceTracker:
                     row.get("id"),
                 )
                 self.notify_skipped += 1
+                await self._persist_change_observation(change)
                 continue
             changes.append(change)
             if await self._notify(change):
                 self.notified += 1
+                await self._persist_change_observation(change)
             else:
+                # Keep the old baseline when Telegram delivery fails. The
+                # next scheduled cycle will detect the same change and retry
+                # instead of silently consuming an alert the user never got.
                 self.notify_skipped += 1
         return changes
+
+    async def _persist_change_observation(self, change: PriceChange) -> None:
+        """Commit a notified (or intentionally silent) price observation.
+
+        Meaningful changes with notifications enabled are persisted only
+        after successful delivery, so a transient Telegram failure leaves
+        the old baseline intact and is retried on the next scheduled run.
+        """
+
+        try:
+            await self._database.record_price_history(
+                change.tracked_product_id,
+                change.new_price,
+                currency=change.new_currency,
+            )
+            await self._database.update_tracked_observation(
+                change.tracked_product_id,
+                change.new_price,
+                change.new_currency,
+            )
+        except Exception:  # noqa: BLE001 - the next cycle can retry from old baseline
+            self.row_errors += 1
+            logger.exception(
+                "Failed to persist notified price change for row %s",
+                change.tracked_product_id,
+            )
 
     async def _check_one(self, row: dict[str, Any]) -> PriceChange | None:
         product_id = str(row.get("product_id") or "").strip()
@@ -289,13 +320,6 @@ class PriceTracker:
             # Identical answer: no history row, no notification.
             return None
 
-        await self._database.record_price_history(
-            tracked_id, new_price, currency=new_currency
-        )
-        await self._database.update_tracked_observation(
-            tracked_id, new_price, new_currency
-        )
-
         change = PriceChange(
             tracked_product_id=tracked_id,
             user_id=int(row.get("user_id") or 0),
@@ -311,7 +335,15 @@ class PriceTracker:
         )
         percent = change.percent
         if percent is None or abs(percent) < self._min_change_percent:
-            return None  # recorded, but below the documented threshold
+            # Below-threshold movement is recorded silently. Meaningful
+            # movements are committed by check_all only after notification.
+            await self._database.record_price_history(
+                tracked_id, new_price, currency=new_currency
+            )
+            await self._database.update_tracked_observation(
+                tracked_id, new_price, new_currency
+            )
+            return None
         return change
 
     async def _record_mismatch(self, row: dict[str, Any], *, reason: str) -> None:
