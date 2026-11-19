@@ -30,7 +30,7 @@ _BARE_TYPE_SWITCH_PREPOSITIONS = frozenset(
     {"для", "под", "на", "с", "со", "из", "без", "от", "к", "по", "for", "with"}
 )
 _BARE_TYPE_SWITCH_FEATURE_CLAUSES = frozenset(
-    {"чтобы", "чтоб", "есть", "был", "была", "были", "имеет", "может"}
+    {"чтобы", "чтоб", "был", "была", "были", "имеет", "может"}
 )
 
 
@@ -78,15 +78,18 @@ def _is_bare_catalog_type_switch(message: str, current_type: str) -> bool:
                 if start and raw_words[start - 1] in _BARE_TYPE_SWITCH_PREPOSITIONS:
                     continue
                 if any(
-                    raw_words[clause_index] in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
-                    and any(
-                        matches(previous, current)
-                        for previous in raw_words[:clause_index]
-                        for current in current_words
-                    )
-                    for clause_index in range(start)
+                    word in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
+                    for word in raw_words[:start]
                 ):
                     continue
+                if "есть" in raw_words[:start]:
+                    has_current_type_before_есть = any(
+                        matches(previous, current)
+                        for previous in raw_words[:raw_words.index("есть")]
+                        for current in current_words
+                    )
+                    if has_current_type_before_есть:
+                        continue
                 if all(
                     matches(raw_words[start + offset], keyword_word)
                     for offset, keyword_word in enumerate(keyword_words)
