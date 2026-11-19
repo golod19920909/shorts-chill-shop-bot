@@ -38,9 +38,17 @@ persistent user data, and verify every functional change with regression tests.
    Report exactly what ran and its result.
 6. **Honest data.** Never fabricate products, prices, attributes, availability,
    or affiliate URLs. Gemini may select only IDs in the real candidate pool.
-7. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
+7. **Database migration safety.** Test upgrades from representative legacy
+   schemas, not only fresh databases. SQLite `ALTER TABLE ... ADD COLUMN`
+   cannot use non-constant defaults; backfill existing rows and explicitly
+   populate new values where needed. Never drop or reset user tables/history.
+8. **Currency integrity.** Never infer a current price currency from an older
+   observation. Only trust the currency returned by the provider or a
+   documented target currency actually requested. Unsupported target
+   currencies must remain explicit and must not be silently converted.
+9. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
    selection defaults to 20; these are separate limits.
-8. **Protect secrets.** Keep credentials in the local `.env`; never commit it
+10. **Protect secrets.** Keep credentials in the local `.env`; never commit it
    or include secret values in logs/reports.
 
 ## Test commands
