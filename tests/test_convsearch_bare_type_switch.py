@@ -26,6 +26,20 @@ class BareProductTypeSwitchTests(unittest.TestCase):
 
         self.assertNotEqual(observation["intent"], MessageIntent.NEW_SEARCH)
 
+    def test_conjunction_before_a_new_product_still_switches(self):
+        state = self.make_state()
+
+        observation = state.observe("а шуруповерт")
+
+        self.assertEqual(observation["intent"], MessageIntent.NEW_SEARCH)
+
+    def test_feature_clause_does_not_switch_to_an_attribute_category(self):
+        state = self.make_state()
+
+        observation = state.observe("и чтобы была быстрая зарядка")
+
+        self.assertNotEqual(observation["intent"], MessageIntent.NEW_SEARCH)
+
     def test_same_product_type_with_a_new_feature_remains_a_refinement(self):
         state = self.make_state()
 
