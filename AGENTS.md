@@ -50,9 +50,10 @@ persistent user data, and verify every functional change with regression tests.
 .venv\\Scripts\\python.exe -m pytest tests/test_convsearch_engine.py -q
 ```
 
-The repository currently documents stale legacy test modules excluded from
-the conversational-regression workflow. Do not describe a filtered run as an
-unfiltered full-suite pass.
+The conversational-regression workflow runs a focused offline suite and
+then the full remaining repository suite with no test-module exclusions.
+When reporting validation, distinguish the focused count from the broad-suite
+count and verify that the workflow's head SHA matches the branch being reported.
 
 ## Where to look first
 
