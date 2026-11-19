@@ -303,7 +303,8 @@ class ConversationEngineState:
     # -- lifecycle ---------------------------------------------------------
 
     def is_expired(self, *, now: float | None = None) -> bool:
-        return (now or time.monotonic()) - self.updated_at > CONTEXT_TTL_SECONDS
+        current = time.monotonic() if now is None else now
+        return current - self.updated_at > CONTEXT_TTL_SECONDS
 
     def touch(self) -> None:
         self.updated_at = time.monotonic()
