@@ -373,7 +373,9 @@ async def _post_init(application: Application) -> None:
         database, application.bot_data["search_service"], application.bot
     )
     application.bot_data["price_tracker"] = tracker
-    price_tracking.schedule_price_tracking(application)
+    application.bot_data["price_tracking_scheduled"] = (
+        price_tracking.schedule_price_tracking(application)
+    )
 
     # Telegram shows /start (and the rest) in its menu button from now on.
     await publish_command_menu(application.bot)
