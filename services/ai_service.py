@@ -412,7 +412,7 @@ QUERY_PARSING_PROMPT = """Ты помощник, который извлекае
   "keywords": ["ключевые", "слова"],
   "max_price": число или null,
   "min_price": число или null,
-  "currency": "USD|EUR|RUB|CNY или null",
+  "currency": "UAH|USD|EUR|RUB|CNY|GBP|BYN|KZT|UZS|PLN или null",
   "min_rating": число от 0 до 5 или null,
   "min_orders": целое число или null,
   "prefers_good_rating": true или false,
