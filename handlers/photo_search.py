@@ -144,9 +144,9 @@ async def photo_message_handler(
     # sends them through the shared relevance gate. The old one-phrase path
     # remains only for integrations that do not implement analyze_image.
     if callable(getattr(ai_service, "analyze_image", None)):
-        from handlers.discovery import _legacy_photo_message
+        from handlers.discovery import structured_photo_message
 
-        await _legacy_photo_message(update, context, image_bytes=image_bytes)
+        await structured_photo_message(update, context, image_bytes=image_bytes)
         return
 
     user_id = await common.register_user(update, context)
