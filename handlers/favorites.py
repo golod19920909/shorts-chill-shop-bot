@@ -208,9 +208,9 @@ async def favorite_remove_callback(
     without one instead of guessing.
 
     ``fdel:<index>`` (the legacy positional format of earlier releases)
-    is still accepted so messages sent before the upgrade keep working;
-    it resolves against the current cache and refuses to act when the
-    position is out of range (the honest "stale screen" answer).
+    is refused safely: a shared cache index cannot prove which product was
+    shown on an old message, so using it could delete a different favorite.
+    The user is asked to reopen the list, which renders identity-based buttons.
     """
 
     query = update.callback_query
