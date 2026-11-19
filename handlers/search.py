@@ -1837,7 +1837,7 @@ def _currency_request_state(text: str) -> dict | None:
 
     Conservative by construction: every word must be currency vocabulary
     (a currency name spelled by PREFIX, so «долларах»/«гривнях» match), a
-    request verb, a number or a stopword. Any real product or feature word
+    request/control wording, a number or a stopword. Any real product or feature word
     means the message is NOT a pure currency restatement and answers ``None``.
     """
 
