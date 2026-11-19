@@ -32,13 +32,21 @@ invents products, prices, links, or AI results.
   timestamps for new users in upgraded databases. Price tracking no longer
   reuses a previous currency when the current provider response omits currency;
   it silently rebases an unknown unit instead of sending a misleading alert.
+- Telegram shopping context now enforces its 30-minute idle TTL. Expired slot
+  ledgers are replaced before routing; ordinary general-chat turns no longer
+  refresh the shopping TTL, and the TTL starts after a shopping turn finishes.
+- The conversational-state module documentation now matches the actual
+  ownership: the Telegram ledger is authoritative, retrieval builds each
+  SearchRequest, and the separate direct-parser merge helpers do not own
+  Telegram session state.
 - Obsolete tests tied to deleted agent/chat-router code and missing temporary
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
-- Latest GitHub Actions run on the current branch (head
-  6f93bbb88c796bd06e92d7339c7ceacad1ac0e9d):
-  focused offline suite: **318 passed, 49 subtests passed**;
-  full repository suite: **2,183 passed, 717 subtests passed**.
+- Latest completed GitHub Actions run on the code head
+  01fd6c80a67aa0e72524a167001067207e03a5c2 (subsequent change only corrected
+  the state module docstring):
+  focused offline suite: **321 passed, 49 subtests passed**;
+  full repository suite: **2,186 passed, 717 subtests passed**.
   No test modules are excluded from the broad run. One upstream google-genai
   deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
