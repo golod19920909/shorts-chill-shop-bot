@@ -146,7 +146,6 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
             patch.object(search, "_poolled_outcome", return_value=outcome),
             patch.object(common, "register_user", new=AsyncMock(return_value=1)),
             patch.object(search, "send_search_results", new=AsyncMock(return_value="new")),
-            patch.object(search, "get_conversation", return_value=None),
         ):
             handled = await search._answer_from_shown(update, context, "покажи один")
 
