@@ -92,6 +92,11 @@ def is_count_only_follow_up(text: str) -> int | None:
     words = [word.lower().replace("ё", "е") for word in _WORD_RE.findall(text)]
     if not words:
         return None
+    # A second number usually introduces a separate budget, quantity or
+    # technical specification («покажи 3 до 1000 грн»), not a card-count
+    # change. Never swallow that additional constraint.
+    if len(re.findall(r"\d+", text)) > 1:
+        return None
     has_digit = any(char.isdigit() for char in text)
     if (
         not any(word in _COUNT_ONLY_NUMBER_WORDS for word in words)
