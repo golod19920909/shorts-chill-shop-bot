@@ -610,9 +610,9 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     * refills up to ``FEED_OPEN_SIZE`` new cards within
       ``FEED_MAX_PAGES_PER_OPEN`` documented pages, so one open is bounded
       REAL API work no matter what the marketplace answers;
-    * advances the cursor by the contract ``next = last_attempted + 1``,
-      so consecutive opens walk FURTHER into the listing across sessions,
-      handler instances and restarts;
+    * advances the cursor after a returned page (or an empty page), and
+      only after the first card is delivered when products were found; a
+      transient API or Telegram failure retries the unconsumed page;
     * renders the outcome and records what this user is shown RIGHT NOW.
 
     The search-like flows keep their own scope, so a search can neither
@@ -679,10 +679,8 @@ async def show_feed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
         except Exception:
             logger.exception("Feed failed (page %s)", page)
-            # The attempted page is consumed even on a hard failure - the
-            # next open must not replay it (§12: next = last_attempted + 1).
-            context.user_data[FEED_PAGE_KEY] = last_attempted + 1
-            await _remember_feed_page(context, user_id, last_attempted + 1)
+            # No page was returned, so it was not consumed. Keep the
+            # cursor unchanged and let the next open retry this same page.
             await common.record_event(
                 context,
                 analytics.EVENT_SEARCH_FAILED,
