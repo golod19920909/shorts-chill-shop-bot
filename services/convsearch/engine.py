@@ -9,7 +9,7 @@ constraints, ranks the eligible pool, and returns ONE ``SearchDecision`` for
 the Telegram layer to render.
 
 Legacy components the engine does NOT call: ``services.chat_router``,
-``services.conversation.resolve_request``, ``handlers.run_agent_turn`` /
+``handlers.run_agent_turn`` /
 ``ShoppingAgent`` (the legacy Gemini agent rounds), the AI feed selector,
 and any post-hoc curation that could re-filter or re-rank the engine's
 decision. Shared infrastructure that IS reused deliberately: the provider
