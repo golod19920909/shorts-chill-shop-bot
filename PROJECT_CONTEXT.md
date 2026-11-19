@@ -35,6 +35,20 @@ invents products, prices, links, or AI results.
 - Telegram shopping context now enforces its 30-minute idle TTL. Expired slot
   ledgers are replaced before routing; ordinary general-chat turns no longer
   refresh the shopping TTL, and the TTL starts after a shopping turn finishes.
+- Product-type validation now distinguishes a requested product whose name
+  contains a generic accessory-role word (for example, a tool kit or USB
+  adapter) from an accessory for another product. Trailing accessory nouns
+  (for example, "power bank case") are rejected, while explicit bundles
+  ("power bank with case") remain eligible.
+- The Telegram handler no longer retries the same Gemini turn interpretation
+  in the engine after AssistantRouter has already failed or returned no valid
+  decision; it falls back to the deterministic state machine. Pending
+  clarifications still receive one engine-level interpretation attempt.
+- Removed the obsolete `shape_pool` compatibility shim, the duplicate
+  strict `filter_by_required_features` implementation, and an unused
+  `observation` argument from the production pool evaluator. Tests now call
+  the same evaluator used by real search turns and verify UNKNOWN features
+  through the current semantic-review path.
 - The conversational-state module documentation now matches the actual
   ownership: the Telegram ledger is authoritative, retrieval builds each
   SearchRequest, and the separate direct-parser merge helpers do not own
@@ -42,11 +56,10 @@ invents products, prices, links, or AI results.
 - Obsolete tests tied to deleted agent/chat-router code and missing temporary
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
-- Latest completed GitHub Actions run on the code head
-  01fd6c80a67aa0e72524a167001067207e03a5c2 (subsequent change only corrected
-  the state module docstring):
-  focused offline suite: **321 passed, 49 subtests passed**;
-  full repository suite: **2,186 passed, 717 subtests passed**.
+- Latest completed GitHub Actions run on code head
+  81c13fde0f01ff308c1bb2de88f754de20640cff:
+  focused offline suite: **325 passed, 56 subtests passed**;
+  full repository suite: **2,190 passed, 724 subtests passed**.
   No test modules are excluded from the broad run. One upstream google-genai
   deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
