@@ -1,8 +1,9 @@
-"""Photo search handler and pipeline.
+"""Compatibility photo-search path for integrations without structured vision.
 
-Processes user photo uploads by querying Gemini Vision for consumer keywords
-and executing AliExpress search with quality filtering, image deduplication,
-and smart fallback on broad categories.
+The registered production route uses the structured handler in discovery
+when the configured AIService exposes structured analysis. This module keeps
+the bounded one-phrase path for older integrations that only provide the
+legacy vision-query interface.
 """
 
 from __future__ import annotations
