@@ -119,7 +119,9 @@ async def show_favorites(
 
     if not items:
         # Either nothing was ever saved, or every row is older than the
-        # current schema. Both are honest states with different wording.
+        # current schema. Drop stale pagination/cache state before rendering.
+        context.user_data.pop(FAVORITES_PAGE_KEY, None)
+        context.user_data.pop(FAVORITES_CACHE_KEY, None)
         await _reply(
             update,
             context,
