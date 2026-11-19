@@ -56,6 +56,7 @@ from keyboards.main import (
     REMOVED_CALLBACK_PATTERN,
 )
 from keyboards.products import (
+    CB_TRACK_PAGE,
     CB_PREFIX_AI,
     CB_PREFIX_AI_ACTION,
     CB_PREFIX_CARD_UNTRACK,
@@ -264,6 +265,11 @@ def _register_handlers(application: Application) -> None:
     application.add_handler(
         CallbackQueryHandler(
             settings_handlers.track_stop_callback, pattern=f"^{CB_PREFIX_TRACK_STOP}:"
+        )
+    )
+    application.add_handler(
+        CallbackQueryHandler(
+            settings_handlers.tracking_page_callback, pattern=rf"^{CB_TRACK_PAGE}:[0-9]+$"
         )
     )
     application.add_handler(
