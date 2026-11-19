@@ -344,7 +344,7 @@ async def dispatch_menu(
     if data == CB_FAVORITES:
         from handlers.favorites import show_favorites
 
-        await show_favorites(update, context)
+        await show_favorites(update, context, page=0)
         return True
 
     if data == CB_TRACKING:
