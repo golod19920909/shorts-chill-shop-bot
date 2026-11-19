@@ -680,7 +680,13 @@ class ProductAssistant:
             currency=product.currency,
         )
         try:
-            outcome = await self.search.find_products(request)
+            # This assistant owns the final goal-specific selection
+            # (cheaper / better / similar). Keep SearchService's broad
+            # retrieval and deterministic relevance pipeline, but skip its
+            # generic feed selector to avoid paying for two Gemini selections.
+            outcome = await self.search.find_products(
+                request, select_feed_candidates=False
+            )
         except Exception:  # noqa: BLE001 - a failed search must not kill the menu
             logger.exception("Candidate search failed for %r", intent)
             return []
