@@ -34,6 +34,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from services.marketplaces.aliexpress_client import DOCUMENTED_TARGET_CURRENCIES
+
 logger = logging.getLogger(__name__)
 
 #: Minimum relative price move (percent of the old price) that triggers
@@ -262,7 +264,17 @@ class PriceTracker:
             return None
 
         tracked_id = int(row.get("id"))
-        new_currency = getattr(product, "currency", None) or row.get("currency")
+        returned_currency = getattr(product, "currency", None)
+        requested_currency = (
+            preferred_currency.upper()
+            if preferred_currency
+            and preferred_currency.upper() in DOCUMENTED_TARGET_CURRENCIES
+            else None
+        )
+        # If the provider omits currency metadata, the documented target
+        # currency is still authoritative because the request explicitly
+        # asked for it. Unsupported target currencies cannot be applied.
+        new_currency = returned_currency or requested_currency or row.get("currency")
         old_price = row.get("last_checked_price")
         old_currency = row.get("currency")
         if old_price is not None:
