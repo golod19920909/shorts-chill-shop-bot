@@ -43,7 +43,7 @@ DEFAULT_MIN_CHANGE_PERCENT = 1.0
 #: Name of the repeating PTB job.
 PRICE_TRACKING_JOB_NAME = "price_tracking"
 
-Notifier = Callable[[int, str], Awaitable[None]]
+Notifier = Callable[[int, str, str | None], Awaitable[None]]
 
 
 @dataclass(frozen=True)
