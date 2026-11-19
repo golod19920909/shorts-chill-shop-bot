@@ -30,6 +30,7 @@ jobs:
           tests/test_ai_conversation_turn.py
           tests/test_ai_assistant_questions.py
           tests/test_convsearch_observability.py
+          tests/test_currency_followup_preference.py
           tests/test_ai_service.py
           tests/test_search_intent.py
           tests/test_convsearch_budget_followups.py
