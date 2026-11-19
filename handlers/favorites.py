@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes
 
 from handlers import common
 from keyboards.main import back_to_menu_keyboard
-from keyboards.products import CB_PREFIX_FAVORITE_REMOVE, favorites_list_keyboard
+from keyboards.products import CB_PREFIX_FAVORITE_REMOVE, CB_FAVORITE_PAGE, favorites_list_keyboard
 from models.product import Marketplace, Product
 from services import analytics
 from utils.formatting import format_marketplace_name, format_price
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 #: key in ``context.user_data`` caching the currently listed favorites
 FAVORITES_CACHE_KEY = "favorites_items"
+FAVORITES_PAGE_KEY = "favorites_page"
 
 EMPTY_FAVORITES_TEXT = (
     "⭐ <b>Избранное</b>\n\n"
@@ -54,10 +55,15 @@ def _clip(text: str | None, limit: int = LIST_TITLE_LIMIT) -> str:
 
 
 async def favorites_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await show_favorites(update, context)
+    await show_favorites(update, context, page=0)
 
 
-async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_favorites(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    page: int | None = None,
+) -> None:
     """Render the favorites screen (from ``/favorites`` or the menu button)."""
 
     user_id = await common.register_user(update, context)
@@ -75,6 +81,8 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if not rows:
+        context.user_data.pop(FAVORITES_PAGE_KEY, None)
+        context.user_data.pop(FAVORITES_CACHE_KEY, None)
         await _reply(
             update,
             context,
@@ -86,9 +94,7 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     items: list[dict] = []
-    lines: list[str] = ["⭐ <b>Избранное</b>", ""]
     unreadable = 0
-    listed = 0
 
     for row in rows:
         try:
@@ -111,15 +117,6 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         index = len(items)
         items.append({"index": index, "product": product})
-        listed += 1
-        if index < MAX_LISTED_FAVORITES:
-            lines.append(
-                f"{index + 1}. {common.escape(_clip(product.title))}"
-            )
-            lines.append(
-                f"   {common.escape(format_marketplace_name(str(getattr(product.marketplace, 'value', product.marketplace))))} · "
-                f"{common.escape(format_price(product.price, product.currency))}"
-            )
 
     if not items:
         # Either nothing was ever saved, or every row is older than the
@@ -134,21 +131,66 @@ async def show_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return
 
-    if listed > MAX_LISTED_FAVORITES:
+    total_pages = max(1, (len(items) + MAX_LISTED_FAVORITES - 1) // MAX_LISTED_FAVORITES)
+    if page is None:
+        page = context.user_data.get(FAVORITES_PAGE_KEY, 0)
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 0
+    page = min(max(0, page), total_pages - 1)
+    context.user_data[FAVORITES_PAGE_KEY] = page
+
+    start = page * MAX_LISTED_FAVORITES
+    visible_items = items[start : start + MAX_LISTED_FAVORITES]
+    lines: list[str] = ["⭐ <b>Избранное</b>", ""]
+    if total_pages > 1:
+        lines.append(f"Страница {page + 1}/{total_pages} · всего товаров: {len(items)}")
         lines.append("")
-        lines.append(f"…и ещё {listed - MAX_LISTED_FAVORITES}.")
+    for item in visible_items:
+        product = item["product"]
+        index = item["index"]
+        lines.append(f"{index + 1}. {common.escape(_clip(product.title))}")
+        lines.append(
+            f"   {common.escape(format_marketplace_name(str(getattr(product.marketplace, 'value', product.marketplace))))} · "
+            f"{common.escape(format_price(product.price, product.currency))}"
+        )
 
     context.user_data[FAVORITES_CACHE_KEY] = items
-    # Only the buttons of the listed items are rendered: an item beyond the
-    # limit has no row on screen, so a button for it would be an orphan.
     await _reply(
         update,
         context,
         "\n".join(lines),
         edit=query is not None,
         parse_mode="HTML",
-        reply_markup=favorites_list_keyboard(items[:MAX_LISTED_FAVORITES]),
+        reply_markup=favorites_list_keyboard(
+            visible_items, page=page, total_pages=total_pages
+        ),
     )
+
+
+async def favorite_page_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Move between bounded pages of the user's favorites list."""
+
+    query = update.callback_query
+    if query is None:
+        return
+    parts = (query.data or "").split(":")
+    if len(parts) != 2 or parts[0] != CB_FAVORITE_PAGE:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    try:
+        page = int(parts[1])
+    except ValueError:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    if page < 0:
+        await query.answer("Некорректная кнопка.", show_alert=True)
+        return
+    await query.answer()
+    await show_favorites(update, context, page=page)
 
 
 async def favorite_remove_callback(
