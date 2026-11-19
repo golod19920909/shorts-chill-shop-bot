@@ -22,11 +22,14 @@ class FakeDatabase:
     def __init__(self):
         self.updated = []
         self.invalidated = []
+        self.calls = []
 
     async def update_user_region(self, user_id, *, currency):
+        self.calls.append("update")
         self.updated.append((user_id, currency))
 
     async def invalidate_tracking_baselines(self, user_id):
+        self.calls.append("invalidate")
         self.invalidated.append(user_id)
 
 
@@ -101,6 +104,7 @@ class CurrencyFollowupPreferenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(handled)
         self.assertEqual(database.updated, [(9, "UAH")])
         self.assertEqual(database.invalidated, [9])
+        self.assertEqual(database.calls, ["invalidate", "update"])
         record_event.assert_awaited_once()
         text = context.bot.messages[0][1]
         self.assertIn("Валюта предпочтения сохранена: UAH", text)
