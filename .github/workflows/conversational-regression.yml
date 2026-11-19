@@ -42,6 +42,6 @@ jobs:
           tests/test_result_limit_current.py
           tests/test_gemini_telemetry_current.py
           tests/test_discovery_acceptance.py
-      - name: Run repository suite excluding stale legacy modules
+      - name: Run full remaining repository suite
         run: >
           python -m pytest -q tests/
