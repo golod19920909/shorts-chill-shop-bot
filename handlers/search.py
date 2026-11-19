@@ -2149,15 +2149,10 @@ async def _answer_currency_preference(
         region = await common.get_user_region(context, user_id)
         previous_currency = str(region.get("currency") or "").upper() or None
         if previous_currency != currency:
+            # Never persist a new currency if the old price baseline could
+            # not be invalidated; the scheduler must not compare unlike units.
+            await database.invalidate_tracking_baselines(user_id)
             await database.update_user_region(user_id, currency=currency)
-            try:
-                await database.invalidate_tracking_baselines(user_id)
-            except Exception:
-                logger.exception(
-                    "Failed to invalidate tracking baselines after currency change "
-                    "for user %s",
-                    user_id,
-                )
             await common.record_event(
                 context,
                 analytics.EVENT_CURRENCY_CHANGED,
