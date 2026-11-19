@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from services.conversation import is_count_only_follow_up
+from services.count_followup import is_count_only_follow_up
 
 
 class CountOnlyFollowUpTests(unittest.TestCase):
