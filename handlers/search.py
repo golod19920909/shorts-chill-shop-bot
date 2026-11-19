@@ -698,7 +698,7 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # returned no valid decision, the engine must use deterministic
             # state logic rather than spend a second Gemini call. A pending
             # clarification bypasses the Router and gets one engine attempt.
-            interpret_turn=(pending is not None),
+            interpret_turn=(pending is not None or validated_ai_turn is None),
         )
     except Exception:
         logger.exception("Convsearch engine turn failed")
