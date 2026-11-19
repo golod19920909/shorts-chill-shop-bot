@@ -139,7 +139,7 @@ class CrossCategoryValidationTests(unittest.TestCase):
     def test_trailing_accessory_nouns_do_not_pass_as_the_requested_product(self) -> None:
         cases = (
             ("power bank", "Power Bank Case Cover"),
-            ("дрель", "Drill Bit Set"),
+            ("drill", "Drill Bit Set"),
         )
         for product_type, title in cases:
             with self.subTest(product_type=product_type, title=title):
