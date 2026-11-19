@@ -193,22 +193,20 @@ async def favorite_remove_callback(
             return
         product = _find_cached_item(items, marketplace, product_id)
     elif len(parts) == 2:
-        # Legacy positional callback from a message sent by an older
-        # release: resolve it against the current cache exactly as before.
+        # A legacy positional callback does not identify the product on the
+        # message itself. The shared cache may have been overwritten by a
+        # newer favorites screen, so resolving the old index could delete a
+        # DIFFERENT item. Refuse it safely; reopening favorites renders
+        # identity-based buttons that remain correct across stale screens.
         try:
-            index = int(parts[1])
+            int(parts[1])
         except ValueError:
             await query.answer("Некорректная кнопка.", show_alert=True)
             return
-        item = items[index] if 0 <= index < len(items) else None
-        if item is None:
-            await query.answer(
-                "Список устарел — откройте избранное заново.", show_alert=True
-            )
-            return
-        product = item["product"]
-        marketplace = str(getattr(product.marketplace, "value", product.marketplace))
-        product_id = product.product_id
+        await query.answer(
+            "Список устарел — откройте избранное заново.", show_alert=True
+        )
+        return
     else:
         await query.answer("Некорректная кнопка.", show_alert=True)
         return
