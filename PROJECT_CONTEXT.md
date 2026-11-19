@@ -15,15 +15,19 @@ invents products, prices, links, or AI results.
   `fix/product-ranking-quality`. Draft PR #18 is open and has not been merged.
 - The owner authorized a complete audit and safe fixes across every bot
   section, including «Умный поиск» and «Находки». No section is protected.
-- Confirmed fixes in the current work branch include budget-currency handling,
-  callback acknowledgement, structured photo-search routing, card-specific AI
-  grounding, retrying undelivered price alerts, and recording product/feed
-  history only after successful Telegram delivery.
+- Confirmed fixes in the current work branch include price-notification
+  delivery accounting, currency-baseline preservation, callback acknowledgement,
+  product-assistant comparison logic, deterministic routing fallback, and
+  product-type switching in the conversational search engine. Current routing,
+  telemetry, result-limit and discovery regressions are covered by active tests.
+- Obsolete tests tied to deleted agent/chat-router code and missing temporary
+  experiment runners were removed; active coverage was migrated into current
+  engine, telemetry and result-limit test modules.
 - Latest GitHub Actions run on the current branch:
-  focused offline suite: **146 passed, 11 subtests passed**;
-  broad suite excluding the 17 documented legacy modules:
-  **2,049 passed, 681 subtests passed**, one pytest-asyncio deprecation warning.
-  This is a filtered broad regression pass, not an unfiltered full-suite pass.
+  focused offline suite: **296 passed, 20 subtests passed**;
+  full remaining repository suite: **2,173 passed, 686 subtests passed**,
+  with one pytest-asyncio deprecation warning. The obsolete legacy test files
+  were removed rather than excluded from this run.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
   runtime have not been exercised by this GitHub-only verification.
 
@@ -40,8 +44,9 @@ invents products, prices, links, or AI results.
 ```
 handlers/    UI + scenarios (search.py = engine entry + product cards)
 services/    shared infrastructure (search_service = provider adapter,
-             ai_service = Gemini client, conversation = search_history helper,
-             product_assistant, price_tracker, ...)
+             ai_service = Gemini operations, assistant/router = chat-vs-search
+             routing, product_assistant, price_tracker, ...)
+services/assistant/  validated general-chat vs shopping router + bounded chat state
 services/convsearch/  THE conversational search engine (authoritative)
 services/marketplaces/  AliExpress provider + TOP-protocol client
 curation/    feed pipeline (5 stages) + CurationGate
