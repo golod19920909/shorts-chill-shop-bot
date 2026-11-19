@@ -191,6 +191,28 @@ class PhotoFallbackTests(unittest.TestCase):
         self.assertIn("слишком большая", message.texts[1])
         self.assertEqual(ai.image_requests, 0)
 
+    def test_structured_vision_is_the_primary_path_when_available(self) -> None:
+        class StructuredVisionAI(VisionAI):
+            def __init__(self):
+                super().__init__(None)
+                self.analysis_requests = 0
+
+            async def analyze_image(self, image_bytes):
+                self.analysis_requests += 1
+                return {"product_type": "беспроводные наушники"}
+
+        ai = StructuredVisionAI()
+        search = FakeSearchService()
+        context = make_context(ai, search)
+        message = PhotoMessage()
+
+        run(discovery.photo_message(photo_update(message), context))
+
+        self.assertEqual(ai.analysis_requests, 1)
+        self.assertEqual(ai.image_requests, 0)
+        self.assertTrue(search.queries)
+        self.assertEqual(search.broadened, [False] * len(search.queries))
+
     def test_a_recognized_photo_runs_a_normal_text_search(self) -> None:
         ai = VisionAI("беспроводные наушники")
         search = FakeSearchService()
