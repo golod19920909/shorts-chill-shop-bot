@@ -234,28 +234,6 @@ def partition_required_feature_evidence(
     return verified, needs_review
 
 
-def filter_by_required_features(
-    products: list[Product],
-    state: ConversationEngineState,
-) -> tuple[list[Product], list[Product]]:
-    """Keep only candidates with evidence for every active required feature.
-
-    Missing evidence is UNKNOWN, not a successful match. Soft preferences
-    live in separate preference slots and are deliberately not filtered here.
-    """
-
-    required = state.active_values("feature")
-    if not required:
-        return list(products), []
-    survivors, rejected = [], []
-    for product in products:
-        if all(_feature_is_evidenced(product, feature) for feature in required):
-            survivors.append(product)
-        else:
-            rejected.append(product)
-    return survivors, rejected
-
-
 # ---------------------------------------------------------------------------
 # The retrieval adapter (AliExpress-specific, explicit — never a hidden
 # delegation to a legacy orchestrator)
