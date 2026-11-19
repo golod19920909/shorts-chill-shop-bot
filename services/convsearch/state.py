@@ -26,12 +26,11 @@ from services.convsearch.text import constraint_spans, tokens
 #: outlive the request it explains).
 CONTEXT_TTL_SECONDS = 30 * 60
 
-_BARE_TYPE_SWITCH_CONNECTORS = frozenset(
-    {
-        "для", "под", "на", "с", "со", "из", "без", "от", "к", "по",
-        "и", "а", "но", "чтобы", "чтоб", "есть", "был", "была", "были",
-        "имеет", "может", "for", "with",
-    }
+_BARE_TYPE_SWITCH_PREPOSITIONS = frozenset(
+    {"для", "под", "на", "с", "со", "из", "без", "от", "к", "по", "for", "with"}
+)
+_BARE_TYPE_SWITCH_FEATURE_CLAUSES = frozenset(
+    {"чтобы", "чтоб", "есть", "был", "была", "были", "имеет", "может"}
 )
 
 
@@ -71,14 +70,18 @@ def _is_bare_catalog_type_switch(message: str, current_type: str) -> bool:
                 continue
             width = len(keyword_words)
             for start in range(len(raw_words) - width + 1):
-                # Once a clause has introduced a feature/fitment constraint,
-                # later catalog words are targets or attributes, not a new
-                # product type (e.g. "и чтобы была быстрая зарядка").
+                # A catalog word immediately after a preposition is a
+                # fitment/compatibility target, not a new product. A feature
+                # clause such as "и чтобы была быстрая зарядка" is likewise
+                # an attribute, while a conjunction before a new noun
+                # ("а шуруповерт") must remain eligible as a product switch.
+                if start and raw_words[start - 1] in _BARE_TYPE_SWITCH_PREPOSITIONS:
+                    continue
                 if any(
-                    word in _BARE_TYPE_SWITCH_CONNECTORS
+                    word in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
                     for word in raw_words[:start]
                 ):
-                    break
+                    continue
                 if all(
                     matches(raw_words[start + offset], keyword_word)
                     for offset, keyword_word in enumerate(keyword_words)
