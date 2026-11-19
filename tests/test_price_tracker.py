@@ -515,6 +515,9 @@ class RealDatabaseIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows[0]["last_checked_price"], 10.0)
 
         await self.db.invalidate_tracking_baselines(self.user_id)
+        rows = await self.db.get_tracked_products(self.user_id)
+        self.assertIsNone(rows[0]["last_checked_price"])
+        self.assertIsNone(rows[0]["currency"])
 
         rows = await self.db.get_active_tracked_with_telegram()
         self.assertIsNone(rows[0]["last_checked_price"])
