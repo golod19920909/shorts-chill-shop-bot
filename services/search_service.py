@@ -450,6 +450,7 @@ class SearchService:
         broaden: bool = True,
         raw: bool = False,
         raw_broaden: bool = False,
+        select_feed_candidates: bool = True,
     ) -> SearchOutcome:
         """Run the full search pipeline for an already-parsed request.
 
@@ -494,6 +495,13 @@ class SearchService:
         low-rated listings) and returns at most ``AI_FEED_RESULTS`` best cards -
         the list the carousel then walks. Without a selector, a failed request or
         an unusable answer the deterministic list survives, cut to the browse cap.
+
+        A caller that owns a more specific final selection (for example,
+        ProductAssistant's cheaper/better/similar selection) can set
+        ``select_feed_candidates=False``. Broad retrieval, relevance filtering
+        and deterministic ranking still run; only this generic AI feed-selection
+        call is skipped, so the caller can make one goal-specific AI selection
+        over the full deterministic candidate pool.
         """
 
         applicable = self.applicable_providers(request)
@@ -790,8 +798,15 @@ class SearchService:
             )
             return outcome
 
-        if broaden:
+        if broaden and select_feed_candidates:
             await self.apply_feed_selection(outcome)
+        elif broaden:
+            # A caller with its own final selector keeps the deep, grounded pool
+            # and deterministic cut; it must not pay for a generic feed-selection
+            # call that would be immediately followed by another AI selection.
+            outcome.products = _cut_with_numeric_protection(
+                outcome.products, self.max_results, outcome.request
+            )
         else:
             # A flow that owns its own breadth composes its pool from SEVERAL of
             # these calls (the photo hypotheses) and asks for the selection once,
