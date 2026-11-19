@@ -63,6 +63,33 @@ def powerbank_pool() -> list[Product]:
     ]
 
 
+def evaluate_pool(
+    engine: ConversationSearchEngine,
+    state: ConversationEngineState,
+    products: list[Product],
+    product_type: str | None,
+    *,
+    exclude_shown: bool = False,
+) -> tuple[list[Product], dict]:
+    """Exercise the same pool evaluator used by a real engine turn."""
+
+    strategy = SimpleNamespace(
+        product_type=product_type,
+        request=None,
+        result_limit=30,
+    )
+    decision = engine._evaluate_pool(
+        state,
+        products,
+        strategy,
+        refined=False,
+        intent=MessageIntent.NEW_SEARCH.value,
+        observation={},
+        exclude_shown=exclude_shown,
+    )
+    return decision.products, decision.report
+
+
 def household_pool() -> list[Product]:
     return [
         product("hh-1", "Органайзер для дома настольный", price=12.0, orders=90, currency="UAH"),
@@ -178,7 +205,7 @@ class EngineScenarioTests(unittest.TestCase):
         state.record_product_type("рыболовная катушка")
         self.assertEqual(observation["intent"], MessageIntent.NEW_SEARCH)
 
-        ranked, report = self.engine.shape_pool(
+        ranked, report = evaluate_pool(self.engine,
             state, reel_pool(), "рыболовная катушка"
         )
         ids = [product.product_id for product in ranked]
@@ -186,7 +213,7 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertNotIn("reel-holder", ids[:3])
         self.assertNotIn("reel-spring", ids[:3])
         self.assertNotIn("reel-case", ids[:3])
-        self.assertEqual(report["reason"], "ok")
+        self.assertEqual(report["reason"], "results")
 
         obs2 = state.observe("Подешевле.")
         state.record_slots(obs2)
@@ -212,7 +239,7 @@ class EngineScenarioTests(unittest.TestCase):
         exclusions = state.active_values("exclusion")
         self.assertTrue(any("ударный" in value for value in exclusions))
 
-        ranked, _report = self.engine.shape_pool(state, screwdriver_pool(), "шуруповёрт")
+        ranked, _report = evaluate_pool(self.engine,state, screwdriver_pool(), "шуруповёрт")
         ids = [product.product_id for product in ranked]
         self.assertNotIn("sd-impact", ids)
 
@@ -221,7 +248,7 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertEqual(obs3["intent"], MessageIntent.REFINE)
         exclusions = state.active_values("exclusion")
         self.assertTrue(any("ударный" in value for value in exclusions))
-        ranked2, _report2 = self.engine.shape_pool(state, screwdriver_pool(), "шуруповёрт")
+        ranked2, _report2 = evaluate_pool(self.engine,state, screwdriver_pool(), "шуруповёрт")
         self.assertNotIn("sd-impact", [product.product_id for product in ranked2])
 
     def test_scenario_c_power_bank(self) -> None:
@@ -231,11 +258,11 @@ class EngineScenarioTests(unittest.TestCase):
         state.record_product_type("повербанк")
         self.assertEqual(obs1["intent"], MessageIntent.NEW_SEARCH)
 
-        ranked, report = self.engine.shape_pool(state, powerbank_pool(), "повербанк")
+        ranked, report = evaluate_pool(self.engine,state, powerbank_pool(), "повербанк")
         ids = [product.product_id for product in ranked]
         self.assertNotIn("pb-cable", ids[:3])
         self.assertNotIn("pb-charger", ids[:3])
-        self.assertEqual(report["reason"], "ok")
+        self.assertEqual(report["reason"], "results")
 
         obs2 = state.observe("С большой ёмкостью.")
         state.record_slots(obs2)
@@ -259,8 +286,8 @@ class EngineScenarioTests(unittest.TestCase):
         self.assertIsNotNone(budget)
         self.assertEqual(obs2["budget"]["currency"], "UAH")
 
-        ranked, report = self.engine.shape_pool(state, household_pool(), "")
-        self.assertEqual(report["reason"], "ok")
+        ranked, report = evaluate_pool(self.engine,state, household_pool(), "")
+        self.assertEqual(report["reason"], "results")
 
         obs3 = state.observe("Покажи другие варианты.")
         state.record_slots(obs3)
@@ -325,24 +352,24 @@ class EngineScenarioTests(unittest.TestCase):
     def test_provider_failure_vs_empty_vs_rejected(self) -> None:
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="u-i")
-        _ranked, report_empty = engine.shape_pool(state, [], "")
+        _ranked, report_empty = evaluate_pool(engine,state, [], "")
         self.assertEqual(report_empty["reason"], "no_candidates")
         state.record_product_type("рыболовная катушка")
         only_accessories = [product("reel-holder", "Держатель катушки рыболовный", price=5.0)]
-        _ranked, report_rejected = engine.shape_pool(
+        _ranked, report_rejected = evaluate_pool(engine,
             state, only_accessories, "рыболовная катушка"
         )
-        self.assertEqual(report_rejected["reason"], "rejected")
+        self.assertEqual(report_rejected["reason"], "rejected_by_type_gate")
 
     def test_affiliate_url_preserved(self) -> None:
         engine = ConversationSearchEngine()
         state = ConversationEngineState(user_key="u-j")
-        ranked, report = engine.shape_pool(
+        ranked, report = evaluate_pool(engine,
             state, [product("aff-1", "Рыболовная катушка", price=30.0)], "рыболовная катушка"
         )
         self.assertEqual(len(ranked), 1)
         self.assertEqual(ranked[0].product_url, "https://www.aliexpress.com/item/aff-1.html")
-        self.assertEqual(report["reason"], "ok")
+        self.assertEqual(report["reason"], "results")
 
 
 
