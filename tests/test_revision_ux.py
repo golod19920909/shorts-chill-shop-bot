@@ -352,6 +352,7 @@ class TrackingStatusTests(unittest.TestCase):
         context = FakeContext(
             bot_data={
                 "price_tracker": object(),
+                "price_tracking_scheduled": True,
                 "settings": SimpleNamespace(tracking_interval_minutes=30),
             }
         )
@@ -366,6 +367,7 @@ class TrackingStatusTests(unittest.TestCase):
         context = FakeContext(
             bot_data={
                 "price_tracker": object(),
+                "price_tracking_scheduled": True,
                 "settings": SimpleNamespace(tracking_interval_minutes=1440),
             }
         )
@@ -377,6 +379,7 @@ class TrackingStatusTests(unittest.TestCase):
         context = FakeContext(
             bot_data={
                 "price_tracker": object(),
+                "price_tracking_scheduled": True,
                 "settings": SimpleNamespace(tracking_interval_minutes=360),
             }
         )
@@ -395,6 +398,7 @@ class TrackingStatusTests(unittest.TestCase):
         context = FakeContext(
             bot_data={
                 "price_tracker": object(),
+                "price_tracking_scheduled": True,
                 "settings": SimpleNamespace(tracking_interval_minutes=0),
             }
         )
