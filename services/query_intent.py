@@ -137,7 +137,8 @@ CURRENCY_ALIASES: dict[str, str] = {
     # KZT — Kazakhstani tenge
     "kzt": "KZT", "тенге": "KZT", "₸": "KZT",
     # UZS — Uzbekistani som
-    "uzs": "UZS", "сум": "UZS", "сўм": "UZS",
+    "uzs": "UZS", "сума": "UZS", "сумы": "UZS", "сумов": "UZS",
+    "сумах": "UZS", "сумами": "UZS", "сўм": "UZS",
     # PLN — Polish złoty
     "pln": "PLN", "zł": "PLN", "злотый": "PLN",
     "злотых": "PLN", "злотого": "PLN",
