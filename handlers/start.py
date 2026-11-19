@@ -350,7 +350,7 @@ async def dispatch_menu(
     if data == CB_TRACKING:
         from handlers.settings import show_tracking
 
-        await show_tracking(update, context)
+        await show_tracking(update, context, page=0)
         return True
 
     if data == CB_CURRENCY_SCREEN:
