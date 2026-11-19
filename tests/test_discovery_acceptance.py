@@ -527,8 +527,10 @@ class ShownHistoryTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self) -> None:
                 self.exclude = "unset"
 
-            async def find_products(self, request, *, exclude=None, broaden=True,
-                                    feed_selection=False):
+            async def find_products(
+                self, request, *, exclude=None, broaden=True,
+                raw=False, raw_broaden=False, feed_selection=False, **kwargs
+            ):
                 self.exclude = exclude
                 return SearchOutcome(request=request)
 
@@ -570,7 +572,10 @@ class EngineInstrumentationTests(unittest.TestCase):
         from services.convsearch.state import ConversationEngineState
 
         class RecordingService:
-            async def find_products(self, request, *, exclude=None, feed_selection=False):
+            async def find_products(
+                self, request, *, exclude=None, raw=False, raw_broaden=False,
+                feed_selection=False, **kwargs
+            ):
                 return SearchOutcome(request=request)
 
         engine = ConversationSearchEngine()
