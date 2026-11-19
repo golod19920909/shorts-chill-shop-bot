@@ -1,7 +1,7 @@
 """Small deterministic parser for count-only follow-ups to shown results.
 
-This helper is deliberately separate from the retired legacy conversation
-resolver. It only recognizes messages that change the number of already
+This helper is deliberately separate from the direct-parser merge resolver.
+It only recognizes messages that change the number of already
 retrieved products to display; any product, feature, color or budget criterion
 must continue through the conversational search engine.
 """
