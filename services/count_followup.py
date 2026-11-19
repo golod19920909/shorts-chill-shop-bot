@@ -97,6 +97,7 @@ def is_count_only_follow_up(text: str) -> int | None:
         not any(word in _COUNT_ONLY_NUMBER_WORDS for word in words)
         and not any(word.startswith("пар") for word in words)
         and not (has_digit and _has_count_context(words))
+        and not (has_digit and any(word in _COUNT_ONLY_WORDS for word in words))
     ):
         return None
     leftover = [
