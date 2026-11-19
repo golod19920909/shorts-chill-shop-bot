@@ -1922,7 +1922,9 @@ def _currency_request_state(text: str) -> dict | None:
             amount = float(number.group(0).replace(",", "."))
         except ValueError:
             amount = None
-    currency = matched if matched in {"USD", "EUR", "RUB", "UAH", "CNY", "GBP"} else None
+    from config.catalog import CURRENCIES
+
+    currency = matched if matched in CURRENCIES else None
     return {"currency": currency, "amount": amount}
 
 def _with_result_limit(
