@@ -71,8 +71,9 @@ logger = logging.getLogger(__name__)
 
 #: The conversational-search engine (adapted from
 #: anything-conversational-search): the SOLE search decision-maker. One
-#: instance per process; per-user state lives inside it (keyed by Telegram
-#: user id, expiring like :data:`services.convsearch.state.CONTEXT_TTL_SECONDS`).
+#: instance per process. In Telegram production, the caller supplies the
+#: user's ledger from context.user_data; the engine's internal state map is
+#: only a fallback for direct callers that do not supply an explicit state.
 _CONV_ENGINE = ConversationSearchEngine()
 
 
