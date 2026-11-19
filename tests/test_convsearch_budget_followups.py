@@ -14,6 +14,11 @@ from services.convsearch.state import ConversationEngineState, MessageIntent, _b
 
 
 class BudgetFollowUpTests(unittest.TestCase):
+    def test_russian_shirt_word_is_not_mistaken_for_rubles(self):
+        self.assertEqual(_budget("до 500 рубашек"), {})
+        self.assertEqual(_budget("до 500 рублей"), {"max": 500.0, "currency": "RUB"})
+
+
     def test_uzbek_som_budget_is_recognized_without_matching_russian_sum_word(self):
         self.assertEqual(_budget("до 100000 сум"), {"max": 100000.0, "currency": "UZS"})
         self.assertEqual(_budget("покажи цены в сумме 500"), {})
