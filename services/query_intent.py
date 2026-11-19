@@ -129,9 +129,11 @@ CURRENCY_ALIASES: dict[str, str] = {
     # GBP
     "gbp": "GBP", "£": "GBP",
     "pound": "GBP", "pounds": "GBP",
+    "фунт": "GBP", "фунта": "GBP", "фунтов": "GBP", "фунтах": "GBP",
     # BYN — Belarusian ruble
     "byn": "BYN", "бел.руб": "BYN", "бел руб": "BYN",
-    "белорусский рубль": "BYN", "белорусских рублей": "BYN",
+    "белорусск": "BYN", "белорусский рубль": "BYN",
+    "белорусских рублей": "BYN",
     # KZT — Kazakhstani tenge
     "kzt": "KZT", "тенге": "KZT", "₸": "KZT",
     # UZS — Uzbekistani som
