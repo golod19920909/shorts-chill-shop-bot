@@ -84,7 +84,6 @@ def evaluate_pool(
         strategy,
         refined=False,
         intent=MessageIntent.NEW_SEARCH,
-        observation={},
         exclude_shown=exclude_shown,
     )
     return decision.products, decision.report
@@ -400,7 +399,7 @@ class RankingRequestPropagationTests(unittest.TestCase):
             decision = engine._evaluate_pool(
                 state, [candidate], strategy,
                 refined=False, intent=MessageIntent.NEW_SEARCH,
-                observation={}, exclude_shown=False,
+                exclude_shown=False,
             )
 
         self.assertEqual(decision.outcome, Outcome.RESULTS)
@@ -459,7 +458,7 @@ class SelectorSafetyRegressionTests(unittest.IsolatedAsyncioTestCase):
         decision = engine._evaluate_pool(
             state, [candidate], strategy,
             refined=True, intent=MessageIntent.REFINE,
-            observation={}, exclude_shown=False,
+            exclude_shown=False,
         )
 
         self.assertEqual(decision.outcome, Outcome.RESULTS)
