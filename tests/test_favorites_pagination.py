@@ -32,7 +32,7 @@ class FakeDatabase:
         return 1
 
     async def get_favorites(self, user_id):
-        return list(reversed(self.rows))
+        return list(self.rows)
 
 
 class FakeQuery:
