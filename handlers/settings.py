@@ -132,19 +132,25 @@ async def show_tracking(
         lines.append("")
 
     for row in visible_rows:
+        # A currency change clears the old baseline. Never display its
+        # initial_price as if it belonged to the newly selected currency.
+        displayed_price = (
+            row["last_checked_price"]
+            if row["last_checked_price"] is not None
+            else (
+                row["initial_price"]
+                if row["currency"] is not None
+                else None
+            )
+        )
         items.append(
             {
                 "tracked_id": row["id"],
                 "title": row["title"],
                 "url": row["product_url"],
-                "price": (row["last_checked_price"] if row["last_checked_price"] is not None else row["initial_price"]),
+                "price": displayed_price,
                 "currency": row["currency"],
             }
-        )
-        displayed_price = (
-            row["last_checked_price"]
-            if row["last_checked_price"] is not None
-            else row["initial_price"]
         )
         price = format_price(displayed_price, row["currency"])
         if not row["currency"]:
