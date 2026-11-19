@@ -34,9 +34,8 @@ STALE_FAVORITES_TEXT = (
     "Найдите товар заново и нажмите «⭐ В избранное» в карточке."
 )
 
-#: One screen lists at most this many favorites. The rest is reported as a
-#: count instead of being dropped silently, so the list always fits into
-#: Telegram's 4096-character message limit.
+#: One page lists at most this many favorites. Older items remain reachable
+#: through pagination, and every page stays below Telegram's message limits.
 MAX_LISTED_FAVORITES = 12
 
 #: Title length inside the list. Favorites store the marketplace's full
