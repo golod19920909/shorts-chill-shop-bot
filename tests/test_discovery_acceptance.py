@@ -530,7 +530,7 @@ class ShownHistoryTests(unittest.IsolatedAsyncioTestCase):
 
             async def find_products(
                 self, request, *, exclude=None, broaden=True,
-                raw=False, raw_broaden=False, feed_selection=False, **kwargs
+                raw=False, raw_broaden=False, **kwargs
             ):
                 self.exclude = exclude
                 return SearchOutcome(request=request)
@@ -575,7 +575,7 @@ class EngineInstrumentationTests(unittest.TestCase):
         class RecordingService:
             async def find_products(
                 self, request, *, exclude=None, raw=False, raw_broaden=False,
-                feed_selection=False, **kwargs
+                **kwargs
             ):
                 return SearchOutcome(request=request)
 
