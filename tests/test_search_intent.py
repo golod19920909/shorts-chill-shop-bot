@@ -73,7 +73,7 @@ class StubProvider(MarketplaceProvider):
         return None
 
 
-def resolve_and_apply(text, ai=None):
+def parse_and_apply(text, ai=None):
     """Exercise the direct parser path without the retired merge resolver."""
 
     if ai is None:
@@ -243,7 +243,7 @@ class PipelineTransformationTests(unittest.TestCase):
         reset_ai_state()
 
     def test_01_do_3000_grn(self) -> None:
-        request, _, meta = resolve_and_apply("до 3000 грн")
+        request, _, meta = parse_and_apply("до 3000 грн")
         self.assertEqual(request.max_price, 3000.0)
         self.assertEqual(request.currency, "UAH")
         self.assertNotIn("грн", request.normalized_query)
@@ -251,7 +251,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertEqual(meta.source, "fallback")
 
     def test_02_power_bank_do_1500_grn(self) -> None:
-        request, _, _ = resolve_and_apply("power bank до 1500 грн")
+        request, _, _ = parse_and_apply("power bank до 1500 грн")
         self.assertIn("power", tokens(request))
         self.assertIn("bank", tokens(request))
         self.assertNotIn("грн", tokens(request))
@@ -260,13 +260,13 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertEqual(request.currency, "UAH")
 
     def test_03_zaryadka_dlya_iphone(self) -> None:
-        request, _, _ = resolve_and_apply("зарядка для iPhone")
+        request, _, _ = parse_and_apply("зарядка для iPhone")
         self.assertEqual(request.intent_product_type, "зарядка")
         self.assertIn("iphone", request.intent_compatibility)
         self.assertTrue({"зарядка", "iphone"} <= tokens(request))
 
     def test_04_zaryadka_dlya_iphone_15_pro(self) -> None:
-        request, _, _ = resolve_and_apply("зарядка для iPhone 15 Pro")
+        request, _, _ = parse_and_apply("зарядка для iPhone 15 Pro")
         self.assertEqual(request.intent_product_type, "зарядка")
         self.assertIn("iphone 15 pro", request.intent_compatibility)
         # Compatibility never becomes the product type.
@@ -274,7 +274,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"зарядка", "iphone", "15", "pro"} <= tokens(request))
 
     def test_05_akkumulyator_dlya_makita_18v(self) -> None:
-        request, _, _ = resolve_and_apply("аккумулятор для Makita 18V")
+        request, _, _ = parse_and_apply("аккумулятор для Makita 18V")
         self.assertEqual(request.intent_product_type, "аккумулятор")
         self.assertEqual(request.intent_brand, "Makita")
         self.assertIn("18 v", request.intent_required_attributes)
@@ -283,13 +283,13 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"аккумулятор", "makita"} <= tokens(request))
 
     def test_06_instrument_dlya_makita_18v(self) -> None:
-        request, _, _ = resolve_and_apply("инструмент для Makita 18V")
+        request, _, _ = parse_and_apply("инструмент для Makita 18V")
         self.assertEqual(request.intent_product_type, "инструмент")
         self.assertEqual(request.intent_brand, "Makita")
         self.assertTrue({"инструмент", "makita"} <= tokens(request))
 
     def test_07_dverniki_volkswagen_golf_7(self) -> None:
-        request, _, _ = resolve_and_apply("дворники Volkswagen Golf 7")
+        request, _, _ = parse_and_apply("дворники Volkswagen Golf 7")
         self.assertEqual(request.intent_product_type, "дворники")
         self.assertEqual(request.intent_brand, "Volkswagen")
         # No duplicated brand token in the retrieval phrase.
@@ -298,44 +298,44 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue({"дворники", "golf", "7"} <= tokens(request))
 
     def test_08_dlya_toyota_camry_70(self) -> None:
-        request, _, _ = resolve_and_apply("для Toyota Camry 70")
+        request, _, _ = parse_and_apply("для Toyota Camry 70")
         self.assertIsNone(request.intent_product_type)  # no invented type
         self.assertEqual(request.intent_compatibility, ["toyota camry 70"])
         # The search does not crash or become empty because pt is None.
         self.assertTrue(request.normalized_query)
 
     def test_09_kamera_dlya_mashiny(self) -> None:
-        request, _, _ = resolve_and_apply("камера для машины")
+        request, _, _ = parse_and_apply("камера для машины")
         self.assertEqual(request.intent_product_type, "камера")
         self.assertEqual(request.intent_compatibility, ["машины"])
         self.assertTrue({"камера", "машины"} <= tokens(request))
 
     def test_10_podarok_dlya_kota(self) -> None:
-        request, _, _ = resolve_and_apply("подарок для кота")
+        request, _, _ = parse_and_apply("подарок для кота")
         self.assertEqual(request.intent_product_type, "подарок")
         self.assertNotEqual(request.intent_product_type, "кот")
         self.assertEqual(request.intent_compatibility, ["кота"])
 
     def test_11_ssd_1tb(self) -> None:
-        request, _, _ = resolve_and_apply("SSD 1 ТБ")
+        request, _, _ = parse_and_apply("SSD 1 ТБ")
         self.assertEqual(request.intent_product_type, "ssd")
         self.assertIn("1 тб", request.intent_required_attributes)
         self.assertIn("ssd", tokens(request))
         self.assertIn("тб", tokens(request))
 
     def test_12_ssd_dlya_noutbuka(self) -> None:
-        request, _, _ = resolve_and_apply("SSD для ноутбука")
+        request, _, _ = parse_and_apply("SSD для ноутбука")
         self.assertEqual(request.intent_product_type, "ssd")
         self.assertEqual(request.intent_compatibility, ["ноутбука"])
         self.assertTrue({"ssd", "ноутбука"} <= tokens(request))
 
     def test_13_nabor_instrumentov(self) -> None:
-        request, _, _ = resolve_and_apply("набор инструментов")
+        request, _, _ = parse_and_apply("набор инструментов")
         self.assertEqual(request.intent_product_type, "набор инструментов")
         self.assertTrue({"набор", "инструментов"} <= tokens(request))
 
     def test_14_do_2000_grn_dlya_ps5(self) -> None:
-        request, _, _ = resolve_and_apply("до 2000 грн для PS5")
+        request, _, _ = parse_and_apply("до 2000 грн для PS5")
         self.assertEqual(request.max_price, 2000.0)
         self.assertEqual(request.currency, "UAH")
         self.assertIn("ps5", request.intent_compatibility)
@@ -344,7 +344,7 @@ class PipelineTransformationTests(unittest.TestCase):
         self.assertTrue(request.normalized_query)  # no crash, real phrase
 
     def test_15_grn_alone(self) -> None:
-        request, _, meta = resolve_and_apply("грн")
+        request, _, meta = parse_and_apply("грн")
         self.assertNotIn("грн", request.normalized_query)
         self.assertEqual(request.normalized_query, "")  # no fake query
         self.assertIsNone(request.intent_product_type)
@@ -359,7 +359,7 @@ class ProviderContractTests(unittest.TestCase):
         reset_ai_state()
 
     def _primary_search(self, text, products, **kwargs):
-        request, _, _ = resolve_and_apply(text)
+        request, _, _ = parse_and_apply(text)
         stub = StubProvider(products)
         outcome = run(
             SearchService([stub]).find_products(request, **kwargs))
