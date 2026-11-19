@@ -2007,11 +2007,20 @@ async def _answer_from_shown(
             conversation.request = _with_result_limit(conversation.request, count)
             conversation.touch()
         delivered = len(narrowed.products)
-        await context.bot.send_message(
-            update.effective_message.chat_id,
-            _count_follow_up_text(delivered, count),
-            reply_markup=back_to_menu_keyboard(),
-        )
+        try:
+            await context.bot.send_message(
+                update.effective_message.chat_id,
+                _count_follow_up_text(delivered, count),
+                reply_markup=back_to_menu_keyboard(),
+            )
+        except Exception:
+            # The replacement card session is already delivered. This
+            # optional count summary must not turn a successful narrowing
+            # action into an error.
+            logger.warning(
+                "Could not send the optional count summary after narrowing",
+                exc_info=True,
+            )
         return True
 
     request = _currency_request_state(text)
