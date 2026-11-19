@@ -44,6 +44,7 @@ from config.sales import (
     url_key,
 )
 from handlers import common
+from keyboards.main import back_to_menu_keyboard
 from keyboards.sales import sale_menu_button, sale_screen_keyboard
 
 logger = logging.getLogger(__name__)
@@ -163,15 +164,22 @@ async def sale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await query.answer(UNKNOWN_TEXT)
         return
 
+    # Acknowledge before database access: a slow SQLite read must not leave
+    # Telegram's callback spinner running. Unknown event ids are rejected
+    # above without any I/O.
+    await query.answer()
+
     enabled = await _event_enabled(context, event_id)
     admin = _is_admin(context, getattr(query.from_user, "id", None))
 
     if not enabled and not admin:
         logger.info("Sales section %r refused for a non-admin", event_id)
-        await query.answer(DENIED_TEXT)
+        await query.edit_message_text(
+            DENIED_TEXT,
+            reply_markup=back_to_menu_keyboard(),
+        )
         return
 
-    await query.answer()
     destination = await _destination(context, event_id)
     text = _available_text(event) if destination else _unavailable_text(event)
     await query.edit_message_text(
