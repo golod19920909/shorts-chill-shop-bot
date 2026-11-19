@@ -170,7 +170,7 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 # отредактируйте .env: как минимум BOT_TOKEN
 
-# 4. Полный локальный прогон (включает legacy-модули тестов)
+# 4. Полный локальный прогон всех актуальных тестов
 python -m pytest tests -q
 
 # 5. Запуск
@@ -222,30 +222,25 @@ AI-парсинг запросов: не настроен — используе
 
 ## Тестирование
 
-```powershell
-# всё сразу (стандартная библиотека, без сети и без реальных ключей)
-python -m unittest discover -s tests -t . -v
-
-# по модулям
-python -m unittest tests.test_settings -v
-python -m unittest tests.test_product_model tests.test_search_request -v
-python -m unittest tests.test_product_normalizer -v
-python -m unittest tests.test_database -v
-python -m unittest tests.test_marketplace_providers -v
-python -m unittest tests.test_promotions -v   # guard'ы удалённых фич
-python -m unittest tests.test_search_service tests.test_ai_service -v
-python -m unittest tests.test_bot_startup -v
-
-# офлайн-smoke всех потоков обнаружения (карточка сразу, без счётчиков и списков)
-python smoke_ux_flows.py     # печатает SMOKE OK / SMOKE FAILED
-```
-
-Альтернативно через pytest (не требуется):
+Основной тестовый раннер проекта — **pytest**. Тесты работают офлайн,
+используют заглушки/тестовые SQLite-базы и не обращаются к реальным Gemini,
+AliExpress или Telegram API.
 
 ```powershell
-pip install -r requirements-dev.txt
-pytest -q
+# полный набор
+python -m pytest tests -q
+
+# основные проверки разговорного поиска и доставки
+python -m pytest -q tests/test_convsearch_engine.py tests/test_convsearch_type_validation.py tests/test_search_service.py tests/test_search_delivery_integrity.py
+
+# отдельные проверки базы данных и цены
+python -m pytest -q tests/test_database.py tests/test_price_tracker.py
 ```
+
+CI выполняет focused regression suite, затем полный набор оставшихся тестов
+без исключения тестовых модулей. При изменении архитектуры полезные сценарии
+из устаревших тестов переносятся в тесты текущего production-пути; тесты
+удалённых реализаций не должны блокировать проверку актуального кода.
 
 Что покрыто: загрузка конфигурации, модель `Product`, модель `SearchRequest` и
 локальный парсер, нормализация значений маркетплейсов, инициализация БД и CRUD,
