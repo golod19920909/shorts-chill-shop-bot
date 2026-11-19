@@ -116,9 +116,12 @@ async def show_tracking(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 "currency": row["currency"],
             }
         )
-        price = format_price(
-            row["last_checked_price"] if row["last_checked_price"] is not None else row["initial_price"], row["currency"]
+        displayed_price = (
+            row["last_checked_price"]
+            if row["last_checked_price"] is not None
+            else row["initial_price"]
         )
+        price = format_price(displayed_price, row["currency"])
         lines.append(
             f"• {common.escape(row['title'] or 'Без названия')} — "
             f"{common.escape(price)} "
