@@ -131,6 +131,7 @@ PHOTO_PROMPT = (
     "Пришлите фотографию товара."
 )
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    common.clear_pending_product_question(context)
     user_id = await common.register_user(update, context)
     telegram_id = update.effective_user.id if update.effective_user else None
     await common.record_event(
@@ -285,6 +286,7 @@ async def onboarding_callback(
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    common.clear_pending_product_question(context)
     if update.effective_message is None:
         return
     await update.effective_message.reply_text(
@@ -296,6 +298,8 @@ async def dispatch_menu(
     data: str, update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> bool:
     """Render one menu screen and acknowledge its callback exactly once."""
+
+    common.clear_pending_product_question(context)
 
     # These four renderers own their acknowledgement (the feed shows a
     # progress hint; hot discounts and promo codes acknowledge themselves).
