@@ -65,19 +65,16 @@ logger = logging.getLogger(__name__)
 #: Hard cap on how many products are kept in one outcome.
 DEFAULT_MAX_RESULTS = 30
 
-#: How many RAW marketplace listings one search gathers so the AI selector has
-#: something to actually choose from - picking the best 20 out of 20 is not a
-#: selection at all. The pool is filled from the documented result pages of the
-#: SAME grounded phrase (the provider's own page size is 50, the documented
-#: maximum), so 60-80 candidates normally cost two documented ``product.query``
-#: calls. Only a search WITH an AI selector raises its target to this number:
-#: without one the browse cap above stays the target, so the deterministic path
-#: keeps both its breadth and its API cost.
+#: Raw candidate target for searches that have an available AI selector.
+#: The non-raw SearchService path can fill this pool from deeper pages of the
+#: same grounded phrase; the conversational engine's raw path instead fuses a
+#: bounded set of grounded variants (one documented page per variant). Without
+#: an available selector the target remains the 30-card browse cap.
 RAW_POOL_TARGET = 80
 
-#: How many cards an AI selection keeps for the carousel - the "строго 20 лучших"
-#: rule of the feed. It applies to a real selection only; a deterministic list
-#: keeps ``DEFAULT_MAX_RESULTS``, because an AI outage must not shrink a feed.
+#: How many top-ranked candidates the AI selector may return. It applies to a
+#: real selection only; a deterministic fallback keeps ``DEFAULT_MAX_RESULTS``,
+#: because an AI outage must not shrink a product result set.
 AI_FEED_RESULTS = 20
 #: Hard wall-clock bound on ONE AI feed-selection request. The selector already
 #: degrades to the deterministic list on any failure (``apply_feed_selection``),
