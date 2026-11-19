@@ -192,8 +192,10 @@ class PriceTracker:
                 self.notify_skipped += 1
                 continue
             changes.append(change)
-            await self._notify(change)
-            self.notified += 1
+            if await self._notify(change):
+                self.notified += 1
+            else:
+                self.notify_skipped += 1
         self.changes_found += len(changes)
         return changes
 
@@ -322,20 +324,22 @@ class PriceTracker:
         except Exception:  # noqa: BLE001 - diagnostics never break a cycle
             logger.debug("Could not record currency_mismatch event", exc_info=True)
 
-    async def _notify(self, change: PriceChange) -> None:
+    async def _notify(self, change: PriceChange) -> bool:
         telegram_id = change.telegram_id
         if telegram_id is None:
             logger.warning(
                 "Price change for row %s has no telegram_id; skip notify",
                 change.tracked_product_id,
             )
-            return
+            return False
+            return False
         try:
             # Inline "🛒 Купить" button: affiliate URL preferred, plain
             # product URL as truthful fallback, no raw link in the text.
             await self._notifier(
                 int(telegram_id), format_notification(change), change.buy_url
             )
+            return True
         except Exception:  # noqa: BLE001 - a failed notification is logged only
             logger.exception(
                 "Failed to deliver price notification for row %s",
