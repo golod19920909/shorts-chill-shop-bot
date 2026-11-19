@@ -9,7 +9,7 @@ than the one next to the button.
 The fix: the button carries the product's identity
 (``fdel:<marketplace>:<product_id>``). Deletion targets that identity in
 the database and never reads a list position. Legacy positional
-callbacks from messages sent by older releases are still accepted.
+callbacks from messages sent by older releases are refused because the index cannot prove product identity.
 """
 
 from __future__ import annotations
