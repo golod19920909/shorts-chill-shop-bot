@@ -48,13 +48,13 @@ class RecordingSearchService(SearchService):
         self.calls: list[SearchRequest] = []
 
     async def find_products(
-        self, request, *, exclude=None, broaden=True, feed_selection=True,
+        self, request, *, exclude=None, broaden=True,
         raw=False, raw_broaden=False
     ):
         self.calls.append(request.model_copy(deep=True))
         return await super().find_products(
             request, exclude=exclude, broaden=broaden,
-            feed_selection=feed_selection, raw=raw, raw_broaden=raw_broaden,
+            raw=raw, raw_broaden=raw_broaden,
         )
 
 
