@@ -6,7 +6,6 @@ import unittest
 import httpx
 
 from config.settings import MarketplaceCredentials
-from handlers import search as search_handlers
 from models.product import Marketplace, Product
 from models.search_request import SearchRequest
 from services.search_service import SearchOutcome
