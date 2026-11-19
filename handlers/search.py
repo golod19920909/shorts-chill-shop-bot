@@ -125,10 +125,6 @@ STALE_RESULTS_TEXT = (
     "Выполните новый поиск, и я помогу сравнить товары."
 )
 
-#: `user_data` key holding the last effective :class:`SearchRequest`, so a
-#: follow-up message can refine it (see ``services.count_followup``). It is
-#: per-user, in memory and expires on its own - no database change.
-
 #: `user_data` key holding a PENDING clarifying question: the engine asked
 #: "what product, for what task?" and the next message is the user's ANSWER,
 #: which is combined with the original vague request instead of searched on
