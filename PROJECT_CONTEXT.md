@@ -20,19 +20,26 @@ invents products, prices, links, or AI results.
   status (including skipping idle jobs when no provider is configured),
   callback acknowledgement before slow admin diagnostics, Product Assistant
   comparison logic, deterministic routing fallback, product-type switching,
-  and abbreviated-thousand budget parsing (for example, "2 тыс. грн").
-- Favorites and price-tracking screens now paginate instead of overflowing
+  and budget parsing that keeps supported and unsupported currency names as
+  budget framing rather than accidental product features. Unsupported target
+  currencies still go through the existing clarification path; the API
+  currency allowlist is unchanged.
+- Favorites and price-tracking screens paginate instead of overflowing
   Telegram limits; stale positional favorite-delete callbacks are refused
   safely, and current identity-based callbacks remain supported.
+- SQLite legacy-user migration now avoids a non-constant ALTER TABLE default
+  (which SQLite rejects), backfills existing timestamps, and explicitly sets
+  timestamps for new users in upgraded databases. Price tracking no longer
+  reuses a previous currency when the current provider response omits currency;
+  it silently rebases an unknown unit instead of sending a misleading alert.
 - Obsolete tests tied to deleted agent/chat-router code and missing temporary
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
 - Latest GitHub Actions run on the current branch (head
-  839e519dcd07b9c2115eddf27caaeac3e39f46ac):
-  focused offline suite: **317 passed, 45 subtests passed**;
-  full repository suite: **2,192 passed, 711 subtests passed**.
-  No test modules are excluded from the broad run; obsolete files have been
-  removed after active coverage was migrated. One upstream google-genai
+  6f93bbb88c796bd06e92d7339c7ceacad1ac0e9d):
+  focused offline suite: **318 passed, 49 subtests passed**;
+  full repository suite: **2,183 passed, 717 subtests passed**.
+  No test modules are excluded from the broad run. One upstream google-genai
   deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
   runtime have not been exercised by this GitHub-only verification.
