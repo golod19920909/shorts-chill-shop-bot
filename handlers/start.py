@@ -295,7 +295,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def dispatch_menu(
     data: str, update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> bool:
-    """Render the screen for one menu callback; ``False`` = unknown."""
+    """Render one menu screen and acknowledge its callback exactly once."""
+
+    # These four renderers own their acknowledgement (the feed shows a
+    # progress hint; hot discounts and promo codes acknowledge themselves).
+    # All other menu branches are acknowledged here. Keeping the policy in
+    # one place prevents menu_callback/nav_back from answering before a child
+    # handler tries to answer the same Telegram callback a second time.
+    if data not in (CB_FEED, CB_POPULAR, CB_HOT_DISCOUNTS, CB_PROMO_CODES):
+        await _answer_once(update.callback_query)
 
     if data == CB_SEARCH:
         await _edit_to(update, SEARCH_PROMPT, back_to_menu_keyboard())
@@ -389,7 +397,6 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
     await dispatch_menu(query.data or "", update, context)
 
 
@@ -404,8 +411,6 @@ async def nav_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
     if query is None:
         return
-    await query.answer()
-
     target = context.user_data.pop(NAV_BACK_KEY, CB_BACK)
     if target not in MAIN_MENU_CALLBACKS:
         target = CB_BACK
@@ -473,7 +478,6 @@ async def stale_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     data = query.data or ""
     if await dispatch_menu(data, update, context):
-        await _answer_once(query)
         return
 
     logger.info("Callback %r has no handler; showing the main menu", data)
