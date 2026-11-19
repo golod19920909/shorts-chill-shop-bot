@@ -778,17 +778,6 @@ class Database:
             )
             await conn.commit()
 
-    async def update_tracked_price(
-        self, tracked_product_id: int, new_price: float | None
-    ) -> None:
-        async with self._connect() as conn:
-            await conn.execute(
-                "UPDATE tracked_products SET last_checked_price = ?, "
-                "last_checked_at = datetime('now') WHERE id = ?",
-                (new_price, tracked_product_id),
-            )
-            await conn.commit()
-
     async def invalidate_tracking_baselines(self, user_id: int) -> None:
         """Drop stored price baselines after a manual currency change.
 
