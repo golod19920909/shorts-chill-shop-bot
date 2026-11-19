@@ -58,6 +58,21 @@ class CurrencyFollowupPreferenceTests(unittest.IsolatedAsyncioTestCase):
                 )
 
 
+    def test_national_currency_adjectives_are_not_mistaken_for_products(self):
+        cases = {
+            "покажи в белорусских рублях": "BYN",
+            "покажи в казахстанских тенге": "KZT",
+            "покажи в узбекских сумах": "UZS",
+            "покажи в польских злотых": "PLN",
+        }
+        for phrase, expected in cases.items():
+            with self.subTest(phrase=phrase):
+                self.assertEqual(
+                    _currency_request_state(phrase),
+                    {"currency": expected, "amount": None},
+                )
+
+
     async def test_supported_currency_is_persisted_for_future_searches(self):
         database = FakeDatabase()
         context = SimpleNamespace(bot=FakeBot(), user_data={})
