@@ -520,7 +520,7 @@ class ConversationSearchEngine:
 
         decision = self._evaluate_pool(
             state, backend_outcome.products, strategy,
-            refined=refined, intent=intent, observation=observation,
+            refined=refined, intent=intent,
             exclude_shown=(intent is MessageIntent.ALTERNATIVES),
         )
         decision = await self._apply_ai_candidate_selection(
@@ -718,7 +718,6 @@ class ConversationSearchEngine:
         *,
         refined: bool,
         intent,
-        observation: dict,
         exclude_shown: bool,
     ) -> SearchDecision:
         """Validate → filter → dedup → rank one provider pool.
