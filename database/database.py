@@ -690,9 +690,15 @@ class Database:
                 "product_url = excluded.product_url, "
                 "initial_price = COALESCE(tracked_products.initial_price, "
                 "excluded.initial_price), "
-                "last_checked_price = excluded.last_checked_price, "
-                "currency = COALESCE(excluded.currency, tracked_products.currency), "
-                "last_checked_at = datetime('now'), "
+                "last_checked_price = CASE "
+                "WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.last_checked_price "
+                "ELSE excluded.last_checked_price END, "
+                "currency = CASE WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.currency "
+                "ELSE COALESCE(excluded.currency, tracked_products.currency) END, "
+                "last_checked_at = CASE WHEN tracked_products.is_active = 1 "
+                "THEN tracked_products.last_checked_at ELSE datetime('now') END, "
                 "is_active = 1",
                 (
                     user_id,
