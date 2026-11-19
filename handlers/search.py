@@ -1051,6 +1051,8 @@ async def send_search_results(
     Returns the session id, or ``None`` when nothing was shown.
     """
 
+    common.clear_pending_product_question(context)
+
     # THE CURATION GATE (step 3). Every feed of the bot passes here, so this is
     # the one place where the raw marketplace pool is turned into the list the
     # user will actually walk: the per-user view history is read, the pipeline
@@ -1426,6 +1428,7 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not delivered:
         return
 
+    common.clear_pending_product_question(context)
     # Persist visibility only after Telegram successfully edited or replaced
     # the card. A failed navigation must not hide the product from future feeds.
     if meta.get("track_shown") and user_id is not None:
