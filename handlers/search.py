@@ -1975,10 +1975,10 @@ async def _answer_from_shown(
 
     * a COUNT change («покажи 5», «сделай три варианта», «ещё 2») - the
       current list is re-delivered cut to the requested number;
-    * a CURRENCY preference («используй гривны», «покажи в долларах») - the
-      cards are re-rendered from the SAME products with that currency as the
-      display preference, plus an honest one-line confirmation. The project
-      has no exchange rates, so a real conversion is never claimed.
+    * a CURRENCY preference («используй гривны», «покажи в долларах») -
+      the preference is persisted for future searches. Existing cards remain
+      unchanged because the project has no exchange rates and must not relabel
+      a marketplace price as another currency.
 
     Returns ``True`` when the message was fully handled. Every other message
     returns ``False`` and continues on the ordinary pipeline.
