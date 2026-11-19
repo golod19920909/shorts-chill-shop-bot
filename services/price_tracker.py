@@ -264,7 +264,13 @@ class PriceTracker:
             return None
 
         tracked_id = int(row.get("id"))
-        returned_currency = getattr(product, "currency", None)
+        returned_currency_raw = getattr(product, "currency", None)
+        returned_currency = (
+            str(returned_currency_raw).strip().upper()
+            if returned_currency_raw is not None
+            and str(returned_currency_raw).strip()
+            else None
+        )
         requested_currency = (
             preferred_currency.upper()
             if preferred_currency
@@ -280,7 +286,12 @@ class PriceTracker:
         # comparison below must rebase silently rather than invent certainty.
         new_currency = returned_currency or requested_currency
         old_price = row.get("last_checked_price")
-        old_currency = row.get("currency")
+        old_currency_raw = row.get("currency")
+        old_currency = (
+            str(old_currency_raw).strip().upper()
+            if old_currency_raw is not None and str(old_currency_raw).strip()
+            else None
+        )
         if old_price is not None:
             try:
                 old_price = float(old_price)
