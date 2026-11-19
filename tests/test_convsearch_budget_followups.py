@@ -172,6 +172,25 @@ class BudgetFollowUpTests(unittest.TestCase):
         self.assertEqual(state.active_values("preference"), ["легкий"])
         self.assertFalse(strategy.request.required_features)
 
+    def test_explicit_budget_currency_overrides_saved_currency(self):
+        state = ConversationEngineState(user_key="budget-currency-override")
+        first = "шуруповерт"
+        observation = state.observe(first)
+        state.record_slots(observation)
+        state.record_product_type(_product_type_of(first))
+
+        follow_up = "до 500 гривен"
+        observation = state.observe(follow_up)
+        state.record_slots(observation)
+
+        # The user's saved preference is EUR, but the explicit budget is UAH.
+        # The provider must be asked for UAH so the hard budget gate compares
+        # like with like instead of silently rejecting every EUR-priced row.
+        strategy = build_retrieval_strategy(state, follow_up, currency="EUR")
+
+        self.assertEqual(strategy.request.currency, "UAH")
+        self.assertEqual(strategy.budget, ["500.0", "UAH"])
+
     def test_budget_amount_is_not_a_retrieval_feature(self):
         state = ConversationEngineState(user_key="budget-feature")
         first = "шуруповерт"
