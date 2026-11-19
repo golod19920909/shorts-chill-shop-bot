@@ -1801,7 +1801,8 @@ _CURRENCY_ADJECTIVES: tuple[str, ...] = (
     "belarusian", "kazakh", "uzbek", "polish",
 )
 
-_CURRENCY_REQUEST_VERBS: tuple[str, ...] = (
+_CURRENCY_REQUEST_WORDS: tuple[str, ...] = (
+    "сумма", "сумме", "сумму", "суммы",
     "используй", "используйте", "использовать", "показывай", "показывайте",
     "показать", "переведи", "переводи", "смени", "сменить", "поменяй",
     "поменять", "хочу", "давай", "лучше", "цена", "цены", "цену", "цене",
@@ -1898,12 +1899,12 @@ def _currency_request_state(text: str) -> dict | None:
             for word in normalize_text(raw)
             if len(word) >= 3
             and word not in _NARROW_STOPWORDS
-            and word not in _CURRENCY_REQUEST_VERBS
+            and word not in _CURRENCY_REQUEST_WORDS
             and word not in _CURRENCY_ADJECTIVES
             and word not in {"сумма", "сумме", "сумму", "суммой", "суммы", "сумм"}
             and not any(
                 word.startswith(verb[:5])
-                for verb in _CURRENCY_REQUEST_VERBS
+                for verb in _CURRENCY_REQUEST_WORDS
                 if len(verb) >= 5
             )
         ]
@@ -1919,11 +1920,11 @@ def _currency_request_state(text: str) -> dict | None:
         if len(word) >= 3
         and not _is_currency_word(word)
         and word not in _NARROW_STOPWORDS
-        and word not in _CURRENCY_REQUEST_VERBS
+        and word not in _CURRENCY_REQUEST_WORDS
         and word not in _CURRENCY_ADJECTIVES
         and not any(
             word.startswith(verb[:5])
-            for verb in _CURRENCY_REQUEST_VERBS
+            for verb in _CURRENCY_REQUEST_WORDS
             if len(verb) >= 5
         )
     ]
