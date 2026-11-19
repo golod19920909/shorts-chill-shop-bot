@@ -84,7 +84,7 @@ def get_conversation_engine() -> ConversationSearchEngine:
 
 
 def reset_conversation_engine(user_key: str) -> None:
-    """Forget one user's conversational-search ledger (used by /new)."""
+    """Forget one direct caller's fallback ledger in the process-level engine."""
 
     _CONV_ENGINE.reset(user_key)
 
