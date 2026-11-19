@@ -126,7 +126,7 @@ STALE_RESULTS_TEXT = (
 )
 
 #: `user_data` key holding the last effective :class:`SearchRequest`, so a
-#: follow-up message can refine it (see ``services.conversation``). It is
+#: follow-up message can refine it (see ``services.count_followup``). It is
 #: per-user, in memory and expires on its own - no database change.
 
 #: `user_data` key holding a PENDING clarifying question: the engine asked
