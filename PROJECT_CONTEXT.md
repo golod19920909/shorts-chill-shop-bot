@@ -44,6 +44,10 @@ invents products, prices, links, or AI results.
   in the engine after AssistantRouter has already failed or returned no valid
   decision; it falls back to the deterministic state machine. Pending
   clarifications still receive one engine-level interpretation attempt.
+- Product Assistant "better" ranking now orders candidates only by metrics
+  comparable with the original product. A rating present only on a candidate
+  cannot dominate a positive-rate/order improvement when the original has no
+  rating.
 - Removed the obsolete `shape_pool` compatibility shim, the duplicate
   strict `filter_by_required_features` implementation, and an unused
   `observation` argument from the production pool evaluator. Tests now call
@@ -57,9 +61,9 @@ invents products, prices, links, or AI results.
   experiment runners were removed; active coverage was migrated into current
   engine, telemetry, result-limit, discovery and observability test modules.
 - Latest completed GitHub Actions run on code head
-  81c13fde0f01ff308c1bb2de88f754de20640cff:
+  0f54ba2ad76edc9df0013c2e64a60195a4832834:
   focused offline suite: **325 passed, 56 subtests passed**;
-  full repository suite: **2,190 passed, 724 subtests passed**.
+  full repository suite: **2,191 passed, 724 subtests passed**.
   No test modules are excluded from the broad run. One upstream google-genai
   deprecation warning remains.
 - Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
