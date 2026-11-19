@@ -13,6 +13,12 @@ on:
       - feat/conversational-product-relevance
       - fix/product-ranking-quality
 
+# A branch push and its pull_request synchronize event describe the same
+# candidate. Use the PR head branch name for both so only one test run remains.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   conversational-regressions:
     runs-on: ubuntu-latest
