@@ -101,6 +101,31 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(delivered)
         self.assertEqual(calls, ["send", "event", "shown", "views"])
 
+    async def test_optional_summary_failure_does_not_fail_delivered_cards(self):
+        outcome = make_outcome()
+        context = SimpleNamespace(
+            user_data={},
+            bot=SimpleNamespace(
+                send_message=AsyncMock(side_effect=RuntimeError("summary unavailable"))
+            ),
+        )
+
+        with (
+            patch.object(common, "curate_products", new=AsyncMock(return_value=outcome.products)),
+            patch.object(common, "remember_outcome", return_value="session-1"),
+            patch.object(search, "_log_unapplied_constraints"),
+            patch.object(search, "log_final_pool"),
+            patch.object(search, "_send_product_cards", new=AsyncMock(return_value=True)),
+            patch.object(search, "_result_summary_text", return_value="summary"),
+        ):
+            session_id = await search.send_search_results(
+                context, 47, outcome, follow_up=True
+            )
+
+        self.assertEqual(session_id, "session-1")
+        context.bot.send_message.assert_awaited_once()
+
+
     async def test_failed_browse_edit_does_not_advance_shown_history(self):
         outcome = make_outcome()
         meta = {"track_shown": False, "max_index": 0}
