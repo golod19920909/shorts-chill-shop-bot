@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""G25.2-B Stage 2: structured intent -> production search input tests.
+"""Offline tests for the direct SearchService text-parser compatibility API.
 
 No live AliExpress / Gemini here: retrieval runs through ``StubProvider``,
 parsing through ``AIService(api_key=None)`` (the local fallback parser) or
-explicit mocks. Every pipeline test mirrors the exact production order of
-``handlers.search._search`` (Step 5):
+explicit mocks. Telegram shopping conversations use AssistantRouter plus
+ConversationSearchEngine; these tests cover only the separate direct parser
+entry point:
 
     parse_query -> parse_query_intent -> apply_intent
 """
@@ -444,7 +445,7 @@ class ProviderContractTests(unittest.TestCase):
     def test_find_products_from_text_applies_the_same_intent_layer(
         self,
     ) -> None:
-        # Production Path B: the SAME parser + apply_intent, no duplicates.
+        # Direct parser API: the same parser + apply_intent, no duplicates.
         stub = StubProvider(
             [make_listing("4", "Power Bank 10000mAh", 12.0)])
         service = SearchService(
