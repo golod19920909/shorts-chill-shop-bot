@@ -508,7 +508,7 @@ async def _screen_tracking(
                 f"• Проверено строк: {getattr(tracker, 'rows_checked', 0)}",
                 f"• Обнаружено изменений: {getattr(tracker, 'changes_found', 0)}",
                 f"• Уведомлений отправлено: {getattr(tracker, 'notified', 0)}",
-                "• Пропущено (настройка пользователя): "
+                "• Не отправлено / пропущено: "
                 f"{getattr(tracker, 'notify_skipped', 0)}",
                 f"• Ошибок строк: {getattr(tracker, 'row_errors', 0)}",
             ]
