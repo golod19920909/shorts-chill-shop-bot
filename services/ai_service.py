@@ -41,7 +41,6 @@ from services.conversation import (
     _clean_feature,
     deterministic_merge,
     feature_lists_equivalent,
-    merge_feature_lists,
 )
 from services.product_assistant import numeric_tokens, product_facts
 from services.relevance import noun_terms
