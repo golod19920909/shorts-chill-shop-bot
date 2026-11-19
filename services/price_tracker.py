@@ -274,7 +274,11 @@ class PriceTracker:
         # If the provider omits currency metadata, the documented target
         # currency is still authoritative because the request explicitly
         # asked for it. Unsupported target currencies cannot be applied.
-        new_currency = returned_currency or requested_currency or row.get("currency")
+        # Never reuse the previous observation's currency as evidence
+        # for the current response. If the provider omits currency and no
+        # documented target was requested, the unit is unknown and the
+        # comparison below must rebase silently rather than invent certainty.
+        new_currency = returned_currency or requested_currency
         old_price = row.get("last_checked_price")
         old_currency = row.get("currency")
         if old_price is not None:
