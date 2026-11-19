@@ -1,14 +1,14 @@
 """SQL schema definitions for the SQLite database.
 
 Kept deliberately small (per the project brief: "do not over-engineer
-the database"). Ten tables:
+the database"). Eleven tables:
 
 - users            : one row per Telegram user
 - search_history   : past parsed search requests
 - favorites        : products explicitly saved by a user for quick access
 - saved_products   : product snapshots the user asked the bot to keep
-- tracked_products : products with price tracking enabled (read by a
-                     future scheduler - see the ``services`` package)
+- tracked_products : products with price tracking enabled (read by the
+                     scheduled price tracker in ``services/price_tracker.py``)
 - price_history    : observed prices per tracked product, which is what
                      makes "notify me when the price drops" possible
 - analytics_events : one row per user action/outcome the admin panel
@@ -22,11 +22,14 @@ the database"). Ten tables:
                      documented AliExpress ``page_no`` to ask), so the feed
                      keeps moving forward after a restart instead of
                      replaying the same first pages
-- user_view_history : products a user has ACTUALLY been shown, as read by the
-                     curation layer (``curation.pipeline.HistoryFilter``) to
-                     keep a feed novel - one row per (user, product), no
-                     snapshot, because the only question it answers is
+- user_view_history : products a user has ACTUALLY been shown, as read by
+                     ``CurationGate`` / ``HistoryFilter`` to reduce repeats
+                     in search-like flows; the «✨ Находки» feed has its own
+                     ``popular_shown`` scope - one row per (user, product),
+                     no snapshot, because the only question it answers is
                      "has this user met this product?"
+- bot_config       : persistent key/value settings used by administrative
+                     controls and configurable bot sections
 
 ``favorites`` and ``tracked_products`` are separate because they express
 different intents: bookmarking a product for later viewing vs. actively
