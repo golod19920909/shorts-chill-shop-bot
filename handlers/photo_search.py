@@ -175,47 +175,39 @@ async def photo_message_handler(
 
     search_service = common.get_search_service(context)
     seen = await common.seen_products(context, user_id)
-    fallback_cat = None
-
-    if query:
-        products = await execute_photo_search(
-            query,
-            fallback_cat,
-            search_service,
-            currency=region.get("currency"),
-            exclude=seen,
-        )
-        if not products:
-            await message.reply_text(
-                IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
-            )
-            return
-
-        chat_id = update.effective_chat.id if update.effective_chat else None
-        if chat_id is None:
-            return
-
-        req = SearchRequest(
-            original_query=query,
-            normalized_query=query,
-            mode=SearchMode.SEARCH,
-            currency=region.get("currency"),
-        )
-        outcome = SearchOutcome(
-            request=req,
-            products=products,
-            searched_marketplaces=["AliExpress"],
-        )
-        await send_search_results(
-            context,
-            chat_id,
-            outcome,
-            header=f"{PHOTO} <b>Поиск по фото:</b> {query}",
-            user_id=user_id,
-            back_callback="menu:photo",
+    products = await execute_photo_search(
+        query,
+        None,
+        search_service,
+        currency=region.get("currency"),
+        exclude=seen,
+    )
+    if not products:
+        await message.reply_text(
+            IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
         )
         return
 
-    # Legacy fallback path for existing tests
-    from handlers.discovery import _legacy_photo_message
-    await _legacy_photo_message(update, context, image_bytes=image_bytes)
+    chat_id = update.effective_chat.id if update.effective_chat else None
+    if chat_id is None:
+        return
+
+    req = SearchRequest(
+        original_query=query,
+        normalized_query=query,
+        mode=SearchMode.SEARCH,
+        currency=region.get("currency"),
+    )
+    outcome = SearchOutcome(
+        request=req,
+        products=products,
+        searched_marketplaces=["AliExpress"],
+    )
+    await send_search_results(
+        context,
+        chat_id,
+        outcome,
+        header=f"{PHOTO} <b>Поиск по фото:</b> {query}",
+        user_id=user_id,
+        back_callback="menu:photo",
+    )
