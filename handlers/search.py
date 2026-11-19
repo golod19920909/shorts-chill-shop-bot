@@ -1898,6 +1898,7 @@ def _currency_request_state(text: str) -> dict | None:
             word
             for word in normalize_text(raw)
             if len(word) >= 3
+            and not word.isdigit()
             and word not in _NARROW_STOPWORDS
             and word not in _CURRENCY_REQUEST_WORDS
             and word not in _CURRENCY_ADJECTIVES
@@ -1918,6 +1919,7 @@ def _currency_request_state(text: str) -> dict | None:
         word
         for word in normalize_text(raw)
         if len(word) >= 3
+        and not word.isdigit()
         and not _is_currency_word(word)
         and word not in _NARROW_STOPWORDS
         and word not in _CURRENCY_REQUEST_WORDS
