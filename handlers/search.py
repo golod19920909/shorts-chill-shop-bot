@@ -1866,7 +1866,7 @@ def _currency_request_state(text: str) -> dict | None:
         # Russian "сумма/сумме/сумму" is ordinary amount wording, not
         # the Uzbek currency "сум". Keep the genuine currency inflections
         # ("сумы", "сумов") eligible.
-        if word in {"сумма", "сумме", "сумму", "суммой", "суммы"}:
+        if word in {"сумма", "сумме", "сумму", "суммой", "суммы", "сумм"}:
             return False
         return any(
             word.startswith(alias[:5]) and len(alias) >= 3
