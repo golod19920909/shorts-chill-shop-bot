@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 
-from handlers import ai_assistant, common
+from handlers import ai_assistant, common, start
 from keyboards.main import CB_BACK, main_menu_keyboard
 from keyboards.products import (
     AI_ACTIONS,
@@ -524,6 +524,26 @@ class PendingQuestionTests(unittest.TestCase):
 
         self.assertTrue(consumed)
         self.assertEqual(message.texts[0], ai_assistant.EXPIRED_TEXT)
+
+
+class PendingQuestionNavigationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_main_menu_navigation_cancels_pending_product_question(self):
+        query = FakeQuery(CB_BACK)
+        update = FakeUpdate(callback_query=query)
+        context = FakeContext({})
+        context.user_data[common.AI_QUESTION_KEY] = {
+            "session_id": "s1",
+            "index": 0,
+        }
+
+        from unittest.mock import AsyncMock, patch
+
+        with patch.object(start, "_show_main_menu", new=AsyncMock()):
+            handled = await start.dispatch_menu(CB_BACK, update, context)
+
+        self.assertTrue(handled)
+        self.assertNotIn(common.AI_QUESTION_KEY, context.user_data)
+        self.assertEqual(len(query.answers), 1)
 
 
 if __name__ == "__main__":
