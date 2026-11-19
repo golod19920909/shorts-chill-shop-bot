@@ -78,8 +78,13 @@ def _is_bare_catalog_type_switch(message: str, current_type: str) -> bool:
                 if start and raw_words[start - 1] in _BARE_TYPE_SWITCH_PREPOSITIONS:
                     continue
                 if any(
-                    word in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
-                    for word in raw_words[:start]
+                    raw_words[clause_index] in _BARE_TYPE_SWITCH_FEATURE_CLAUSES
+                    and any(
+                        matches(previous, current)
+                        for previous in raw_words[:clause_index]
+                        for current in current_words
+                    )
+                    for clause_index in range(start)
                 ):
                     continue
                 if all(
