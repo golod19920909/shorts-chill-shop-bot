@@ -49,6 +49,39 @@ class DatabaseTests(unittest.TestCase):
             with self.subTest(table=expected):
                 self.assertIn(expected, tables)
 
+    def test_legacy_users_table_migrates_updated_at_without_losing_rows(self) -> None:
+        async def create_legacy_database() -> None:
+            async with aiosqlite.connect(self.db_path) as conn:
+                await conn.execute(
+                    "CREATE TABLE users ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "telegram_id INTEGER NOT NULL UNIQUE, "
+                    "username TEXT, first_name TEXT, "
+                    "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+                )
+                await conn.execute(
+                    "INSERT INTO users (telegram_id, username, first_name) "
+                    "VALUES (555, 'legacy-user', 'Legacy')"
+                )
+                await conn.commit()
+
+        self.run_async(create_legacy_database())
+        self.run_async(self.db.initialize())
+
+        legacy_user = self.run_async(self.db.get_user(555))
+        self.assertIsNotNone(legacy_user)
+        self.assertEqual(legacy_user["username"], "legacy-user")
+        self.assertTrue(legacy_user["updated_at"])
+        self.assertEqual(legacy_user["onboarded"], 0)
+        self.assertEqual(legacy_user["notify_price_changes"], 1)
+
+        # New rows created after the upgrade also receive a real timestamp,
+        # rather than the constant migration default.
+        self.run_async(self.db.get_or_create_user(777, "new-user", "New"))
+        new_user = self.run_async(self.db.get_user(777))
+        self.assertTrue(new_user["updated_at"])
+        self.assertNotEqual(new_user["updated_at"], "")
+
     def test_initialize_is_idempotent(self) -> None:
         self.run_async(self.db.initialize())
         self.run_async(self.db.initialize())
