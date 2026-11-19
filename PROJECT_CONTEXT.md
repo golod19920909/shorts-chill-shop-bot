@@ -333,10 +333,11 @@ These no longer exist in the active call graph:
 - `services/agent_service.py` (`ShoppingAgent`, tool declarations,
   `run_tool`) and `services/agent_loop.py` (the bounded Gemini
   function-calling loop) — deleted; nothing imports them.
-- The legacy conversational merge resolver (`services/conversation.py`)
-  and its resolver-only test module were removed after confirming there were
-  no production callsites. The active count-only cache helper was extracted
-  into `services/count_followup.py`.
+- The legacy SearchRequest merge resolver is not part of the Telegram
+  production path. `services/conversation.py` remains only for deterministic
+  merge/validation in the separate AIService direct-parser API; its old
+  per-user state holder was removed from the Telegram handler. The active
+  count-only cache helper was extracted into `services/count_followup.py`.
 - The Telegram text-search path is the AssistantRouter + ConversationSearchEngine.
   `SearchService.find_products` remains shared provider infrastructure for
   feed / category / photo / assistant retrieval and is called by the engine
@@ -350,8 +351,9 @@ These no longer exist in the active call graph:
 Deliberately RETAINED (shared infrastructure, not search decisions):
 `services/search_service.py` (provider adapter, feed, categories, photo,
 assistant retrieval), `services/relevance.py` (only `relevance_tier` is
-consumed, as ONE documented ranking input), `services/count_followup.py`
-(the narrow count-only cache shortcut), `services/text_matching.py`
+consumed, as ONE documented ranking input), `services/conversation.py` (direct-parser merge primitives only),
+`services/count_followup.py` (the narrow count-only cache shortcut),
+`services/text_matching.py`
 (`extract_requested_result_count`), `services/product_assistant.py`
 (answers COMPARE turns), `services/ai_service.py` (Gemini client for the
 assistant and feed selection), curation, favorites, price tracking,
