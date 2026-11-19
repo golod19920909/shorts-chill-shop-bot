@@ -28,9 +28,6 @@ Heuristics (all constants here, all honest about what they are):
   result set (where nothing may be dropped): an almost exact copy of an
   already accepted listing is moved behind the different candidates
   instead of occupying the first page next to its own twin;
-- recent penalty: products whose ids are in the user's recent-history
-  ring move to the tail (a penalty, NOT a blacklist: they age out of the
-  ring and may return later);
 - popularity: NOT decided here. What "popular" means is a marketplace
   fact (real order volume) and lives in ``services.comparison_service``
   as arithmetic over returned fields, while WHAT gets asked from the
@@ -44,7 +41,7 @@ Heuristics (all constants here, all honest about what they are):
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 
 from models.product import Product
 
@@ -321,18 +318,3 @@ def family_select(
     return selected[:limit]
 
 
-def penalize_recent(
-    products: Sequence[Product], recent_ids: Iterable[str]
-) -> list[Product]:
-    """Push recently-shown products to the tail (penalty, not a blacklist).
-
-    ``recent_ids`` is a bounded per-user ring: once an id falls out of
-    it, the product may appear high in the feed again.
-    """
-
-    recent = set(recent_ids)
-    if not recent:
-        return list(products)
-    fresh = [product for product in products if product.product_id not in recent]
-    shown = [product for product in products if product.product_id in recent]
-    return fresh + shown
