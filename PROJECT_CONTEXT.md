@@ -9,6 +9,25 @@ search, the «✨ Находки» feed, hot discounts, promo codes, photo searc
 favorites, price tracking. Core invariant: **honest data** — the bot never
 invents products, prices, links, or AI results.
 
+## Current maintenance status (2026-11-19)
+
+- Active work branch: `fix/audit-regressions-2026-11`, based on
+  `fix/product-ranking-quality`. Draft PR #18 is open and has not been merged.
+- The owner authorized a complete audit and safe fixes across every bot
+  section, including «Умный поиск» and «Находки». No section is protected.
+- Confirmed fixes in the current work branch include budget-currency handling,
+  callback acknowledgement, structured photo-search routing, card-specific AI
+  grounding, retrying undelivered price alerts, and recording product/feed
+  history only after successful Telegram delivery.
+- Latest GitHub Actions run on the current branch:
+  focused offline suite: **146 passed, 11 subtests passed**;
+  broad suite excluding the 17 documented legacy modules:
+  **2,049 passed, 681 subtests passed**, one pytest-asyncio deprecation warning.
+  This is a filtered broad regression pass, not an unfiltered full-suite pass.
+- Live Gemini, AliExpress, Telegram and the owner's local `.env` / SQLite
+  runtime have not been exercised by this GitHub-only verification.
+
+
 ## Stack
 
 - Python 3.14 venv at `.venv\Scripts\python.exe` (Windows, PowerShell)
@@ -71,14 +90,16 @@ Telegram text (handlers/search.py::search_message)
 
 ### Intent classification (hybrid Option C)
 
-For every text turn, `ConversationSearchEngine` first asks Gemini to
-interpret the message against the last six user turns, active slot ledger,
-shown-result count and last outcome. The response is a validated JSON object
-with a closed action enum, confidence, optional core product type and (only
-for clarification) one question. Non-clarify actions below 0.65 confidence,
-malformed output, timeouts (bounded to 5 seconds), quota/auth errors and
-missing Gemini all fall back to the deterministic classifier. Gemini never
-returns product cards or bypasses any deterministic validation.
+For every free-text turn, `AssistantRouter` first asks Gemini to
+distinguish general chat from a shopping action and returns a validated
+structured decision. For a shopping turn, that same validated decision is
+passed into `ConversationSearchEngine.handle_message`; the engine must not
+classify the same message a second time. Pending clarification follow-ups
+that bypass the router may be interpreted by the engine once. If routing is
+unavailable, the established deterministic classifier remains the fallback.
+The decision uses a closed action enum, confidence, optional core product type
+and (only for clarification) one question. Gemini never returns product cards
+or bypasses deterministic validation.
 
 `observe()` remains the deterministic fallback and authoritative slot-ledger
 transition. It also accepts only the engine's validated action enum as an
@@ -136,7 +157,7 @@ omit the preference: AliExpress titles often lack reliable weight/specification
 metadata, so the bot must not claim it verified an unlisted attribute.
 
 | `engine.py` | `ConversationSearchEngine.handle_message` — the single search decision-maker for one message: observe → record slots → (COMPARE/ALTERNATIVES resolved from the ledger) → build strategy ONCE → retrieve → validate/filter/dedup/rank → one `SearchDecision` with a per-stage count report. Clarification policy lives here (strategy-less or insufficient-info turns ask ONE question, cached in `pending_clarify`). |
-| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication; no legacy relevance, ranking or curation is applied. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
+| `retrieval.py` | `RetrievalBackend` + `build_retrieval_strategy`. The ONLY path to the provider: builds the request `SearchRequest` from the ledger (never via legacy parsers) and calls `SearchService.find_products(..., raw=True, raw_broaden=True)` — up to three grounded query variants on one provider page; route rankings are fused with deterministic Reciprocal Rank Fusion (RRF) before deduplication. The raw retrieval path avoids legacy search-service ranking/curation; the Telegram delivery layer may apply the separate `CurationGate` afterward depending on the flow. The strategy builder composes the phrase from the type + feature spans MINUS what the type already covers, plus new constraint tokens of THIS message minus budget/count/qualifier/colour/discourse framing — never a literal echo of the user's sentence. Also owns post-retrieval required-feature, exclusion, hard-budget filters and shown-id exclusion. |
 | `ranking.py` | `validate_candidate` / `score_product` / `rank_candidates`: deterministic, requirement-aware ranking. Feature evidence, budget fit, popularity (log-scaled orders) and `relevance_tier` are inputs; a violated exclusion or a failed product-type gate is a HARD rejection that no weight can outrank. Missing evidence is neutral (never treated as proof of presence). |
 | `type_validation.py` | The hard product-type gate: principal-product vs accessory/incidental-mention, decided from the candidate's own title structure (head noun, «для …» role clauses, accessory head words, stem matching). Category-general; no per-product keyword patch. |
 | `text.py` | Tokenisation / constraint-span extraction (reference `text.py` contract, rebuilt for RU/EN mixed marketplace queries). |
