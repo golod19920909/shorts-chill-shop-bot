@@ -94,9 +94,13 @@ class StubSearch:
         self.products = list(products or [])
         self.error = error
         self.requests: list[SearchRequest] = []
+        self.selection_modes: list[bool] = []
 
-    async def find_products(self, request: SearchRequest) -> SearchOutcome:
+    async def find_products(
+        self, request: SearchRequest, *, select_feed_candidates: bool = True
+    ) -> SearchOutcome:
         self.requests.append(request)
+        self.selection_modes.append(select_feed_candidates)
         if self.error is not None:
             raise self.error
         return SearchOutcome(
@@ -480,6 +484,17 @@ class CandidateGenerationTests(unittest.TestCase):
         self.assertEqual(len(search.requests), 1)
         self.assertEqual(search.requests[0].mode, SearchMode.SEARCH)
         self.assertEqual(search.requests[0].currency, ORIGINAL.currency)
+
+    def test_candidate_search_skips_generic_feed_selection(self) -> None:
+        search = StubSearch([make_product("a", "Наушники беспроводные", 10.0)])
+        assistant = ProductAssistant(
+            ai_service=StubAI(available=False),
+            search_service=search,
+        )
+
+        run(assistant.candidate_products(ORIGINAL))
+
+        self.assertEqual(search.selection_modes, [False])
 
     def test_ai_may_only_rephrase_the_intent_not_invent_it(self) -> None:
         search = StubSearch([])
