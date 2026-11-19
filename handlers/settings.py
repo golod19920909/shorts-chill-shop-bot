@@ -147,6 +147,8 @@ async def show_tracking(
             else row["initial_price"]
         )
         price = format_price(displayed_price, row["currency"])
+        if not row["currency"]:
+            price += " (валюта не определена)"
         lines.append(
             f"• {common.escape(row['title'] or 'Без названия')} — "
             f"{common.escape(price)} "
