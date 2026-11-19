@@ -1129,6 +1129,14 @@ async def send_search_results(
     )
     if not delivered:
         common.forget_outcome(context, session_id)
+        try:
+            await context.bot.send_message(
+                chat_id,
+                "Не удалось показать карточку товара. Попробуйте повторить поиск.",
+                reply_markup=back_to_menu_keyboard(),
+            )
+        except Exception:
+            logger.exception("Could not report failed card delivery to chat %s", chat_id)
         return None
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
