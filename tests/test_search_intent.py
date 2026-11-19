@@ -22,6 +22,7 @@ from config.settings import MarketplaceCredentials
 from models.product import Availability, Marketplace, Product
 from models.search_request import SearchRequest
 from services.ai_service import AIService
+from services.conversation import resolve_request
 from services.marketplaces.base import MarketplaceProvider
 from services.query_intent import (
     apply_intent,
