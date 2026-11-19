@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 #: to: ``{"session": str, "index": int}``. Cleared as soon as the question
 #: is answered (or cancelled), so a stray text message never becomes a
 #: question by accident.
-AI_QUESTION_KEY = "ai_pending_question"
+AI_QUESTION_KEY = common.AI_QUESTION_KEY
 
 AI_MENU_HINT = "🤖 AI: выберите, что сделать с этим товаром."
 
