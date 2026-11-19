@@ -18,12 +18,63 @@ import re
 import time
 from dataclasses import dataclass, field
 
+from config.catalog import CATEGORIES
 from services.convsearch.text import constraint_spans, tokens
 
 #: How long an idle conversation stays alive for refinement (the bot's
 #: existing conversation TTL — mirrored here so the engine's ledger cannot
 #: outlive the request it explains).
 CONTEXT_TTL_SECONDS = 30 * 60
+
+_BARE_TYPE_SWITCH_CONNECTORS = frozenset(
+    {"для", "под", "на", "с", "со", "из", "без", "от", "к", "по", "for", "with"}
+)
+
+
+def _is_bare_catalog_type_switch(message: str, current_type: str) -> bool:
+    """Recognize a new catalog product type typed without a search verb.
+
+    The current type must differ from the mentioned category keyword. A
+    keyword introduced as a compatibility/fitment target (e.g. "для
+    шуруповерта") is not a product switch. This is a deterministic fallback;
+    Gemini remains responsible for open-vocabulary product types.
+    """
+
+    raw_words = [
+        word.replace("ё", "е")
+        for word in re.findall(r"[a-zа-яё0-9]+", (message or "").casefold())
+    ]
+    current_words = tokens(current_type)
+    if not raw_words or not current_words:
+        return False
+
+    def matches(left: str, right: str) -> bool:
+        left = left.replace("ё", "е")
+        right = right.replace("ё", "е")
+        return left == right or (
+            len(left) >= 4 and len(right) >= 4 and left[:4] == right[:4]
+        )
+
+    for category in CATEGORIES:
+        for keyword in category.keywords:
+            keyword_words = tokens(keyword)
+            if not keyword_words:
+                continue
+            if all(
+                any(matches(word, current) for current in current_words)
+                for word in keyword_words
+            ):
+                continue
+            width = len(keyword_words)
+            for start in range(len(raw_words) - width + 1):
+                if start and raw_words[start - 1] in _BARE_TYPE_SWITCH_CONNECTORS:
+                    continue
+                if all(
+                    matches(raw_words[start + offset], keyword_word)
+                    for offset, keyword_word in enumerate(keyword_words)
+                ):
+                    return True
+    return False
 
 
 @dataclass
@@ -410,7 +461,11 @@ class ConversationEngineState:
                 and not characteristic
                 and not negations
             )
-            if names_other_product:
+            bare_catalog_type_switch = bool(
+                type_slot
+                and _is_bare_catalog_type_switch(message, type_slot.value)
+            )
+            if names_other_product or bare_catalog_type_switch:
                 intent = MessageIntent.NEW_SEARCH
             elif negations or new_spans or _budget(message):
                 # A budget/currency statement («до 20 долларов») or a
