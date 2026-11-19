@@ -238,6 +238,17 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
         (token for token in own_tokens[:2] if token.startswith(tuple(ACCESSORY_HEAD_WORDS))),
         None,
     )
+    # Some generic role words are also real requested product types:
+    # "набор инструментов", "адаптер USB", "насадка-миксер". Do not reject
+    # those listings as accessories when the request itself starts with that
+    # head and the requested distinguishing noun is present. The same word
+    # still rejects an incidental accessory for a DIFFERENT requested type
+    # ("набор свёрл для дрели" when the user asked for a drill).
+    requested_type_starts_with_accessory = (
+        accessory_head is not None
+        and bool(type_tokens)
+        and stems_match(type_tokens[0], accessory_head)
+    )
     accessory_composite = (
         accessory_head is not None
         and head is not None
@@ -247,6 +258,7 @@ def validate_product_type(product: Product, product_type: str | None) -> TypeVer
                 own_tokens.index(accessory_head) + 1:
             ]
         )
+        and not (requested_type_starts_with_accessory and head_ok)
     )
 
     # 3. Token coverage over the whole title (fallback evidence).
