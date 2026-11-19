@@ -145,7 +145,7 @@ class CurrencyCodeTests(unittest.TestCase):
         self.assertEqual(_detect_currency("80 kzt"), "KZT")
         self.assertEqual(_detect_currency("80 тенге"), "KZT")
         self.assertEqual(_detect_currency("80 uzs"), "UZS")
-        self.assertEqual(_detect_currency("80 сум"), "UZS")
+        self.assertEqual(_detect_currency("80 сумах"), "UZS")
         self.assertEqual(_detect_currency("80 pln"), "PLN")
         self.assertEqual(_detect_currency("80 злотых"), "PLN")
 
