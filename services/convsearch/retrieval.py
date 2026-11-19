@@ -12,10 +12,17 @@ from __future__ import annotations
 import logging
 import re
 
+from config.catalog import CURRENCIES
 from models.product import Product
+from services.marketplaces.aliexpress_client import DOCUMENTED_TARGET_CURRENCIES
 from services.convsearch.state import ConversationEngineState, Slot
 
 logger = logging.getLogger(__name__)
+
+# Explicit budget amounts can only be compared in a currency the user can
+# select AND the Affiliate API documents. The intersection is intentionally
+# smaller than either list: no conversion or guessed exchange rate is used.
+SUPPORTED_BUDGET_CURRENCIES = frozenset(CURRENCIES) & DOCUMENTED_TARGET_CURRENCIES
 
 
 def _canonical_id(product: Product) -> str:
@@ -523,12 +530,8 @@ def build_retrieval_strategy(
     if budget is not None:
         budget_parts = str(budget.value or "").split(maxsplit=1)
         if len(budget_parts) > 1:
-            from services.marketplaces.aliexpress_client import (
-                DOCUMENTED_TARGET_CURRENCIES,
-            )
-
             explicit_budget_currency = budget_parts[1].strip().upper()
-            if explicit_budget_currency in DOCUMENTED_TARGET_CURRENCIES:
+            if explicit_budget_currency in SUPPORTED_BUDGET_CURRENCIES:
                 request_currency = explicit_budget_currency
 
     request = SearchRequest(
