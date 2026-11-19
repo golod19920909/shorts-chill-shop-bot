@@ -129,10 +129,13 @@ def _assistant(context: ContextTypes.DEFAULT_TYPE):
 
 
 _COMPARATIVE_QUESTION_RE = re.compile(
-    r"(?:сравн|из\s+(?:этих|них)|между\s+ними|эти\s+(?:товар|вариант|модел)|"
-    r"какой\s+(?:из\s+(?:этих|них)\s+)?(?:дешевле|лучше|хуже|выгоднее)|"
-    r"что\s+(?:дешевле|лучше|выгоднее)|which\s+of\s+these|compare|"
-    r"between\s+them|these\s+(?:options|products))",
+    r"(?:сравн|из\s+(?:этих|них|двух|трех|трёх|2|3)|между\s+ними|"
+    r"эти\s+(?:товар|вариант|модел)|"
+    r"какой\s+(?:(?:из\s+(?:этих|них|двух|трех|трёх|2|3)\s+)?"
+    r"(?:вариант|товар|модел[ьи])?\s*(?:дешевле|лучше|хуже|выгоднее))|"
+    r"что\s+(?:дешевле|лучше|выгоднее)|"
+    r"which\s+(?:of\s+these\s+)?(?:is\s+)?(?:cheaper|better|worse)|"
+    r"compare|between\s+them|these\s+(?:options|products))",
     re.IGNORECASE,
 )
 
