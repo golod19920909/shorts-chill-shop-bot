@@ -2,6 +2,14 @@
 
 Guidance for AI agents and maintainers working in this repository.
 
+## Current maintenance scope
+
+The owner has authorized full-repository maintenance: inspect, repair, simplify,
+and remove demonstrably unused code across all user-facing sections, including
+«Умный поиск», «Находки», categories, photo search, product assistance,
+favorites, price tracking, promotions, settings, and admin tools. No section is
+protected from changes. Diagnose dependencies before deleting code, preserve
+persistent user data, and verify every functional change with regression tests.
 ## Environment
 
 - Windows / PowerShell. Use PowerShell commands, not bash syntax.
@@ -20,10 +28,14 @@ Guidance for AI agents and maintainers working in this repository.
    tool loop or give old chat routing / post-hoc curation decision authority.
 3. **Systemic fixes only.** Do not add product-specific or phrase-specific
    exceptions to make an individual query pass.
-4. **Minimal changes.** Touch only files required by the assigned task. Do not
-   chase unrelated legacy test failures.
+4. **Systemic but controlled changes.** The owner has authorized a full-bot
+   audit and fixes across every section, including «Умный поиск» and
+   «Находки». Fix confirmed root causes in the smallest coherent change;
+   avoid unrelated rewrites and product-specific patches.
 5. **Verify with offline tests.** Tests must use fakes/stubs and must not call
-   Gemini, AliExpress, or Telegram. Report exactly what ran and its result.
+   Gemini, AliExpress, or Telegram. Analyze excluded/legacy test modules rather
+   than assuming they are obsolete; preserve useful scenarios in current tests.
+   Report exactly what ran and its result.
 6. **Honest data.** Never fabricate products, prices, attributes, availability,
    or affiliate URLs. Gemini may select only IDs in the real candidate pool.
 7. **Preserve limits.** Default presentation cap is 30 cards. Gemini candidate
