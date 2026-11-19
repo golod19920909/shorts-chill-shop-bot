@@ -93,46 +93,37 @@ async def currency_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     database = common.get_database(context)
     try:
+        previous_region = await common.get_user_region(context, user_id)
+        previous_currency = str(previous_region.get("currency") or "").upper() or None
+        new_currency = None if code == "clear" else code.upper()
         if code == "clear":
-            # Kept only for stale "Не указывать" buttons of earlier
-            # versions; the new screen has no clear button.
             await database.update_user_region(user_id, clear_currency=True)
             await query.answer("Валюта не указана")
         elif not is_supported_currency(code):
             await query.answer("Такая валюта не поддерживается.", show_alert=True)
             return
         else:
-            await database.update_user_region(user_id, currency=code.upper())
-            await query.answer(f"Валюта: {code.upper()}")
+            await database.update_user_region(user_id, currency=new_currency)
+            await query.answer(f"Валюта: {new_currency}")
     except Exception:
         logger.exception("Failed to store currency %r for user %s", code, user_id)
         await query.answer("Не удалось сохранить.", show_alert=True)
         return
 
-    # The stored tracking baseline is in the OLD currency and must never
-    # be compared with prices in the new one: drop it so the first new
-    # observation becomes the silent baseline in the new currency.
-    try:
-        await database.invalidate_tracking_baselines(user_id)
-    except Exception:
-        logger.exception(
-            "Failed to invalidate tracking baselines for user %s", user_id
+    if previous_currency != new_currency:
+        try:
+            await database.invalidate_tracking_baselines(user_id)
+        except Exception:
+            logger.exception("Failed to invalidate tracking baselines for user %s", user_id)
+
+        await common.record_event(
+            context, analytics.EVENT_CURRENCY_CHANGED,
+            user_id=user_id,
+            telegram_id=update.effective_user.id if update.effective_user else None,
+            metadata={"currency": new_currency},
         )
-
-    await common.record_event(
-        context,
-        analytics.EVENT_CURRENCY_CHANGED,
-        user_id=user_id,
-        telegram_id=update.effective_user.id if update.effective_user else None,
-        metadata={"currency": code},
-    )
-
-    # Cached product sessions still hold prices in the OLD currency:
-    # drop them so a stale card can never be browsed with a fresh
-    # expectation (its buttons then answer "Результат устарел").
-    context.user_data.pop(common.OUTCOME_CACHE_KEY, None)
-    context.user_data.pop(common.OUTCOME_META_KEY, None)
-
+        context.user_data.pop(common.OUTCOME_CACHE_KEY, None)
+        context.user_data.pop(common.OUTCOME_META_KEY, None)
     await show_currency(
         update,
         context,
