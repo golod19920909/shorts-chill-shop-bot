@@ -11,6 +11,8 @@ class CountOnlyFollowUpTests(unittest.TestCase):
     def test_count_only_phrases_are_recognized(self):
         cases = {
             "покажи 5": 5,
+            "покажи один вариант": 1,
+            "show one more": 1,
             "покажи три варианта": 3,
             "и ещё 4": 4,
             "покажи ещё пару вариантов": 2,
