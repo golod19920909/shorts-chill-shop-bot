@@ -128,7 +128,6 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_count_summary_failure_does_not_fail_delivered_subset(self):
         outcome = make_outcome()
-        query = SimpleNamespace()
         update = SimpleNamespace(
             effective_message=SimpleNamespace(chat_id=47),
             effective_user=SimpleNamespace(id=555),
