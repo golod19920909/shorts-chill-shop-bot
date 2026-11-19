@@ -1,4 +1,4 @@
-name: Conversational regression tests
+name: Full bot audit regression tests
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - feat/conversational-product-relevance
+      - fix/product-ranking-quality
 
 jobs:
   conversational-regressions:
@@ -24,6 +25,8 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile every tracked Python module
+        run: python -m compileall -q .
       - name: Run focused offline tests
         run: >
           python -m pytest -q
