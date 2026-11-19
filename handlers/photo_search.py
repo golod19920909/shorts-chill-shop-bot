@@ -22,6 +22,7 @@ from models.search_request import SearchMode, SearchRequest
 from services import analytics
 from services.product_identity import deduplicate_products
 from services.search_service import SearchOutcome
+from services.vision_search import analyze_photo_with_vision
 from utils.emoji import PHOTO, WARNING
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,14 @@ async def photo_message_handler(
     # the primary production path: it builds several grounded hypotheses and
     # sends them through the shared relevance gate. The old one-phrase path
     # remains only for integrations that do not implement analyze_image.
-    if callable(getattr(ai_service, "analyze_image", None)):
+    if (
+        callable(getattr(ai_service, "analyze_image", None))
+        or getattr(ai_service, "_client", None) is None
+    ):
+        # The production AIService uses its structured analyzer. Older
+        # integrations without that method (and test doubles without a raw
+        # client) use the same structured handler's describe_image_query
+        # fallback, so every supported route still performs one vision step.
         from handlers.discovery import structured_photo_message
 
         await structured_photo_message(update, context, image_bytes=image_bytes)
@@ -160,24 +168,22 @@ async def photo_message_handler(
         metadata={"bytes": len(image_bytes)},
     )
 
-    recognizer = getattr(ai_service, "describe_image_query", None)
-    try:
-        query = await recognizer(image_bytes) if callable(recognizer) else None
-    except Exception:
-        logger.exception("Photo query recognition failed")
-        query = None
+    vision_res = await analyze_photo_with_vision(image_bytes, ai_service)
+    if not vision_res:
+        # The older integration's short query was unusable. Fall back to the
+        # structured path once; it may still recover a grounded hypothesis.
+        from handlers.discovery import structured_photo_message
 
-    if not query:
-        await message.reply_text(
-            IMAGE_EMPTY_TEXT, parse_mode="HTML", reply_markup=photo_retry_keyboard()
-        )
+        await structured_photo_message(update, context, image_bytes=image_bytes)
         return
 
+    query = vision_res["query"]
+    fallback_category = vision_res.get("fallback_category")
     search_service = common.get_search_service(context)
     seen = await common.seen_products(context, user_id)
     products = await execute_photo_search(
         query,
-        None,
+        fallback_category,
         search_service,
         currency=region.get("currency"),
         exclude=seen,
