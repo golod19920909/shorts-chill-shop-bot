@@ -136,6 +136,20 @@ class CrossCategoryValidationTests(unittest.TestCase):
             product("d3", "Насадка для дрели миксер"), DRILL
         ).qualifies)
 
+    def test_accessory_role_words_can_be_the_requested_product_type(self) -> None:
+        # These nouns can describe accessories FOR another product, but they
+        # are also valid principal product types in their own right.
+        cases = (
+            ("набор инструментов", "Набор инструментов 46 предметов"),
+            ("адаптер USB", "Адаптер USB-C OTG"),
+            ("насадка-миксер", "Насадка-миксер для дрели"),
+        )
+        for product_type, title in cases:
+            with self.subTest(product_type=product_type, title=title):
+                self.assertTrue(
+                    validate_product_type(product("principal", title), product_type).qualifies
+                )
+
     def test_no_type_requested_passes_everything(self) -> None:
         self.assertTrue(validate_product_type(
             product("n1", "Что угодно вообще"), None
