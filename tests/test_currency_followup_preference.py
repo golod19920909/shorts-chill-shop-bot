@@ -61,6 +61,12 @@ class CurrencyFollowupPreferenceTests(unittest.IsolatedAsyncioTestCase):
     def test_russian_sum_word_is_not_mistaken_for_uzbek_currency(self):
         self.assertIsNone(_currency_request_state("покажи цены в сумме 500"))
 
+    def test_currency_and_numeric_budget_are_kept_together(self):
+        self.assertEqual(
+            _currency_request_state("покажи в гривнах до 1000"),
+            {"currency": "UAH", "amount": 1000.0},
+        )
+
 
     def test_national_currency_adjectives_are_not_mistaken_for_products(self):
         cases = {
