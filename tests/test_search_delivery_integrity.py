@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import asyncio
+import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+from handlers import common, search
+from models.product import Marketplace, Product
+from models.search_request import SearchRequest
+from services.search_service import SearchOutcome
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def make_outcome() -> SearchOutcome:
+    return SearchOutcome(
+        request=SearchRequest(original_query="наушники"),
+        products=[
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="p1",
+                title="Bluetooth headphones",
+                product_url="https://www.aliexpress.com/item/p1.html",
+                price=10.0,
+                currency="USD",
+            ),
+            Product(
+                marketplace=Marketplace.ALIEXPRESS,
+                product_id="p2",
+                title="USB headphones",
+                product_url="https://www.aliexpress.com/item/p2.html",
+                price=12.0,
+                currency="USD",
+            ),
+        ],
+        searched_marketplaces=["AliExpress"],
+    )
+
+
+class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_failed_initial_send_does_not_record_product_as_shown(self):
+        outcome = make_outcome()
+        context = SimpleNamespace(
+            user_data={common.OUTCOME_META_KEY: {"s1": {"header": None}}}
+        )
+
+        with (
+            patch.object(common, "is_product_tracked", new=AsyncMock(return_value=False)),
+            patch.object(
+                common,
+                "send_product_card",
+                new=AsyncMock(side_effect=RuntimeError("Telegram unavailable")),
+            ),
+            patch.object(common, "record_event", new=AsyncMock()) as event,
+            patch.object(common, "remember_shown", new=AsyncMock()) as shown,
+            patch.object(common, "remember_views", new=AsyncMock()) as views,
+        ):
+            delivered = await search._send_product_cards(
+                context, 47, outcome, "s1", user_id=1, telegram_id=555
+            )
+
+        self.assertFalse(delivered)
+        event.assert_not_awaited()
+        shown.assert_not_awaited()
+        views.assert_not_awaited()
+
+    async def test_successful_initial_send_is_recorded_after_delivery(self):
+        outcome = make_outcome()
+        context = SimpleNamespace(
+            user_data={common.OUTCOME_META_KEY: {"s1": {"header": None}}}
+        )
+        calls = []
+
+        async def send(*args, **kwargs):
+            calls.append("send")
+
+        async def record(*args, **kwargs):
+            calls.append("event")
+
+        async def shown(*args, **kwargs):
+            calls.append("shown")
+
+        async def views(*args, **kwargs):
+            calls.append("views")
+
+        with (
+            patch.object(common, "is_product_tracked", new=AsyncMock(return_value=False)),
+            patch.object(common, "send_product_card", new=AsyncMock(side_effect=send)),
+            patch.object(common, "record_event", new=AsyncMock(side_effect=record)),
+            patch.object(common, "remember_shown", new=AsyncMock(side_effect=shown)),
+            patch.object(common, "remember_views", new=AsyncMock(side_effect=views)),
+            patch.object(common, "session_flow", return_value="search"),
+        ):
+            delivered = await search._send_product_cards(
+                context, 47, outcome, "s1", user_id=1, telegram_id=555
+            )
+
+        self.assertTrue(delivered)
+        self.assertEqual(calls, ["send", "event", "shown", "views"])
+
+    async def test_failed_browse_edit_does_not_advance_shown_history(self):
+        outcome = make_outcome()
+        meta = {"track_shown": False, "max_index": 0}
+        query = SimpleNamespace(
+            data="pnav:s1:1",
+            message=SimpleNamespace(chat_id=47, photo=[], message_id=10),
+            answer=AsyncMock(),
+        )
+        update = SimpleNamespace(
+            callback_query=query,
+            effective_user=SimpleNamespace(id=555),
+        )
+        context = SimpleNamespace(user_data={})
+
+        with (
+            patch.object(common, "get_cached_outcome", return_value=outcome),
+            patch.object(common, "register_user", new=AsyncMock(return_value=1)),
+            patch.object(common, "get_outcome_meta", return_value=meta),
+            patch.object(common, "session_flow", return_value="search"),
+            patch.object(common, "is_product_tracked", new=AsyncMock(return_value=False)),
+            patch.object(search, "_edit_browsed_card", new=AsyncMock(return_value=False)),
+            patch.object(common, "remember_shown", new=AsyncMock()) as shown,
+            patch.object(common, "remember_views", new=AsyncMock()) as views,
+            patch.object(common, "record_event", new=AsyncMock()) as event,
+        ):
+            await search.browse_callback(update, context)
+
+        query.answer.assert_awaited_once()
+        shown.assert_not_awaited()
+        views.assert_not_awaited()
+        event.assert_not_awaited()
+        self.assertEqual(meta["max_index"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
