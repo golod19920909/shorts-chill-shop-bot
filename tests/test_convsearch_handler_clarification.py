@@ -31,6 +31,12 @@ class PendingClarificationLifecycleTests(unittest.TestCase):
         self.assertEqual(current.active(), [])
         self.assertIs(context.user_data["_convsearch_state"], current)
 
+    def test_expiry_check_accepts_zero_as_a_valid_clock_value(self):
+        state = ConversationEngineState(user_key="zero-clock")
+        state.updated_at = -CONTEXT_TTL_SECONDS - 1
+
+        self.assertTrue(state.is_expired(now=0))
+
     def test_getting_shopping_state_does_not_refresh_idle_ttl(self):
         state = ConversationEngineState(user_key="idle-shopping")
         state.record_product_type("шуруповерт")
