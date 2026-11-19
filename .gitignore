@@ -8,8 +8,3 @@ database/*.db-journal
 .pytest_cache/
 *.egg-info/
 *.log
-
-.env
-.venv/
-__pycache__/
-*.pyc
