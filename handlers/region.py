@@ -86,6 +86,10 @@ async def currency_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await show_currency(update, context)
         return
 
+    if code != "clear" and not is_supported_currency(code):
+        await query.answer("Такая валюта не поддерживается.", show_alert=True)
+        return
+
     user_id = await common.register_user(update, context)
     if user_id is None:
         await query.answer("Ошибка базы данных.", show_alert=True)
@@ -96,34 +100,34 @@ async def currency_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         previous_region = await common.get_user_region(context, user_id)
         previous_currency = str(previous_region.get("currency") or "").upper() or None
         new_currency = None if code == "clear" else code.upper()
-        if code == "clear":
-            await database.update_user_region(user_id, clear_currency=True)
-            await query.answer("Валюта не указана")
-        elif not is_supported_currency(code):
-            await query.answer("Такая валюта не поддерживается.", show_alert=True)
-            return
-        else:
-            await database.update_user_region(user_id, currency=new_currency)
-            await query.answer(f"Валюта: {new_currency}")
+
+        if previous_currency != new_currency:
+            # Reset the baseline BEFORE changing the preference. If this
+            # fails, keep the old currency so the scheduler cannot compare
+            # prices across different units.
+            await database.invalidate_tracking_baselines(user_id)
+            if code == "clear":
+                await database.update_user_region(user_id, clear_currency=True)
+            else:
+                await database.update_user_region(user_id, currency=new_currency)
+
+            await common.record_event(
+                context,
+                analytics.EVENT_CURRENCY_CHANGED,
+                user_id=user_id,
+                telegram_id=update.effective_user.id if update.effective_user else None,
+                metadata={"currency": new_currency},
+            )
+            context.user_data.pop(common.OUTCOME_CACHE_KEY, None)
+            context.user_data.pop(common.OUTCOME_META_KEY, None)
     except Exception:
-        logger.exception("Failed to store currency %r for user %s", code, user_id)
-        await query.answer("Не удалось сохранить.", show_alert=True)
+        logger.exception("Failed to change currency %r for user %s", code, user_id)
+        await query.answer("Не удалось изменить валюту. Старые настройки сохранены.", show_alert=True)
         return
 
-    if previous_currency != new_currency:
-        try:
-            await database.invalidate_tracking_baselines(user_id)
-        except Exception:
-            logger.exception("Failed to invalidate tracking baselines for user %s", user_id)
-
-        await common.record_event(
-            context, analytics.EVENT_CURRENCY_CHANGED,
-            user_id=user_id,
-            telegram_id=update.effective_user.id if update.effective_user else None,
-            metadata={"currency": new_currency},
-        )
-        context.user_data.pop(common.OUTCOME_CACHE_KEY, None)
-        context.user_data.pop(common.OUTCOME_META_KEY, None)
+    await query.answer(
+        "Валюта не указана" if new_currency is None else f"Валюта: {new_currency}"
+    )
     await show_currency(
         update,
         context,
