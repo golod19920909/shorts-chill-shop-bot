@@ -351,7 +351,8 @@ def _register_handlers(application: Application) -> None:
     # are searched through the same AliExpress relevance and card-delivery path.
     application.add_handler(MessageHandler(filters.PHOTO, discovery.photo_message))
 
-    # Any plain text message is treated as a product search query.
+    # Plain text enters one route: general conversation or the shopping engine.
+    # The router and engine keep their histories and decision logic separate.
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND, search.search_message)
     )
