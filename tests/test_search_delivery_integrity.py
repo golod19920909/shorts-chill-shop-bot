@@ -126,6 +126,35 @@ class SearchDeliveryIntegrityTests(unittest.IsolatedAsyncioTestCase):
         context.bot.send_message.assert_awaited_once()
 
 
+    async def test_count_summary_failure_does_not_fail_delivered_subset(self):
+        outcome = make_outcome()
+        query = SimpleNamespace()
+        update = SimpleNamespace(
+            effective_message=SimpleNamespace(chat_id=47),
+            effective_user=SimpleNamespace(id=555),
+        )
+        context = SimpleNamespace(
+            user_data={},
+            bot=SimpleNamespace(
+                send_message=AsyncMock(side_effect=RuntimeError("summary unavailable"))
+            ),
+        )
+
+        with (
+            patch.object(search, "_last_shown_session", return_value="old"),
+            patch.object(common, "get_cached_outcome", return_value=outcome),
+            patch.object(search, "is_count_only_follow_up", return_value=1),
+            patch.object(search, "_poolled_outcome", return_value=outcome),
+            patch.object(common, "register_user", new=AsyncMock(return_value=1)),
+            patch.object(search, "send_search_results", new=AsyncMock(return_value="new")),
+            patch.object(search, "get_conversation", return_value=None),
+        ):
+            handled = await search._answer_from_shown(update, context, "покажи один")
+
+        self.assertTrue(handled)
+        context.bot.send_message.assert_awaited_once()
+
+
     async def test_failed_browse_edit_does_not_advance_shown_history(self):
         outcome = make_outcome()
         meta = {"track_shown": False, "max_index": 0}
