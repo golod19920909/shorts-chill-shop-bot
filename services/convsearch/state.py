@@ -219,7 +219,9 @@ _BUDGET_FRAMING_WORDS: frozenset[str] = frozenset(
         # Those unsupported currencies must reach the explicit clarification
         # path, not become accidental product features in a follow-up.
         "byn", "белорусск", "бел", "kzt", "тенге", "uzs", "сум",
-        "pln", "злот", "zł", "gbp", "фунт", "rub",
+        "pln", "злот", "злотый", "злотых", "злотые", "zł",
+        "gbp", "фунт", "фунта", "фунтов", "фунты", "стерлинг",
+        "стерлингов", "rub",
         "цена", "цену", "цены", "курс", "пересчет", "пересчёт",
         "доларів", "долара", "долар", "гривень", "₴", "$", "€", "₽", "₸", "£",
         # Scale words belong to a money amount, never to a product type or feature.
