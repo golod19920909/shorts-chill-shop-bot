@@ -104,6 +104,25 @@ class BudgetFollowUpTests(unittest.TestCase):
         text = "До 2000 тысяч гривен"
         self.assertIsNone(_product_type_of(text))
 
+    def test_budget_parser_supports_every_catalog_currency(self):
+        cases = (
+            ("до 500 гривен", "UAH"),
+            ("до 30 долларов", "USD"),
+            ("до 25 евро", "EUR"),
+            ("до 2000 рублей", "RUB"),
+            ("до 150 белорусских рублей", "BYN"),
+            ("до 10000 тенге", "KZT"),
+            ("до 100000 сум", "UZS"),
+            ("до 500 злотых", "PLN"),
+            ("до 40 фунтов стерлингов", "GBP"),
+            ("до 500 zł", "PLN"),
+            ("до 40 £", "GBP"),
+        )
+        for message, expected_currency in cases:
+            with self.subTest(message=message):
+                parsed = _budget(message)
+                self.assertEqual(parsed.get("currency"), expected_currency)
+
     def test_budget_scale_is_not_applied_without_scale_word(self):
         self.assertEqual(_budget("до 2000 гривен")["max"], 2000.0)
         self.assertEqual(_budget("до 2 тысяч гривен")["max"], 2000.0)
