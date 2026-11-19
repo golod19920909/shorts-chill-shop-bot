@@ -1119,7 +1119,7 @@ async def send_search_results(
         origin="telegram-sent",
         limit=AI_FEED_RESULTS,
     )
-    await _send_product_cards(
+    delivered = await _send_product_cards(
         context,
         chat_id,
         outcome,
@@ -1127,6 +1127,9 @@ async def send_search_results(
         user_id=user_id,
         telegram_id=telegram_id,
     )
+    if not delivered:
+        common.forget_outcome(context, session_id)
+        return None
     # The hint AFTER the cards states the real delivered count and points at
     # the existing «➡️» browsing. No new products, prices or links are
     # invented here - only the count actually delivered above. A caller with
@@ -1199,46 +1202,14 @@ async def _send_product_cards(
     *,
     user_id: int | None = None,
     telegram_id: int | None = None,
-) -> None:
-    """Send ONE card - the first product of the deduplicated result set.
-
-    Navigation happens by editing this single message: every product of
-    the result set is reachable through ◀️/➡️ without sending a new
-    message. The card carries no number and no counter - only the feed
-    context and the real, conditional fields of that product.
-    """
+) -> bool:
+    """Send the first card, then persist that the user actually saw it."""
 
     products = outcome.products
     if not products:
-        return
+        return False
     meta = common.get_outcome_meta(context, session_id)
     header = meta.get("header")
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=telegram_id,
-        product=products[0],
-    )
-
-    # The per-user history is written for EVERY flow (search, category,
-    # popular, photo) - each flow into its OWN scope: the next open of this
-    # feed must skip the card the user is looking at right now, while a
-    # normal search is never emptied by the popular rotation's state.
-    await common.remember_shown(
-        context,
-        user_id,
-        products[0],
-        flow=common.session_flow(context, session_id),
-    )
-
-    # The SAME instant is the only honest moment to call a product "seen": the
-    # card is in front of the user right now. The novelty history of the
-    # curation layer is written next to the per-scope history above - it never
-    # replaces it, and a failed write degrades to the old behaviour.
-    await common.remember_views(context, user_id, [products[0]])
-
     tracked = await common.is_product_tracked(
         context, user_id, products[0].product_id
     )
@@ -1256,6 +1227,29 @@ async def _send_product_cards(
         )
     except Exception:
         logger.exception("Failed to send the browsing card of session %s", session_id)
+        return False
+
+    # A product becomes "shown" only after Telegram confirms that its card
+    # was sent. A failed send must not poison the user's exclusion history.
+    await common.record_event(
+        context,
+        analytics.EVENT_PRODUCT_SHOWN,
+        user_id=user_id,
+        telegram_id=telegram_id,
+        product=products[0],
+    )
+    await common.remember_shown(
+        context,
+        user_id,
+        products[0],
+        flow=common.session_flow(context, session_id),
+    )
+    try:
+        await common.remember_views(context, user_id, [products[0]])
+    except Exception:
+        logger.warning("Failed to record product novelty view", exc_info=True)
+    return True
+
 
 async def _edit_browsed_card(
     query,
@@ -1266,30 +1260,8 @@ async def _edit_browsed_card(
     *,
     user_id: int | None = None,
     tracked: bool = False,
-) -> None:
-    """Rewrite the browsed card to another product of the same session.
-
-    Everything the user sees must belong to ONE product: the image, the
-    caption text and the keyboard (including the Buy URL). A photo
-    message therefore gets ``edit_message_media`` with an
-    :class:`~telegram.InputMediaPhoto` that carries the NEW product's
-    image URL, its caption and the fresh keyboard - editing only the
-    caption would leave the old photo on screen above Product B's text,
-    which is exactly the stale-image bug.
-
-    Telegram cannot turn a photo message into a text one (or back), so
-    when the new product's image presence differs from the current
-    message type, the card is replaced: the stale message is deleted and
-    a fresh card is sent as a single new message - the only Telegram
-    operation that fits. ``tracked`` reflects the user's price-tracking
-    state for the NEW product, so the 🔔/🔕 toggle stays honest in the
-    same card.
-
-    The caption is rebuilt by the very same renderer that sent the card
-    (``common.product_card_text``); buttons still carry only
-    ``(session_id, index)`` and no URL is ever constructed here - the
-    affiliate link comes from the cached ``Product`` at render time.
-    """
+) -> bool:
+    """Edit or replace the visible card; return whether delivery succeeded."""
 
     product = outcome.products[index]
     meta = common.get_outcome_meta(context, session_id)
@@ -1307,7 +1279,6 @@ async def _edit_browsed_card(
     has_image = bool(product.image_url)
 
     if has_image and is_photo:
-        # Replace image + caption + keyboard in ONE call.
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(
@@ -1317,26 +1288,21 @@ async def _edit_browsed_card(
                 ),
                 reply_markup=reply_markup,
             )
-            return
+            return True
         except Exception:
-            # The new image URL may be unfetchable by Telegram; fall
-            # back to a full card replacement instead of a stale screen.
             logger.warning(
                 "Media edit failed for %s/%s; replacing the card message",
                 product.marketplace,
                 product.product_id,
             )
-            await _replace_browsed_card(
+            return await _replace_browsed_card(
                 query, context, product, index, caption, reply_markup
             )
-            return
 
     if has_image != is_photo:
-        # Text <-> photo transition: Telegram has no edit for it.
-        await _replace_browsed_card(
+        return await _replace_browsed_card(
             query, context, product, index, caption, reply_markup
         )
-        return
 
     if is_photo:
         await query.edit_message_caption(
@@ -1348,6 +1314,8 @@ async def _edit_browsed_card(
         await query.edit_message_text(
             caption, parse_mode="HTML", reply_markup=reply_markup
         )
+    return True
+
 
 async def _replace_browsed_card(
     query,
@@ -1356,41 +1324,40 @@ async def _replace_browsed_card(
     index: int,
     caption: str,
     reply_markup,
-) -> None:
-    """Replace a card whose message type cannot be edited in place.
-
-    The old message is deleted and ONE fresh card is sent - the minimal
-    Telegram-supported operation when photo/text media must change.
-    """
+) -> bool:
+    """Send a replacement before deleting the old card; preserve it on failure."""
 
     message = getattr(query, "message", None)
     chat_id = getattr(message, "chat_id", None)
-    if chat_id is not None:
+    if chat_id is None:
+        return False
+
+    try:
+        await common.send_product_card(
+            context,
+            chat_id,
+            product,
+            None,
+            caption_prefix=None,
+            reply_markup=reply_markup,
+            raw_caption=caption,
+        )
+    except Exception:
+        logger.exception("Could not send the replacement browsing card")
+        return False
+
+    if message is not None:
         try:
             await context.bot.delete_message(
                 chat_id=chat_id, message_id=message.message_id
             )
-        except Exception:  # noqa: BLE001 - deletion is best-effort
+        except Exception:
             logger.warning("Could not delete the stale browsing card", exc_info=True)
-    await common.send_product_card(
-        context,
-        chat_id,
-        product,
-        None,
-        caption_prefix=None,
-        reply_markup=reply_markup,
-        raw_caption=caption,
-    )
+    return True
+
 
 async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """``pnav:<session_id>:<index>`` - move the ONE card to another product.
-
-    The whole visible result set stays cached under ``session_id``, so the
-    same Telegram message is edited in place - content AND keyboard - with
-    no new message sent while the user walks the feed. An expired session
-    (cache rotated, bot restarted) is answered with an honest notice
-    instead of inventing a list.
-    """
+    """Move the visible card and persist visibility only after a successful edit."""
 
     query = update.callback_query
     if query is None:
@@ -1413,58 +1380,26 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     product = products[index]
-
     user_id = await common.register_user(update, context)
-
-    # Feed sessions («✨ Находки») persist every card the user
-    # actually browses to, so a later open skips it too. Best effort:
-    # a failed history write must never break the card navigation.
     meta = common.get_outcome_meta(context, session_id)
     flow = common.session_flow(context, session_id)
-    if meta.get("track_shown") and user_id is not None:
-        # A FORWARD step of a feed session claims a NEW product and
-        # must respect the same persistent exclusion an open does: the
-        # list of an old card may have been shown meanwhile by a later
-        # open, and a cached session must never bypass the history.
-        # Steps back to already-visited positions stay untouched -
-        # that is navigation, not a feed step.
+    max_visited = int(meta.get("max_index") or 0)
+
+    if meta.get("track_shown") and user_id is not None and index > max_visited:
         target = await _feed_forward_target(
             context, user_id, meta, products, index
         )
         if target is None:
-            # Everything ahead was already shown: the honest end-of-
-            # feed screen with the existing explicit reset.
             await query.answer()
             await _edit_to_feed_exhausted(query, session_id)
             return
         index = target
         product = products[index]
 
-    # Whatever flow this session belongs to, the card the user is now
-    # looking at is a product they have been shown - the history is the
-    # single source every feed uses to avoid repeating itself. It is written
-    # into the scope of THIS session's flow, so a search card never advances
-    # the popular rotation and a rotation card never hides a search result.
-    await common.remember_shown(context, user_id, product, flow=flow)
-
-    # The browsed card is shown, so it joins the curation layer's novelty
-    # history too: the NEXT feed - in this process or after a restart - skips
-    # or defers it instead of repeating it as if it were new.
-    await common.remember_views(context, user_id, [product])
-
-    await common.record_event(
-        context,
-        analytics.EVENT_PRODUCT_SHOWN,
-        user_id=user_id,
-        telegram_id=update.effective_user.id if update.effective_user else None,
-        product=product,
-    )
-
     tracked = await common.is_product_tracked(context, user_id, product.product_id)
-
     await query.answer()
     try:
-        await _edit_browsed_card(
+        delivered = await _edit_browsed_card(
             query,
             context,
             outcome,
@@ -1474,10 +1409,30 @@ async def browse_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             tracked=tracked,
         )
     except Exception:
-        # "Message is not modified" is harmless; anything else is logged.
-        logger.debug("Card edit skipped for session %s", session_id, exc_info=True)
+        logger.debug("Card edit failed for session %s", session_id, exc_info=True)
+        delivered = False
 
-    _ = product  # the product is resolved by the action buttons on demand
+    if not delivered:
+        return
+
+    # Persist visibility only after Telegram successfully edited or replaced
+    # the card. A failed navigation must not hide the product from future feeds.
+    if meta.get("track_shown") and user_id is not None:
+        meta["max_index"] = max(int(meta.get("max_index") or 0), index)
+    if user_id is not None:
+        await common.remember_shown(context, user_id, product, flow=flow)
+        try:
+            await common.remember_views(context, user_id, [product])
+        except Exception:
+            logger.warning("Failed to record browsed product novelty view", exc_info=True)
+    await common.record_event(
+        context,
+        analytics.EVENT_PRODUCT_SHOWN,
+        user_id=user_id,
+        telegram_id=update.effective_user.id if update.effective_user else None,
+        product=product,
+    )
+
 
 async def _feed_forward_target(
     context: ContextTypes.DEFAULT_TYPE,
@@ -1514,7 +1469,6 @@ async def _feed_forward_target(
         target += 1
     if target >= len(products):
         return None
-    meta["max_index"] = target
     return target
 
 async def _edit_to_feed_exhausted(query, session_id: str) -> None:
