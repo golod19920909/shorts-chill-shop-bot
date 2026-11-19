@@ -14,6 +14,10 @@ from services.convsearch.state import ConversationEngineState, MessageIntent, _b
 
 
 class BudgetFollowUpTests(unittest.TestCase):
+    def test_uzbek_som_budget_is_recognized_without_matching_russian_sum_word(self):
+        self.assertEqual(_budget("до 100000 сум"), {"max": 100000.0, "currency": "UZS"})
+        self.assertEqual(_budget("покажи цены в сумме 500"), {})
+
     def test_thousands_budget_refines_current_product_and_keeps_type(self):
         state = ConversationEngineState(user_key="budget-follow-up")
         first = "Сварочный аппарат"
