@@ -39,7 +39,7 @@ from keyboards.products import (
 )
 from models.search_request import SearchMode, SearchRequest
 from services import analytics
-from services.conversation import ConversationState, is_count_only_follow_up
+from services.count_followup import is_count_only_follow_up
 from services.product_identity import identity_pair
 from services.text_matching import (
     extract_requested_result_count,
@@ -128,7 +128,6 @@ STALE_RESULTS_TEXT = (
 #: `user_data` key holding the last effective :class:`SearchRequest`, so a
 #: follow-up message can refine it (see ``services.conversation``). It is
 #: per-user, in memory and expires on its own - no database change.
-CONVERSATION_KEY = "search_conversation"
 
 #: `user_data` key holding a PENDING clarifying question: the engine asked
 #: "what product, for what task?" and the next message is the user's ANSWER,
@@ -182,18 +181,6 @@ def is_discovery_query(text: str) -> bool:
         return False
     return any(marker in lowered for marker in _MOOD_MARKERS)
 
-def get_conversation(context: ContextTypes.DEFAULT_TYPE):
-    """The stored conversation context, or ``None`` when absent/expired."""
-
-    state = context.user_data.get(CONVERSATION_KEY)
-    if not isinstance(state, ConversationState):
-        return None
-    if state.is_expired():
-        context.user_data.pop(CONVERSATION_KEY, None)
-        logger.info("Conversation context expired and was dropped")
-        return None
-    return state
-
 def _last_shown_session(context: ContextTypes.DEFAULT_TYPE) -> str | None:
     """The session id of the result set currently on screen, if any.
 
@@ -229,7 +216,6 @@ def reset_conversation(context: ContextTypes.DEFAULT_TYPE) -> None:
     # and the pending clarification follow.
     context.user_data.pop("_convsearch_state", None)
     for key in (
-        CONVERSATION_KEY,
         PENDING_CLARIFY_KEY,
         "last_shown_session",
         GENERAL_CHAT_STATE_KEY,
@@ -740,14 +726,8 @@ async def search_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if pending is not None:
         consume_pending_clarify(context, decision.outcome)
 
-    # D1 (state consistency): the request the engine built is committed
-    # BEFORE the outcome decides what ships, so a provider outage must not
-    # erase what the user just asked for — a later refinement (budget,
-    # feature, count) refines THIS request.
-    if decision.request is not None:
-        context.user_data[CONVERSATION_KEY] = ConversationState(
-            request=decision.request, welcomed=True
-        )
+    # The engine ledger is committed before delivery, so a provider outage
+    # does not erase the user's latest turn or the context for a retry.
     context.user_data["_convsearch_state"] = conv_state
 
     await _deliver_decision(
@@ -1945,15 +1925,6 @@ def _currency_request_state(text: str) -> dict | None:
     currency = matched if matched in CURRENCIES else None
     return {"currency": currency, "amount": amount}
 
-def _with_result_limit(
-    request: SearchRequest, count: int | None
-) -> SearchRequest:
-    """``request`` carrying the explicitly requested result count."""
-
-    if count is None or count == request.result_limit:
-        return request
-    return request.model_copy(update={"result_limit": count})
-
 def _redeliver_subset(
     outcome: SearchOutcome,
     *,
@@ -2005,7 +1976,6 @@ async def _answer_from_shown(
     if outcome is None or not outcome.products:
         return False
 
-    conversation = get_conversation(context)
     count = is_count_only_follow_up(text)
     if count is not None:
         # «Покажи 5» re-delivers products ALREADY retrieved - no provider
@@ -2026,11 +1996,6 @@ async def _answer_from_shown(
         )
         if shown:
             context.user_data["last_shown_session"] = shown
-        if conversation is not None:
-            # The conversation keeps the SAME product request; only the
-            # requested count moves, so the next follow-up still refines it.
-            conversation.request = _with_result_limit(conversation.request, count)
-            conversation.touch()
         delivered = len(narrowed.products)
         try:
             await context.bot.send_message(
